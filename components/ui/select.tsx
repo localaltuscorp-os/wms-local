@@ -220,7 +220,7 @@ export function Select({
             // focused input for arrow-key nav + Tab-to-commit + typeahead.
             <CommandInput className="sr-only" aria-label="Filter options" placeholder="" />
           )}
-          <CommandList className="gdd-scroll max-h-[22rem] overflow-auto">
+          <CommandList className="gdd-scroll max-h-[320px] overflow-auto">
             <CommandEmpty className="px-3 py-2.5 text-sm text-ink-subtle">
               No results.
             </CommandEmpty>

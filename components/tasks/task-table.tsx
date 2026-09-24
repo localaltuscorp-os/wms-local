@@ -2441,7 +2441,7 @@ function ColumnsMenu({ table }: { table: TableInstance<TaskListRow> }) {
           Columns
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent className="max-h-[320px]">
         <DropdownMenuLabel>Show Columns</DropdownMenuLabel>
         {/* Show all / Hide all across the optional columns. `toggleVisibility`
             sets through a functional update, so a loop over the list is safe —

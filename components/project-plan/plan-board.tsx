@@ -34,9 +34,11 @@ import { PRIORITY_LABELS, TASK_PRIORITIES, type TaskStatus, type TaskPriority } 
 // in both places — and so an edit here writes through the same actions.
 import { InlineDoerCell, InlinePriorityCell, PriorityPill } from "@/components/tasks/inline-edit-cells";
 import { CriticalBadge } from "@/components/ui/critical-badge";
+import { DateInput } from "@/components/ui/date-input";
 import { BulkActionBar } from "@/components/tasks/bulk-action-bar";
 import { CompactSelect } from "@/components/ui/compact-select";
-import { DateInput } from "@/components/ui/date-input";
+import { ClientSelect } from "@/components/tasks/client-select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { sortPlanTree, type SortableColumn, type SortDir } from "@/lib/project-plan/sort";
 import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { PlanKanban, kanbanCards } from "./plan-kanban";
@@ -634,10 +636,12 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const writeLock = React.useRef(false);
 
   // Toolbar state.
-  const [projectId, setProjectId] = React.useState<string>("all");
+  const [projectIds, setProjectIds] = React.useState<string[]>([]);
   const [search, setSearch] = React.useState("");
   const [sortKey, setSortKey] = React.useState<SortKey>("position");
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
+  const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
+  const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
 
   /**
    * One click on a header, three states — ascending, descending, back to the
@@ -983,10 +987,10 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
    * what is on screen, rather than the stored order.
    */
   const baseTree = React.useMemo(() => {
-    let t = projectId === "all" ? tree : tree.filter((p) => p.id === projectId);
+    let t = projectIds.length === 0 ? tree : tree.filter((p) => projectIds.includes(p.id));
     if (query) t = pruneBy(t, (n) => n.name.toLowerCase().includes(query));
     return sortTree(t, sortKey, sortDir);
-  }, [tree, projectId, query, sortKey, sortDir]);
+  }, [tree, projectIds, query, sortKey, sortDir]);
 
   const counts = React.useMemo(() => countTree(baseTree), [baseTree]);
 
@@ -1025,8 +1029,19 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
   /** What actually renders, once the row cap is applied. */
   const shownRows = React.useMemo(
-    () => (rowLimit === "all" ? rows : rows.slice(0, rowLimit)),
-    [rows, rowLimit],
+    () => {
+      const filtered = rows.filter((row) => {
+        const doer = effectivePlanStatus(
+          isExecutable(row.node.kind) && row.node.task ? row.node.task.status : row.node.status,
+          null,
+          false,
+        );
+        const initiator = approverDisplay(row.node.approvalStatus, isSelfRaisedNode(row.node));
+        return (doerStatus.length === 0 || doerStatus.includes(doer)) && (initiatorStatus.length === 0 || initiatorStatus.includes(initiator));
+      });
+      return rowLimit === "all" ? filtered : filtered.slice(0, rowLimit);
+    },
+    [rows, rowLimit, doerStatus, initiatorStatus],
   );
 
   const selectedRows = React.useMemo(
@@ -1402,11 +1417,6 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           rather than one per row: the roster is the same for every project, and
           a copy per row on a 200-row plan is 200 identical option lists in the
           DOM. Free text either way — the roster suggests, it does not refuse. */}
-      <datalist id="plan-client-roster">
-        {clients.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
       {/* ── Title row — name, the shape of what is on screen, full screen. ── */}
       <header className="mb-3 flex flex-wrap items-center gap-3">
         <h1
@@ -1571,16 +1581,16 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           <SlidersHorizontal size={13} strokeWidth={2.2} />
         </span>
 
-        <BarSelect
-          label="Project"
-          value={projectId}
+        <MultiSelect
+          selected={projectIds}
+          placeholder="All projects"
           // Narrowing the board to one project is the plainest statement there
           // is about which project you are in — so it is remembered too.
-          onChange={(v) => { setProjectId(v); if (v !== "all") remember(v); }}
+          onChange={(values) => { setProjectIds(values); if (values.length === 1) remember(values[0]!); }}
           options={[
-            { value: "all", label: `All projects (${tree.length})` },
             ...tree.map((p) => ({ value: p.id, label: p.name || "Untitled project" })),
           ]}
+          className="h-7 min-w-[132px] rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
         />
 
         <BarSelect
@@ -1623,6 +1633,26 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 ]
           }
         />
+        <MultiSelect
+          selected={doerStatus}
+          onChange={setDoerStatus}
+          placeholder="All Doer Status"
+          className="h-7 min-w-[120px] rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
+          options={[
+            { value: "not_read", label: "Not Read" }, { value: "not_started", label: "Not Started" }, { value: "initiated", label: "Initiated" },
+            { value: "follow_up", label: "Follow Up" }, { value: "need_info", label: "Need Info" }, { value: "done", label: "Done" }, { value: "abandoned", label: "Abandoned" },
+          ]}
+        />
+        <MultiSelect
+          selected={initiatorStatus}
+          onChange={setInitiatorStatus}
+          placeholder="All Initiator Status"
+          className="h-7 min-w-[136px] rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
+          options={[
+            { value: "not_applicable", label: "Not Applicable" }, { value: "pending", label: "Pending" }, { value: "approved", label: "Approved" },
+            { value: "not_approved", label: "Not Approved" }, { value: "on_hold", label: "On Hold" }, { value: "archived", label: "Archived" }, { value: "cancelled", label: "Cancelled" },
+          ]}
+        />
 
 
 
@@ -1632,9 +1662,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
           {/* Active-filter pill — tinted only when a filter is really on, and
               clicking it clears the filter rather than opening another menu. */}
-          {projectId !== "all" && (
+          {projectIds.length > 0 && (
             <button
-              onClick={() => setProjectId("all")}
+              onClick={() => setProjectIds([])}
               className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-lg px-2 text-[11.5px] font-bold transition-opacity hover:opacity-80"
               style={{ background: ACCENT_SOFT, color: ACCENT_DEEP }}
               title="Clear the project filter"
@@ -1926,6 +1956,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 row={row}
                 collapsed={collapsed.has(row.node.id)}
                 employees={employees}
+                clients={clients}
                 busyKey={busy}
                 treeBusy={pending}
                 onToggle={toggle}
@@ -1958,7 +1989,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 table, because the row this creates is an untitled project that
                 neither would match: the button would appear to do nothing. The
                 toolbar box is still there for that case. */}
-            {rows.length > 0 && !query && projectId === "all" && (
+            {rows.length > 0 && !query && projectIds.length === 0 && (
               <tr>
                 <td colSpan={1 + shownCols.length} className="px-3 py-2">
                   <button
@@ -2092,7 +2123,7 @@ function Th({ children, className = "" }: { children: React.ReactNode; className
 /* ────────────────────────────── One row ────────────────────────────── */
 
 function Row({
-  row, collapsed, employees, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete, onPurge, canPurge,
+  row, collapsed, employees, clients, busyKey, treeBusy, onToggle, onAddChild, onRun, onDelete, onPurge, canPurge,
   detailOpen, onOpenDetail, shownCols, selected, onToggleSelect, onOpenTask,
   isAdmin, canManage, me, downlineSet, clientOf,
   onDragStart, dragging, dropTarget,
@@ -2100,6 +2131,7 @@ function Row({
   row: FlatRow;
   collapsed: boolean;
   employees: EmployeeOption[];
+  clients: string[];
   busyKey: string | null;
   /**
    * ANY write on the tree is still settling — including its `router.refresh()`.
@@ -2578,18 +2610,15 @@ function Row({
             }
             return (
               <td key={key} className={pad}>
-                <input
-                  list="plan-client-roster"
-                  defaultValue={node.clientName ?? ""}
-                  key={`${node.id}:c:${node.clientName ?? ""}`}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v === (node.clientName ?? "")) return;
-                    patch({ clientName: v || null });
+                <ClientSelect
+                  value={node.clientName ?? ""}
+                  clients={clients}
+                  canAdd={isAdmin}
+                  onChange={(value) => {
+                    if (value !== (node.clientName ?? "")) patch({ clientName: value || null });
                   }}
                   placeholder="Client…"
                   className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
-                  aria-label="Client"
                 />
               </td>
             );
@@ -2602,7 +2631,8 @@ function Row({
                   value={node.targetDate ?? ""}
                   onChange={(value) => patch({ targetDate: value || null })}
                   className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[13px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
-                  aria-label="Target date"
+                  placeholder="DD-MMM-YYYY"
+                  ariaLabel="Target date"
                 />
               </td>
             );
@@ -2797,10 +2827,9 @@ function DateCell({
     <td className={`px-2 py-1.5 align-middle${last ? " pr-3" : ""}`}>
       <DateInput
         value={ymd}
-        onChange={(next) => {
-          onChange(next ? (combineDateTime(next, hm)?.toISOString() ?? null) : null);
-        }}
+        onChange={(next) => onChange(next ? (combineDateTime(next, hm)?.toISOString() ?? null) : null)}
         className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-[12.5px] font-medium text-ink-strong outline-none transition-colors hover:border-hairline-strong focus:border-[#E10600] focus:bg-white"
+        placeholder="DD-MMM-YYYY"
         ariaLabel={label}
       />
     </td>
@@ -3255,7 +3284,7 @@ function ColumnsPicker({
         <>
           {/* Click-away layer, under the menu but over everything else. */}
           <div className="fixed inset-0 z-[115]" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-[116] mt-2 w-[248px] rounded-xl border border-hairline-strong bg-white p-1.5 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.35)]">
+          <div className="absolute right-0 top-full z-[116] mt-2 w-[220px] rounded-xl border border-hairline-strong bg-white p-1 shadow-[0_12px_32px_-12px_rgba(15,23,42,0.35)]">
             {/* Show all / Hide all, the same bar every other multi-select in
                 the app carries. Only the OPTIONAL columns are counted or
                 touched: Ref, Controls and the name column are structural — they
@@ -3265,16 +3294,17 @@ function ColumnsPicker({
                 emptied to nothing is a dead end. */}
             <SelectAllBar
               compact
-              className="-mx-1.5 -mt-1.5 mb-1 rounded-t-[inherit]"
+              className="-mx-1 -mt-1 mb-0.5 rounded-t-[inherit]"
               count={visible.size}
               total={OPTIONAL_COLUMNS.length}
               emptyLabel="No optional columns"
               onSelectAll={() => onChange(new Set(OPTIONAL_COLUMNS.map((c) => c.key)))}
               onClear={() => onChange(new Set([OPTIONAL_COLUMNS[0]!.key]))}
             />
-            <p className="px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
+            <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-[0.09em] text-ink-subtle">
               Drag to reorder
             </p>
+            <div className="max-h-[min(48vh,320px)] overflow-y-auto pr-0.5">
             {order.map((key) => {
               const c = COL_META.get(key)!;
               // A fixed column is always on and cannot be unticked — it can
@@ -3296,11 +3326,11 @@ function ColumnsPicker({
                       draggingRef.current = key;
                       setDragKey(key);
                     }}
-                    className="cursor-grab touch-none px-1 py-1.5 text-ink-subtle active:cursor-grabbing"
+                    className="cursor-grab touch-none px-1 py-1 text-ink-subtle active:cursor-grabbing"
                     title={`Drag to move ${c.label}`}
                     aria-label={`Drag to move ${c.label}`}
                   >
-                    <GripVertical size={14} />
+                    <GripVertical size={12} />
                   </button>
                   <button
                     onClick={() => toggle(key)}
@@ -3312,24 +3342,25 @@ function ColumnsPicker({
                           ? "At least one column has to stay visible"
                           : undefined
                     }
-                    className={`flex flex-1 items-center gap-2 rounded-lg py-1.5 pr-2.5 text-left text-[13px] font-semibold text-ink-soft ${locked ? "cursor-default" : "disabled:opacity-40"}`}
+                    className={`flex flex-1 items-center gap-1.5 rounded-lg py-1 pr-2 text-left text-[12px] font-semibold text-ink-soft ${locked ? "cursor-default" : "disabled:opacity-40"}`}
                   >
                     <span
-                      className="grid size-4 shrink-0 place-items-center rounded border"
+                      className="grid size-3.5 shrink-0 place-items-center rounded border"
                       style={on
                         ? locked
                           ? { background: "var(--color-hairline-strong)", borderColor: "var(--color-hairline-strong)", color: "white" }
                           : { background: ACCENT, borderColor: ACCENT, color: "white" }
                         : { borderColor: "var(--color-hairline-strong)" }}
                     >
-                      {on && <Check size={11} strokeWidth={3} />}
+                      {on && <Check size={10} strokeWidth={3} />}
                     </span>
                     {c.label}
-                    {locked && <span className="ml-auto text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle">Fixed</span>}
+                    {locked && <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-ink-subtle">Fixed</span>}
                   </button>
                 </div>
               );
             })}
+            </div>
           </div>
         </>
       )}

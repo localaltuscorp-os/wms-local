@@ -42,6 +42,8 @@ import {
 } from "@/lib/project-plan/views";
 import { CollapseToggle, CollapsibleBody } from "@/components/dashboard/section-chrome";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiSelect } from "@/components/ui/multi-select";
+
 import type { PlanRow } from "./plan-board";
 import { effectivePlanStatus, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, type PlanStatus } from "@/lib/project-plan/status";
 
@@ -222,7 +224,7 @@ export function ProjectViews({
     [tree, initialSelection],
   );
 
-  const [rootId, setRootId] = React.useState<string | null>(arriving.projectId);
+  const [rootIds, setRootIds] = React.useState<string[]>(arriving.projectId ? [arriving.projectId] : []);
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PlanStatus | "all">("all");
   const [sort, setSort] = React.useState<TreeSort>(null);
@@ -241,12 +243,18 @@ export function ProjectViews({
   const projects = React.useMemo(() => orderedTree.filter((n) => n.kind === "project"), [orderedTree]);
 
   const rows = React.useMemo(
-    () => flattenPlanTree(orderedTree, expanded, { rootId, query }),
-    [orderedTree, expanded, rootId, query],
+    () =>
+      flattenPlanTree(
+        rootIds.length > 0 ? orderedTree.filter((p) => rootIds.includes(p.id)) : orderedTree,
+        expanded,
+        { query },
+      ),
+    [orderedTree, expanded, rootIds, query],
   );
   const filteredRows = React.useMemo(
     () => statusFilter === "all" ? rows : rows.filter((row) => nodeStatus(row.node) === statusFilter),
     [rows, statusFilter],
+
   );
 
   // Recomputed as rows open and close: expand down to an Action and the Start /
@@ -283,17 +291,27 @@ export function ProjectViews({
 
   /** Keep the project filter in the URL — it is the one piece of this screen's
    *  state worth sharing, and `replaceState` avoids a refetch of rows we hold. */
-  function pickProject(id: string) {
-    const next = id || null;
-    setRootId(next);
-    if (next) setExpanded((prev) => new Set(prev).add(next));
-    window.history.replaceState(null, "", next ? `?project=${next}` : window.location.pathname);
+  /**
+   * The project filter holds a LIST (pick several at once), but the dashboard
+   * widgets above the tree each pick exactly ONE — a bar, a timeline row, a
+   * metric card. This adapts the one to the other rather than making every
+   * caller build an array, and an empty id means "clear the filter", which is
+   * what the Total projects card does.
+   */
+  function pickOneProject(id: string) {
+    pickProject(id ? [id] : []);
+  }
+
+  function pickProject(ids: string[]) {
+    setRootIds(ids);
+    if (ids.length === 1) setExpanded((prev) => new Set(prev).add(ids[0]!));
+    window.history.replaceState(null, "", ids.length === 1 ? `?project=${ids[0]!}` : window.location.pathname);
   }
 
   /** Open the real WMS task record for an executable row. */
   function openTask(taskId: string) {
     const q = new URLSearchParams();
-    if (rootId) q.set("project", rootId);
+    if (rootIds.length === 1) q.set("project", rootIds[0]!);
     q.set("task", taskId);
     router.push(`/project-plan/views?${q.toString()}` as Route);
   }
@@ -320,7 +338,8 @@ export function ProjectViews({
       : { key, direction: "asc" });
   }
 
-  const project = rootId ? projects.find((p) => p.id === rootId) ?? null : null;
+  const project = rootIds.length === 1 ? projects.find((p) => p.id === rootIds[0]) ?? null : null;
+
   const scope = React.useMemo(
     () => (project ? [project] : orderedTree),
     [project, orderedTree],
@@ -368,25 +387,38 @@ export function ProjectViews({
           </label>
           </CollapsibleSearch>
 
-          <select
-            value={rootId ?? ""}
-            onChange={(e) => pickProject(e.target.value)}
-            aria-label="Filter by project"
+          <MultiSelect
+            selected={rootIds}
+            onChange={pickProject}
+            placeholder="All projects"
+            options={projects.map((p, i) => ({ value: p.id, label: `P${i + 1} · ${p.name}` }))}
             className="min-w-[200px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13.5px] font-bold text-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-altus-red/30"
+          />
+          <button
+            type="button"
+            onClick={() => setExpanded(new Set(expandableIds(scope)))}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            title="Open every level"
           >
-            <option value="">All projects</option>
-            {projects.map((p, i) => (
-              <option key={p.id} value={p.id}>
-                P{i + 1} · {p.name}
-              </option>
-            ))}
-          </select>
+            <ChevronsUpDown size={13} strokeWidth={2.4} aria-hidden />
+            Expand all
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded(new Set())}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            title="Close every level"
+          >
+            <ChevronsDownUp size={13} strokeWidth={2.4} aria-hidden />
+            Collapse
+          </button>
 
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as PlanStatus | "all")}
             aria-label="Filter by project status"
             className="min-w-[150px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-altus-red/30"
+
           >
             <option value="all">All statuses</option>
             {Object.entries(PLAN_STATUS_LABEL).map(([status, label]) => (
@@ -406,7 +438,7 @@ export function ProjectViews({
       </nav>
 
       <section id="project-overview" className="grid gap-3 scroll-mt-32 sm:grid-cols-2 xl:grid-cols-5" aria-label="Project summary">
-        <MetricCard label="Total projects" value={projects.length} icon={<FolderKanban size={18} />} onClick={() => pickProject("")} />
+        <MetricCard label="Total projects" value={projects.length} icon={<FolderKanban size={18} />} onClick={() => pickProject([])} />
         <MetricCard label="Initiated" value={metrics.projectStatuses.initiated ?? 0} tone="cyan" icon={<TrendingUp size={18} />} onClick={() => { setStatusFilter("initiated"); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
         <MetricCard label="Not started" value={metrics.projectStatuses.not_started ?? 0} tone="slate" icon={<ListTree size={18} />} onClick={() => { setStatusFilter("not_started"); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
         <MetricCard label="Total milestones" value={metrics.milestoneCount} tone="violet" icon={<BarChart3 size={18} />} onClick={() => router.push("/project-plan/milestones" as Route)} />
@@ -418,10 +450,10 @@ export function ProjectViews({
           <StatusDistribution counts={metrics.projectStatuses} total={projects.length} onPick={(status) => { setStatusFilter(status); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
         </DashboardWidget>
         <DashboardWidget id="project-breakdown" title="Milestone & results breakdown" icon={<TrendingUp size={17} />} subtitle="Completion across the top-level project portfolio">
-          <ProjectProgressChart projects={projects} onPick={pickProject} />
+          <ProjectProgressChart projects={projects} onPick={pickOneProject} />
         </DashboardWidget>
         <DashboardWidget id="project-delivery" title="Delivery timeline" icon={<ListTree size={17} />} subtitle="Target dates and current delivery state for each project">
-          <DeliveryTimeline projects={projects} onPick={pickProject} />
+          <DeliveryTimeline projects={projects} onPick={pickOneProject} />
         </DashboardWidget>
         <DashboardWidget id="project-execution" title="Execution breakdown" icon={<FolderKanban size={17} />} subtitle="How the portfolio is distributed across milestones, results, and work items">
           <ExecutionBreakdown nodes={allNodes} />

@@ -43,6 +43,7 @@ interface Props {
     prio: string[];
     subj: string[];
     status?: string[];
+    initiatorStatus?: string[];
     client?: string[];
     /** `?overdue=true` — narrows to open work already past its due date. */
     overdue?: boolean;
@@ -104,6 +105,17 @@ const TINT = {
   team: "#0d9488",
 } as const;
 
+const DOER_STATUS_VALUES = new Set(["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"]);
+const INITIATOR_STATUS_OPTIONS = [
+  { value: "not_applicable", label: "Not Applicable" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "not_approved", label: "Not Approved" },
+  { value: "on_hold", label: "On Hold" },
+  { value: "archived", label: "Archived" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 export function FilterBar({
   employees,
   initial,
@@ -157,6 +169,7 @@ export function FilterBar({
   const [prio, setPrio] = React.useState<string[]>(initial.prio);
   const [subj, setSubj] = React.useState<string[]>(initial.subj);
   const [status, setStatus] = React.useState<string[]>(initial.status ?? []);
+  const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>(initial.initiatorStatus ?? []);
   const [client, setClient] = React.useState<string[]>(initial.client ?? []);
 
   const range: DateRange | undefined = React.useMemo(() => {
@@ -230,6 +243,7 @@ export function FilterBar({
     if (prio.length > 0) sp.set("prio", prio.join(",")); else sp.delete("prio");
     if (subj.length > 0) sp.set("subj", subj.join(",")); else sp.delete("subj");
     if (status.length > 0) sp.set("status", status.join(",")); else sp.delete("status");
+    if (initiatorStatus.length > 0) sp.set("initiator_status", initiatorStatus.join(",")); else sp.delete("initiator_status");
     if (client.length > 0) sp.set("client", client.join(",")); else sp.delete("client");
     if (overdue) sp.set("overdue", "true"); else sp.delete("overdue");
     if (ageRange) sp.set("age_range", ageRange); else sp.delete("age_range");
@@ -246,7 +260,7 @@ export function FilterBar({
     const t = setTimeout(apply, 200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [start, end, view, emp, assigneeMode, dept, prio, subj, status, client, overdue, ageRange, team]);
+  }, [start, end, view, emp, assigneeMode, dept, prio, subj, status, initiatorStatus, client, overdue, ageRange, team]);
 
   function reset() {
     const today = new Date();
@@ -259,6 +273,7 @@ export function FilterBar({
     setPrio([]);
     setSubj([]);
     setStatus([]);
+    setInitiatorStatus([]);
     setClient([]);
     setOverdue(false);
     setAgeRange(null);
@@ -347,6 +362,8 @@ export function FilterBar({
   const activePills: ActivePill[] = [];
   for (const s of status)
     activePills.push({ key: `s-${s}`, label: statusLabel(s), color: TINT.status, remove: () => setStatus(status.filter((x) => x !== s)) });
+  for (const s of initiatorStatus)
+    activePills.push({ key: `is-${s}`, label: `Initiator: ${statusLabel(s)}`, color: TINT.status, remove: () => setInitiatorStatus(initiatorStatus.filter((x) => x !== s)) });
   for (const p of prio)
     activePills.push({ key: `p-${p}`, label: PRIORITY_LABELS[p as TaskPriority] ?? p, color: TINT.priority, remove: () => setPrio(prio.filter((x) => x !== p)) });
   /* THE DEFAULT SCOPE IS NOT A FILTER.
@@ -523,7 +540,16 @@ export function FilterBar({
           />
 
           {statusOptions && statusOptions.length > 0 && (
-            <StatusFilter options={statusOptions} selected={status} onChange={setStatus} />
+            <>
+              <StatusFilter options={statusOptions.filter((option) => DOER_STATUS_VALUES.has(option.value))} selected={status} onChange={setStatus} name="Doer Status" allLabel="All Doer Status" />
+              <StatusFilter
+                options={INITIATOR_STATUS_OPTIONS}
+                selected={initiatorStatus}
+                onChange={setInitiatorStatus}
+                name="Initiator Status"
+                allLabel="All Initiator Status"
+              />
+            </>
           )}
           <PriorityFilter selected={prio} onChange={setPrio} />
           {clients && clients.length > 0 && (

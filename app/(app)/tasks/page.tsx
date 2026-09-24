@@ -176,6 +176,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           subj:   filters.subjects,
           // Reflect the Archived pseudo-chip back into the picker when active.
           status: filters.archived ? [...filters.statuses, "archived"] : filters.statuses,
+          initiatorStatus: filters.initiatorStatuses,
           client: filters.clients,
           overdue: filters.overdue,
           ageRange: filters.ageRange ? FINE_BUCKET_SLUGS[filters.ageRange] : null,
