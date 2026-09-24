@@ -534,6 +534,29 @@ export async function editEmployee(
     }
   }
 
+  // ── DCC COORDINATOR: ANY ADMIN MAY GRANT THIS TOO ──────────────────────────
+  // The same call as issue-letters above, and for the same reason: it is an
+  // operational duty — keeping the weekly and monthly compliance rosters right —
+  // rather than a security boundary. It cannot be used to acquire anything else:
+  // its reach stops at WCC and MCC, and it does not carry the approver ruling
+  // (see `ComplianceScope.chainIds` in lib/dcc/access.ts). Whoever holds it is
+  // recorded on every entry they touch, so the trail names them.
+  if (parsed.data.canCoordinateDcc !== undefined) {
+    const currently = await hasCapabilityGrant(emp.email, "dcc.coordinator");
+    if (parsed.data.canCoordinateDcc !== currently) {
+      const signedIn = await getSignedInEmployee();
+      const res = await setCapabilityGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        capability: "dcc.coordinator",
+        grant: parsed.data.canCoordinateDcc,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
+  }
+
   // Build the patch — only include keys that were actually supplied.
   // (Zod's `.optional()` leaves omitted keys absent, so we can safely spread.)
   const patch: Partial<typeof employees.$inferInsert> = {};

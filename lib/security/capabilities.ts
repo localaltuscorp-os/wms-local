@@ -196,7 +196,37 @@ export type SecurityCapability =
    * NOT "any admin": every task, goal, checklist and project files under these
    * names, and one careless rename or duplicate splits that history in two.
    */
-  | "task_rosters.manage";
+  | "task_rosters.manage"
+  /**
+   * MAY SEE AND MAINTAIN EVERY EMPLOYEE'S WCC AND MCC COMPLIANCES.
+   *
+   * The two checklists are administrative: whoever prepares the roster sets the
+   * compliances up, records what was done and keeps them right. That person is
+   * an HR admin, a coordinator or an intern handed the job — and is usually NOT
+   * the manager of the people on the list.
+   *
+   * ── WHY IT IS IN THE DATABASE AND NOT HERE ────────────────────────────────
+   * It is `DB_BACKED_CAPABILITIES` in lib/security/capability-grants.ts, for the
+   * same reason `hr.letters.issue` is: the point is that the owner can hand it
+   * to somebody from the employee editor without a deploy. Granting it through
+   * the GRANTS table below would defeat that, so no address appears there.
+   *
+   * ── WHY NOT THE ORG CHART, WHICH ALREADY WORKS ────────────────────────────
+   * Making somebody the manager of everyone also decides who approves their
+   * attendance and who may hand them tasks, and it records a reporting line that
+   * is not true. The narrower lever is the honest one.
+   *
+   * ── WHAT IT OPENS, AND WHAT IT DOES NOT ──────────────────────────────────
+   * See the docstring on `loadComplianceScope` in lib/dcc/access.ts. In short:
+   * WCC and MCC only — never the DCC board, the Masters screen or the call log;
+   * and never the APPROVER RULING, which is `chainIds` and stays the reporting
+   * chain. Running the roster is not being everybody's manager.
+   *
+   * Its guards are awaited (`isComplianceCoordinator`), which is the precondition
+   * for a capability being stored as data — see migration 0226's CHECK and
+   * migration 0248 that widens it.
+   */
+  | "dcc.coordinator";
 
 /**
  * WHO HOLDS WHAT. The single source of truth.

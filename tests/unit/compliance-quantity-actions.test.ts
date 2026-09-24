@@ -14,6 +14,8 @@ import { readFileSync } from "node:fs";
 const h = vi.hoisted(() => ({
   pg: null as unknown as import("@electric-sql/pglite").PGlite,
   me: { id: "", isAdmin: false, email: "doer@example.com" },
+  /** Holds `dcc.coordinator` — may record against anybody's row (migration 0248). */
+  coordinator: false,
 }));
 
 vi.mock("server-only", () => ({}));
@@ -25,7 +27,15 @@ vi.mock("@/lib/rate-limit", () => ({ rateLimitOrError: () => null }));
 vi.mock("@/lib/dcc/calendar-sync", () => ({ scheduleDccCalendarSync: vi.fn() }));
 vi.mock("@/lib/dcc/access", () => ({
   loadDccScope: vi.fn(async () => ({ visibleIds: new Set([h.me.id]) })),
+  loadComplianceScope: vi.fn(async () => ({
+    visibleIds: new Set([h.me.id]),
+    chainIds: new Set([h.me.id]),
+    isSuper: false,
+    isManager: false,
+    isCoordinator: h.coordinator,
+  })),
   canManageItemsFor: () => true,
+  isComplianceCoordinator: vi.fn(async () => h.coordinator),
 }));
 vi.mock("@/lib/dcc/item-guard", () => ({ guardItemWrite: vi.fn(async () => ({ ok: true, owner: h.me.id })) }));
 vi.mock("@/lib/db", async () => {
@@ -39,6 +49,8 @@ vi.mock("@/lib/db", async () => {
 import { saveComplianceItem, setComplianceDoer } from "@/app/(app)/dcc/compliance-actions";
 
 const DOER = "11111111-1111-4111-8111-111111111111";
+/** Somebody else, so "may I record against THEIR row" has something to ask about. */
+const OTHER = "22222222-2222-4222-8222-222222222222";
 const DAY = "2026-09-15";
 
 /** DCC's two tables as they stood before 0238 — every column Drizzle writes. */
@@ -77,7 +89,7 @@ beforeAll(async () => {
   await h.pg.exec(M0239); // applied by hand, so it must survive a second run
   await h.pg.exec(M0240);
   await h.pg.exec(M0242);
-  await h.pg.query(`INSERT INTO employees (id, name) VALUES ($1, 'Priya')`, [DOER]);
+  await h.pg.query(`INSERT INTO employees (id, name) VALUES ($1, 'Priya'), ($2, 'Ravi')`, [DOER, OTHER]);
 }, 60_000);
 
 afterAll(async () => {
@@ -97,14 +109,20 @@ afterEach(() => {
 beforeEach(async () => {
   setToday(DAY);
   h.me = { id: DOER, isAdmin: false, email: "doer@example.com" };
+  h.coordinator = false;
   await h.pg.exec(`DELETE FROM dcc_entries; DELETE FROM dcc_kpi_items;`);
 });
 
-async function compliance(title: string, target: string | null = null, unit: string | null = null): Promise<string> {
+async function compliance(
+  title: string,
+  target: string | null = null,
+  unit: string | null = null,
+  ownerId: string = DOER,
+): Promise<string> {
   const r = await h.pg.query<{ id: string }>(
     `INSERT INTO dcc_kpi_items (owner_employee_id, title, weekdays, schedule_kind, target_number, unit)
      VALUES ($1, $2, 63, 'scheduled', $3, $4) RETURNING id`,
-    [DOER, title, target, unit],
+    [ownerId, title, target, unit],
   );
   return r.rows[0]!.id;
 }
@@ -255,6 +273,53 @@ describe("the Target on the add / edit pop-up", () => {
       ok: false,
       error: "The target must be a whole number.",
     });
+  });
+});
+
+describe("somebody else's row — the DCC Coordinator grant (migration 0248)", () => {
+  const whoFilled = async (itemId: string) =>
+    (await h.pg.query<{ doer_status: string | null; filled_by_id: string | null }>(
+      `SELECT doer_status, filled_by_id FROM dcc_entries WHERE item_id = $1`,
+      [itemId],
+    )).rows[0];
+
+  it("is refused without the grant, and writes nothing", async () => {
+    const id = await compliance("Send 25 emails", null, null, OTHER);
+    expect(await doer(id, { doerStatus: "done" })).toEqual({
+      ok: false,
+      error: "Only the person it belongs to can update their Doer Status.",
+    });
+    expect(await fillOf(id)).toBeUndefined();
+  });
+
+  it("saves with it, and the row records who actually typed it in", async () => {
+    h.coordinator = true;
+    // A title with no number, so this case is about the GRANT and not about the
+    // count — "Send 25 emails" would need one, and that is the next test.
+    const id = await compliance("Send update to Manan Sir", null, null, OTHER);
+    expect(await doer(id, { doerStatus: "done" })).toEqual({ ok: true });
+    // The grant lets somebody record another's work; it does not make the record
+    // anonymous. `filled_by_id` is the coordinator, not the person on the row.
+    expect(await whoFilled(id)).toMatchObject({ doer_status: "done", filled_by_id: DOER });
+  });
+
+  it("carries the count through too, since that is the same write", async () => {
+    h.coordinator = true;
+    const id = await compliance("Send 25 emails", null, null, OTHER);
+    expect(await doer(id, { doerStatus: "done", completedQuantity: 18 })).toEqual({ ok: true });
+    const f = await fillOf(id);
+    expect(f).toMatchObject({ completed_quantity: 18, value_number: "18.00" });
+  });
+
+  it("still cannot touch a day that has closed", async () => {
+    h.coordinator = true;
+    const id = await compliance("Send 25 emails", null, null, OTHER);
+    // The grant is about WHOSE row, not WHICH day. The day lock is a separate
+    // rule (`dcc.edit_past_entries`, which stays Manan's) and this does not bend
+    // it — ten days back has lapsed for a coordinator exactly as for everyone.
+    const res = await doer(id, { doerStatus: "done", deadline: "2026-09-05" });
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toMatch(/lapsed/);
   });
 });
 

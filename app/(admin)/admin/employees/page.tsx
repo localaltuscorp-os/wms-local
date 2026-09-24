@@ -107,6 +107,13 @@ export default async function EmployeesPage() {
     .filter((e) => letterIssuerEmails.has((e.email ?? "").trim().toLowerCase()))
     .map((e) => e.id);
 
+  // Who may see and maintain everyone's WCC and MCC (migration 0248). Ids only,
+  // same reason as the lists above.
+  const dccCoordinatorEmails = await grantsFor("dcc.coordinator");
+  const dccCoordinatorIds = all
+    .filter((e) => dccCoordinatorEmails.has((e.email ?? "").trim().toLowerCase()))
+    .map((e) => e.id);
+
   return (
     <AdminSection
       eyebrow="Admin · Employees"
@@ -171,6 +178,7 @@ export default async function EmployeesPage() {
         canManageMasterAdmin={canManageMasterAdmin}
         masterAdminIds={masterAdminIds}
         letterIssuerIds={letterIssuerIds}
+        dccCoordinatorIds={dccCoordinatorIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />

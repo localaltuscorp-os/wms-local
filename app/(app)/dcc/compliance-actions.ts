@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { canEditPastDccEntries } from "@/lib/security/capabilities";
-import { loadDccScope, canManageItemsFor } from "@/lib/dcc/access";
+import { loadDccScope, loadComplianceScope, canManageItemsFor, isComplianceCoordinator } from "@/lib/dcc/access";
 import { guardItemWrite } from "@/lib/dcc/item-guard";
 import { scheduleDccCalendarSync } from "@/lib/dcc/calendar-sync";
 import { checkFillWindow, kindOf, periodFor } from "@/lib/compliance/schedule";
@@ -239,7 +239,14 @@ export async function setComplianceDoer(raw: z.input<typeof DoerInput>): Promise
 
   const item = await loadItem(v.itemId);
   if (!item) return fail("That compliance no longer exists.");
-  if (!(item.owner === me.id || isSuperAdmin(me.email) || canEditPastDccEntries(me.email))) {
+  /* WHOSE ROW MAY THIS PERSON RECORD AGAINST?
+     Their own, always. Everybody's for a `dcc.coordinator` — running the two
+     rosters is the job, and recording what was actually done is most of it
+     (migration 0248; the grant is on the employee editor). And as before, the
+     past-entry editor and super-admins, who are the only ones the day lock below
+     also bends for. */
+  const mayRecordAnyone = isSuperAdmin(me.email) || canEditPastDccEntries(me.email);
+  if (!(item.owner === me.id || mayRecordAnyone || (await isComplianceCoordinator(me.email)))) {
     return fail("Only the person it belongs to can update their Doer Status.");
   }
   const quantity = quantityTargetOf(item);
@@ -627,7 +634,8 @@ export async function setComplianceMinutes(raw: z.input<typeof MinutesInput>): P
     .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)))
     .limit(1);
   if (!item) return fail("That compliance no longer exists.");
-  const scope = await loadDccScope(me);
+  // The COORDINATOR scope, so whoever runs the rosters can time them too.
+  const scope = await loadComplianceScope(me);
   if (!canManageItemsFor(scope, item.owner)) {
     return fail("You can set the Mins of your own compliances and your team's only.");
   }

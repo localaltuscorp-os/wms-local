@@ -2,7 +2,7 @@ import "server-only";
 import type { Employee } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { canEditPastDccEntries } from "@/lib/security/capabilities";
-import { loadDccScope, canManageItemsFor } from "@/lib/dcc/access";
+import { loadComplianceScope, canManageItemsFor } from "@/lib/dcc/access";
 import { isMissingTable, loadMasterLinksForItems } from "@/lib/dcc/master-sync";
 import { loadComplianceFills, loadComplianceItems, loadCompliancePeople } from "@/lib/queries/compliance";
 import {
@@ -136,7 +136,9 @@ export async function loadComplianceBoard(args: {
   personalGroup: "day" | "month";
 }): Promise<ComplianceBoard> {
   const { me, today } = args;
-  const [scope, everyone] = await Promise.all([loadDccScope(me), loadCompliancePeople()]);
+  // The coordinator scope: everyone for a `dcc.coordinator` holder, the reporting
+  // chain otherwise. See lib/dcc/access.ts.
+  const [scope, everyone] = await Promise.all([loadComplianceScope(me), loadCompliancePeople()]);
   const visible = everyone.filter((p) => scope.visibleIds.has(p.id));
   if (!visible.some((p) => p.id === me.id)) {
     visible.unshift({ id: me.id, name: me.name, managerId: me.managerId, designation: null, address: null, email: me.email });
@@ -185,9 +187,16 @@ export async function loadComplianceBoard(args: {
     viewer: {
       id: me.id,
       isAdmin: me.isAdmin || isSuperAdmin(me.email),
-      fillsForAnyone: isSuperAdmin(me.email) || canEditPastDccEntries(me.email),
+      // A coordinator records what was done, so the Done / count controls have to
+      // be OFFERED on somebody else's row. See `chainIds` for what is not.
+      fillsForAnyone: isSuperAdmin(me.email) || canEditPastDccEntries(me.email) || scope.isCoordinator,
       editsPast: canEditPastDccEntries(me.email),
-      visibleIds: scope.visibleIds,
+      /* THE REPORTING CHAIN, NOT `scope.visibleIds`. This single value is what
+         resolves `isDoersManager`, and `isDoersManager` is what lets a viewer
+         write an APPROVER RULING (lib/compliance/rows.ts builds the actor from
+         it). Passing the widened set here would quietly make every coordinator
+         the approver of every compliance in the company. */
+      visibleIds: scope.chainIds,
       canManageFor: (ownerId) => canManageItemsFor(scope, ownerId),
     },
   });

@@ -113,8 +113,9 @@ describe("only capabilities whose guards can wait for a read are stored as data"
    * rather than a one-line edit: the capability must be REFERENCED by guards,
    * and those guards must be asynchronous.
    */
-  it("is exactly these two, and each is here for a reason", () => {
+  it("is exactly these three, and each is here for a reason", () => {
     expect([...DB_BACKED_CAPABILITIES].sort()).toEqual([
+      "dcc.coordinator",
       "hr.letters.issue",
       "master_admin.manage",
     ]);
@@ -128,6 +129,7 @@ describe("only capabilities whose guards can wait for a read are stored as data"
       codeOf("lib/security/capability-grants.ts"),
       codeOf("lib/hr/letters/issue-access.ts"),
       codeOf("lib/permissions/resolve.ts"),
+      codeOf("lib/dcc/access.ts"),
       codeOf("app/master-admin/layout.tsx"),
       codeOf("app/(app)/hr/letters/[key]/page.tsx"),
     ].join("\n");
@@ -135,11 +137,18 @@ describe("only capabilities whose guards can wait for a read are stored as data"
     for (const capability of DB_BACKED_CAPABILITIES) {
       expect(guardSources, `${capability} must be read somewhere`).toContain(capability);
     }
-    // Both of this list's guards are ASYNCHRONOUS — that is what makes them
-    // legal here, and the synchronous `.filter()` case is why the rule exists.
+    // Every guard in this list is ASYNCHRONOUS — that is what makes these legal
+    // here, and the synchronous `.filter()` case is why the rule exists.
     const letterAccess = codeOf("lib/hr/letters/issue-access.ts");
     expect(letterAccess).toContain("hasCapabilityGrant(");
     expect(letterAccess).toMatch(/export async function canIssueLetters/);
+
+    const dccAccess = codeOf("lib/dcc/access.ts");
+    expect(dccAccess).toContain('hasCapabilityGrant(email, "dcc.coordinator")');
+    expect(dccAccess).toMatch(/export async function isComplianceCoordinator/);
+    // And the scope loader that consumes it must be async too, since that is
+    // what everything on the two checklists goes through.
+    expect(dccAccess).toMatch(/export async function loadComplianceScope/);
 
     const grants = codeOf("lib/security/capability-grants.ts");
     expect(grants).toMatch(/export async function hasCapabilityGrant/);

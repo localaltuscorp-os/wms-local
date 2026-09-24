@@ -30,7 +30,18 @@ vi.mock("@/lib/rate-limit", () => ({ rateLimitOrError: () => null }));
 vi.mock("@/lib/dcc/calendar-sync", () => ({ scheduleDccCalendarSync: vi.fn() }));
 vi.mock("@/lib/dcc/access", () => ({
   loadDccScope: vi.fn(async () => ({ visibleIds: h.manageable })),
+  // The WCC / MCC scope. Not a coordinator here — this file is about the two
+  // checklists' own rules (bulk upload, MCC frequencies, the day lock), and the
+  // grant has its own cases in tests/unit/compliance-quantity-actions.test.ts.
+  loadComplianceScope: vi.fn(async () => ({
+    visibleIds: h.manageable,
+    chainIds: h.manageable,
+    isSuper: false,
+    isManager: false,
+    isCoordinator: false,
+  })),
   canManageItemsFor: (_scope: unknown, id: string) => h.manageable.has(id),
+  isComplianceCoordinator: vi.fn(async () => false),
 }));
 vi.mock("@/lib/dcc/item-guard", () => ({ guardItemWrite: vi.fn(async () => ({ ok: true, owner: h.me.id })) }));
 vi.mock("@/lib/db", async () => {
