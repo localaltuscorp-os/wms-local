@@ -35,10 +35,28 @@ import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
  * locked cards. It is presentation only: the real boundary is the layout gate
  * plus each room's own checks.
  *
- * IN FLOW AT THE END OF THE PAGE, not pinned over it. It rests as a slim strip
- * carrying a grabber; hovering (or tapping) that strip reveals the glass dock,
- * which then stays until the X is pressed. Reserving the strip's height up front
- * is what lets it never cover content: there is nothing below it to cover.
+ * PINNED TO THE BOTTOM OF THE VIEWPORT, on every page, at any scroll position.
+ * It rests as a slim strip carrying a grabber; hovering (or tapping) that
+ * grabber reveals the glass dock, which then stays until the X is pressed.
+ *
+ * Pinning was twice reverted before, for two real reasons, and both are answered
+ * here rather than re-accepted:
+ *
+ *   1. IT RODE OVER CONTENT. A bar pinned across the foot of the viewport hides
+ *      the bottom 52px of whatever is behind it — on a long table, a row. The
+ *      strip still reserves its own height at the END of the page (pt-6 plus the
+ *      52px band), so the last thing a page renders always clears it; scrolled
+ *      to the bottom, the dock sits in its natural place and covers nothing.
+ *   2. IT SWALLOWED CLICKS. The whole strip was the hover target, so a 52px band
+ *      across the page ate every click aimed at what was underneath. Now only
+ *      the grabber is live: the band is pointer-events-none and the small
+ *      centred target re-enables itself, so the rest of the strip is not there
+ *      as far as the mouse is concerned.
+ *
+ * `sticky` rather than `fixed` on purpose. Fixed is positioned against the
+ * VIEWPORT, which would strand the dock behind the left rail and stop it
+ * tracking the rail collapsing or widening. Sticky keeps it in flow — so
+ * `mx-auto` still centres it in the CONTENT column, for free.
  *
  * A client component — the reveal is stateful. The `access` object is still
  * passed in rather than resolved here so the layout's single `accessFor(me)`
@@ -76,43 +94,60 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
     <div
       // THE REVEAL STRIP — the end of the page, and the dock's own hover target.
       //
-      // The dock used to be a STICKY floating bar pinned 18px off the viewport
-      // bottom, summoned by driving the pointer into the screen edge. Pinned, it
-      // rode over the page: on a long table it sat on top of a row, which is the
-      // one thing a navigation aid must never do.
+      // `sticky bottom-0` pins the strip to the foot of the viewport at any
+      // scroll position, while leaving it IN FLOW — which is what keeps
+      // `mx-auto` centring it in the CONTENT column instead of the viewport, so
+      // it tracks the rail collapsing, widening or disappearing for free. The
+      // rail is 74px collapsed and 212/228/288px expanded depending on the
+      // module, so no constant offset could ever have been right, and that is
+      // exactly what `fixed` would have forced.
       //
-      // So it is now IN FLOW at the end of the page. `mt-auto` (the page column
-      // is a full-height flex column — see ChromeShell) drops it to the bottom of
-      // the viewport on a short page and simply follows the content on a long
-      // one. `mx-auto` centres it in the CONTENT rather than the viewport, so it
-      // tracks the rail collapsing, widening or disappearing for free — the rail
-      // is 74px collapsed and 212/228/288px expanded depending on the module, so
-      // no constant offset could ever have been right.
+      // `mt-auto` still applies: on a page shorter than the viewport there is
+      // nothing to stick to, and it drops to the bottom of the column instead.
       //
-      // Hovering ANYWHERE on this strip reveals the dock, and `onClick` does the
-      // same for touch, where `mouseenter` never fires. Moving away does NOT
-      // hide it again — only the X does. Requiring sustained hover would mean
-      // holding the cursor inside a 46px band while reading ten labels.
-      onMouseEnter={() => setVisible(true)}
-      onClick={() => setVisible(true)}
-      className="module-footer mt-auto w-full pt-6 print:hidden"
+      // POINTER-EVENTS-NONE IS LOAD-BEARING. A pinned 52px band across the foot
+      // of every page would otherwise intercept every click meant for the
+      // content behind it. The band is transparent to the mouse; only the
+      // grabber below re-enables itself, and the dock does so when revealed.
+      className="module-footer pointer-events-none sticky bottom-0 z-40 mt-auto w-full pt-6 print:hidden"
     >
       {/* Fixed-height band: the dock is absolutely positioned inside it, so the
           space is reserved whether or not the dock is shown and revealing it
-          shifts nothing. Being the last thing on the page, that reserved band
-          costs no content — which is what makes "never covers anything" a
-          structural property here rather than a z-index negotiation. */}
+          shifts nothing. Being the last thing on the page, that band is also the
+          page's own bottom clearance — scrolled to the end, the strip settles
+          into it and covers nothing. While stuck mid-scroll it does overlay the
+          bottom 52px, which is the price of being reachable without scrolling;
+          the band is click-through so it costs the pointer nothing. */}
       <div className="relative mx-auto flex h-[52px] w-full items-center justify-center px-3">
-        {/* Resting affordance — a grabber, so an invisible strip is still
-            discoverable. It fades out as the dock fades in. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute h-1 w-9 rounded-full transition-opacity duration-200 motion-reduce:transition-none"
-          style={{
-            opacity: visible ? 0 : 1,
-            background: "rgba(15,23,42,0.14)",
-          }}
-        />
+        {/* Resting affordance AND the dock's only hover target — a grabber, so
+            a strip that is otherwise invisible and click-through is still
+            discoverable. It fades out as the dock fades in.
+
+            `onClick` as well as `onMouseEnter` because on touch `mouseenter`
+            never fires. Moving away does NOT hide it again — only the X does;
+            requiring sustained hover would mean holding the cursor inside a
+            52px band while reading ten labels.
+
+            It is `pointer-events-auto` inside a `pointer-events-none` parent:
+            the ONE live spot on an otherwise transparent strip. Its hit area is
+            deliberately wider than the 36px it draws, or it would be a pixel
+            hunt. */}
+        <button
+          type="button"
+          aria-label="Show module bar"
+          title="Show all modules"
+          onMouseEnter={() => setVisible(true)}
+          onClick={() => setVisible(true)}
+          className="pointer-events-auto absolute flex h-[52px] w-32 cursor-pointer items-center justify-center bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
+          style={{ opacity: visible ? 0 : 1, pointerEvents: visible ? "none" : "auto" }}
+          tabIndex={visible ? -1 : 0}
+        >
+          <span
+            aria-hidden
+            className="h-1 w-9 rounded-full transition-opacity duration-200 motion-reduce:transition-none"
+            style={{ background: "rgba(15,23,42,0.14)" }}
+          />
+        </button>
       <nav
         aria-label="All modules"
         // Hidden state is inert as well as invisible: `inert` drops it out of the
