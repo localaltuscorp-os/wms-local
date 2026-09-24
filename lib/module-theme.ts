@@ -15,9 +15,14 @@ import {
   FolderTree,
   ShieldAlert,
   Cog,
+  SlidersHorizontal,
 } from "lucide-react";
 import type { Route } from "next";
-import type { WorkspaceId } from "@/lib/workspaces";
+import {
+  canAccessWorkspace,
+  type WorkspaceAccessInput,
+  type WorkspaceId,
+} from "@/lib/workspaces";
 
 /**
  * THE module identity + color system (meeting 2026-06-29: "every module has a
@@ -296,6 +301,42 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     accentDeep: "#A80400",
     image: null,
   },
+  // CONTROL PANEL — its own module since 2026-09-24, lifted out of the Admin
+  // Panel, where it was a group of five pages under `/admin/control-panel`.
+  //
+  // ── IT IS THE ONE MODULE THAT MAY BE ABSENT ───────────────────────────────
+  // It is NOT in MODULE_ORDER. Every other entry there is a fixed member of the
+  // set: a room you cannot enter still renders, greyed, because knowing it
+  // exists is useful and the set is meant to be the same for everybody. The
+  // Control Panel is the opposite requirement — the brief is explicit that a
+  // person without the permission must not see it ANYWHERE, not even as a
+  // locked label, and that a locked label is in fact a discoverable menu entry
+  // for a room that manages access. So it travels in CONDITIONAL_MODULES
+  // instead, and `listedModules` is what every navigation surface renders.
+  //
+  // ── NO SHORTCUT LETTER, AND THAT IS DELIBERATE ────────────────────────────
+  // `shortcut: ""` matches the rooms that have no hub card (training, events,
+  // accounts, people-allocation): `moduleForShortcut` never resolves an empty
+  // letter, so Alt+<something> cannot open a room most people cannot enter, and
+  // the static cheatsheets — which have no access context and are shown to
+  // everybody — advertise nothing about it. It renders unlettered in the module
+  // row, which is the honest picture: there is no key for it.
+  //
+  // ── SLATE, NOT THE ALTUS RED ──────────────────────────────────────────────
+  // It sits beside the Admin Panel in the bar, and the Admin Panel entry is
+  // red. Slate keeps the two readable as different things — one is the
+  // company's control room, this one hands out access.
+  "control-panel": {
+    id: "control-panel",
+    label: "Control Panel",
+    shortcut: "",
+    tagline: "Users, roles, permissions & temporary access - who can reach what.",
+    href: "/ws/control-panel" as Route,
+    Icon: SlidersHorizontal,
+    accent: "#334155",
+    accentDeep: "#1E293B",
+    image: null,
+  },
 };
 
 /** Hub display order. */
@@ -336,6 +377,44 @@ export const MODULE_ORDER: WorkspaceId[] = [
   // I, which nothing else holds. Appended, so no other module's letter moves.
   "incentive",         // I  — "Incentive"
 ];
+
+/**
+ * MODULES THAT ARE PRESENT ONLY WHEN YOU MAY ENTER THEM.
+ *
+ * MODULE_ORDER is the fixed set: every entry is listed to everybody and a room
+ * you cannot enter is shown greyed, because knowing the room exists is useful.
+ * These are the opposite. They are omitted from the navigation ENTIRELY for a
+ * person who may not enter them — no rail entry, no room in the top bar, no
+ * module-row label from which the name could be learned.
+ *
+ * The Control Panel is the only member, and the reasoning is on its theme entry
+ * below. It is a list rather than an inline `id === "control-panel"` check so
+ * that a second such module is one line here rather than an edit to every
+ * surface that renders the module row.
+ *
+ * ORDER: these are appended after MODULE_ORDER, so they render last in the
+ * module row, the dock and the top bar's "More" menu, and no existing module's
+ * position or letter moves because of them.
+ */
+export const CONDITIONAL_MODULES: readonly WorkspaceId[] = ["control-panel"];
+
+/**
+ * THE MODULES TO RENDER for a person — the ONE list every navigation surface
+ * draws, so the module row, the dock, the top bar and the hub can never
+ * disagree about what exists.
+ *
+ * It is `MODULE_ORDER` (unchanged, with its grey-out-when-locked behaviour) plus
+ * whichever conditional modules this person may enter. Callers that need to know
+ * whether an entry is *enterable* rather than *present* still ask
+ * `canAccessWorkspace` themselves — the difference matters for the fixed set,
+ * where "present but locked" is a real state.
+ */
+export function listedModules(user: WorkspaceAccessInput): WorkspaceId[] {
+  return [
+    ...MODULE_ORDER,
+    ...CONDITIONAL_MODULES.filter((id) => canAccessWorkspace(id, user)),
+  ];
+}
 
 /**
  * THE SHORTCUT LETTERS — mnemonic, and owned by each module.

@@ -26,7 +26,7 @@ export type ActionResult<T = unknown> =
 // the profile mapper reads (PT is col V); 4000 rows spans the full archive.
 const SHEET_ID = "13dHs7Klp4_Eb3JUvhzTYEgQsmX-rLFfR2ZwZK9hcgrU";
 const RANGE = "Salary Breakup!A1:V4000";
-const PATH = "/admin/salary-profiles";
+const PATH = "/admin/employee-master";
 
 /** Collapse whitespace + lowercase — the match key against employees.name. */
 function normName(name: string): string {

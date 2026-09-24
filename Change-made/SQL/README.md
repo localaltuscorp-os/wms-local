@@ -1,6 +1,14 @@
 # SQL — production database changes for the `Om` branch
 
 > **SUPERSEDED (merge, 2026-09-19). Do not run the files in this folder on production.**
+
+## Latest: Employee ID standardization and Control Panel
+
+Use [`19-apply-employee-id-and-control-panel.sql`](./19-apply-employee-id-and-control-panel.sql)
+for the idempotent Control Panel permission-key transition and safe Employee
+Code inventory. Run [`19-verify-employee-id-and-control-panel.sql`](./19-verify-employee-id-and-control-panel.sql)
+afterwards. Employee Code allocation remains application-owned; do not generate
+missing codes with raw SQL.
 >
 > Everything below was checked against `aws-0-ap-south-1`, which is **not** production
 > (production is Supabase project `fjopgyqytfvbudkwhdto`, `aws-0-ap-northeast-1`), so
@@ -36,6 +44,37 @@
 | [`14-verify-control-panel.sql`](./14-verify-control-panel.sql) | Read-only checks for `0246`. |
 | [`15-apply-training-learning.sql`](./15-apply-training-learning.sql) | **Applied 2026-09-23.** Migrations `0248` + `0249` + `0250`: the Training & Learning (LMS) schema — extended `tc_sessions`/`tc_session_attendees`/`tc_watch_progress`/`tc_self_learning`, the six new tables (`tc_training_surveys`, `tc_survey_questions`, `tc_survey_responses`, `tc_learning_targets`, `tc_share_schedule`, `tc_share_attendees`), the share → self-learning link columns, and the `tc_lookups` writable master-data table (seeded with 26 options). Additive, idempotent. |
 | [`16-verify-training-learning.sql`](./16-verify-training-learning.sql) | Read-only checks for `0248`. Every query returns 0 rows on a correctly-applied database. |
+| [`17-apply-control-panel-module.sql`](./17-apply-control-panel-module.sql) | **Applied to the branch's database on 2026-09-24.** Migration `0251`: moves the Control Panel's stored permission nodes from the old `admin.*` keys to the new top-level `control-panel.*` keys, in `module_permissions` **and** `role_permissions`. Data only — an `UPDATE`, no DDL, no DELETE — and idempotent. |
+| [`18-verify-control-panel-module.sql`](./18-verify-control-panel-module.sql) | Read-only checks for `0251`: no rows left on the old keys, the ledger row, and a row count to compare against the pre-migration number. |
+
+---
+
+## `0250_incentive_target_period_type.sql` — APPLIED 2026-09-24
+
+There is no copy of this file in this folder because it was written and applied
+by another session. It adds `period_type` to `incentive_targets` so a quarterly
+target can coexist with the monthly target anchored on the same first month, and
+it is a **hard prerequisite**: the application code reads that column
+(`lib/queries/incentive-analytics.ts`, `lib/incentive/analytics/model.ts`), so
+`/incentive` fails at runtime without it.
+
+Applied `2026-09-24T09:31Z` and verified independently:
+
+```
+column    period_type · text · NOT NULL · default 'month'
+indexes   incentive_targets_name_period_type_uq, incentive_targets_pkey
+          (the narrower incentive_targets_name_period_uq is gone, as intended)
+rows      0 — the table is empty, so no row was re-tagged or lost
+```
+
+If you are applying this branch to **another** database, run the file from
+`db/migrations/` directly — it is additive and idempotent. See doc 18 §6.
+
+**NOTE ON NUMBERS:** there are now two `0250`s — this one and
+`0250_training_lookups.sql` (applied 2026-09-23) — and `0251` is taken by
+`0251_control_panel_module.sql`. The ledger keys on filename so nothing is
+broken, but the numbers collide across two authors and ought to be renumbered
+before this reaches `main`.
 
 ---
 

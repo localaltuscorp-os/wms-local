@@ -1,238 +1,210 @@
 import "server-only";
 import * as XLSX from "xlsx";
 
-// Hard cap so a giant sheet can't blow up the request / DB.
 export const MAX_INCENTIVE_IMPORT_ROWS = 2000;
 
 export interface IncentiveRosterEntry {
   id: string;
+  employeeCode: string;
   name: string;
 }
 
-/** One parsed, coerced incentive-entry row ready for insert. */
 export interface ParsedIncentiveRow {
   rowNumber: number;
-  srcSrNo: number | null;
-  entryDate: string | null; // YYYY-MM-DD
   incentiveName: string;
-  periodMonth: string | null; // first-of-month YYYY-MM-DD
+  periodMonth: string;
   empName: string;
-  employeeId: string | null;
-  participantName: string | null;
-  prospectGroupName: string | null;
+  employeeId: string;
   amount: number;
   approved: boolean;
   approvedAmt: number;
+  approvedDate: string | null;
   paid: boolean;
   paidAmt: number;
   paidDate: string | null;
   note: string | null;
 }
 
+export interface IncentiveImportIssue {
+  rowNumber: number;
+  field: string;
+  message: string;
+}
+
 export interface ParseIncentiveResult {
   rows: ParsedIncentiveRow[];
   totalRows: number;
-  /** Blank / unusable rows skipped during parse (missing emp name or incentive). */
   skipped: number;
+  issues: IncentiveImportIssue[];
   fatal?: string;
 }
 
-const FIELD_ALIASES: Record<string, string[]> = {
-  srNo: ["srno", "sr", "serialno", "serial", "no", "sno", "slno"],
-  entryDate: ["date", "entrydate"],
-  incentiveName: ["incentive", "incentivename", "incentivetype", "type"],
-  periodMonth: ["period", "month", "periodmonth", "incentivemonth"],
-  empName: ["emp", "empname", "employee", "employeename", "name", "person"],
-  participant: ["participant", "participantname", "candidate"],
-  prospect: ["prospect", "group", "prospectgroup", "prospectgroupname", "client"],
+const HEADERS = {
+  employeeId: ["employeeid", "empid"],
+  empName: ["employeename", "empname", "employee", "name"],
+  incentiveName: ["incentiveproduct", "incentive", "incentivename"],
+  periodMonth: ["periodmonth", "period", "month"],
   amount: ["amount", "amt", "incentiveamount"],
-  approved: ["approved", "isapproved", "approvedyn"],
-  approvedAmt: ["approvedamt", "approvedamount", "amtapproved"],
-  paid: ["paid", "ispaid", "paidyn"],
-  paidAmt: ["paidamt", "paidamount", "amtpaid"],
+  approved: ["approved", "isapproved"],
+  approvedAmt: ["approvedamount", "approvedamt", "amtapproved"],
+  approvedDate: ["approveddate", "dateapproved"],
+  paid: ["paid", "ispaid"],
+  paidAmt: ["paidamount", "paidamt", "amtpaid"],
   paidDate: ["paiddate", "datepaid"],
   note: ["note", "notes", "remark", "remarks", "comment"],
-};
+} as const;
 
-const norm = (s: unknown): string =>
-  String(s ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+const norm = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+const text = (value: unknown) => String(value ?? "").trim();
+const nameKey = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
-/** Coerce a cell to a non-negative money number; NaN/invalid → 0. */
-function coerceNum(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const s = String(value ?? "").trim();
-  if (!s) return 0;
-  // Strip ₹, commas, spaces.
-  const cleaned = s.replace(/\brs\.?/gi, "").replace(/[₹,\s]/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Coerce a cell to a boolean; recognises true/yes/y/1/✓/approved/paid. */
-function coerceBool(value: unknown): boolean {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  const s = String(value ?? "").trim().toLowerCase();
-  return ["true", "yes", "y", "1", "✓", "x", "approved", "paid", "done"].includes(s);
-}
-
-/** Coerce a cell to a YYYY-MM-DD date string, or null. */
-function coerceDate(value: unknown): string | null {
+function dateYmd(value: unknown): string | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return ymd(value.getFullYear(), value.getMonth() + 1, value.getDate());
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
   }
-  const s = String(value ?? "").trim();
-  if (!s) return null;
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); // ISO yyyy-mm-dd
-  if (m) {
-    const mm = +m[2]!;
-    const dd = +m[3]!;
-    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) return ymd(+m[1]!, mm, dd);
-  }
-  m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/); // dd/mm/yyyy (IST)
-  if (m) {
-    let yr = +m[3]!;
-    if (yr < 100) yr += 2000;
-    const dd = +m[1]!;
-    const mm = +m[2]!;
-    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) return ymd(yr, mm, dd);
-  }
-  const t = Date.parse(s);
-  if (!Number.isNaN(t)) {
-    const d = new Date(t);
-    return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
-  }
+  const raw = text(value);
+  if (!raw) return null;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const indian = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const parts = iso ? [+iso[1]!, +iso[2]!, +iso[3]!] : indian ? [+indian[3]!, +indian[2]!, +indian[1]!] : null;
+  if (!parts) return null;
+  // Read by index and asserted, like the captures above: `parts` is a plain
+  // array, so under `noUncheckedIndexedAccess` its elements are `number |
+  // undefined` and destructuring cannot prove otherwise.
+  const year = parts[0]!;
+  const month = parts[1]!;
+  const day = parts[2]!;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function money(value: unknown): number | null {
+  if (value === "" || value === null || value === undefined) return 0;
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? value : null;
+  const raw = text(value);
+  if (!raw) return 0;
+  const cleaned = raw.replace(/[₹,\s]/g, "");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned)) return null;
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+function yesNo(value: unknown): boolean | null {
+  const raw = text(value).toLowerCase();
+  if (!raw || raw === "no") return false;
+  if (raw === "yes") return true;
   return null;
 }
 
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
-function ymd(y: number, m: number, d: number): string {
-  return `${y}-${pad2(m)}-${pad2(d)}`;
+function isBlank(row: Record<string, unknown>, fields: Record<string, string>) {
+  return Object.values(fields).every((header) => !text(row[header]));
 }
 
-/** Normalise any date string to first-of-month (for the period_month column). */
-function toMonthStart(dateStr: string | null): string | null {
-  if (!dateStr) return null;
-  const m = dateStr.match(/^(\d{4})-(\d{1,2})/);
-  if (!m) return null;
-  return `${m[1]}-${pad2(+m[2]!)}-01`;
-}
-
-/**
- * Parse a CSV/XLSX File into coerced incentive-entry rows. Fuzzy-matches the
- * sheet headers, coerces numbers/dates/booleans safely (never throws on a bad
- * cell), resolves emp name → employeeId against the roster (best-effort), and
- * skips rows that have no employee name AND no incentive name. Pure parse — no
- * DB writes; the same function backs the commit.
- */
 export async function parseIncentiveImport(
   file: File,
   roster: IncentiveRosterEntry[],
+  products: readonly string[],
 ): Promise<ParseIncentiveResult> {
   let raw: Record<string, unknown>[];
   try {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { cellDates: true });
-    const sheetName = wb.SheetNames[0];
-    if (!sheetName) return fatal("The file has no sheets.");
-    const sheet = wb.Sheets[sheetName]!;
-    raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+    const workbook = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const firstSheet = workbook.SheetNames[0];
+    if (!firstSheet) return fatal("The file has no sheets.");
+    raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[firstSheet]!, { defval: "" });
   } catch {
-    return fatal("Couldn't read the file. Upload a .csv or .xlsx.");
+    return fatal("Couldn't read the file. Upload a .xlsx file.");
+  }
+  if (raw.length > MAX_INCENTIVE_IMPORT_ROWS) return fatal(`Too many rows (${raw.length}). Max ${MAX_INCENTIVE_IMPORT_ROWS} per import.`);
+  if (!raw.length) return fatal("No data rows found.");
+
+  const fields: Record<string, string> = {};
+  for (const [field, aliases] of Object.entries(HEADERS)) {
+    const aliasSet = new Set<string>(aliases);
+    const header = Object.keys(raw[0]!).find((key) => aliasSet.has(norm(key)));
+    if (header) fields[field] = header;
+  }
+  for (const required of ["employeeId", "empName", "incentiveName", "periodMonth", "amount", "approved", "paid"]) {
+    if (!fields[required]) return fatal(`Missing required column: ${headerLabel(required)}.`);
   }
 
-  if (raw.length === 0) return fatal("No data rows found.");
-  if (raw.length > MAX_INCENTIVE_IMPORT_ROWS) {
-    return fatal(
-      `Too many rows (${raw.length}). Max ${MAX_INCENTIVE_IMPORT_ROWS} per import.`,
-    );
+  const byId = new Map(roster.map((employee) => [employee.employeeCode.toUpperCase(), employee]));
+  const byName = new Map<string, IncentiveRosterEntry | "AMBIGUOUS">();
+  for (const employee of roster) {
+    const key = nameKey(employee.name);
+    byName.set(key, byName.has(key) ? "AMBIGUOUS" : employee);
   }
-
-  // Map the sheet's actual headers → our canonical fields.
-  const headerKeys = Object.keys(raw[0]!);
-  const fieldToHeader: Record<string, string> = {};
-  for (const [field, aliases] of Object.entries(FIELD_ALIASES)) {
-    const aliasSet = new Set(aliases.map(norm));
-    const match = headerKeys.find((h) => aliasSet.has(norm(h)));
-    if (match) fieldToHeader[field] = match;
-  }
-
-  if (!fieldToHeader.empName && !fieldToHeader.incentiveName) {
-    return fatal(
-      "Missing key columns. Expected at least an Employee Name and an Incentive column.",
-    );
-  }
-
-  // Name → id resolution (duplicate names collapse to null = no confident match).
-  const byName = new Map<string, string | "AMBIGUOUS">();
-  for (const e of roster) {
-    const n = norm(e.name);
-    if (n) byName.set(n, byName.has(n) ? "AMBIGUOUS" : e.id);
-  }
-  function resolveId(name: string): string | null {
-    const hit = byName.get(norm(name));
-    return hit && hit !== "AMBIGUOUS" ? hit : null;
-  }
-
-  const cell = (row: Record<string, unknown>, field: string): unknown => {
-    const header = fieldToHeader[field];
-    return header ? row[header] : "";
-  };
-  const str = (row: Record<string, unknown>, field: string): string => {
-    const v = cell(row, field);
-    return v instanceof Date ? v.toISOString() : String(v ?? "").trim();
-  };
-
+  const productByKey = new Map(products.map((product) => [nameKey(product), product]));
   const rows: ParsedIncentiveRow[] = [];
+  const issues: IncentiveImportIssue[] = [];
   let skipped = 0;
-  let rowNumber = 0;
-  for (const r of raw) {
-    rowNumber += 1;
-    const empName = str(r, "empName");
-    const incentiveName = str(r, "incentiveName");
-    // Skip a row with neither an employee nor an incentive (blank / trailing).
-    if (!empName && !incentiveName) {
-      rowNumber -= 1;
-      continue;
-    }
-    if (!empName) {
+
+  for (const [index, source] of raw.entries()) {
+    const rowNumber = index + 2;
+    if (isBlank(source, fields)) {
       skipped += 1;
       continue;
     }
+    const issue = (field: string, message: string) => issues.push({ rowNumber, field, message });
+    const enteredId = text(source[fields.employeeId!]);
+    const enteredName = text(source[fields.empName!]);
+    const byEmployeeId = enteredId ? byId.get(enteredId.toUpperCase()) : undefined;
+    const byEmployeeName = enteredName ? byName.get(nameKey(enteredName)) : undefined;
+    if (!enteredId && !enteredName) issue("Employee", "Employee ID or Employee Name is required.");
+    if (enteredId && !byEmployeeId) issue("Employee ID", "Employee ID is not in current Employee Master.");
+    if (enteredName && (!byEmployeeName || byEmployeeName === "AMBIGUOUS")) issue("Employee Name", "Employee Name is not a unique current Employee Master record.");
+    if (byEmployeeId && byEmployeeName && byEmployeeName !== "AMBIGUOUS" && byEmployeeId.id !== byEmployeeName.id) {
+      issue("Employee", "Employee ID and Employee Name refer to different Employee Master records.");
+    }
+    const employee = byEmployeeId ?? (byEmployeeName !== "AMBIGUOUS" ? byEmployeeName : undefined);
 
-    const srRaw = str(r, "srNo");
-    const srNum = srRaw ? Number(srRaw.replace(/[^0-9]/g, "")) : NaN;
-    const entryDate = coerceDate(cell(r, "entryDate"));
-    const periodMonth =
-      toMonthStart(coerceDate(cell(r, "periodMonth"))) ?? toMonthStart(entryDate);
+    const inputProduct = text(source[fields.incentiveName!]);
+    const incentiveName = productByKey.get(nameKey(inputProduct));
+    if (!incentiveName) issue("Incentive Product", "Incentive Product is not in current Product Master.");
 
+    const periodDate = dateYmd(source[fields.periodMonth!]);
+    if (!periodDate) issue("Period Month", "Period Month must be a valid Excel date.");
+    const amount = money(source[fields.amount!]);
+    if (amount === null) issue("Amount", "Amount must be a non-negative number.");
+    const approved = yesNo(source[fields.approved!]);
+    if (approved === null) issue("Approved", "Approved must be Yes or No.");
+    const approvedAmount = money(fields.approvedAmt ? source[fields.approvedAmt] : "");
+    if (approvedAmount === null) issue("Approved Amount", "Approved Amount must be a non-negative number.");
+    const approvedDateRaw = fields.approvedDate ? source[fields.approvedDate] : "";
+    const approvedDate = text(approvedDateRaw) ? dateYmd(approvedDateRaw) : null;
+    if (text(approvedDateRaw) && !approvedDate) issue("Approved Date", "Approved Date must be a valid Excel date.");
+    const paid = yesNo(source[fields.paid!]);
+    if (paid === null) issue("Paid", "Paid must be Yes or No.");
+    const paidAmount = money(fields.paidAmt ? source[fields.paidAmt] : "");
+    if (paidAmount === null) issue("Paid Amount", "Paid Amount must be a non-negative number.");
+    const paidDateRaw = fields.paidDate ? source[fields.paidDate] : "";
+    const paidDate = text(paidDateRaw) ? dateYmd(paidDateRaw) : null;
+    if (text(paidDateRaw) && !paidDate) issue("Paid Date", "Paid Date must be a valid Excel date.");
+
+    if (issues.some((entry) => entry.rowNumber === rowNumber)) continue;
     rows.push({
       rowNumber,
-      srcSrNo: Number.isFinite(srNum) ? srNum : null,
-      entryDate,
-      incentiveName: incentiveName || "Incentive",
-      periodMonth,
-      empName,
-      employeeId: resolveId(empName),
-      participantName: str(r, "participant") || null,
-      prospectGroupName: str(r, "prospect") || null,
-      amount: coerceNum(cell(r, "amount")),
-      approved: coerceBool(cell(r, "approved")),
-      approvedAmt: coerceNum(cell(r, "approvedAmt")),
-      paid: coerceBool(cell(r, "paid")),
-      paidAmt: coerceNum(cell(r, "paidAmt")),
-      paidDate: coerceDate(cell(r, "paidDate")),
-      note: str(r, "note") || null,
+      employeeId: employee!.id,
+      empName: employee!.name,
+      incentiveName: incentiveName!,
+      periodMonth: `${periodDate!.slice(0, 7)}-01`,
+      amount: amount!,
+      approved: approved!,
+      approvedAmt: approvedAmount!,
+      approvedDate,
+      paid: paid!,
+      paidAmt: paidAmount!,
+      paidDate,
+      note: fields.note ? text(source[fields.note]) || null : null,
     });
   }
-
-  if (rows.length === 0 && skipped === 0) return fatal("No data rows found.");
-
-  return { rows, totalRows: rows.length, skipped };
+  return { rows, totalRows: rows.length, skipped, issues };
 }
 
-function fatal(msg: string): ParseIncentiveResult {
-  return { rows: [], totalRows: 0, skipped: 0, fatal: msg };
+function headerLabel(field: string) {
+  return ({ employeeId: "Employee ID", empName: "Employee Name", incentiveName: "Incentive Product", periodMonth: "Period Month", amount: "Amount", approved: "Approved", paid: "Paid" } as Record<string, string>)[field] ?? field;
+}
+
+function fatal(message: string): ParseIncentiveResult {
+  return { rows: [], totalRows: 0, skipped: 0, issues: [], fatal: message };
 }

@@ -657,8 +657,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     label: "Admin Panel",
     note: "Already admin-only by its layout. These nodes narrow WITHIN that.",
     children: [
-      { key: "admin.overview", label: "Overview", routes: ["/admin"] },
-      { key: "admin.activity", label: "Activity", routes: ["/admin/activity"] },
       {
         key: "admin.people",
         label: "People",
@@ -684,11 +682,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/designations"],
           },
           { key: "admin.people.holidays", label: "Holidays", routes: ["/admin/holidays"] },
-          {
-            key: "admin.people.salary-profiles",
-            label: "Salary Profiles",
-            routes: ["/admin/salary-profiles"],
-          },
         ],
       },
       {
@@ -746,11 +739,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.masters.entities",
             label: "Outstanding Entities",
             routes: ["/admin/outstanding-entities"],
-          },
-          {
-            key: "admin.masters.responsibles",
-            label: "Outstanding Responsibles",
-            routes: ["/admin/outstanding-responsibles"],
           },
           {
             key: "admin.masters.paying-entities",
@@ -833,34 +821,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/admin/access-control"],
         note: "Elevated TASK visibility — who may read work outside their own reporting line. Writing a grant is additionally limited to a master admin; this node only decides whether the screen is reachable.",
       },
-      {
-        key: "admin.control-panel",
-        label: "Control Panel",
-        note: "The central surface for managing who has access to what. Write actions are additionally limited to a master admin; these nodes decide whether the screens are reachable.",
-        children: [
-          { key: "admin.control-panel.users", label: "Users", routes: ["/admin/control-panel/users"] },
-          { key: "admin.control-panel.roles", label: "Roles", routes: ["/admin/control-panel/roles"] },
-          {
-            key: "admin.control-panel.permissions",
-            label: "Permissions",
-            routes: ["/admin/control-panel/permissions"],
-          },
-          {
-            key: "admin.control-panel.effective-access",
-            label: "Effective Access",
-            routes: ["/admin/control-panel/effective-access"],
-          },
-        ],
-      },
-      {
-        key: "admin.temporary-access",
-        label: "Temporary Access",
-        // The screen moved under Control Panel; the KEY is unchanged so existing
-        // grants and the page's `requireModuleView` keep working. Only the route
-        // moved. The old /admin/temporary-access path now redirects here.
-        routes: ["/admin/control-panel/temporary-access"],
-        note: "Granting is additionally gated by the reporting hierarchy or the delegated_access.grant_any capability.",
-      },
+      // ── THE CONTROL PANEL IS NOT HERE ANY MORE (2026-09-24) ──────────────
+      // It left the Admin Panel and became a module of its own. The nodes that
+      // govern its screens are on the top-level `control-panel` node below,
+      // under new keys; existing grants were moved to those keys by migration
+      // 0251. Nothing in the Admin Panel names it, links to it or governs it.
       {
         key: "admin.system",
         label: "System",
@@ -883,6 +848,64 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             note: "The immutable global activity log. View opens the investigation screen; export is a separate audited event.",
           },
         ],
+      },
+    ],
+  },
+
+  /**
+   * THE CONTROL PANEL — a MODULE, not an Admin Panel group (2026-09-24).
+   *
+   * ── WHAT CHANGED, AND WHAT DID NOT ───────────────────────────────────────
+   * The screens are the same five, the write path is the same (`master_admin`
+   * capability for roles, the hierarchy or `delegated_access.grant_any` for
+   * temporary access), and every stored grant survived — migration 0251 moved
+   * them from the old `admin.*` keys to the keys below. Only two things moved:
+   * where the screens live (`/control-panel/*`, was `/admin/control-panel/*`)
+   * and the fact that the module itself is now VISIBILITY-GATED. A person whose
+   * `control-panel` node is switched off does not see the room anywhere and
+   * cannot reach it by URL — see `canControlPanel` in
+   * lib/auth/workspace-access.ts, which is the single place that decides.
+   *
+   * ── WHY THE KEYS CHANGED WITH IT ─────────────────────────────────────────
+   * `module_permissions.node_key` and `role_permissions.node_key` store these
+   * dotted paths, so renaming one orphans a grant — which is why the rest of
+   * this file keeps old keys and moves only labels and routes. This is the
+   * exception, and the reason is structural rather than cosmetic: the catalogue
+   * requires a child key to be prefixed by its parent's
+   * (`permission-catalog.test.ts`), so `admin.control-panel.users` cannot be a
+   * child of `control-panel`. The keys had to move for the tree to describe the
+   * application, and migration 0251 is what makes that safe.
+   *
+   * ── THE MODULE NODE OWNS A ROUTE ─────────────────────────────────────────
+   * `control-panel` claims `/control-panel` itself so the module is a
+   * governable thing in its own right, not merely a folder. Its children are
+   * longer routes and so win on longest-prefix, exactly as `wms` / `wms.tasks`
+   * do. Switching the module node off takes every child with it — that cascade
+   * is what makes one row hide the whole room.
+   */
+  {
+    key: "control-panel",
+    label: "Control Panel",
+    note: "Who can reach what: the user directory, the role templates, the per-employee permission matrix and temporary access. Switching this node off hides the whole module — it does not appear in the navigation and its screens refuse a direct URL. Write actions are still limited by their own checks (a master admin for roles) and this cannot widen them.",
+    routes: ["/control-panel"],
+    children: [
+      { key: "control-panel.users", label: "Users", routes: ["/control-panel/users"] },
+      { key: "control-panel.roles", label: "Roles", routes: ["/control-panel/roles"] },
+      {
+        key: "control-panel.permissions",
+        label: "Permissions",
+        routes: ["/control-panel/permissions"],
+      },
+      {
+        key: "control-panel.effective-access",
+        label: "Effective Access",
+        routes: ["/control-panel/effective-access"],
+      },
+      {
+        key: "control-panel.temporary-access",
+        label: "Temporary Access",
+        routes: ["/control-panel/temporary-access"],
+        note: "Granting is additionally gated by the reporting hierarchy or the delegated_access.grant_any capability.",
       },
     ],
   },

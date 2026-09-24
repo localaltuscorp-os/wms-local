@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Loader2, Pencil, Plus, Table2, Trash2, Undo2 } from "lucide-react";
+import { Check, Loader2, Mic, Pencil, Plus, Table2, Trash2, Undo2 } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
@@ -22,6 +22,7 @@ import { ConfirmDialog } from "./ui/confirm-dialog";
 import { IncentiveBadge } from "./ui/badges";
 import { IncentiveEmptyState } from "./ui/states";
 import { INCENTIVE_BTN_NEUTRAL, INCENTIVE_BTN_PRIMARY } from "./ui/chrome";
+import { useDictation } from "@/components/ui/use-dictation";
 
 type Mode = { kind: "create" } | { kind: "edit"; row: IncentiveEntryAdminRow } | null;
 
@@ -41,10 +42,12 @@ type Mode = { kind: "create" } | { kind: "edit"; row: IncentiveEntryAdminRow } |
 export function IncentiveEntries({
   rows,
   employees,
+  products,
   year,
 }: {
   rows: IncentiveEntryAdminRow[];
   employees: EmployeeOption[];
+  products: string[];
   year: number;
 }) {
   const router = useRouter();
@@ -130,23 +133,29 @@ export function IncentiveEntries({
     {
       key: "month",
       label: "Month",
+      // A MONTH AND A DATE ARE ONE TOKEN. Letting "Jan 2026" break after "Jan"
+      // pushes the header out of line with the column it names, which is what
+      // made this table hard to read at a glance.
+      className: "whitespace-nowrap",
       sortValue: (r) => r.periodMonth ?? "",
-      render: (r) => <span className="text-[13px] tabular-nums text-ink-subtle">{fmtMonth(r.periodMonth)}</span>,
+      render: (r) => <span className="text-[13px] tabular-nums text-ink-subtle whitespace-nowrap">{fmtMonth(r.periodMonth)}</span>,
     },
     {
       key: "amount",
       label: "Amount",
       align: "right",
+      className: "whitespace-nowrap",
       sortValue: (r) => r.amount,
-      render: (r) => <span className="text-[13px] tabular-nums">{formatInr(r.amount)}</span>,
+      render: (r) => <span className="text-[13px] tabular-nums whitespace-nowrap">{formatInr(r.amount)}</span>,
     },
     {
       key: "approved",
       label: "Approved",
       align: "right",
+      className: "whitespace-nowrap",
       sortValue: (r) => r.approvedAmt,
       render: (r) => (
-        <span className="inline-flex items-center justify-end gap-1.5">
+        <span className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
           {r.approved && <IncentiveBadge tone="green">✓</IncentiveBadge>}
           <span className="text-[13px] tabular-nums">{formatInr(r.approvedAmt)}</span>
         </span>
@@ -156,12 +165,18 @@ export function IncentiveEntries({
       key: "paid",
       label: "Paid",
       align: "right",
+      className: "whitespace-nowrap",
       sortValue: (r) => r.paidAmt,
       render: (r) => (
-        <span className="inline-flex items-center justify-end gap-1.5">
+        // The amount stays on one line with its tick; the "Negative payable
+        // adj." badge is allowed to wrap UNDER it, because a two-line badge in
+        // its own column reads fine while a broken rupee figure does not.
+        <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
           {r.reversed && <IncentiveBadge tone="red">Negative payable adj.</IncentiveBadge>}
-          {r.paid && !r.reversed && <IncentiveBadge tone="teal">✓</IncentiveBadge>}
-          <span className="text-[13px] font-bold tabular-nums text-ink-strong">{formatInr(r.paidAmt)}</span>
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            {r.paid && !r.reversed && <IncentiveBadge tone="teal">✓</IncentiveBadge>}
+            <span className="text-[13px] font-bold tabular-nums text-ink-strong">{formatInr(r.paidAmt)}</span>
+          </span>
         </span>
       ),
     },
@@ -289,7 +304,7 @@ export function IncentiveEntries({
         }
       />
 
-      <EntryDialog mode={mode} employees={employees} onClose={() => setMode(null)} />
+      <EntryDialog mode={mode} employees={employees} products={products} onClose={() => setMode(null)} />
 
       <ConfirmDialog
         open={pendingDelete !== null}
@@ -338,10 +353,12 @@ export function IncentiveEntries({
 function EntryDialog({
   mode,
   employees,
+  products,
   onClose,
 }: {
   mode: Mode;
   employees: EmployeeOption[];
+  products: string[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -355,9 +372,12 @@ function EntryDialog({
   const [amount, setAmount] = React.useState("");
   const [approved, setApproved] = React.useState(false);
   const [approvedAmt, setApprovedAmt] = React.useState("");
+  const [approvedDate, setApprovedDate] = React.useState("");
   const [paid, setPaid] = React.useState(false);
   const [paidAmt, setPaidAmt] = React.useState("");
+  const [paidDate, setPaidDate] = React.useState("");
   const [note, setNote] = React.useState("");
+  const dictation = useDictation({ value: note, onChange: setNote });
 
   // Hydrate when (re)opening.
   React.useEffect(() => {
@@ -370,8 +390,10 @@ function EntryDialog({
     setAmount(r ? String(r.amount) : "");
     setApproved(r?.approved ?? false);
     setApprovedAmt(r ? String(r.approvedAmt) : "");
+    setApprovedDate(r?.approvedDate ?? "");
     setPaid(r?.paid ?? false);
     setPaidAmt(r ? String(r.paidAmt) : "");
+    setPaidDate(r?.paidDate ?? "");
     setNote(r?.note ?? "");
   }, [mode]);
 
@@ -404,8 +426,10 @@ function EntryDialog({
       amount: num(amount),
       approved,
       approvedAmt: num(approvedAmt),
+      approvedDate: approvedDate || null,
       paid,
       paidAmt: num(paidAmt),
+      paidDate: paidDate || null,
       note: note.trim() || null,
     };
     startTransition(async () => {
@@ -422,7 +446,13 @@ function EntryDialog({
     });
   }
 
-  const empOptions = employees.map((e) => ({ value: e.id, label: e.name }));
+  const employeeNameOptions = employees.map((e) => ({ value: e.id, label: e.name }));
+  // Keep the UUID as the internal select value, but expose the canonical
+  // human-readable Employee Code to users.
+  const employeeIdOptions = employees.map((e) => ({ value: e.id, label: e.employeeCode ?? "Uncoded employee" }));
+  const productOptions = products.map((product) => ({ value: product, label: product }));
+  const yesNoOptions = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
+  const empOptions = employeeNameOptions;
 
   return (
     <Dialog.Root open={mode != null} onOpenChange={(o) => !o && onClose()}>
@@ -436,11 +466,54 @@ function EntryDialog({
             {editing ? "Edit incentive entry" : "Add incentive entry"}
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-[13px] font-medium text-ink-muted">
-            Pick an employee from the roster and the name fills in; type a name instead for someone
-            not on it. The roster link is what lets the dashboard place this entry with a person.
+            Select either roster field. Both fields resolve to one current Employee Master record.
           </Dialog.Description>
 
-          <form onSubmit={submit} className="mt-4 space-y-3.5">
+          <form onSubmit={submit} className="mt-4 space-y-3">
+            <EntrySection title="Employee">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Employee Name / Roster" required>
+                  <Select options={employeeNameOptions} value={empId} onValueChange={pickEmployee} placeholder="Select employee" ariaLabel="Employee Name / Roster" searchable />
+                </Field>
+                <Field label="Employee ID" required>
+                  <Select options={employeeIdOptions} value={empId} onValueChange={pickEmployee} placeholder="Select employee ID" ariaLabel="Employee ID" searchable />
+                </Field>
+              </div>
+              {empName && <p className="mt-2 text-[12px] font-medium text-ink-subtle">{empName}</p>}
+            </EntrySection>
+            <EntrySection title="Incentive">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Incentive Product" required><Select options={productOptions} value={incentiveName} onValueChange={setIncentiveName} placeholder="Select product" ariaLabel="Incentive Product" searchable /></Field>
+                <Field label="Period Month"><input type="month" value={periodMonth} onChange={(event) => setPeriodMonth(event.target.value)} className={inputClass} /></Field>
+                <Field label="Amount"><Input value={amount} onChange={setAmount} placeholder="0" numeric /></Field>
+              </div>
+            </EntrySection>
+            <EntrySection title="Payment">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Approved"><Select options={yesNoOptions} value={approved ? "yes" : "no"} onValueChange={(value) => setApproved(value === "yes")} ariaLabel="Approved" /></Field>
+                <Field label="Approved Amount"><Input value={approvedAmt} onChange={setApprovedAmt} placeholder="0" numeric /></Field>
+                <Field label="Approved Date"><input type="date" value={approvedDate} onChange={(event) => setApprovedDate(event.target.value)} className={inputClass} /></Field>
+                <Field label="Paid"><Select options={yesNoOptions} value={paid ? "yes" : "no"} onValueChange={(value) => setPaid(value === "yes")} ariaLabel="Paid" /></Field>
+                <Field label="Paid Amount"><Input value={paidAmt} onChange={setPaidAmt} placeholder="0" numeric /></Field>
+                <Field label="Paid Date"><input type="date" value={paidDate} onChange={(event) => setPaidDate(event.target.value)} className={inputClass} /></Field>
+              </div>
+            </EntrySection>
+            <EntrySection title="Additional">
+              <Field label="Note">
+                <div className="relative">
+                  <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} maxLength={2000} className={`${inputClass} h-auto py-2 pr-10`} />
+                  {dictation.supported && <button type="button" onClick={dictation.toggle} aria-label={dictation.recording ? "Stop dictation" : "Dictate note"} title={dictation.recording ? "Stop dictation" : "Dictate note"} className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-ink-subtle hover:bg-surface-soft" style={dictation.recording ? { color: "var(--color-altus-red)" } : undefined}><Mic size={15} /></button>}
+                </div>
+                {dictation.interim && <p className="mt-1 text-[12px] text-ink-subtle">{dictation.interim}</p>}
+              </Field>
+            </EntrySection>
+            <div className="flex justify-end gap-2 pt-1">
+              <Dialog.Close asChild><button type="button" className={INCENTIVE_BTN_NEUTRAL} disabled={pending}>Cancel</button></Dialog.Close>
+              <button type="submit" disabled={pending} className={INCENTIVE_BTN_PRIMARY}>{pending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.6} />}{pending ? "Saving..." : editing ? "Save changes" : "Create entry"}</button>
+            </div>
+          </form>
+
+          <form onSubmit={submit} className="hidden">
             <div className="grid gap-3.5 sm:grid-cols-2">
               <Field label="Employee (roster)">
                 <Select
@@ -542,8 +615,10 @@ function Input({
 }) {
   return (
     <input
-      type="text"
-      inputMode={numeric ? "numeric" : undefined}
+      type={numeric ? "number" : "text"}
+      inputMode={numeric ? "decimal" : undefined}
+      min={numeric ? 0 : undefined}
+      step={numeric ? "0.01" : undefined}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
@@ -569,6 +644,15 @@ function Field({
       </label>
       {children}
     </div>
+  );
+}
+
+function EntrySection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-hairline pb-3 last:border-b-0">
+      <h3 className="mb-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-subtle">{title}</h3>
+      {children}
+    </section>
   );
 }
 

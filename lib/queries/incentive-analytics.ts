@@ -33,6 +33,7 @@ import {
   type PeriodSelection,
 } from "@/lib/incentive/analytics/periods";
 import { applyAnalyticsView, incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
+import { narrowToEmployee } from "@/lib/incentive/analytics/viewer";
 
 /**
  * INCENTIVE DASHBOARD — the database half.
@@ -68,6 +69,16 @@ export async function loadIncentiveAnalytics(
      * existing caller's behaviour exactly as it was.
      */
     view?: AnalyticsView;
+    /**
+     * The employee being VIEWED, from the dashboard's `?emp=` parameter.
+     *
+     * Narrows the scope the server resolved to that one person, and only if
+     * they are already inside it — see `narrowToEmployee` in
+     * lib/incentive/analytics/viewer.ts, which returns null for anybody else so
+     * an unpermitted id degrades to the viewer's own dashboard. Omitted or equal
+     * to the viewer means no narrowing, which is every existing caller.
+     */
+    emp?: string | null;
   } = {},
 ): Promise<IncentiveAnalytics | null> {
   const now = opts.now ?? new Date();
@@ -79,7 +90,18 @@ export async function loadIncentiveAnalytics(
   const ledgerMonths = [...(period.previous?.months ?? []), ...period.months].sort();
   const ledgerFrom = `${ledgerMonths[0]}-01`;
   const ledgerTo = period.endExclusive;
-  const targetMonthStarts = [...new Set([...period.months, currentMonth, nextMonth])].map((m) => `${m}-01`);
+  // `period.quarterStart` is included for a quarterly period: a quarterly target
+  // anchors on the quarter's first month, which is already one of `period.months`
+  // for the quarter it belongs to — but naming it explicitly keeps the fetch
+  // correct if that anchor ever moves (migration 0250).
+  const targetMonthStarts = [
+    ...new Set([
+      ...period.months,
+      currentMonth,
+      nextMonth,
+      ...(period.quarterStart ? [period.quarterStart.slice(0, 7)] : []),
+    ]),
+  ].map((m) => `${m}-01`);
 
   // The incentive date of a request, as SQL: the form's Incentive Date, else the
   // day it was filed in IST. ISO strings compare correctly as text.
@@ -195,7 +217,29 @@ export async function loadIncentiveAnalytics(
       joinedMonth: p.joinedAt ? istYmd(p.joinedAt).slice(0, 7) : null,
     }));
 
-  return buildIncentiveAnalytics({
+  // ── VIEWING ONE EMPLOYEE (the `?emp=` parameter) ─────────────────────────
+  //
+  // The narrowing is applied to the scope the SERVER already resolved, and only
+  // succeeds for somebody that scope already covers — so this cannot widen
+  // anything, and an id outside it falls back to the viewer's own dashboard
+  // rather than erroring the page. The name comes from the very roster the
+  // figures are computed from, so the label can never disagree with the rows.
+  const viewed = opts.emp ? (eligible.find((p) => p.id === opts.emp) ?? null) : null;
+  const viewScope = viewed ? (narrowToEmployee(scope, viewed.id, viewed.name) ?? scope) : scope;
+
+  // WHO THE PICKER MAY OFFER — read off the scope the VIEWER's entitlement
+  // resolved to, before either narrowing. `resolvedScope` and not `scope`,
+  // because the Team/User switch must not empty the picker: a company-wide
+  // viewer on the "user" view is still allowed to look at everybody, and
+  // offering them one row would contradict the switch they just pressed.
+  //
+  // `eligible` is the same roster the figures are computed from, so the picker
+  // can never offer somebody whose dashboard does not exist.
+  const viewablePeople = eligible
+    .filter((p) => resolvedScope.all || resolvedScope.employeeIds.has(p.id))
+    .map((p) => ({ id: p.id, name: p.name }));
+
+  const built = buildIncentiveAnalytics({
     period,
     currentMonth,
     employees: eligible,
@@ -212,11 +256,29 @@ export async function loadIncentiveAnalytics(
       empName: t.empName,
       employeeId: t.employeeId,
       periodMonth: String(t.periodMonth),
+      periodType: t.periodType,
       amount: Number(t.targetAmount),
     })),
-    scope,
+    scope: viewScope,
     viewer: { id: viewer.id, name: viewer.name },
+    // The dashboard is ABOUT the person being viewed, so `me` — the row the KPI
+    // band's Grade and % of CTC cards print — must be theirs and not the
+    // reader's. Falls back to the reader, which is every other caller.
+    subjectId: viewed?.id ?? viewer.id,
   });
+
+  // THE TARGET WARNING IS ABOUT *YOUR* MISSING TARGET, so it is suppressed while
+  // you are looking at somebody else's dashboard — "fill in your target" over
+  // another person's figures is advice the reader cannot act on there. The
+  // engine computes it from the signed-in viewer, which is deliberately NOT
+  // swapped for the viewed employee: `isSelf` and the CTC restriction must keep
+  // describing the person actually reading the page, or a manager opening a
+  // report's dashboard would be shown that report's pay.
+  return {
+    ...built,
+    viewablePeople,
+    ...(viewed && viewed.id !== viewer.id ? { targetWarning: null } : {}),
+  };
 }
 
 /** One row of the Trends leaderboard. */

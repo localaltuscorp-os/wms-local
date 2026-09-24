@@ -198,6 +198,7 @@ export async function getProfile(employeeId: string): Promise<ProfileRow | null>
 export interface SalaryRunRow {
   id: string;
   employeeId: string;
+  employeeCode: string | null;
   employeeName: string;
   designationName: string | null;
   payingEntityName: string | null;
@@ -232,6 +233,7 @@ export interface SalaryRunRow {
 function mapRun(r: {
   id: string;
   employeeId: string;
+  employeeCode: string | null;
   employeeName: string;
   designationName: string | null;
   payingEntityName: string | null;
@@ -261,6 +263,7 @@ function mapRun(r: {
   return {
     id: r.id,
     employeeId: r.employeeId,
+    employeeCode: r.employeeCode ?? null,
     employeeName: r.employeeName,
     designationName: r.designationName ?? null,
     payingEntityName: r.payingEntityName ?? null,
@@ -292,6 +295,7 @@ function mapRun(r: {
 const RUN_SELECT = {
   id: salaryRuns.id,
   employeeId: salaryRuns.employeeId,
+  employeeCode: employees.employeeCode,
   employeeName: employees.name,
   designationName: designations.name,
   payingEntityName: payingEntities.name,

@@ -8,10 +8,15 @@ import {
   ADMIN_PANEL_ENTRY,
   MODULE_ORDER,
   MODULE_THEME,
+  listedModules,
   moduleShortcutHint,
   moduleShortcutLabel,
 } from "@/lib/module-theme";
-import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
+import {
+  canAccessWorkspace,
+  workspaceForPath,
+  type WorkspaceAccessInput,
+} from "@/lib/workspaces";
 
 /**
  * SITE-WIDE MODULE FOOTER — every room, one row, on every page.
@@ -35,6 +40,12 @@ import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
  * locked cards. It is presentation only: the real boundary is the layout gate
  * plus each room's own checks.
  *
+ * ONE EXCEPTION, and the dock renders `listedModules` rather than MODULE_ORDER
+ * to honour it: the Control Panel must not be seen at all by somebody without
+ * the permission — a greyed label is still a menu entry for a room that hands
+ * out access. `listedModules` omits it for them and appends it for everybody
+ * else. See CONDITIONAL_MODULES in lib/module-theme.ts.
+ *
  * IN FLOW AT THE END OF THE PAGE, not pinned over it. It rests as a slim strip
  * carrying a grabber; hovering (or tapping) that strip reveals the glass dock,
  * which then stays until the X is pressed. Reserving the strip's height up front
@@ -47,7 +58,7 @@ import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
  */
 
 export interface ModuleFooterProps {
-  access: { departments: string[]; isAdmin: boolean; isSuperAdmin: boolean };
+  access: WorkspaceAccessInput;
 }
 
 export function ModuleFooter({ access }: ModuleFooterProps) {
@@ -141,8 +152,15 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
           scrollbarWidth: "none",
         }}
       >
-        {MODULE_ORDER.map((id, i) => {
+        {listedModules(access).map((id) => {
           const m = MODULE_THEME[id];
+          // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
+          // module (the Control Panel) is appended to `listedModules` and owns no
+          // letter, so the two lists are the same length only by coincidence —
+          // and a letter looked up by render position would move the moment one
+          // appeared or disappeared. `indexOf` returns -1 for a module with no
+          // place in the order, which resolves to no badge, which is correct.
+          const i = MODULE_ORDER.indexOf(id);
           const allowed = canAccessWorkspace(id, access);
           const Icon = m.Icon;
           const shortcut = moduleShortcutHint(i);

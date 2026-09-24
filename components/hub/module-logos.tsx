@@ -41,6 +41,10 @@ const PAL: Record<WorkspaceId, { from: string; to: string; ink: string }> = {
   accounts: { from: "#E3EAF4", to: "#E3EAF4", ink: "#315A9B" }, // shadows `admin`
   "project-plan": { from: "#A5F3FC", to: "#67E8F9", ink: "#0E7490" }, // 12 · cyan (its own hub identity)
   incentive: { from: "#F6E3F4", to: "#F6E3F4", ink: "#8E298E" }, // I · magenta, matching its card (the room is red inside)
+  // · slate, matching the Control Panel's module theme (2026-09-24). It has no
+  // hub card — the room only exists for the people the matrix lets in — but the
+  // palette is keyed by WorkspaceId, so it needs a tile like every other room.
+  "control-panel": { from: "#E2E5EA", to: "#E2E5EA", ink: "#334155" },
 };
 
 function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string }) {
@@ -265,6 +269,22 @@ function Glyph({ id, ink, light }: { id: WorkspaceId; ink: string; light: string
           <circle cx="32" cy="27.5" r="14" fill={ink} />
           <circle cx="32" cy="27.5" r="9.2" fill="none" stroke={light} strokeWidth="2.6" />
           <circle cx="32" cy="27.5" r="3.6" fill={light} />
+        </g>
+      );
+    // Control Panel — a shield with a keyhole cut out of it. Solid, like every
+    // other tile here: at the 24px the module bar draws these, an outline glyph
+    // greys out and disappears. The shield says "access" without reaching for
+    // the Admin Panel's own shield-with-alert mark (that entry is red and sits
+    // beside this one), and the white keyhole is what distinguishes the two.
+    case "control-panel":
+      return (
+        <g>
+          <path
+            d="M32 14 L48 20.5 V32.5 C48 42.6 41.4 49.4 32 52.5 C22.6 49.4 16 42.6 16 32.5 V20.5 Z"
+            fill={ink}
+          />
+          <circle cx="32" cy="29.5" r="5.6" fill={light} />
+          <path d="M29.6 33.8 H34.4 L35.8 43.4 H28.2 Z" fill={light} />
         </g>
       );
     default:

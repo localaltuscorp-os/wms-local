@@ -221,6 +221,21 @@ const MODULES: Record<WorkspaceId, readonly TableTabSpec[]> = {
     { tab: "Payouts", key: "incentive-payouts", table: s.incentivePayoutEvents, changedAt: "createdAt" },
   ],
 
+  // THE CONTROL PANEL — its own module since 2026-09-24 (it was a group inside
+  // the Admin Panel).
+  //
+  // ONLY THE TABLE IT OWNS ON ITS OWN. `module_permissions` and
+  // `delegated_access_grants` are administered from this room now, but they are
+  // exported by `admin` below and are listed once, there: two modules writing
+  // the same table into two sheets is a duplicate nobody asked for, and a
+  // restore-from-sheet would have two sources to reconcile. The three role
+  // tables belong to no other module and would otherwise be backed up nowhere.
+  "control-panel": [
+    { tab: "Roles", key: "roles", table: s.roles, changedAt: "updatedAt" },
+    { tab: "Role permissions", key: "role-permissions", table: s.rolePermissions, changedAt: "updatedAt" },
+    { tab: "Employee roles", key: "employee-roles", table: s.employeeRoles, changedAt: "createdAt" },
+  ],
+
   admin: [
     { tab: "Module permissions", key: "module-permissions", table: s.modulePermissions, changedAt: "updatedAt" },
     { tab: "Capability grants", key: "capability-grants", table: s.capabilityGrants, changedAt: "createdAt" },

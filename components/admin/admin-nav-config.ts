@@ -1,9 +1,7 @@
 import type { Route } from "next";
 import type { LucideIcon } from "lucide-react";
 import {
-  LayoutGrid,
   MapPin,
-  Activity as ActivityIcon,
   Bell,
   BellRing,
   Users,
@@ -15,7 +13,6 @@ import {
   Landmark,
   ReceiptIndianRupee,
   CreditCard,
-  UserCog,
   CalendarDays,
   BadgeIndianRupee,
   Gift,
@@ -27,8 +24,6 @@ import {
   FileUp,
   Settings as SettingsIcon,
   ScrollText,
-  Eye,
-  Clock,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -48,8 +43,6 @@ export interface AdminNavGroup {
 // grouped dropdowns) AND the mobile drawer (AdminMobileBar, flat sections),
 // so the two never drift.
 export const ADMIN_TOP_LEVEL: readonly AdminNavItem[] = [
-  { href: "/admin" as Route, label: "Overview", Icon: LayoutGrid, exact: true },
-  { href: "/admin/activity" as Route, label: "Activity", Icon: ActivityIcon },
 ];
 
 export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
@@ -70,7 +63,6 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/functions" as Route, label: "Functions", Icon: Building2 },
       { href: "/admin/designations" as Route, label: "Designations", Icon: IdCard },
       { href: "/admin/holidays" as Route, label: "Holidays", Icon: CalendarDays },
-      { href: "/admin/salary-profiles" as Route, label: "Salary Breakup", Icon: BadgeIndianRupee },
     ],
   },
   {
@@ -105,7 +97,6 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     Icon: Wallet,
     items: [
       { href: "/admin/outstanding-entities" as Route, label: "Entities", Icon: Landmark },
-      { href: "/admin/outstanding-responsibles" as Route, label: "Responsibles", Icon: UserCog },
       // The older products screen, kept because it is bookmarked and linked from
       // the Outstanding module. Same table, same rows, no code column — see
       // app/(admin)/admin/products/page.tsx.
@@ -146,22 +137,16 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     label: "Access",
     Icon: KeyRound,
     items: [
-      // Task Visibility stays its own heading; Temporary Access moved under
-      // Control Panel (below), its one canonical location.
+      // Task Visibility stays its own heading.
+      //
+      // CONTROL PANEL IS NOT HERE ANY MORE (2026-09-24). It left the Admin Panel
+      // and became a module of its own at `/control-panel`, listed beside the
+      // other modules and shown only to the people the permission matrix lets
+      // in. Temporary Access went with it — it was a Control Panel screen, and
+      // it stays one; only the panel it hangs off changed. Nothing in this file
+      // names, links to or governs the Control Panel, which is what "the Admin
+      // Panel no longer contains it" has to mean at the navigation layer.
       { href: "/admin/access-control" as Route, label: "Task Visibility", Icon: ShieldCheck },
-    ],
-  },
-  {
-    // THE CONTROL PANEL — the central surface for managing who has access to
-    // what. Temporary Access relocated here (reused, not rebuilt).
-    label: "Control Panel",
-    Icon: ShieldCheck,
-    items: [
-      { href: "/admin/control-panel/users" as Route, label: "Users", Icon: Users },
-      { href: "/admin/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
-      { href: "/admin/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
-      { href: "/admin/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
-      { href: "/admin/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
     ],
   },
   {

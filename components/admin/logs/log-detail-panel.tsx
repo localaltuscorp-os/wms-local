@@ -75,8 +75,7 @@ export function LogDetailPanel({ log, onClose }: { log: LogRow; onClose: () => v
 
         <dl className="space-y-0 divide-y divide-hairline">
           <Field k="Person" v={log.employeeName ?? "—"} />
-          <Field k="Employee ID" v={log.employeeId ?? "—"} />
-          <Field k="Employee Code" v={log.employeeCode ?? "—"} />
+          <Field k="Employee ID" v={log.employeeCode ?? "—"} />
           <Field k="Function" v={log.functionName ?? "—"} />
           <Field k="Designation" v={log.designationName ?? "—"} />
           <Field k="Entity" v={log.entityName ?? "—"} />
