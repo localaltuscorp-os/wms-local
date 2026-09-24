@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/current";
 import { requireModuleEdit } from "@/lib/permissions/resolve";
 import { setReportingManager, managerHistoryFor } from "@/lib/employees/manager-history";
+import { reorderSibling } from "@/lib/employees/sort-order";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
@@ -67,6 +68,29 @@ export async function moveEmployeeToManager(
   // The employee roster cache carries manager ids to the pickers.
   updateTag(CACHE_TAGS.employees);
   return { ok: true, changed: res.changed };
+}
+
+/**
+ * Move a person (or a manager's own column) one place up/down among its
+ * siblings — Team Reporting's "move any full card up and down, shuffle their
+ * orders internally" (2026-09-24). A column's order IS its manager's own
+ * sort_order among ITS siblings, so this one action covers both card reorder
+ * within a column and column reorder — there's no separate "column" entity.
+ */
+export async function reorderTeamMember(
+  employeeId: string,
+  direction: "up" | "down",
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireAdmin();
+  await requireModuleEdit(NODE);
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: limited.error };
+  if (!z.string().uuid().safeParse(employeeId).success) return { ok: false, error: "Invalid id" };
+
+  const res = await reorderSibling(employeeId, direction);
+  if (!res.ok) return res;
+  revalidatePath("/operations/team-reporting");
+  return { ok: true };
 }
 
 /** One person's reporting history — loaded on demand when a card is opened, so

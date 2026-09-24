@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2, X } from "lucide-react";
 import { Chevroned } from "@/components/ui/chevroned-select";
 import { fireToast } from "@/lib/toast";
-import { EXEC_CATEGORIES, categoryColors, execCategory, guessCategory } from "@/lib/exec-calendar/taxonomy";
+import { EXEC_CATEGORIES, categoryColors, execCategory, guessCategory, type ExecCategoryKey } from "@/lib/exec-calendar/taxonomy";
 import { EXEC_CLIENTS } from "@/lib/exec-calendar/clients";
 import { SwatchSelect } from "./swatch-select";
 import { DayMarkerForm } from "./day-marker-form";
 import { MARKER_BG, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import { durationLabel, minToLabel } from "@/lib/exec-calendar/grid";
-import { saveExecEvent, deleteExecEvent, type ExecEventInput } from "@/app/(app)/events/actions";
+import { saveExecEvent, deleteExecEvent, stampRecurringEvent, type ExecEventInput } from "@/app/(app)/events/actions";
+import { RecurrenceControl } from "@/components/tasks/recurrence-control";
+import { dateFromYmd } from "@/lib/recurrence/google-recurrence";
 
 /**
  * The edit drawer (§6: "click opens an edit drawer").
@@ -84,6 +86,10 @@ export function ExecEventEditor({
   const [v, setV] = React.useState<EditorEvent>(initial);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // "Repeat" (2026-09-24) — only offered when creating a NEW timed block. An
+  // existing block stays a single occurrence (editing the SERIES is "Manage
+  // routines"); all-day has no time-of-day for the routines table to key off.
+  const [recurrenceRule, setRecurrenceRule] = React.useState<string | null>(null);
 
   const cat = execCategory(v.categoryKey);
   const col = categoryColors(v.categoryKey);
@@ -137,6 +143,34 @@ export function ExecEventEditor({
     if (busy) return;
     setBusy(true);
     setError(null);
+
+    if (!v.id && recurrenceRule) {
+      const res = await stampRecurringEvent({
+        title: v.title,
+        categoryKey: v.categoryKey as ExecCategoryKey,
+        day: v.day,
+        startMin: v.startMin!,
+        endMin: v.endMin!,
+        location: v.location,
+        notes: v.notes,
+        clientKey: v.clientKey,
+        batchLabel: v.batchLabel,
+        recurrenceRule,
+      });
+      setBusy(false);
+      if (!res.ok) { setError(res.error); return; }
+      fireToast({
+        message:
+          res.skipped > 0
+            ? `Added to the calendar · ${res.created} blocks · skipped ${res.skipped}`
+            : `Added to the calendar · ${res.created} blocks`,
+        type: "success",
+      });
+      onClose();
+      router.refresh();
+      return;
+    }
+
     const res = await saveExecEvent(v as ExecEventInput);
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
@@ -320,6 +354,15 @@ export function ExecEventEditor({
               </p>
             )}
             </div>
+          )}
+
+          {!v.id && !v.allDay && (
+            <RecurrenceControl
+              anchor={dateFromYmd(v.day)}
+              recurrence={recurrenceRule ? "weekly" : null}
+              recurrenceRule={recurrenceRule}
+              onChange={({ recurrenceRule: next }) => setRecurrenceRule(next)}
+            />
           )}
 
           {cat.linksClient && (

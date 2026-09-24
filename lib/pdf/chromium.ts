@@ -155,6 +155,57 @@ async function printHtml(browser: any, html: string): Promise<Uint8Array> {
 }
 
 /**
+ * Screenshot a COMPLETE HTML document to JPEG. Same SSRF hardening as
+ * `printHtml` (JS disabled, only `data:` + the Supabase host may load) — this
+ * is the export-as-image sibling of `renderHtmlToPdf`, for callers that want a
+ * picture of the rendered page rather than a paginated document (e.g. the
+ * Executive Master Calendar's "Export as JPG").
+ */
+export async function renderHtmlToJpeg(html: string, opts?: { width?: number; height?: number }): Promise<Uint8Array> {
+  let browser: any = null;
+  try {
+    browser = await launchBrowser();
+    const page = await browser.newPage();
+    try {
+      if (opts?.width && opts?.height) {
+        await page.setViewport({ width: opts.width, height: opts.height });
+      }
+      await page.setJavaScriptEnabled(false);
+      const supabaseHost = allowedResourceHost();
+      await page.setRequestInterception(true);
+      page.on("request", (r: any) => {
+        const url: string = r.url();
+        if (url.startsWith("data:")) return void r.continue();
+        try {
+          const host = new URL(url).host;
+          if (supabaseHost && host === supabaseHost) return void r.continue();
+        } catch {
+          /* unparseable → block */
+        }
+        return void r.abort();
+      });
+      await page.setContent(html, { waitUntil: "load" });
+      const jpeg = await page.screenshot({ type: "jpeg", quality: 92, fullPage: true });
+      return new Uint8Array(jpeg);
+    } finally {
+      try {
+        await page.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {
+        /* ignore close errors — the image is already in memory */
+      }
+    }
+  }
+}
+
+/**
  * Print SEVERAL documents, launching the browser ONCE.
  *
  * Launching Chromium is the dominant cost (seconds); printing a further document

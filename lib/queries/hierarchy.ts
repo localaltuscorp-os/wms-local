@@ -2,6 +2,7 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
+import { loadSortOrders } from "@/lib/employees/sort-order";
 
 /**
  * THE REPORTING HIERARCHY, read for the Kanban org view.
@@ -38,6 +39,9 @@ export interface HierarchyPerson {
   managerId: string | null;
   /** How many people report to THEM — what makes somebody a column. */
   reportCount: number;
+  /** Manual position among siblings sharing the same manager (0251), or null
+   *  for "no manual order yet" / the database doesn't have 0251. */
+  sortOrder: number | null;
 }
 
 export interface HierarchyColumn {
@@ -95,6 +99,8 @@ export async function getHierarchy(
     .where(eq(employees.isActive, true))
     .orderBy(asc(employees.name));
 
+  const sortOrders = await loadSortOrders();
+
   // Candidates and system accounts are excluded here rather than in the WHERE
   // clause: candidates are always `is_active = false` (so the filter above
   // already drops them) but system/demo logins are deliberately inactive too,
@@ -122,6 +128,7 @@ export async function getHierarchy(
     isAdmin: r.isAdmin,
     managerId: r.managerId,
     reportCount: reportsByManager.get(r.id)?.length ?? 0,
+    sortOrder: sortOrders.get(r.id) ?? null,
   }));
 
   const byId = new Map(people.map((p) => [p.id, p]));
@@ -155,6 +162,14 @@ export async function getHierarchy(
   const byJoin = (a: HierarchyPerson, b: HierarchyPerson) =>
     (joinedAt.get(a.id) ?? 0) - (joinedAt.get(b.id) ?? 0) || a.id.localeCompare(b.id);
   const byName = (a: HierarchyPerson, b: HierarchyPerson) => a.name.localeCompare(b.name);
+  // A manual sort_order (0251) wins over join order whenever EITHER side has
+  // one set — Team Reporting's card/column reorder. Neither set → falls
+  // through to byJoin unchanged, so a database/roster with no manual order
+  // yet behaves exactly as before.
+  const byManualThenJoin = (a: HierarchyPerson, b: HierarchyPerson) =>
+    a.sortOrder !== null || b.sortOrder !== null
+      ? (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity)
+      : byJoin(a, b);
 
   let columns: HierarchyColumn[];
   let unassigned: HierarchyPerson[];
@@ -171,7 +186,7 @@ export async function getHierarchy(
      * org it is drawing. Below the second level a column still needs reports -
      * otherwise every individual contributor would become an empty column.
      */
-    const roots = people.filter((p) => !p.managerId).sort(byJoin);
+    const roots = people.filter((p) => !p.managerId).sort(byManualThenJoin);
     const rootIds = new Set(roots.map((p) => p.id));
     const queue: HierarchyPerson[] = [...roots];
     const walked = new Set<string>();
@@ -180,7 +195,7 @@ export async function getHierarchy(
       const person = queue.shift()!;
       if (walked.has(person.id)) continue;
       walked.add(person.id);
-      const reports = reportsOf(person.id).sort(byJoin);
+      const reports = reportsOf(person.id).sort(byManualThenJoin);
       const secondLevel = person.managerId !== null && rootIds.has(person.managerId);
       if (reports.length > 0 || secondLevel) columns.push(toColumn(person.id, reports));
       queue.push(...reports);
@@ -188,7 +203,7 @@ export async function getHierarchy(
     // A team whose manager has left the active roster is unreachable from any
     // root. It must still appear - dropping it would hide real people.
     for (const managerId of reportsByManager.keys()) {
-      if (!walked.has(managerId)) columns.push(toColumn(managerId, reportsOf(managerId).sort(byJoin)));
+      if (!walked.has(managerId)) columns.push(toColumn(managerId, reportsOf(managerId).sort(byManualThenJoin)));
     }
     unassigned = roots;
   } else {

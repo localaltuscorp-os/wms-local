@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { ChevronLeft, ChevronRight, Plus, Repeat, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2, Plus, Repeat, Upload } from "lucide-react";
 import { ExecWeekGrid } from "./week-grid";
 import { ExecMonthGrid } from "./month-grid";
+import { ExecMonthlyGridView } from "./monthly-grid-view";
 import { ExecEventEditor, type EditorEvent } from "./event-editor";
 import { ExecRoutineDialog } from "./routine-dialog";
 import { ExecImportDialog } from "./import-dialog";
@@ -75,7 +77,7 @@ export function ExecCalendarWorkspace({
   draftDay,
   canEdit = true,
   openRoutine = false,
-  routineMode = "stamp",
+  routineMode = "edit",
   openImport = false,
   ownerId,
   isOwner,
@@ -91,7 +93,7 @@ export function ExecCalendarWorkspace({
   draftDay?: string | null;
   canEdit?: boolean;
   openRoutine?: boolean;
-  routineMode?: "stamp" | "delete";
+  routineMode?: "edit" | "delete";
   openImport?: boolean;
   ownerId: string;
   isOwner: boolean;
@@ -103,6 +105,60 @@ export function ExecCalendarWorkspace({
   const [markerEditing, setMarkerEditing] = React.useState<DayMarker | null>(null);
   const [routineOpen, setRoutineOpen] = React.useState(openRoutine);
   const [importOpen, setImportOpen] = React.useState(openImport);
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [exportBusy, setExportBusy] = React.useState<"pdf" | "jpg" | null>(null);
+  /** Weekly Grid's "maximize" — a full-viewport overlay, not the browser
+   *  Fullscreen API (no existing pattern for that here, and it needs a user
+   *  gesture / can be blocked in embedded contexts). Esc closes it. */
+  const [gridMaximized, setGridMaximized] = React.useState(false);
+  React.useEffect(() => {
+    if (!gridMaximized) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGridMaximized(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [gridMaximized]);
+
+  /** Export the MONTH `day` falls in, as a PDF or JPG — read-only, so unlike
+   *  Import/Routine/New block this isn't gated on `canEdit`. */
+  const runExport = React.useCallback(
+    async (format: "pdf" | "jpg") => {
+      setExportOpen(false);
+      setExportBusy(format);
+      try {
+        const r = await fetch("/api/events/export", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ownerId, day, format }),
+        });
+        if (!r.ok) {
+          fireToast({ message: "Could not build the export.", type: "error" });
+          return;
+        }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const cd = r.headers.get("content-disposition") ?? "";
+        a.download = /filename="([^"]+)"/.exec(cd)?.[1] ?? `calendar.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      } catch {
+        fireToast({ message: "Could not build the export.", type: "error" });
+      } finally {
+        setExportBusy(null);
+      }
+    },
+    [ownerId, day],
+  );
 
   const href = React.useCallback(
     (v: CalendarView, d: string): Route => {
@@ -231,8 +287,46 @@ export function ExecCalendarWorkspace({
           </button>
         </div>
 
+        <div className="relative ml-auto flex shrink-0 items-center gap-2">
+          {view === "grid" && (
+            <button
+              onClick={() => setGridMaximized((v) => !v)}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
+            >
+              <Maximize2 size={14} /> Maximize
+            </button>
+          )}
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            disabled={exportBusy !== null}
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong disabled:opacity-60"
+          >
+            {exportBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {exportBusy ? "Exporting…" : "Export"}
+          </button>
+          {exportOpen && (
+            <div
+              className="absolute right-0 top-[calc(100%+4px)] z-20 w-36 overflow-hidden rounded-lg border border-hairline-strong bg-surface-card shadow-lg"
+              onMouseLeave={() => setExportOpen(false)}
+            >
+              <button
+                onClick={() => void runExport("pdf")}
+                className="block w-full px-3 py-2 text-left text-[12.5px] font-semibold text-ink-strong hover:bg-surface-soft"
+              >
+                Export as PDF
+              </button>
+              <button
+                onClick={() => void runExport("jpg")}
+                className="block w-full px-3 py-2 text-left text-[12.5px] font-semibold text-ink-strong hover:bg-surface-soft"
+              >
+                Export as JPG
+              </button>
+            </div>
+          )}
+        </div>
+
         {canEdit && (
-          <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button
               onClick={() => setImportOpen(true)}
               className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
@@ -241,9 +335,10 @@ export function ExecCalendarWorkspace({
             </button>
             <button
               onClick={() => setRoutineOpen(true)}
+              title="Edit or delete a repeat — to CREATE one, give New block a Repeat"
               className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
             >
-              <Repeat size={14} /> Routine
+              <Repeat size={14} /> Manage routines
             </button>
             <button
               onClick={() => setEditing(blankEvent(day, 10 * 60))}
@@ -271,7 +366,7 @@ export function ExecCalendarWorkspace({
         />
       )}
 
-      {view === "grid" && (
+      {view === "grid" && !gridMaximized && (
         <ExecWeeklyGridView
           monday={weekStart(day)}
           events={events}
@@ -283,6 +378,42 @@ export function ExecCalendarWorkspace({
           onPickMarker={openMarker}
         />
       )}
+
+      {view === "grid" &&
+        gridMaximized &&
+        createPortal(
+          // Portaled straight to <body> — a plain descendant `fixed inset-0`
+          // rendered this deep in the tree left the sticky topbar/sidebar (and
+          // the legend column) visible through it in testing, the same class
+          // of containing-block bug as the Attendance hover-card fix. A portal
+          // sidesteps whichever ancestor was doing that instead of hunting it
+          // down, and guarantees this can never happen again from a future
+          // ancestor style change either.
+          <div className="fixed inset-0 z-[200] flex flex-col bg-surface-soft p-4">
+            <div className="mb-3 flex shrink-0 items-center justify-between">
+              <span className="text-[14px] font-bold text-ink-strong">{label} — Weekly Grid</span>
+              <button
+                onClick={() => setGridMaximized(false)}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline bg-surface-card px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
+              >
+                <Minimize2 size={14} /> Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <ExecWeeklyGridView
+                monday={weekStart(day)}
+                events={events}
+                markers={markers}
+                cfg={cfg}
+                today={today}
+                onPickEvent={canEdit ? openEvent : undefined}
+                onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
+                onPickMarker={openMarker}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {view === "month" && (
         <div className="border border-hairline bg-surface-card p-4">
@@ -297,6 +428,16 @@ export function ExecCalendarWorkspace({
             onPickMarker={openMarker}
           />
         </div>
+      )}
+
+      {view === "monthgrid" && (
+        <ExecMonthlyGridView
+          anchor={monthStart(day)}
+          events={events}
+          today={today}
+          onPickDay={pickDay}
+          onPickEvent={canEdit ? openEvent : undefined}
+        />
       )}
 
       {view === "year" && (
@@ -331,8 +472,7 @@ export function ExecCalendarWorkspace({
       )}
       {routineOpen && (
         <ExecRoutineDialog
-          today={day}
-          weekStartDay={weekStart(day)}
+          today={today}
           initialMode={routineMode}
           onClose={() => setRoutineOpen(false)}
         />

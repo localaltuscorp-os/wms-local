@@ -3,7 +3,6 @@
 import { useMemo, useState, useCallback, useRef, useEffect, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import {
-  Send,
   Loader2,
   Printer,
   Download,
@@ -272,18 +271,14 @@ export function LetterEditor({
   // Candidate gender → resolves gendered tokens ({title}/{he}/{his}/…) live.
   const [gender, setGender] = useState<Gender>("neutral");
   const [candidateId, setCandidateId] = useState<string>("");
-  const [issuing, setIssuing] = useState(false);
-  const [issued, setIssued] = useState(false);
-  const [emailing, setEmailing] = useState(false);
   /** The Download-PDF button's in-flight flag — the pdfkit render takes a beat. */
   const [downloading, setDownloading] = useState(false);
   // The "Send Email" composer (toolbar → modal). `null` = closed; otherwise the
-  // editable To / Subject / Message the sender is about to dispatch.
+  // editable To / Subject / Message the sender is about to dispatch. This is
+  // now the ONE send/archive action — the separate "Issue letter" button was
+  // removed 2026-09-24 (it only duplicated what this button already did).
   const [compose, setCompose] = useState<null | { to: string; subject: string; message: string }>(null);
   const [sending, setSending] = useState(false);
-  // The mandatory Print-Preview gate. "issue" or "email" → the confirm button in
-  // the modal runs the matching action; null → the modal is closed.
-  const [previewMode, setPreviewMode] = useState<null | "issue" | "email">(null);
   // "Hide boxes" — preview the FINISHED letter (no editable input chrome, empty
   // rows/fields dropped). Default OFF so every box is visible + fillable.
   const [clean, setClean] = useState(false);
@@ -367,7 +362,6 @@ export function LetterEditor({
 
   const setValue = useCallback((id: string, v: string) => {
     setValues((prev) => (prev[id] === v ? prev : { ...prev, [id]: v }));
-    setIssued(false);
   }, []);
 
   /** Write several field values at once (used by the CTC calculator). No-ops
@@ -400,7 +394,6 @@ export function LetterEditor({
       const url = typeof reader.result === "string" ? reader.result : null;
       if (url) {
         setSigImage(url);
-        setIssued(false);
         fireToast({ message: "Signature added to the sign-off." });
       }
     };
@@ -466,7 +459,6 @@ export function LetterEditor({
         setEntity(prefill.entity);
         clearCtcLetterPrefill();
       }
-      setIssued(false);
     },
     // `entity` is read only as the fallback for the "company" field when the
     // employee has no paying entity of their own.
@@ -531,7 +523,6 @@ export function LetterEditor({
     richGetHtmlRef.current = null;
     setRichDirty(false);
     setSigningModel(template.signature ?? "none");
-    setIssued(false);
     setRichMode(true);
   }, [template, values, entity, gender, savedRichHtml, signatory]);
 
@@ -542,7 +533,6 @@ export function LetterEditor({
     setSavedRichHtml(html);
     richSavedRef.current = html;
     setRichDirty(false);
-    setIssued(false);
     fireToast({ message: "Free-edit changes saved to this letter." });
   }, [currentRichHtml]);
 
@@ -557,7 +547,6 @@ export function LetterEditor({
     }
     setRichMode(false);
     setRichDirty(false);
-    setIssued(false);
   }, [richDirty]);
 
   /** Drop the saved free-edit override → the letter reverts to the field-driven
@@ -568,13 +557,11 @@ export function LetterEditor({
     richSavedRef.current = "";
     richHtmlRef.current = "";
     setRichDirty(false);
-    setIssued(false);
     fireToast({ message: "Free-edit discarded - using the field version." });
   }, []);
 
   const onRichChange = useCallback((html: string) => {
     richHtmlRef.current = html;
-    setIssued(false);
     setRichDirty(html !== richSavedRef.current);
   }, []);
 
@@ -599,80 +586,6 @@ export function LetterEditor({
   const recipientName = (values.candidateName ?? values.name ?? "").trim();
   const recipientEmail = (values.candidateEmail ?? values.email ?? "").trim();
 
-  /** Open the mandatory Print-Preview before ISSUING (validates recipient first). */
-  function requestIssue() {
-    if (!isAdmin) return;
-    if (!employeeId && !recipientName) {
-      fireToast({ message: "Fill the recipient's name, or attach an employee.", type: "error" });
-      return;
-    }
-    setPreviewMode("issue");
-  }
-
-  /** The confirmed ISSUE — the existing render + archive POST. */
-  async function runIssue() {
-    if (!isAdmin) return;
-    setIssuing(true);
-    try {
-      const url = usingRich ? "/api/hr/letters/issue-rich" : "/api/hr/letters/issue";
-      const payload = usingRich
-        ? {
-            key: template.key,
-            entity,
-            gender,
-            bodyHtml: currentRichHtml(),
-            signingModel,
-            signatory,
-            // NO `date` here, deliberately. The free-edit path renders whatever
-            // HTML is in the editor, and `templateToRichHtml` never seeds the
-            // top-right stamp — so a rich letter has no header date to set, and
-            // lib/hr/letters/issue-rich.ts takes none. Sending one would be a
-            // key that looks threaded and is dropped on arrival.
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
-          }
-        : {
-            key: template.key,
-            entity,
-            gender,
-            values,
-            date: headerDate,
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
-            signatureImage: sigImage ?? undefined,
-            signatory,
-          };
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const res = (await r.json().catch(() => ({ ok: false }))) as
-        | { ok: true; emailed?: boolean; emailedTo?: string | null }
-        | { ok: false; error?: string };
-      if (!res.ok) {
-        fireToast({ message: res.error ?? "Could not issue the letter.", type: "error" });
-        return;
-      }
-      setIssued(true);
-      setPreviewMode(null);
-      if (res.emailed && res.emailedTo) {
-        fireToast({ message: `Letter issued, archived & emailed to ${res.emailedTo}.` });
-      } else {
-        fireToast({
-          message:
-            "Letter issued & archived - but it was NOT emailed. Add a recipient email (or attach an employee with an email on file), then use “Export & Email PDF”.",
-          type: "error",
-        });
-      }
-    } catch {
-      fireToast({ message: "Could not issue the letter.", type: "error" });
-    } finally {
-      setIssuing(false);
-    }
-  }
 
   /**
    * DOWNLOAD THE PDF — the same server-rendered document that Issue and Email
@@ -741,57 +654,6 @@ export function LetterEditor({
       fireToast({ message: err instanceof Error ? err.message : "Could not build the PDF.", type: "error" });
     } finally {
       setDownloading(false);
-    }
-  }
-
-  /** The confirmed EXPORT & EMAIL — render the PDF server-side and email it to the
-   *  candidate (BCC the HR desk) in one shot. */
-  async function runEmailPdf() {
-    setEmailing(true);
-    try {
-      const payload = usingRich
-        ? {
-            key: template.key,
-            entity,
-            gender,
-            contentKind: "rich" as const,
-            bodyHtml: currentRichHtml(),
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
-          }
-        : {
-            key: template.key,
-            entity,
-            gender,
-            values,
-            date: today,
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
-            signatureImage: sigImage ?? undefined,
-            signatory,
-          };
-      const r = await fetch("/api/hr/letters/email-pdf", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const res = (await r.json().catch(() => ({ ok: false }))) as
-        | { ok: true; to?: string }
-        | { ok: false; error?: string };
-      if (!res.ok) {
-        fireToast({ message: res.error ?? "Could not email the PDF.", type: "error" });
-        return;
-      }
-      setPreviewMode(null);
-      fireToast({
-        message: res.to ? `PDF emailed to ${res.to} (HR copied).` : "PDF emailed to the candidate (HR copied).",
-      });
-    } catch {
-      fireToast({ message: "Could not email the PDF.", type: "error" });
-    } finally {
-      setEmailing(false);
     }
   }
 
@@ -951,7 +813,6 @@ export function LetterEditor({
                 if (id) onPickCandidate(id);
                 else {
                   setCandidateId("");
-                  setIssued(false);
                 }
               }}
               aria-label="Pick the candidate this letter is for"
@@ -971,7 +832,6 @@ export function LetterEditor({
                 if (id) onSeedEmployee(id);
                 else {
                   setEmployeeId("");
-                  setIssued(false);
                 }
               }}
               aria-label="Pick the employee this letter is for"
@@ -1002,7 +862,6 @@ export function LetterEditor({
               setSignatory(next);
               // Already ejected? Re-sign the live document in place.
               if (richMode) applyRichSignatory(next);
-              setIssued(false);
             }}
             aria-label="Who signs this letter"
           >
@@ -1022,7 +881,6 @@ export function LetterEditor({
               value={signingModel}
               onChange={(e) => {
                 setSigningModel(e.target.value as LetterSignature);
-                setIssued(false);
               }}
               aria-label="Signing model"
             >
@@ -1083,7 +941,7 @@ export function LetterEditor({
             className="alw-btn alw-btn-ghost"
             onClick={runDownloadPdf}
             disabled={downloading}
-            title="Save the server-rendered PDF — the same file Issue archives"
+            title="Save the server-rendered PDF — the same file Send Email archives"
           >
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} strokeWidth={2.2} />}
             {downloading ? "Building…" : "Download PDF"}
@@ -1094,27 +952,10 @@ export function LetterEditor({
               className="alw-btn alw-btn-primary"
               onClick={openCompose}
               disabled={sending}
-              title="Email this letter as a PDF attachment"
+              title="Email this letter as a PDF attachment — also archives it"
             >
               {sending ? <Loader2 size={15} className="alw-spin" /> : <Mail size={15} strokeWidth={2.2} />}
               {sending ? "Sending…" : "Send Email"}
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              className="alw-btn alw-btn-primary"
-              onClick={requestIssue}
-              disabled={issuing || issued}
-            >
-              {issued ? (
-                <Check size={15} strokeWidth={2.6} />
-              ) : issuing ? (
-                <Loader2 size={15} className="alw-spin" />
-              ) : (
-                <Send size={15} strokeWidth={2.2} />
-              )}
-              {issued ? "Issued" : issuing ? "Issuing…" : "Issue letter"}
             </button>
           )}
         </div>
@@ -1202,29 +1043,6 @@ export function LetterEditor({
         />
       )}
 
-      {/* ── Mandatory Print-Preview gate (Issue / Email) ─────────────── */}
-      {previewMode && (
-        <PrintPreviewModal
-          mode={previewMode}
-          busy={previewMode === "issue" ? issuing : emailing}
-          onCancel={() => setPreviewMode(null)}
-          onConfirm={previewMode === "issue" ? runIssue : runEmailPdf}
-          recipientEmail={employeeId ? undefined : recipientEmail || undefined}
-          attachedEmployee={Boolean(employeeId)}
-        >
-          <Letterhead entity={entity}>
-            {usingRich ? (
-              <div
-                className="alw-rich-preview"
-                // The current "Edit freely" HTML, rendered read-only as it will print.
-                dangerouslySetInnerHTML={{ __html: currentRichHtml() }}
-              />
-            ) : (
-              renderBlocks(template.blocks, { ...ctx, clean: true })
-            )}
-          </Letterhead>
-        </PrintPreviewModal>
-      )}
     </div>
   );
 }
@@ -1497,131 +1315,6 @@ function SendEmailModal({
           </button>
         </div>
       </form>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Print-Preview modal — the mandatory confirm gate before Issue/Email   */
-/* ------------------------------------------------------------------ */
-
-/**
- * A compulsory, keyboard-accessible preview shown BEFORE a letter is issued or
- * emailed. Renders the letter on its letterhead exactly as it will print, with a
- * "Looks good" confirm and a "Back / Edit" cancel. Esc cancels; the confirm
- * button autofocuses; the backdrop click cancels. Body scroll is locked while open.
- */
-function PrintPreviewModal({
-  mode,
-  busy,
-  onConfirm,
-  onCancel,
-  recipientEmail,
-  attachedEmployee,
-  children,
-}: {
-  mode: "issue" | "email";
-  busy: boolean;
-  onConfirm: () => void | Promise<void>;
-  onCancel: () => void;
-  recipientEmail?: string;
-  attachedEmployee: boolean;
-  children: React.ReactNode;
-}) {
-  const confirmRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    // Lock body scroll while the modal is open.
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // Focus the confirm button on open (keyboard-first).
-    confirmRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [busy, onCancel]);
-
-  const isIssue = mode === "issue";
-  const title = isIssue ? "Preview before issuing" : "Preview before emailing";
-  const sub = isIssue
-    ? "This is exactly how the letter will print and be archived."
-    : attachedEmployee
-      ? "This PDF will be emailed to the attached employee, with a copy to the HR desk."
-      : recipientEmail
-        ? `This PDF will be emailed to ${recipientEmail}, with a copy to the HR desk.`
-        : "This PDF will be emailed to the candidate, with a copy to the HR desk.";
-  const confirmLabel = busy
-    ? isIssue
-      ? "Issuing…"
-      : "Emailing…"
-    : isIssue
-      ? "Looks good - Issue"
-      : "Looks good - Email PDF";
-
-  return (
-    <div
-      className="alw-modal-backdrop no-print"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !busy) onCancel();
-      }}
-    >
-      <div
-        className="alw-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <div className="alw-modal-head">
-          <div>
-            <p className="alw-modal-title">{title}</p>
-            <p className="alw-modal-sub">{sub}</p>
-          </div>
-          <button
-            type="button"
-            className="alw-modal-x"
-            onClick={onCancel}
-            disabled={busy}
-            aria-label="Close preview"
-          >
-            <X size={18} strokeWidth={2.4} />
-          </button>
-        </div>
-
-        <div className="alw-modal-body">
-          <div className="alw-modal-stage">{children}</div>
-        </div>
-
-        <div className="alw-modal-foot">
-          <button type="button" className="alw-btn alw-btn-ghost" onClick={onCancel} disabled={busy}>
-            <ArrowLeft size={15} strokeWidth={2.2} /> Back / Edit
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
-            className="alw-btn alw-btn-primary"
-            onClick={() => void onConfirm()}
-            disabled={busy}
-          >
-            {busy ? (
-              <Loader2 size={15} className="alw-spin" />
-            ) : isIssue ? (
-              <Send size={15} strokeWidth={2.2} />
-            ) : (
-              <Mail size={15} strokeWidth={2.2} />
-            )}
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

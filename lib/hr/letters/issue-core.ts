@@ -78,12 +78,94 @@ const IssueSchema = z.object({
 export type IssueLetterInput = z.infer<typeof IssueSchema>;
 
 /**
+ * Archive an already-rendered letter PDF: upload it to the private `documents`
+ * bucket and record a `document_instances` row (status 'sent') so it lands in
+ * the existing document flow. When the letter's signature model is 'esign' AND
+ * it's attached to an employee, a PENDING `document_signatures` row is created
+ * so the DigiLocker SignDocument flow can drive it later.
+ *
+ * Split out of `issueLetter()` (2026-09-24) so the "Send Email" button can
+ * archive too, once the dedicated "Issue letter" button went away for doing
+ * the same work email already did. Caller renders the PDF and resolves the
+ * recipient; this function only persists.
+ */
+export async function archiveLetterInstance(input: {
+  key: string;
+  entity: string;
+  template: ReturnType<typeof getLetter>;
+  values: Record<string, string>;
+  employeeId?: string | null;
+  candidateName?: string | null;
+  candidateEmail?: string | null;
+  pdfBuffer: Buffer;
+  issuedById: string;
+}): Promise<Result<{ instanceId: string; pdfPath: string; signatureId: string | null }>> {
+  const { key, entity, template, values, employeeId, candidateName, candidateEmail, pdfBuffer, issuedById } = input;
+  if (!template) return { ok: false, error: "This letter isn't authored yet." };
+
+  const folder = employeeId ?? "candidates";
+  const pdfPath = `${folder}/hr-letters/${randomUUID()}.pdf`;
+  const admin = getSupabaseAdmin();
+  const { error: upErr } = await admin.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(pdfPath, pdfBuffer, { contentType: "application/pdf", upsert: false });
+  if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
+
+  const issuedAt = new Date();
+  let instanceId: string;
+  try {
+    const [row] = await db
+      .insert(documentInstances)
+      .values({
+        typeKey: key,
+        employeeId: employeeId ?? null,
+        candidateName: employeeId ? null : candidateName || null,
+        candidateEmail: employeeId ? null : candidateEmail ?? null,
+        status: "sent",
+        mergeValues: { ...values, __entity: entity },
+        bodySnapshotMd: JSON.stringify({ key, entity, values }),
+        renderedPdfPath: pdfPath,
+        issuedById,
+        issuedAt,
+      })
+      .returning({ id: documentInstances.id });
+    if (!row) throw new Error("insert returned no row");
+    instanceId = row.id;
+  } catch (err) {
+    await admin.storage.from(DOCUMENTS_BUCKET).remove([pdfPath]).catch(() => {});
+    return { ok: false, error: `DB: ${errorMessage(err)}` };
+  }
+
+  let signatureId: string | null = null;
+  if ((template.signature ?? "none") === "esign" && employeeId) {
+    try {
+      const [sig] = await db
+        .insert(documentSignatures)
+        .values({
+          docKind: docKindForCategory(template.category),
+          docId: instanceId,
+          signerEmployeeId: employeeId,
+          status: "pending",
+          createdById: issuedById,
+        })
+        .returning({ id: documentSignatures.id });
+      signatureId = sig?.id ?? null;
+    } catch {
+      // Non-fatal — the letter is archived; signing can be started later.
+      signatureId = null;
+    }
+  }
+
+  return { ok: true, instanceId, pdfPath, signatureId };
+}
+
+/**
  * Issue a letter: render its PDF (on the selected entity's letterhead), archive
- * it to the private `documents` bucket, and record a `document_instances` row
- * (status 'sent') so it lands in the existing document flow. When the letter's
- * signature model is 'esign' AND it's attached to an employee, a PENDING
- * `document_signatures` row is created so the DigiLocker SignDocument flow can
- * drive it later. Admin/HR-only.
+ * it (`archiveLetterInstance`), and email it to the recipient. Admin/HR-only.
+ *
+ * No longer called by the letter editor (its "Issue letter" button was removed
+ * 2026-09-24 — "Send Email" now archives too, see the route). Kept for any
+ * other caller that still wants render+archive+email in one call.
  */
 export async function issueLetter(
   input: IssueLetterInput,
@@ -147,61 +229,19 @@ export async function issueLetter(
     return { ok: false, error: `Could not render the PDF: ${errorMessage(err)}` };
   }
 
-  // ── Upload ──
-  const folder = employeeId ?? "candidates";
-  const pdfPath = `${folder}/hr-letters/${randomUUID()}.pdf`;
-  const admin = getSupabaseAdmin();
-  const { error: upErr } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(pdfPath, pdfBuffer, { contentType: "application/pdf", upsert: false });
-  if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
-
-  // ── Record the instance (frozen field values + entity in merge_values) ──
-  const issuedAt = new Date();
-  let instanceId: string;
-  try {
-    const [row] = await db
-      .insert(documentInstances)
-      .values({
-        typeKey: key,
-        employeeId: employeeId ?? null,
-        candidateName: employeeId ? null : recipientName || null,
-        candidateEmail: employeeId ? null : candidateEmail ?? null,
-        status: "sent",
-        mergeValues: { ...values, __entity: resolvedEntity.id },
-        bodySnapshotMd: JSON.stringify({ key, entity: resolvedEntity.id, values }),
-        renderedPdfPath: pdfPath,
-        issuedById: me.id,
-        issuedAt,
-      })
-      .returning({ id: documentInstances.id });
-    if (!row) throw new Error("insert returned no row");
-    instanceId = row.id;
-  } catch (err) {
-    await admin.storage.from(DOCUMENTS_BUCKET).remove([pdfPath]).catch(() => {});
-    return { ok: false, error: `DB: ${errorMessage(err)}` };
-  }
-
-  // ── E-sign wiring (needs a real employee signer) ──
-  let signatureId: string | null = null;
-  if ((template.signature ?? "none") === "esign" && employeeId) {
-    try {
-      const [sig] = await db
-        .insert(documentSignatures)
-        .values({
-          docKind: docKindForCategory(template.category),
-          docId: instanceId,
-          signerEmployeeId: employeeId,
-          status: "pending",
-          createdById: me.id,
-        })
-        .returning({ id: documentSignatures.id });
-      signatureId = sig?.id ?? null;
-    } catch {
-      // Non-fatal — the letter is issued; signing can be started later.
-      signatureId = null;
-    }
-  }
+  const archived = await archiveLetterInstance({
+    key,
+    entity: resolvedEntity.id,
+    template,
+    values,
+    employeeId,
+    candidateName: recipientName,
+    candidateEmail,
+    pdfBuffer,
+    issuedById: me.id,
+  });
+  if (!archived.ok) return archived;
+  const { instanceId, pdfPath, signatureId } = archived;
 
   // ── Deliver: EMAIL the issued letter PDF to its recipient. Issue used to only
   //    archive the letter — recipients never actually received it. Best-effort:

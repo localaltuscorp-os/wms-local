@@ -7932,6 +7932,15 @@ export const execCalendarRoutines = pgTable("exec_calendar_routines", {
   createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0252 — the Google-Calendar-style recurrence picker (2026-09-24). NULL on
+  // every routine stamped before this: `days_of_week`/`from_date`/`to_date`
+  // alone still fully describe it (Daily/Weekly/Every-weekday need nothing
+  // else). Only Monthly/Yearly/"every N weeks"/a occurrence-count end need
+  // `recurrence_rule` — an RRULE-lite string (lib/recurrence/rrule.ts) that
+  // becomes the source of truth for re-stamping THIS routine once set.
+  interval: integer("interval"),
+  count: integer("count"),
+  recurrenceRule: text("recurrence_rule"),
 });
 export type ExecCalendarRoutine = typeof execCalendarRoutines.$inferSelect;
 

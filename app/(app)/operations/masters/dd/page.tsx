@@ -36,7 +36,6 @@ export default async function DdMasterPage() {
         Icon={ListFilter}
         topic="Dropdowns"
         title="DD Master"
-        description="Every dropdown's selectable options, managed in one place. Removing an option stops it being offered — records that already use it keep their value."
       />
       {missing ? (
         <p className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center text-[14px] text-slate-500">

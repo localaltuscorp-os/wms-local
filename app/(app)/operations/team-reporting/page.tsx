@@ -1,9 +1,10 @@
+import { Users2 } from "lucide-react";
 import { requireWorkspaceAdmin } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
 import { canEditModule } from "@/lib/permissions/resolve";
 import { getHierarchy, type HierarchySnapshot } from "@/lib/queries/hierarchy";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
-import { HierarchyBoard, HierarchyNote } from "@/components/admin/hierarchy-board";
+import { HierarchyBoard } from "@/components/admin/hierarchy-board";
 import { TeamTransferPanel } from "@/components/operations/team-transfer-panel";
 
 /**
@@ -114,21 +115,43 @@ export default async function TeamReportingPage() {
   ]);
   const snapshot = DUMMY_MODE ? withoutDummyFixtures(rawSnapshot) : rawSnapshot;
 
+  // Hide a manager's column once their last report has left — DISPLAY ONLY.
+  // getHierarchy() itself is untouched (Admin's board and any other caller
+  // keeps the "always show a 2nd-level slot" behaviour); TeamTransferPanel
+  // below still gets the FULL, unfiltered lists, so a hidden manager stays
+  // reachable there and reappears the moment someone is transferred to them.
+  const visibleColumns = snapshot.columns.filter((c) => c.managerId === null || c.reports.length > 0);
+
   return (
     <PageShell width="wide">
-      {/* NO body <h1> (the top bar already says "Team Reporting") and NO
-          counts strip: Employees / Managers / No manager restated what the
-          board itself shows - a column per manager, a badge on each - and
-          spent a row of the page doing it. */}
-      {/* ONE ROW: the note takes the space the board leaves, the action sits at
-          its right end. The note used to be below the board, which left this
-          strip empty and the button floating alone above a wide gap.
-          `items-center` on the ROW, never `flex` on the note itself: the note's
-          children are a sentence with a <strong> in it, and making that element
-          a flex container turned "past" into its own flex item — which is what
-          tore the paragraph into three pieces with a gap around one word. */}
-      <div className="mb-4 flex items-center gap-4">
-        <HierarchyNote className="min-w-0 flex-1 text-left" />
+      {/* NO body <h1> (the top bar already says "Team Reporting"). The KPI
+          row replaces the old standing note + a since-removed counts strip:
+          who has how many people below them, at a glance, above the board. */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5">
+          <Users2 size={15} className="text-ink-subtle" />
+          <span className="text-[13px] font-semibold text-ink-strong">
+            {snapshot.people.length} {snapshot.people.length === 1 ? "employee" : "employees"} total
+          </span>
+        </div>
+
+        <div className="scroll-x-only flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          {snapshot.columns
+            .filter((c) => c.managerId !== null)
+            .map((c) => (
+              <span
+                key={c.managerId}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12px] font-semibold text-ink-strong"
+                title={`${c.reports.length} ${c.reports.length === 1 ? "person" : "people"} report to ${c.managerName}`}
+              >
+                {c.managerName}
+                <span className="rounded-pill bg-surface-soft px-1.5 py-0.5 text-[11px] font-bold text-ink-subtle">
+                  {c.reports.length}
+                </span>
+              </span>
+            ))}
+        </div>
+
         {/* Transfer is offered only to somebody who may actually write: the
             action re-checks, so a viewer would get a dialog that refuses. */}
         {canEdit ? (
@@ -138,14 +161,14 @@ export default async function TeamReportingPage() {
         ) : null}
       </div>
 
-      {/* The note is placed above by this page, so the board must not repeat it. */}
       <HierarchyBoard
-        columns={snapshot.columns}
+        columns={visibleColumns}
         people={snapshot.people}
         canEdit={canEdit}
         showNote={false}
         compact
         grid
+        enableReorder={canEdit}
         managerAccents={managerAccentsFor(snapshot)}
       />
     </PageShell>

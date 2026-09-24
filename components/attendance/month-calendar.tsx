@@ -392,7 +392,7 @@ function LegendDot({ c, label }: { c: string; label: string }) {
 }
 
 const POPOVER_CSS = `
-.att-cal{position:relative;overflow:visible;}
+.att-cal{position:relative;overflow:visible;z-index:1;}
 .att-day{z-index:0;}
 .att-day:hover,.att-day:focus-within{z-index:40;}
 .att-pop{

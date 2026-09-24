@@ -634,7 +634,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "events",
     label: "Monthly Events Master",
     children: [
-      { key: "events.overview", label: "Overview", routes: ["/events"] },
+      { key: "events.overview", label: "Overview", routes: ["/events", "/api/events/export"] },
       { key: "events.calendar", label: "Calendar", routes: ["/events/calendar"] },
       { key: "events.masters", label: "Masters", routes: ["/events/masters"] },
       { key: "events.batches", label: "Batches", routes: ["/events/batches"] },
