@@ -552,6 +552,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       { key: "training.feedback", label: "Feedback", routes: ["/training/feedback"] },
       { key: "training.dashboard", label: "Training Dashboard", routes: ["/training/dashboard"] },
       { key: "training.new", label: "New Training", routes: ["/training/new"] },
+      { key: "training.schedule", label: "Schedule Training", routes: ["/training/schedule"] },
+      { key: "training.attendance", label: "Attendance", routes: ["/training/attendance"] },
+      { key: "training.surveys", label: "Feedback Surveys", routes: ["/training/surveys"] },
+      { key: "training.targets", label: "Targets", routes: ["/training/targets"] },
+      { key: "training.analytics", label: "Analytics", routes: ["/training/analytics"] },
+      { key: "training.configuration", label: "Configuration", routes: ["/training/configuration"] },
     ],
   },
 

@@ -18,15 +18,18 @@ const LABEL = "mb-1.5 block text-[12px] font-bold uppercase tracking-[0.06em] te
 export function ShareForm({
   existing,
   weekLabel,
+  mySelfLearning = [],
 }: {
   existing: ThisWeekShare | null;
   weekLabel: string;
+  mySelfLearning?: { id: string; title: string }[];
 }) {
   const router = useRouter();
   const firstRef = React.useRef<HTMLInputElement>(null);
   const [topic, setTopic] = React.useState(existing?.topic ?? "");
   const [minutes, setMinutes] = React.useState(String(existing?.minutes ?? SHARE_MIN));
   const [videoUrl, setVideoUrl] = React.useState(existing?.videoUrl ?? "");
+  const [selfLearningId, setSelfLearningId] = React.useState("");
   const [notes, setNotes] = React.useState(existing?.notes ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -40,7 +43,7 @@ export function ShareForm({
     setError(null);
     if (!topic.trim()) return setError("Add a topic for your Share.");
     setSubmitting(true);
-    const res = await saveShare({ topic, minutes, videoUrl, notes });
+    const res = await saveShare({ topic, minutes, videoUrl, notes, selfLearningId: selfLearningId || null });
     setSubmitting(false);
     if (!res.ok) return setError(res.error);
     fireToast({ message: existing ? "Share updated." : "Weekly Share logged.", type: "success" });
@@ -75,6 +78,27 @@ export function ShareForm({
           </span>
         )}
       </div>
+
+      {mySelfLearning.length > 0 && (
+        <div>
+          <label className={LABEL}>Share this Self Learning</label>
+          <select
+            className={FIELD}
+            value={selfLearningId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelfLearningId(id);
+              const found = mySelfLearning.find((s) => s.id === id);
+              if (found && !topic) setTopic(found.title);
+            }}
+          >
+            <option value="">No — start fresh</option>
+            {mySelfLearning.map((s) => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className={LABEL}>Topic — what are you sharing?</label>

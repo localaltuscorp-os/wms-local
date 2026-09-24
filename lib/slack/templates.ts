@@ -82,6 +82,18 @@ const EMOJI: Record<NotificationKind, string> = {
   incentive_request_reversed: ":leftwards_arrow_with_hook:",
   incentive_request_resubmitted: ":inbox_tray:",
   incentive_paid: ":moneybag:",
+  // Training & Learning (LMS) — in-app + email + push; Slack placeholder.
+  training_scheduled: ":calendar:",
+  training_rescheduled: ":calendar:",
+  training_cancelled: ":wastebasket:",
+  training_recording_ready: ":film_frames:",
+  training_recording_incomplete: ":warning:",
+  training_test_pending: ":clipboard:",
+  training_feedback_pending: ":pencil2:",
+  learning_share_scheduled: ":loudspeaker:",
+  learning_share_reminder: ":alarm_clock:",
+  learning_target_approaching: ":dart:",
+  learning_target_incomplete: ":dart:",
 };
 
 const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => string> = {
@@ -148,6 +160,18 @@ const VERB: Record<NotificationKind, (actor: string, statusLabel?: string) => st
   incentive_request_reversed: () => `Your incentive was reversed`,
   incentive_request_resubmitted: () => `An incentive request was resubmitted`,
   incentive_paid: () => `Your incentive was paid`,
+  // Training & Learning (LMS) — not sent via Slack; placeholders.
+  training_scheduled: () => `A training was scheduled for you`,
+  training_rescheduled: () => `A training was rescheduled`,
+  training_cancelled: () => `A training was cancelled`,
+  training_recording_ready: () => `A training recording is ready`,
+  training_recording_incomplete: () => `A training recording is incomplete`,
+  training_test_pending: () => `A training test awaits you`,
+  training_feedback_pending: () => `A training feedback survey awaits you`,
+  learning_share_scheduled: () => `A learning share is scheduled for you`,
+  learning_share_reminder: () => `Reminder: your learning share is coming up`,
+  learning_target_approaching: () => `Your monthly learning target is approaching`,
+  learning_target_incomplete: () => `Your monthly learning target is incomplete`,
 };
 
 export interface SlackCtx {

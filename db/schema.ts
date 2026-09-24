@@ -83,6 +83,14 @@ import {
   type ContractStatus,
   type ContractItemStatus,
   type ContractPdcStatus,
+  type TrainingStatus,
+  type TrainingType,
+  type AudienceScope,
+  type TrainingAttendanceStatus,
+  type SelfLearningSource,
+  type LearningRoleGroup,
+  type LearningMetric,
+  type ShareSlot,
 } from "./enums";
 import type { DocKind, SignatureStatus } from "@/lib/documents/signing";
 
@@ -1285,6 +1293,31 @@ export const tcServices = pgTable(
   (t) => [index("tc_services_active_idx").on(t.isActive, t.sortOrder, t.name)],
 );
 
+/**
+ * Writable master data for the LMS (migration 0250) — training types, audience
+ * scopes, share slots and self-learning sources. Seeded from the enum arrays in
+ * `db/enums.ts`, which remain the fallback when a row is retired or the table is
+ * empty. `value` is what the owning text column stores; `label` is what the
+ * picker shows.
+ */
+export const tcLookups = pgTable(
+  "tc_lookups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(), // training_type | audience_scope | share_slot | self_learning_source
+    value: text("value").notNull(),
+    label: text("label").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(100),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tc_lookups_kind_value_uq").on(t.kind, t.value),
+    index("tc_lookups_kind_active_idx").on(t.kind, t.isActive, t.sortOrder),
+  ],
+);
+
 export const tcMaterials = pgTable(
   "tc_materials",
   {
@@ -1370,6 +1403,10 @@ export const tcWatchProgress = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     materialId: uuid("material_id").notNull().references(() => tcMaterials.id, { onDelete: "cascade" }),
     employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    // Watch-progress (seconds) — 100% of duration means recording completed.
+    videoDurationSec: integer("video_duration_sec").notNull().default(0),
+    watchedSec: integer("watched_sec").notNull().default(0),
+    lastPositionSec: integer("last_position_sec").notNull().default(0),
     watchedAt: timestamp("watched_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("tc_watch_material_emp_uq").on(t.materialId, t.employeeId)],
@@ -2170,6 +2207,18 @@ export const NOTIFICATION_KINDS = [
   "incentive_paid",                // → the paid employee
   // Client Engagement — weekly "collect references" reminder (migration 0230).
   "ce_reference_reminder",
+  // Training & Learning (LMS) — scheduling, recording, tests, targets, shares.
+  "training_scheduled",
+  "training_rescheduled",
+  "training_cancelled",
+  "training_recording_ready",
+  "training_recording_incomplete",
+  "training_test_pending",
+  "training_feedback_pending",
+  "learning_share_scheduled",
+  "learning_share_reminder",
+  "learning_target_approaching",
+  "learning_target_incomplete",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -4185,6 +4234,73 @@ export const incentiveTargets = pgTable(
 );
 export type IncentiveTarget = typeof incentiveTargets.$inferSelect;
 export type NewIncentiveTarget = typeof incentiveTargets.$inferInsert;
+
+// Incentive Target planning & performance (migration 0249). A granular target
+// system layered ABOVE the legacy `incentive_targets` monthly-amount rows, which
+// still feed the analytics dashboard. One plan row = one target for one subject
+// (a user, or the downline of a team owner) over one period; its products live
+// in `incentiveTargetPlanProducts`.
+export const incentiveTargetPlans = pgTable(
+  "incentive_target_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    targetLevel: text("target_level").notNull().$type<"team" | "user">(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    teamOwnerId: uuid("team_owner_id").references(() => employees.id, { onDelete: "set null" }),
+    periodType: text("period_type").notNull().$type<"week" | "month" | "quarter" | "year">(),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("incentive_target_plans_subject_period_uq").on(
+      t.targetLevel,
+      sql`coalesce(${t.employeeId}, ${t.teamOwnerId})`,
+      t.periodType,
+      t.periodStart,
+    ),
+    index("incentive_target_plans_period_idx").on(t.periodStart, t.periodEnd),
+    check("incentive_target_plans_level_chk", sql`${t.targetLevel} in ('team', 'user')`),
+    check(
+      "incentive_target_plans_period_chk",
+      sql`${t.periodType} in ('week', 'month', 'quarter', 'year')`,
+    ),
+    check(
+      "incentive_target_plans_window_chk",
+      sql`${t.periodEnd} > ${t.periodStart}`,
+    ),
+  ],
+);
+
+export const incentiveTargetPlanProducts = pgTable(
+  "incentive_target_plan_products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => incentiveTargetPlans.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => outstandingProducts.id, {
+      onDelete: "set null",
+    }),
+    productName: text("product_name").notNull(),
+    quantity: numeric("quantity", { precision: 14, scale: 2 }).notNull().default("0"),
+    rate: numeric("rate", { precision: 14, scale: 2 }).notNull().default("0"),
+    targetAmount: numeric("target_amount", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("incentive_target_plan_products_uq").on(t.planId, t.productName),
+    index("incentive_target_plan_products_plan_idx").on(t.planId),
+  ],
+);
+export type IncentiveTargetPlan = typeof incentiveTargetPlans.$inferSelect;
+export type NewIncentiveTargetPlan = typeof incentiveTargetPlans.$inferInsert;
+export type IncentiveTargetPlanProduct = typeof incentiveTargetPlanProducts.$inferSelect;
 
 /* ── Accounts Totality, Compliance, Checklist & Trackers (admin/manager module) ── */
 
@@ -6641,6 +6757,12 @@ export const tcSessions = pgTable(
     recordingRequested: boolean("recording_requested").notNull().default(false),
     notes: text("notes"),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    functionId: uuid("function_id").references(() => functions.id, { onDelete: "set null" }),
+    trainingType: text("training_type").notNull().default("other").$type<TrainingType>(),
+    audienceScope: text("audience_scope").notNull().default("my_team").$type<AudienceScope>(),
+    recurrenceRule: text("recurrence_rule"),
+    recurrenceParentId: uuid("recurrence_parent_id"),
+    recurrenceOccurrenceDate: text("recurrence_occurrence_date"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -6648,6 +6770,7 @@ export const tcSessions = pgTable(
     index("tc_sessions_scheduled_idx").on(t.scheduledAt),
     index("tc_sessions_trainer_idx").on(t.trainerId),
     index("tc_sessions_status_idx").on(t.status),
+    index("tc_sessions_function_idx").on(t.functionId),
   ],
 );
 
@@ -6657,8 +6780,10 @@ export const tcSessionAttendees = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     sessionId: uuid("session_id").notNull().references(() => tcSessions.id, { onDelete: "cascade" }),
     employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    required: boolean("required").notNull().default(true), // required vs optional attendee
     status: text("status").notNull().default("invited"), // invited | attended | left_halfway | absent
     attendedMin: integer("attended_min"), // trainer-editable actual minutes
+    joinTime: timestamp("join_time", { withTimezone: true }), // self check-in time
     markedById: uuid("marked_by_id").references(() => employees.id, { onDelete: "set null" }),
     markedAt: timestamp("marked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -6719,9 +6844,13 @@ export const tcSelfLearning = pgTable(
     employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     learnDate: date("learn_date").notNull(),
     kind: text("kind").notNull().default("book"), // book | video | youtube | other
+    source: text("source").$type<SelfLearningSource>(),
     title: text("title").notNull(),
     sourceUrl: text("source_url"),
     minutes: integer("minutes").notNull().default(0),
+    startTime: time("start_time"), // clock time — for outside-hours validation
+    endTime: time("end_time"),
+    functionId: uuid("function_id").references(() => functions.id, { onDelete: "set null" }),
     evidencePath: text("evidence_path"),
     evidenceUrl: text("evidence_url"),
     notes: text("notes"),
@@ -6741,6 +6870,7 @@ export const tcShares = pgTable(
     minutes: integer("minutes").notNull().default(10),
     videoPath: text("video_path"),
     videoUrl: text("video_url"),
+    selfLearningId: uuid("self_learning_id").references(() => tcSelfLearning.id, { onDelete: "set null" }),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -6759,6 +6889,114 @@ export const tcShareFeedback = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("tc_share_feedback_share_rater_uq").on(t.shareId, t.raterId)],
+);
+
+// ── Training feedback SURVEY (anonymous 1–5 + optional comment) ───────────────
+// One survey per completed training. Responses store employee_id for dedup and
+// uniqueness, but the trainer-facing aggregate query never selects that id —
+// anonymity is enforced at the READ boundary, not by dropping the FK.
+export const tcTrainingSurveys = pgTable(
+  "tc_training_surveys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id").notNull().references(() => tcSessions.id, { onDelete: "cascade" }),
+    title: text("title"),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("tc_training_surveys_session_uq").on(t.sessionId)],
+);
+
+export const tcSurveyQuestions = pgTable(
+  "tc_survey_questions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    surveyId: uuid("survey_id").notNull().references(() => tcTrainingSurveys.id, { onDelete: "cascade" }),
+    prompt: text("prompt").notNull(),
+    type: text("type").notNull().default("rating"), // rating (1–5) | text
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tc_survey_questions_survey_idx").on(t.surveyId, t.position)],
+);
+
+export const tcSurveyResponses = pgTable(
+  "tc_survey_responses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    surveyId: uuid("survey_id").notNull().references(() => tcTrainingSurveys.id, { onDelete: "cascade" }),
+    questionId: uuid("question_id").notNull().references(() => tcSurveyQuestions.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    rating: smallint("rating"), // 1..5 (null for text questions)
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tc_survey_responses_q_emp_uq").on(t.questionId, t.employeeId),
+    index("tc_survey_responses_survey_idx").on(t.surveyId),
+  ],
+);
+
+// ── Configurable per-role learning targets (history-preserving) ───────────────
+export const tcLearningTargets = pgTable(
+  "tc_learning_targets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roleGroup: text("role_group").notNull().$type<LearningRoleGroup>(),
+    metric: text("metric").notNull().$type<LearningMetric>(),
+    value: numeric("value", { precision: 8, scale: 2 }).notNull(),
+    unit: text("unit").notNull().default("count"), // count | hours
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveTo: date("effective_to"),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tc_learning_targets_role_metric_idx").on(t.roleGroup, t.metric, t.effectiveFrom)],
+);
+
+// ── Learning SHARE schedule (daily slots + rotation + attendance) ─────────────
+export const tcShareSchedule = pgTable(
+  "tc_share_schedule",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shareDate: date("share_date").notNull(),
+    slot: text("slot").notNull().default("junior").$type<ShareSlot>(),
+    presenterId: uuid("presenter_id").references(() => employees.id, { onDelete: "set null" }),
+    topic: text("topic"),
+    functionId: uuid("function_id").references(() => functions.id, { onDelete: "set null" }),
+    los: text("los"),
+    keyTakeaway: text("key_takeaway"),
+    source: text("source"),
+    recordingPath: text("recording_path"),
+    selfLearningId: uuid("self_learning_id").references(() => tcSelfLearning.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("scheduled"), // scheduled | done | cancelled | replaced
+    replacedById: uuid("replaced_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tc_share_schedule_date_slot_uq").on(t.shareDate, t.slot),
+    index("tc_share_schedule_date_idx").on(t.shareDate),
+    index("tc_share_schedule_presenter_idx").on(t.presenterId),
+  ],
+);
+
+export const tcShareAttendees = pgTable(
+  "tc_share_attendees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shareScheduleId: uuid("share_schedule_id").notNull().references(() => tcShareSchedule.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("present"), // present | absent
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tc_share_attendees_share_emp_uq").on(t.shareScheduleId, t.employeeId),
+    index("tc_share_attendees_emp_idx").on(t.employeeId),
+  ],
 );
 
 // The monthly Attitude/Behaviour/Skill 360 review (manager/subordinate/peer/self).
@@ -6916,6 +7154,13 @@ export type TcAssessment = typeof tcAssessments.$inferSelect;
 export type TcSelfLearning = typeof tcSelfLearning.$inferSelect;
 export type TcShare = typeof tcShares.$inferSelect;
 export type TcShareFeedback = typeof tcShareFeedback.$inferSelect;
+export type TcLookup = typeof tcLookups.$inferSelect;
+export type TcTrainingSurvey = typeof tcTrainingSurveys.$inferSelect;
+export type TcSurveyQuestion = typeof tcSurveyQuestions.$inferSelect;
+export type TcSurveyResponse = typeof tcSurveyResponses.$inferSelect;
+export type TcLearningTarget = typeof tcLearningTargets.$inferSelect;
+export type TcShareSchedule = typeof tcShareSchedule.$inferSelect;
+export type TcShareAttendee = typeof tcShareAttendees.$inferSelect;
 export type PmsMonthlyReview = typeof pmsMonthlyReview.$inferSelect;
 export type PmsPersonalGoal = typeof pmsPersonalGoal.$inferSelect;
 

@@ -53,7 +53,6 @@ export default async function OperationsMastersPage() {
       <MastersHeader
         Icon={Library}
         title="Masters"
-        description="Every master the Operations room keeps — checklists, events, job descriptions and dropdown options — in one place."
       />
 
       <div className="flex flex-col gap-7">

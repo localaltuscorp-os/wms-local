@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { Calendar, Users, RotateCcw } from "lucide-react";
+import { CalendarDays, Users } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import { DayPicker, type DateRange } from "react-day-picker";
 import { format } from "date-fns";
@@ -12,37 +12,55 @@ import { FilterPill, summarizeSelection } from "@/components/layout/filters/filt
 import { PageShell } from "@/components/layout/page-shell";
 import type { RosterMember } from "@/components/goals/cascade/util";
 
-/**
- * THE GOALS DASHBOARD'S FILTER ROW — the first row of the frozen band.
- *
- * It does NOT pin itself. The caller wraps this and the section nav in one
- * `data-dashboard-stickybar` element, exactly as the WMS dashboard does, and
- * that wrapper is what pins. The reason is `DashboardSectionNav`: it measures
- * that single element to decide where a pill click lands a section. Two
- * separately-pinned bars would need their heights added up in a second place,
- * and the two sums would drift the moment either row wrapped.
- *
- * The controls are the WMS dashboard's own (`FilterPill`, `MultiSelect`,
- * `DayPicker`) rather than new ones, so the two dashboards filter the same way.
- *
- * ALL STATE LIVES IN THE URL. Every control writes a query param and lets the
- * server re-render; nothing here holds a copy of the filter. That is what makes
- * a filtered dashboard a shareable link, and it is why the multiselect can be
- * re-validated server-side against the roster — the client is never the
- * authority on who you may look at.
- */
-/** Same ids, order-insensitive — so closing the menu without changing anything
- *  does not fire a navigation. */
-function sameIds(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const set = new Set(a);
-  return b.every((x) => set.has(x));
+const ALL_EMPS = "__all__";
+type CalendarMode = "day" | "range" | "month" | "year";
+
+function sameIds(a: string[], b: string[]) {
+  return a.length === b.length && b.every((id) => new Set(a).has(id));
 }
 
-/** The synthetic "All employees" row. No employee has this id — it is
- *  intercepted before anything is written to the URL. */
-const ALL_EMPS = "__all__";
+function asDate(ymd: string) {
+  return new Date(`${ymd}T12:00:00`);
+}
 
+function fiscalYearOf(date: Date) {
+  return date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
+}
+
+function financialYearRange(startYear: number) {
+  return { from: `${startYear}-04-01`, to: `${startYear + 1}-03-31` };
+}
+
+function monthRange(date: Date) {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1, 12);
+  const last = new Date(date.getFullYear(), date.getMonth() + 1, 0, 12);
+  return { from: format(first, "yyyy-MM-dd"), to: format(last, "yyyy-MM-dd") };
+}
+
+function isWholeMonth(range: { from: string; to: string }) {
+  const month = monthRange(asDate(range.from));
+  return range.from === month.from && range.to === month.to;
+}
+
+function modeForRange(range: { from: string; to: string }, fyRange: { from: string; to: string }): CalendarMode {
+  if (range.from === fyRange.from && range.to === fyRange.to) return "year";
+  if (isWholeMonth(range)) return "month";
+  return "day";
+}
+
+function calendarLabel(range: { from: string; to: string }, fyRange: { from: string; to: string }) {
+  if (range.from === fyRange.from && range.to === fyRange.to) {
+    return `FY ${fyRange.from.slice(0, 4)}–${fyRange.to.slice(2, 4)}`;
+  }
+  if (isWholeMonth(range)) return format(asDate(range.from), "MMMM yyyy");
+  if (range.from === range.to) return format(asDate(range.from), "dd MMM yyyy");
+  return `${format(asDate(range.from), "d MMM")} – ${format(asDate(range.to), "d MMM")}`;
+}
+
+/**
+ * Goals dashboard controls. A calendar window can be one day, a custom date
+ * range, a calendar month or a financial year.
+ */
 export function GoalsDashboardFilters({
   roster,
   selectedEmployeeIds,
@@ -55,265 +73,273 @@ export function GoalsDashboardFilters({
 }: {
   roster: RosterMember[];
   selectedEmployeeIds: string[];
-  /** self = nobody chose (the default), all = `?emps=all`, specific = named. */
   empsMode: "self" | "all" | "specific";
   viewedEmployeeId: string;
   myEmployeeId: string;
   range: { from: string; to: string };
   fyStartYear: number;
-  /** The financial year's own bounds — what "no date filter" means here. */
   fyRange: { from: string; to: string };
 }) {
   const router = useRouter();
+  const [dateOpen, setDateOpen] = React.useState(false);
+  const [calendarMode, setCalendarMode] = React.useState<CalendarMode>(() => modeForRange(range, fyRange));
+  const [calendarMonth, setCalendarMonth] = React.useState(() => asDate(range.from));
+  const [draftRange, setDraftRange] = React.useState<DateRange | undefined>();
+  const [draftEmps, setDraftEmps] = React.useState<string[]>([]);
 
-  /** Rewrite the URL with one set of params changed. Everything unnamed is
-   *  carried through, so narrowing the dates never silently drops the people. */
   const go = React.useCallback(
-    (patch: {
-      emps?: string[];
-      emp?: string;
-      from?: string;
-      to?: string;
-    }) => {
+    (patch: { emps?: string[]; emp?: string; from?: string; to?: string; fy?: number }) => {
       const sp = new URLSearchParams();
-      sp.set("fy", String(fyStartYear));
+      sp.set("fy", String(patch.fy ?? fyStartYear));
 
       const emp = patch.emp ?? viewedEmployeeId;
       if (emp !== myEmployeeId) sp.set("emp", emp);
 
-      /* YOU are the default, so "just me" is the absence of the parameter and
-         everyone has to be written down. That is the opposite of how this read
-         before the dashboard started opening on the viewer, and getting it
-         backwards would mean a shared link silently re-scoped to whoever
-         opened it. */
       const emps = patch.emps ?? (empsMode === "all" ? [ALL_EMPS] : selectedEmployeeIds);
-      if (emps.length === 1 && emps[0] === ALL_EMPS) {
-        sp.set("emps", "all");
-      } else if (!(emps.length === 1 && emps[0] === viewedEmployeeId)) {
-        sp.set("emps", emps.join(","));
-      }
+      if (emps.length === 1 && emps[0] === ALL_EMPS) sp.set("emps", "all");
+      else if (!(emps.length === 1 && emps[0] === viewedEmployeeId)) sp.set("emps", emps.join(","));
 
       const from = patch.from ?? range.from;
       const to = patch.to ?? range.to;
-      if (from !== fyRange.from) sp.set("from", from);
-      if (to !== fyRange.to) sp.set("to", to);
+      const fullYear = financialYearRange(patch.fy ?? fyStartYear);
+      if (from !== fullYear.from) sp.set("from", from);
+      if (to !== fullYear.to) sp.set("to", to);
 
       router.push(`/goals/dashboard?${sp.toString()}` as Route);
     },
-    [
-      router,
-      fyStartYear,
-      viewedEmployeeId,
-      myEmployeeId,
-      selectedEmployeeIds,
-      empsMode,
-      range,
-      fyRange,
-    ],
+    [router, fyStartYear, viewedEmployeeId, myEmployeeId, selectedEmployeeIds, empsMode, range],
   );
 
-  /* ── The date range, edited as a DRAFT and committed once ──────────────
-     Writing each click straight to the URL would refetch the whole dashboard
-     on the FIRST click of a two-click gesture, and — because a committed
-     `{from, to}` reads back as a COMPLETE range — day-picker would treat the
-     next click as the start of a new one. The range could never be finished.
-     Same fix as the WMS filter bar's calendar. */
-  const [dateOpen, setDateOpen] = React.useState(false);
-  const [draft, setDraft] = React.useState<DateRange | undefined>(undefined);
+  const chooseDay = (day: Date | undefined) => {
+    if (!day) return;
+    const ymd = format(day, "yyyy-MM-dd");
+    setCalendarMonth(day);
+    setDateOpen(false);
+    go({ from: ymd, to: ymd, fy: fiscalYearOf(day) });
+  };
 
-  const applied = React.useMemo<DateRange>(
-    () => ({
-      from: new Date(`${range.from}T00:00:00`),
-      to: new Date(`${range.to}T00:00:00`),
-    }),
-    [range.from, range.to],
-  );
+  const applyRange = () => {
+    if (!draftRange?.from || !draftRange.to) return;
+    const from = format(draftRange.from, "yyyy-MM-dd");
+    const to = format(draftRange.to, "yyyy-MM-dd");
+    setCalendarMonth(draftRange.from);
+    setDateOpen(false);
+    go({ from, to, fy: fiscalYearOf(draftRange.from) });
+  };
 
-  function handleRange(r: DateRange | undefined) {
-    setDraft(r);
-    if (r?.from && r.to) {
-      setDateOpen(false);
-      go({ from: format(r.from, "yyyy-MM-dd"), to: format(r.to, "yyyy-MM-dd") });
-    }
-  }
+  const applyMonth = () => {
+    const next = monthRange(calendarMonth);
+    setDateOpen(false);
+    go({ ...next, fy: fiscalYearOf(calendarMonth) });
+  };
 
-  const isDefaultRange = range.from === fyRange.from && range.to === fyRange.to;
-  const rangeLabel = isDefaultRange
-    ? "Full year"
-    : `${format(applied.from!, "d MMM")} – ${format(applied.to!, "dd-MMM-yyyy")}`;
+  const chooseYear = (startYear: number) => {
+    const next = financialYearRange(startYear);
+    setCalendarMonth(asDate(next.from));
+    setDateOpen(false);
+    go({ ...next, fy: startYear });
+  };
 
-  /* Widest scope first, then YOU, then everyone else — so the two things you
-     actually switch between are the top two rows and nobody has to hunt for
-     their own name in a roster of fifty. */
   const empOptions = React.useMemo(() => {
-    const self = roster.find((r) => r.id === viewedEmployeeId);
+    const self = roster.find((person) => person.id === viewedEmployeeId);
     return [
       { value: ALL_EMPS, label: `All employees (${roster.length})` },
       ...(self ? [{ value: self.id, label: `${self.name} (You)` }] : []),
-      ...roster
-        .filter((r) => r.id !== viewedEmployeeId)
-        .map((r) => ({ value: r.id, label: r.name })),
+      ...roster.filter((person) => person.id !== viewedEmployeeId).map((person) => ({ value: person.id, label: person.name })),
     ];
   }, [roster, viewedEmployeeId]);
-  const nameById = React.useMemo(
-    () => new Map(roster.map((r) => [r.id, r.name] as const)),
-    [roster],
-  );
+  const nameById = React.useMemo(() => new Map(roster.map((person) => [person.id, person.name] as const)), [roster]);
   const isAllEmps = empsMode === "all";
-  /* Just you, and only because nothing was chosen — the state the page opens
-     in. Worth naming separately from "you, picked deliberately" so the pill
-     can stay quiet rather than shouting an active filter at every arrival. */
   const isSelfOnly = empsMode === "self";
+  const appliedSelection = React.useCallback(() => (isAllEmps ? [ALL_EMPS] : selectedEmployeeIds), [isAllEmps, selectedEmployeeIds]);
 
-  /* THE SELECTION IS A DRAFT WHILE THE MENU IS OPEN.
-
-     It used to write the URL on every toggle, and each write re-rendered the
-     page under the open menu — so the first name you ticked navigated, and a
-     second one was never reachable. That is the "can't select any employees"
-     bug. Now `onChange` only updates local state and the commit happens once,
-     when the menu closes.
-
-     `[]` is shown for the all-employees default rather than every id ticked:
-     the pill reads "All employees", and ticking one name should narrow to that
-     name, not untick 49 others one at a time. */
-  const [draftEmps, setDraftEmps] = React.useState<string[]>([]);
-
-  /** What the checkboxes should show for the CURRENTLY APPLIED scope. */
-  const appliedSelection = React.useCallback(
-    () => (isAllEmps ? [ALL_EMPS] : selectedEmployeeIds),
-    [isAllEmps, selectedEmployeeIds],
-  );
-
-  /* "All employees" WINS when it was just ticked, because at that moment your
-     own name is still ticked too (you are the default) — a plain "any real id
-     present → those people" rule would read that as "just me" and swallow the
-     click. Everything else falls through to the real ids. */
   function onDraftChange(next: string[]) {
     if (next.includes(ALL_EMPS) && !isAllEmps) {
       setDraftEmps([ALL_EMPS]);
       return;
     }
-    setDraftEmps(next.filter((v) => v !== ALL_EMPS));
+    setDraftEmps(next.filter((value) => value !== ALL_EMPS));
   }
+
+  const selectedDay = range.from === range.to ? asDate(range.from) : undefined;
+  const yearOptions = Array.from({ length: 8 }, (_, offset) => fyStartYear - 3 + offset);
 
   return (
     <PageShell as="div" width="full" py={false} className="flex flex-wrap items-center gap-2 py-2">
-        {/* DATE RANGE */}
-        <Popover.Root
-          open={dateOpen}
-          onOpenChange={(o) => {
-            setDateOpen(o);
-            // Seed from what is applied, so reopening shows the window you are
-            // looking at rather than a blank slate.
-            if (o) setDraft(applied);
-            // Closed after only a start day: commit it as a single day rather
-            // than discarding the click. Throwing away someone's input because
-            // they did not finish the gesture is the more surprising outcome.
-            else if (draft?.from && !draft.to) {
-              const d = format(draft.from, "yyyy-MM-dd");
-              go({ from: d, to: d });
+      <Popover.Root
+        open={dateOpen}
+        onOpenChange={(open) => {
+          setDateOpen(open);
+          if (open) {
+            setCalendarMode(modeForRange(range, fyRange));
+            setCalendarMonth(asDate(range.from));
+            setDraftRange({ from: asDate(range.from), to: asDate(range.to) });
+          }
+        }}
+      >
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            aria-label="Choose dashboard date"
+            title="Choose day, range, month or financial year"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-hairline-strong bg-surface-card px-2.5 text-left shadow-sm transition hover:border-altus-red/50 hover:bg-altus-red/[0.025]"
+          >
+            <CalendarDays size={16} className="shrink-0 text-altus-red" strokeWidth={2.2} />
+            <span className="text-[12px] font-bold tabular-nums text-ink-strong">{calendarLabel(range, fyRange)}</span>
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="start"
+            sideOffset={10}
+            collisionPadding={12}
+            className="slim-scroll z-[100] w-[330px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-chip border border-hairline-strong bg-surface-card p-3"
+            style={{ boxShadow: "0 16px 40px rgba(15, 23, 42, 0.14)" }}
+          >
+            <div className="mb-3 grid grid-cols-4 rounded-lg bg-slate-100 p-1" aria-label="Calendar selection mode">
+              {(["day", "range", "month", "year"] as CalendarMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setCalendarMode(mode)}
+                  className={`rounded-md px-2 py-1.5 text-[12px] font-bold transition ${calendarMode === mode ? "bg-white text-altus-red shadow-sm" : "text-ink-subtle hover:text-ink-strong"}`}
+                >
+                  {mode === "year" ? "FY year" : mode}
+                </button>
+              ))}
+            </div>
+
+            {calendarMode === "day" && (
+              <>
+                <p className="mb-2 text-[12px] font-semibold text-ink-subtle">Select a specific day</p>
+                <DayPicker
+                  mode="single"
+                  selected={selectedDay}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  onSelect={chooseDay}
+                  captionLayout="dropdown"
+                  navLayout="after"
+                  startMonth={asDate(`${fyStartYear - 3}-04-01`)}
+                  endMonth={asDate(`${fyStartYear + 4}-03-01`)}
+                  showOutsideDays
+                  weekStartsOn={1}
+                />
+              </>
+            )}
+
+            {calendarMode === "range" && (
+              <div>
+                <p className="mb-2 text-[12px] font-semibold text-ink-subtle">Choose a start and end date, then apply the range.</p>
+                <DayPicker
+                  mode="range"
+                  selected={draftRange}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  onSelect={setDraftRange}
+                  captionLayout="dropdown"
+                  navLayout="after"
+                  startMonth={asDate(`${fyStartYear - 3}-04-01`)}
+                  endMonth={asDate(`${fyStartYear + 4}-03-01`)}
+                  showOutsideDays
+                  weekStartsOn={1}
+                />
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-hairline pt-2">
+                  <span className="min-w-0 truncate text-[11.5px] font-semibold text-ink-subtle">
+                    {draftRange?.from && draftRange.to
+                      ? `${format(draftRange.from, "dd MMM yyyy")} – ${format(draftRange.to, "dd MMM yyyy")}`
+                      : draftRange?.from
+                        ? `${format(draftRange.from, "dd MMM yyyy")} — choose an end date`
+                        : "Select a range"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={applyRange}
+                    disabled={!draftRange?.from || !draftRange.to}
+                    className="shrink-0 rounded-lg bg-altus-red px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {calendarMode === "month" && (
+              <div className="space-y-3">
+                <p className="text-[12px] font-semibold text-ink-subtle">Choose a month and year, then apply it to the dashboard.</p>
+                <label className="block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
+                  Month
+                  <select
+                    value={calendarMonth.getMonth()}
+                    onChange={(event) => setCalendarMonth(new Date(calendarMonth.getFullYear(), Number(event.target.value), 1, 12))}
+                    className="mt-1 block w-full rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong outline-none focus:border-altus-red"
+                  >
+                    {Array.from({ length: 12 }, (_, month) => <option key={month} value={month}>{format(new Date(2026, month, 1), "MMMM")}</option>)}
+                  </select>
+                </label>
+                <label className="block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
+                  Year
+                  <select
+                    value={calendarMonth.getFullYear()}
+                    onChange={(event) => setCalendarMonth(new Date(Number(event.target.value), calendarMonth.getMonth(), 1, 12))}
+                    className="mt-1 block w-full rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong outline-none focus:border-altus-red"
+                  >
+                    {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={applyMonth}
+                  className="w-full rounded-lg bg-altus-red px-3 py-2 text-[13px] font-bold text-white transition hover:bg-[#b91c1c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+                >
+                  View {format(calendarMonth, "MMMM yyyy")}
+                </button>
+              </div>
+            )}
+
+            {calendarMode === "year" && (
+              <div className="space-y-3">
+                <p className="text-[12px] font-semibold text-ink-subtle">Select a financial year (April to March)</p>
+                <label className="block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
+                  Financial year
+                  <select
+                    value={fyStartYear}
+                    onChange={(event) => chooseYear(Number(event.target.value))}
+                    className="mt-1 block w-full rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong outline-none focus:border-altus-red"
+                  >
+                    {yearOptions.map((year) => <option key={year} value={year}>FY {year}–{String(year + 1).slice(2)}</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+
+      <MultiSelect
+        options={empOptions}
+        selected={draftEmps}
+        onChange={onDraftChange}
+        onOpenChange={(open) => {
+          if (open) setDraftEmps(appliedSelection());
+          else if (!sameIds(draftEmps, appliedSelection())) go({ emps: draftEmps.length > 0 ? draftEmps : [viewedEmployeeId] });
+        }}
+        placeholder="All employees"
+        renderTrigger={() => (
+          <FilterPill
+            icon={<Users size={16} strokeWidth={2} />}
+            name="Employees"
+            value={
+              isAllEmps
+                ? `All employees (${roster.length})`
+                : isSelfOnly
+                  ? "Only me"
+                  : summarizeSelection(selectedEmployeeIds.map((id) => nameById.get(id) ?? "—"), "All employees")
             }
-          }}
-        >
-          <Popover.Trigger asChild>
-            <FilterPill
-              icon={<Calendar size={16} strokeWidth={2} />}
-              name="Date range"
-              value={rangeLabel}
-              active={!isDefaultRange}
-            />
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content
-              align="start"
-              sideOffset={10}
-              collisionPadding={12}
-              className="slim-scroll z-[100] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-chip border border-hairline-strong bg-surface-card p-3"
-              style={{ boxShadow: "0 16px 40px rgba(15, 23, 42, 0.14)" }}
-            >
-              <DayPicker
-                mode="range"
-                // The draft while open, the applied range once closed — an
-                // in-progress `{from, to: undefined}` has to survive the round
-                // trip or the second click starts over instead of extending.
-                selected={dateOpen ? draft : applied}
-                onSelect={handleRange}
-                defaultMonth={applied.from}
-                numberOfMonths={2}
-                showOutsideDays
-                weekStartsOn={1}
-              />
-              {/* The only feedback between the first click and the second: the
-                  pill behind still reads the OLD range, because nothing is
-                  committed yet. */}
-              <p className="mt-2 border-t border-hairline pt-2 text-center text-[12px] font-semibold text-ink-subtle">
-                {draft?.from && draft.to
-                  ? `${format(draft.from, "dd-MMM-yyyy")} – ${format(draft.to, "dd-MMM-yyyy")}`
-                  : draft?.from
-                    ? `${format(draft.from, "dd-MMM-yyyy")} — pick an end date`
-                    : "Pick a start date"}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setDateOpen(false);
-                  go({ from: fyRange.from, to: fyRange.to });
-                }}
-                className="mt-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong"
-              >
-                <RotateCcw size={12} strokeWidth={2.4} />
-                Reset to the full year
-              </button>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
-
-        {/* EMPLOYEES — multiselect. Clearing it falls back to the viewed
-            person rather than showing nothing, which is what an empty
-            selection would otherwise mean. */}
-        <MultiSelect
-          options={empOptions}
-          selected={draftEmps}
-          onChange={onDraftChange}
-          onOpenChange={(open) => {
-            // Opening seeds the draft from what is applied; closing commits it.
-            // Clearing everything falls back to you — the page's default —
-            // rather than to an empty dashboard.
-            if (open) setDraftEmps(appliedSelection());
-            else if (!sameIds(draftEmps, appliedSelection())) {
-              go({ emps: draftEmps.length > 0 ? draftEmps : [viewedEmployeeId] });
-            }
-          }}
-          placeholder="All employees"
-          renderTrigger={() => (
-            <FilterPill
-              icon={<Users size={16} strokeWidth={2} />}
-              name="Employees"
-              value={
-                isAllEmps
-                  ? `All employees (${roster.length})`
-                  : isSelfOnly
-                    ? "Only me"
-                    : summarizeSelection(
-                        selectedEmployeeIds.map((id) => nameById.get(id) ?? "—"),
-                        "All employees",
-                      )
-              }
-              // The default scope is not a filter, so it does not light up.
-              active={!isSelfOnly}
-            />
-          )}
-        />
-
-        {/* A "Viewing: <person>" select used to sit here, pinned right. It is
-            gone on request, and its job went with it rather than being lost:
-            the dashboard now OPENS on you, and the Employees multiselect above
-            is the single control for looking at anyone else. Two controls both
-            answering "whose goals am I reading" was the confusion — and this
-            one can say "everyone", which Viewing never could.
-
-            `?emp=` still resolves the cascade the page centres on, so old
-            links keep working; nothing writes it any more. */}
+            active={!isSelfOnly}
+          />
+        )}
+      />
     </PageShell>
   );
 }

@@ -34,6 +34,8 @@
 | [`12-verify-global-logs.sql`](./12-verify-global-logs.sql) | Read-only checks for `0245`, including the immutability proof (a commented-out `UPDATE` that must fail). |
 | [`13-apply-control-panel.sql`](./13-apply-control-panel.sql) | **Applied to the branch's database on 2026-09-22.** Migration `0246`: the Roles template tables (`roles`, `role_permissions`, `employee_roles`) + the seeded "Super Admin" role. Additive, idempotent. |
 | [`14-verify-control-panel.sql`](./14-verify-control-panel.sql) | Read-only checks for `0246`. |
+| [`15-apply-training-learning.sql`](./15-apply-training-learning.sql) | **Applied 2026-09-23.** Migrations `0248` + `0249` + `0250`: the Training & Learning (LMS) schema — extended `tc_sessions`/`tc_session_attendees`/`tc_watch_progress`/`tc_self_learning`, the six new tables (`tc_training_surveys`, `tc_survey_questions`, `tc_survey_responses`, `tc_learning_targets`, `tc_share_schedule`, `tc_share_attendees`), the share → self-learning link columns, and the `tc_lookups` writable master-data table (seeded with 26 options). Additive, idempotent. |
+| [`16-verify-training-learning.sql`](./16-verify-training-learning.sql) | Read-only checks for `0248`. Every query returns 0 rows on a correctly-applied database. |
 
 ---
 
