@@ -615,17 +615,20 @@ function HeadCell({
   );
 }
 
-type StatusFilter = DoerStatus | "none" | "carried" | "lapsed";
+type StatusFilter = DoerStatus | "carried" | "lapsed";
 
 /** A `?status=` value, or null if it names no chip this board has. */
 function asStatusFilter(v: string): StatusFilter | null {
-  if (v === "none" || v === "carried" || v === "lapsed") return v;
+  if (v === "carried" || v === "lapsed") return v;
   return isDoerStatus(v) ? v : null;
 }
 
 /** The chips a row answers to: its Doer Status, and whether it is carried forward or lapsed. */
 function filterKeysOf(r: ComplianceRow): StatusFilter[] {
-  const keys: StatusFilter[] = [r.doerStatus ?? "none"];
+  // A blank stored value is an untouched row, not another user-facing status.
+  // It remains null for reminders, while the board presents the first real
+  // workflow state: Not Read.
+  const keys: StatusFilter[] = [r.doerStatus ?? "dont_know"];
   if (r.carried) keys.push("carried");
   if (r.lapsed) keys.push("lapsed");
   return keys;
@@ -649,7 +652,6 @@ function StatusFilters({
   onToggle: (s: StatusFilter) => void;
 }) {
   const chips: { key: StatusFilter; label: string; bg: string; ink: string; border: string; dot: string }[] = [
-    { key: "none", label: "Not filled", bg: "#FFFFFF", ink: "#B91C1C", border: "#FCA5A5", dot: "#DC2626" },
     ...DOER_STATUSES.map((s) => {
       const t = doerStyle(s);
       return { key: s as StatusFilter, label: doerLabel(s), bg: t.bg, ink: t.ink, border: t.border, dot: t.dot };
@@ -676,7 +678,7 @@ function StatusFilters({
               background: c.bg,
               color: c.ink,
               borderColor: on ? c.ink : c.border,
-              borderStyle: c.key === "none" && !on ? "dashed" : "solid",
+              borderStyle: "solid",
               boxShadow: on ? `0 0 0 2px color-mix(in srgb, ${c.dot} 35%, transparent)` : undefined,
             }}
           >
@@ -1240,22 +1242,21 @@ function DoerCell({
   title?: string;
   onSet: (s: DoerStatus) => void;
 }) {
-  const tone = status ? doerStyle(status) : null;
+  // Untouched rows remain null in storage for reminder logic, but the checklist
+  // starts them at the first selectable workflow state rather than showing a
+  // separate “Not filled” option.
+  const shown = status ?? "dont_know";
+  const tone = doerStyle(shown);
   return (
     <select
-      value={status ?? ""}
+      value={shown}
       disabled={disabled}
       title={title}
       aria-label="Doer Status"
       onChange={(e) => e.target.value && onSet(e.target.value as DoerStatus)}
       className="min-w-[130px] cursor-pointer rounded-full border px-2.5 py-1 text-[12.5px] font-bold outline-none disabled:cursor-default"
-      style={
-        tone
-          ? { background: tone.bg, color: tone.ink, borderColor: tone.border }
-          : { background: "#FFF", color: "#B91C1C", borderColor: "#FCA5A5", borderStyle: "dashed" }
-      }
+      style={{ background: tone.bg, color: tone.ink, borderColor: tone.border }}
     >
-      {status === null && <option value="">Not filled</option>}
       {DOER_STATUSES.map((s) => (
         <option key={s} value={s}>
           {doerLabel(s)}

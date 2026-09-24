@@ -80,6 +80,9 @@ interface Props {
   /** main's name for `scopeDefaultsToMe` — kept so the other task surfaces
    *  (archived, dashboard, agenda, kanban) that still pass it keep compiling. */
   offersScopeChoice?: boolean;
+  /** Hide the redundant My Tasks / All Tasks toggle when the Assignee
+   *  multi-select already provides both choices. */
+  hideScopeToggle?: boolean;
   assigneeMode?: AssigneeMode;
   /** Number of tasks matching the current filters (shown in the summary row). */
   taskCount?: number;
@@ -111,6 +114,7 @@ export function FilterBar({
   taskScope,
   scopeDefaultsToMe = false,
   offersScopeChoice = false,
+  hideScopeToggle = false,
   assigneeMode: initialAssigneeMode = "all",
 }: Props) {
   const router = useRouter();
@@ -124,7 +128,7 @@ export function FilterBar({
      assumption that an admin's list was already the whole organisation; it is
      not, and the two buttons said nothing about which of the two they were. */
   const showScopeChip =
-    Boolean(me) && (taskScope ? taskScope.expandable : !me?.isAdmin);
+    !hideScopeToggle && Boolean(me) && (taskScope ? taskScope.expandable : !me?.isAdmin);
   /* "All employees" is a ROW IN THE LIST, not a separate control: the ask was
      for it to sit in the same checkbox dropdown as the individual names, and a
      reader who has just learned to pick a person there should not have to
@@ -208,7 +212,13 @@ export function FilterBar({
     sp.set("start", start);
     sp.set("end", end);
     sp.set("view", view);
-    if (emp.length > 0) {
+    // "Only Me" is the Tasks page's implicit starting scope. Do not turn it
+    // into `?emp=<my id>` while applying another filter, otherwise the next
+    // render reads it as an explicitly selected person and resurrects the
+    // misleading "1 active" chip.
+    if (selfScope && assigneeMode === "default") {
+      sp.delete("emp");
+    } else if (emp.length > 0) {
       sp.set("emp", emp.join(","));
     } else if ((showScopeChip || selfScope) && assigneeMode === "all") {
       // Explicit, because an ABSENT `emp` is what means "the viewer" now.

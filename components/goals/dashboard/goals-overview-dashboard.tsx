@@ -29,19 +29,20 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   SquareArrowOutUpRight,
-  Maximize2,
-  Minimize2,
   Search,
   X,
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { DashboardSectionHeader } from "@/components/dashboard/section-header";
 import { SectionIcon, type SectionIconTone } from "@/components/dashboard/section-icon";
 import {
+  DASHBOARD_CARD,
+  DASHBOARD_TABLE_HEAD,
   CollapseToggle,
   CollapsibleBody,
-  DASHBOARD_CARD_PADDED,
-  DASHBOARD_TABLE_HEAD,
   SECTION_CONTROL,
 } from "@/components/dashboard/section-chrome";
 import { DashboardSectionNav } from "@/components/dashboard/section-nav";
@@ -135,7 +136,6 @@ const DAILY_COLOR = "#1D4ED8";
 /** How many rows a level section lists before it caps. */
 const LIST_MAX = 10;
 /** How many rows the attention list shows. */
-const ATTENTION_MAX = 15;
 
 /**
  * How far off pace a row is, in words — "4d late", "+7 ahead", "12 behind".
@@ -179,6 +179,31 @@ const GOAL_COLUMNS: {
   { label: "Pace", get: paceText },
   { label: "Status", get: (r) => BAND_META[r.band].label, tone: true },
 ];
+
+type GoalSortKey = "goal" | "progress" | "period" | "area" | "attainment" | "pace" | "status";
+type GoalSort = { key: GoalSortKey; direction: "asc" | "desc" } | null;
+
+const GOAL_TABLE_HEADERS: { key: GoalSortKey; label: string }[] = [
+  { key: "goal", label: "Goal" },
+  { key: "progress", label: "Progress" },
+  { key: "period", label: "Period" },
+  { key: "area", label: "Area" },
+  { key: "attainment", label: "Attainment" },
+  { key: "pace", label: "Pace" },
+  { key: "status", label: "Status" },
+];
+
+function goalSortValue(row: Row, key: GoalSortKey): string | number {
+  switch (key) {
+    case "goal": return row.g.title;
+    case "progress":
+    case "attainment": return row.eff;
+    case "period": return periodBounds(row.g.periodKey).start.getTime();
+    case "area": return row.g.area || "";
+    case "pace": return row.h.delta;
+    case "status": return BAND_META[row.band].label;
+  }
+}
 
 export function GoalsOverviewDashboard({
   data,
@@ -495,6 +520,7 @@ function Section({
         icon={icon}
         title={title}
         subtitle={subtitle}
+        inset="px-4 md:px-5"
         /* THE ORDER IS THE WMS DASHBOARD'S: share pair, then the section's own
            controls, then the board shortcut, then the fold toggle rightmost. It reads
            as arbitrary until you scroll a page of eight sections — then the two
@@ -515,12 +541,16 @@ function Section({
                 <SquareArrowOutUpRight size={15} strokeWidth={2.2} aria-hidden />
               </Link>
             )}
-            <CollapseToggle expanded={open} onToggle={() => setOpen((v) => !v)} label={label} />
+            <CollapseToggle
+              expanded={open}
+              onToggle={() => setOpen((value) => !value)}
+              label={label}
+            />
           </>
         }
       />
       <CollapsibleBody expanded={open}>
-        <div className={`w-full ${DASHBOARD_CARD_PADDED}`}>{children}</div>
+        <div className={`w-full ${DASHBOARD_CARD} p-4 md:p-5`}>{children}</div>
       </CollapsibleBody>
     </section>
   );
@@ -625,16 +655,12 @@ function GoalSectionSearch({
 function TransposedGoals({
   rows,
   fy,
-  expanded = false,
-  onTableSizeToggle,
 }: {
   rows: Row[];
   fy: number;
-  expanded?: boolean;
-  onTableSizeToggle?: () => void;
 }) {
   return (
-    <div className={`-mx-1 overflow-auto px-1 ${expanded ? "max-h-[680px]" : "max-h-[390px]"}`}>
+    <div className="-mx-1 max-h-[680px] overflow-auto px-1">
       {/* `w-auto`, NOT `w-full`, with a stated width per column.
           A full-width table divides its slack among the columns it has, so a
           level holding one goal drew a single 1300px-wide column with four
@@ -677,11 +703,6 @@ function TransposedGoals({
                 </th>
               );
             })}
-            {onTableSizeToggle && (
-              <th className="sticky right-0 z-20 w-11 bg-surface-card px-1 py-2 text-right">
-                <TableSizeToggle expanded={expanded} onToggle={onTableSizeToggle} />
-              </th>
-            )}
           </tr>
         </thead>
         <tbody>
@@ -706,7 +727,6 @@ function TransposedGoals({
                   {col.get(r)}
                 </td>
               ))}
-              {onTableSizeToggle && <td />}
             </tr>
           ))}
         </tbody>
@@ -719,31 +739,66 @@ function TransposedGoals({
 function GoalsTable({
   rows,
   fy,
-  expanded,
-  onTableSizeToggle,
 }: {
   rows: Row[];
   fy: number;
-  expanded: boolean;
-  onTableSizeToggle: () => void;
 }) {
+  const [sort, setSort] = React.useState<GoalSort>(null);
+  const displayedRows = React.useMemo(() => {
+    if (!sort) return rows;
+    const direction = sort.direction === "asc" ? 1 : -1;
+    return rows.slice().sort((left, right) => {
+      const a = goalSortValue(left, sort.key);
+      const b = goalSortValue(right, sort.key);
+      if (typeof a === "number" && typeof b === "number") return (a - b) * direction;
+      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" }) * direction;
+    });
+  }, [rows, sort]);
+
+  const changeSort = (key: GoalSortKey) => {
+    setSort((current) => {
+      if (current?.key === key) {
+        return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
   return (
-    <div className={`mt-5 overflow-auto rounded-[14px] border border-hairline ${expanded ? "max-h-[680px]" : "max-h-[390px]"}`}>
+    <div className="max-h-[680px] overflow-auto rounded-[14px] border border-hairline">
       <table className="min-w-[1060px] w-full border-collapse text-left">
         <thead className="sticky top-0 z-20 bg-surface-card shadow-[0_1px_0_var(--color-hairline-strong)]">
           <tr>
-            <th className={`sticky left-0 z-30 min-w-[250px] bg-surface-card px-4 py-3 ${DASHBOARD_TABLE_HEAD}`}>Goal</th>
-            <th className={`min-w-[170px] px-4 py-3 ${DASHBOARD_TABLE_HEAD}`}>Progress</th>
-            {GOAL_COLUMNS.map((column) => (
-              <th key={column.label} className={`min-w-[132px] px-4 py-3 ${DASHBOARD_TABLE_HEAD}`}>{column.label}</th>
-            ))}
-            <th className="w-11 bg-surface-card px-1 py-2 text-right">
-              <TableSizeToggle expanded={expanded} onToggle={onTableSizeToggle} />
-            </th>
+            {GOAL_TABLE_HEADERS.map((header, index) => {
+              const active = sort?.key === header.key;
+              const SortIcon = active ? (sort.direction === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
+              const width = index === 0 ? "min-w-[250px]" : index === 1 ? "min-w-[170px]" : "min-w-[132px]";
+              return (
+                <th
+                  key={header.key}
+                  aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+                  className={`${index === 0 ? "sticky left-0 z-30 bg-surface-card" : ""} ${width} px-4 py-3 ${DASHBOARD_TABLE_HEAD}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => changeSort(header.key)}
+                    title={`Sort by ${header.label}${active ? ` (${sort.direction === "asc" ? "ascending" : "descending"})` : ""}`}
+                    className="group/sort inline-flex items-center gap-1.5 text-left hover:text-altus-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+                  >
+                    <span>{header.label}</span>
+                    <SortIcon
+                      className={`size-3 shrink-0 ${active ? "text-altus-red" : "text-ink-subtle opacity-45 transition-opacity group-hover/sort:opacity-100"}`}
+                      strokeWidth={2.5}
+                      aria-hidden
+                    />
+                  </button>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {displayedRows.map((row) => {
             const level = LEVELS.find((item) => item.key === row.g.period);
             const href = (
               level
@@ -767,7 +822,6 @@ function GoalsTable({
                     {column.get(row)}
                   </td>
                 ))}
-                <td />
               </tr>
             );
           })}
@@ -788,21 +842,6 @@ function GoalProgress({ row }: { row: Row }) {
       </span>
       <span className="w-9 text-right text-[12px] font-bold tabular-nums text-ink-strong">{row.eff}%</span>
     </div>
-  );
-}
-
-function TableSizeToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={expanded}
-      title={expanded ? "Minimize table" : "Maximize table"}
-      aria-label={expanded ? "Minimize table" : "Maximize table"}
-      className="grid size-8 place-items-center rounded-lg border border-hairline-strong bg-surface-card text-ink-soft shadow-sm transition-colors hover:border-altus-red hover:text-altus-red"
-    >
-      {expanded ? <Minimize2 className="size-3.5" strokeWidth={2.5} /> : <Maximize2 className="size-3.5" strokeWidth={2.5} />}
-    </button>
   );
 }
 
@@ -830,7 +869,6 @@ function LevelSection({
   fy: number;
 }) {
   const [transposed, setTransposed] = React.useState(false);
-  const [tableExpanded, setTableExpanded] = React.useState(false);
   const [visibleCount, setVisibleCount] = React.useState(LIST_MAX);
   const [query, setQuery] = React.useState("");
   const filteredRows = React.useMemo(
@@ -916,21 +954,11 @@ function LevelSection({
                section should take; sideways they cost width, which this view
                already scrolls. */
             <div className="mt-5">
-              <TransposedGoals
-                rows={sorted}
-                fy={fy}
-                expanded={tableExpanded}
-                onTableSizeToggle={() => setTableExpanded((value) => !value)}
-              />
+              <TransposedGoals rows={sorted} fy={fy} />
             </div>
           ) : (
             <>
-              <GoalsTable
-                rows={listed}
-                fy={fy}
-                expanded={tableExpanded}
-                onTableSizeToggle={() => setTableExpanded((value) => !value)}
-              />
+              <GoalsTable rows={listed} fy={fy} />
               {listed.length < filteredRows.length && (
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-[12px] font-semibold text-ink-subtle">
@@ -1111,27 +1139,7 @@ function AttentionSection({
       ) : transposed ? (
         <TransposedGoals rows={filteredRows} fy={fy} />
       ) : (
-        <>
-          <div className="mb-4 grid gap-4 rounded-[16px] border border-hairline bg-surface-card p-4 md:grid-cols-[150px_minmax(0,1fr)]">
-            <div>
-              <p className="text-[12px] font-bold uppercase tracking-wider text-ink-subtle">Flagged</p>
-              <p className="mt-1 text-[30px] font-black leading-none tabular-nums text-altus-red">{filteredRows.length}</p>
-            </div>
-            <div className="min-w-0 self-center"><BandBar rows={filteredRows} /></div>
-          </div>
-          <ul className="flex flex-col gap-1.5">
-            {filteredRows.slice(0, ATTENTION_MAX).map((r) => (
-              <AttentionRow key={r.g.id} row={r} fy={fy} />
-            ))}
-          </ul>
-          {/* Says what was cut. A list silently capped reads as "these are
-              all of them", which is the one thing it is not. */}
-          {filteredRows.length > ATTENTION_MAX && (
-            <p className="mt-3 text-[12px] font-semibold text-ink-subtle">
-              Showing the {ATTENTION_MAX} worst of {filteredRows.length}.
-            </p>
-          )}
-        </>
+        <GoalsTable rows={filteredRows} fy={fy} />
       )}
     </Section>
   );
