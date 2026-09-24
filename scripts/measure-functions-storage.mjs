@@ -45,9 +45,12 @@
  *              trustworthy locally. It is the one to run before pushing.
  *   default    sums NFT TRACES, and those come from the build's LAST stage, so
  *              they are empty whenever a local build does not finish. Note also
- *              that `pnpm build` begins with `rm -rf .next`, so the "reuse an
- *              existing .next" advice in next.config.ts cannot be followed via
- *              the npm script anyway.
+ *              that `pnpm build` USED TO begin with `rm -rf .next`, so the
+ *              "reuse an existing .next" advice in next.config.ts could not be
+ *              followed via the npm script. That has been corrected: `build` no
+ *              longer deletes the output (and on Vercel it was the reason every
+ *              build compiled from cold — see the note in next.config.ts).
+ *              `build:clean` is the one that starts from scratch now.
  *
  * Practical rule: run `--leaks` locally, confirm the number ON VERCEL after a
  * deploy. Do not quote a local size total to anybody.
