@@ -110,11 +110,51 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "25mb",
     },
-    // THE VERCEL BUILD RAN OUT OF MEMORY (19 Sep). On the 2-core / 8 GB build
-    // machine the webpack compile stalled after "Compiled with warnings" and
-    // was killed at Vercel's 45-minute limit, twice, on code that had built
-    // in 7 minutes an hour earlier. Trades a little build speed for a lower
-    // peak heap. Paired with the heap size in package.json's build script.
+    /* THE VERCEL BUILD RAN OUT OF MEMORY — 19 Sep, and again on 23 Sep.
+     *
+     * The 23 September recurrence is measured rather than guessed. The build
+     * log for `altus-gmufbxaco` (9 min, Error) ends:
+     *
+     *   ⚠ Compiled with warnings in 7.4min
+     *   Next.js build worker exited with code: null and signal: SIGKILL
+     *   • At least one "Out of Memory" ("OOM") event was detected during the build.
+     *
+     * So the compile FINISHED and the very next phase — page-data collection on
+     * 431 route entries — is where it died. The 46-minute failure beside it is
+     * the same event with the 45-minute wall hit first.
+     *
+     * WHY IT CAME BACK. It was the merge of the fork's 23 September delivery
+     * (56 commits: the billing document engine, Customer KYC, the executive
+     * calendar, the control panel, global logs) that grew the route graph past
+     * what 8 GB holds. Nothing in that delivery is individually at fault — the
+     * two heavy dependencies it added (`pdfjs-dist`, `@napi-rs/canvas`) are
+     * externalized above and lazily imported from exactly one file.
+     *
+     * `webpackMemoryOptimizations` trades a little build speed for a lower peak
+     * heap. It also disables the separate webpack build worker, which is the
+     * other half of the fix and not something to turn back on here.
+     *
+     * ── THE HEAP SIZE IS PART OF THIS FIX, AND IT WENT DOWN ───────────────
+     * package.json's `build` script now passes `--max-old-space-size=4096`,
+     * lowered from 6144, and it also no longer starts with `rm -rf .next`.
+     * Both are deliberate, and the second is the one that reads as wrong:
+     *
+     *   · RAISING the limit on a fixed-size container makes OOM MORE likely,
+     *     not less. V8 defers collection until it approaches the ceiling, so
+     *     6144 told the main process it could grow to 6 GB of an 8 GB box and
+     *     left ~2 GB for webpack's non-heap memory, the workers and the
+     *     container itself. Lowering it makes V8 collect earlier and bounds
+     *     peak RSS, which is the number the kernel actually kills on.
+     *
+     *   · `rm -rf .next` DELETED VERCEL'S BUILD CACHE. Vercel restores
+     *     `.next/cache` between deployments of the same project; removing it
+     *     forced a cold webpack compile every single time — 7.4 min of the
+     *     9-minute run above, on a build that then had no time left to spare.
+     *     It was there for local convenience, so it moved to `build:clean`.
+     *     (`build:clean` is also the honest home for it: the tracing note
+     *     above records that a build following `rm -rf .next` traced ZERO
+     *     node_modules, so the flag produces worse output as well as a slower
+     *     build.) */
     webpackMemoryOptimizations: true,
   },
   /**
