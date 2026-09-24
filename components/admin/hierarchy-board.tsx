@@ -16,12 +16,13 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { History, Move, Users2 } from "lucide-react";
+import { ChevronDown, ChevronUp, History, Move, Users2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { Avatar } from "@/components/ui/avatar";
 import {
   moveEmployeeToManager,
   fetchManagerHistory,
+  reorderTeamMember,
 } from "@/app/(admin)/admin/hierarchy/actions";
 
 /**
@@ -88,6 +89,13 @@ interface Props {
   grid?: boolean;
   /** managerId → colour for that manager's box outline + heading (Team Reporting). */
   managerAccents?: Record<string, string>;
+  /**
+   * Up/down reorder controls on cards AND column headers — Team Reporting's
+   * "move any full card up and down, shuffle their orders internally"
+   * (2026-09-24). Off by default; Admin's board doesn't offer it, since its
+   * columns are ordered by team size, not a manual order.
+   */
+  enableReorder?: boolean;
 }
 
 /** dnd-kit ids must be strings; the unassigned column has no uuid. */
@@ -136,9 +144,18 @@ export function HierarchyBoard({
   compact = false,
   grid = false,
   managerAccents,
+  enableReorder = false,
 }: Props) {
   const router = useRouter();
   const [dragging, setDragging] = useState<BoardPerson | null>(null);
+
+  function reorder(id: string, direction: "up" | "down") {
+    startTransition(async () => {
+      const res = await reorderTeamMember(id, direction);
+      if (!res.ok) fireToast({ message: res.error });
+      router.refresh();
+    });
+  }
   const [historyFor, setHistoryFor] = useState<BoardPerson | null>(null);
   const [historyRows, setHistoryRows] = useState<HistoryPeriod[]>([]);
   const [historyState, setHistoryState] = useState<"loading" | "ready" | "error">("loading");
@@ -254,6 +271,8 @@ export function HierarchyBoard({
               grid={grid}
               onMove={move}
               onHistory={openHistory}
+              enableReorder={enableReorder}
+              onReorder={reorder}
             />
           ))}
         </div>
@@ -287,6 +306,8 @@ function Column({
   onMove,
   onHistory,
   accent,
+  enableReorder,
+  onReorder,
 }: {
   column: BoardColumn;
   /** Outline + heading colour for this manager's box (Team Reporting). Unset = the default look. */
@@ -297,6 +318,8 @@ function Column({
   grid: boolean;
   onMove: (p: BoardPerson, managerId: string | null) => void;
   onHistory: (p: BoardPerson) => void;
+  enableReorder?: boolean;
+  onReorder?: (id: string, direction: "up" | "down") => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: colId(column.managerId) });
   const isUnassigned = column.managerId === null;
@@ -332,6 +355,28 @@ function Column({
             <Users2 size={11} strokeWidth={2.4} />
             {column.reports.length}
           </span>
+          {enableReorder && column.managerId && (
+            <span className="flex shrink-0 flex-col">
+              <button
+                type="button"
+                onClick={() => onReorder?.(column.managerId!, "up")}
+                title="Move this column earlier"
+                aria-label="Move this column earlier"
+                className="grid h-4 w-4 place-items-center text-[#94A3B8] hover:text-[#0F172A]"
+              >
+                <ChevronUp size={12} strokeWidth={2.6} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onReorder?.(column.managerId!, "down")}
+                title="Move this column later"
+                aria-label="Move this column later"
+                className="grid h-4 w-4 place-items-center text-[#94A3B8] hover:text-[#0F172A]"
+              >
+                <ChevronDown size={12} strokeWidth={2.6} />
+              </button>
+            </span>
+          )}
         </div>
         {!compact && column.managerEmail && (
           <p className="truncate text-[12px] text-[#94A3B8]">{column.managerEmail}</p>
@@ -367,6 +412,8 @@ function Column({
               compact={compact}
               onMove={onMove}
               onHistory={onHistory}
+              enableReorder={enableReorder}
+              onReorder={onReorder}
             />
           ))
         )}
@@ -382,6 +429,8 @@ function Card({
   compact,
   onMove,
   onHistory,
+  enableReorder,
+  onReorder,
 }: {
   person: BoardPerson;
   people: BoardPerson[];
@@ -389,6 +438,8 @@ function Card({
   compact: boolean;
   onMove: (p: BoardPerson, managerId: string | null) => void;
   onHistory: (p: BoardPerson) => void;
+  enableReorder?: boolean;
+  onReorder?: (id: string, direction: "up" | "down") => void;
 }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: person.id,
@@ -415,11 +466,35 @@ function Card({
       className="rounded-xl border border-[#E2E8F0] bg-white p-2.5"
       style={{ opacity: isDragging ? 0.35 : 1 }}
     >
-      <div
-        {...(canEdit ? { ...attributes, ...listeners } : {})}
-        className={canEdit ? "cursor-grab active:cursor-grabbing" : undefined}
-      >
-        <CardBody person={person} compact={compact} />
+      <div className="flex items-start gap-1.5">
+        <div
+          {...(canEdit ? { ...attributes, ...listeners } : {})}
+          className={`min-w-0 flex-1 ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}
+        >
+          <CardBody person={person} compact={compact} />
+        </div>
+        {enableReorder && (
+          <span className="flex shrink-0 flex-col">
+            <button
+              type="button"
+              onClick={() => onReorder?.(person.id, "up")}
+              title="Move this person earlier"
+              aria-label={`Move ${person.name} earlier`}
+              className="grid h-4 w-4 place-items-center text-[#94A3B8] hover:text-[#0F172A]"
+            >
+              <ChevronUp size={12} strokeWidth={2.6} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onReorder?.(person.id, "down")}
+              title="Move this person later"
+              aria-label={`Move ${person.name} later`}
+              className="grid h-4 w-4 place-items-center text-[#94A3B8] hover:text-[#0F172A]"
+            >
+              <ChevronDown size={12} strokeWidth={2.6} />
+            </button>
+          </span>
+        )}
       </div>
 
       {/* Compact hides the controls row entirely - both the select and the

@@ -392,7 +392,8 @@ function LegendDot({ c, label }: { c: string; label: string }) {
 }
 
 const POPOVER_CSS = `
-.att-cal{position:relative;overflow:visible;}
+
+.att-cal{position:relative;overflow:visible;z-index:1;}
 /*
  * The wg-rise animation uses a transform, which makes this calendar its own
  * stacking context. A following card (Upcoming Holidays on Attendance or the
@@ -401,6 +402,7 @@ const POPOVER_CSS = `
  * being used, so every check-in/out detail stays fully readable.
  */
 .att-cal:hover,.att-cal:focus-within{z-index:60;}
+
 .att-day{z-index:0;}
 .att-day:hover,.att-day:focus-within{z-index:40;}
 .att-pop{

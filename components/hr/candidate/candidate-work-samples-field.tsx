@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ExternalLink, FileText, Image as ImageIcon, Link2, Loader2, Paperclip, Plus, X } from "lucide-react";
+import { Check, ExternalLink, FileText, Image as ImageIcon, Link2, Loader2, Paperclip, Plus, Trash2, Upload, X } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/browser";
 import { fireToast } from "@/lib/toast";
 import {
@@ -13,6 +13,7 @@ import {
   workFileProblem,
   type WorkSample,
 } from "@/lib/hr/candidate/work-samples";
+import { RESUME_ACCEPT, resumeFileProblem } from "@/lib/hr/candidate/resume";
 
 /** Mints a signed upload URL for one work-sample file (HR or candidate variant). */
 export type WorkUploadUrlFn = (input: {
@@ -41,24 +42,36 @@ function linkLabel(url: string): string {
 }
 
 /**
- * WORK SAMPLES & LINKS - optional, at the end of Personal Details (2026-09-18).
+ * RESUME, WORK SAMPLES AND LINKS - closes Personal Details (2026-09-18, renamed
+ * and given a mandatory Resume slot 2026-09-23).
  *
- * Links are typed and added; files upload straight to storage on pick (signed
- * URL, like the photo) and only their keys enter the answer. The whole list is
- * one answer key (`personal.workSamples`), so it autosaves with the form and is
- * never required - see lib/hr/candidate/work-samples.ts.
+ * Resume is a single required upload (`personal.resume` — see
+ * lib/hr/candidate/resume.ts; required-ness is enforced in intake-schema.ts's
+ * RESUME_KEY handling, not here). Links/other files stay the optional list this
+ * section always was — typed and added, or uploaded straight to storage on pick
+ * (signed URL, like the photo), with only their keys entering the answer. The
+ * whole list is one answer key (`personal.workSamples`), so it autosaves with
+ * the form and is never required - see lib/hr/candidate/work-samples.ts.
  */
 export function CandidateWorkSamplesField({
   value,
   onChange,
   uploadUrl,
   fileUrl,
+  resumeValue,
+  onResumeChange,
+  resumeInvalid,
 }: {
   /** The stored JSON (or ""). */
   value: string;
   onChange: (json: string) => void;
   uploadUrl: WorkUploadUrlFn;
   fileUrl: WorkFileUrlFn;
+  /** The stored resume storage key (or ""). */
+  resumeValue: string;
+  onResumeChange: (path: string) => void;
+  /** True once the form was submitted with no resume attached. */
+  resumeInvalid?: boolean;
 }) {
   const items = React.useMemo(() => parseWorkSamples(value), [value]);
   // The latest list, for uploads that finish after other edits.
@@ -70,6 +83,54 @@ export function CandidateWorkSamplesField({
   const [uploading, setUploading] = React.useState<string[]>([]);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const full = items.length + uploading.length >= WORK_SAMPLES_MAX;
+
+  const [resumeBusy, setResumeBusy] = React.useState(false);
+  const resumeRef = React.useRef<HTMLInputElement | null>(null);
+  const hasResume = resumeValue.trim().length > 0;
+  const resumeName = React.useMemo(() => {
+    const clean = resumeValue.split("/").pop() ?? "";
+    // Uploaded paths are prefixed with a random id — drop everything up to the
+    // last "-" so a resumed draft shows a readable name, not the storage key.
+    const dash = clean.lastIndexOf("-");
+    return dash === -1 ? clean : clean.slice(dash + 1);
+  }, [resumeValue]);
+
+  async function uploadResume(file: File) {
+    const problem = resumeFileProblem({ name: file.name, mime: file.type, size: file.size });
+    if (problem) {
+      fireToast({ message: problem, type: "error" });
+      return;
+    }
+    setResumeBusy(true);
+    try {
+      const signed = await uploadUrl({ fileName: file.name, mime: file.type || null, size: file.size });
+      if (!signed.ok) {
+        fireToast({ message: signed.error, type: "error" });
+        return;
+      }
+      const { error } = await getSupabaseClient()
+        .storage.from(signed.bucket)
+        .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type || "application/pdf" });
+      if (error) {
+        fireToast({ message: `Upload failed: ${error.message}`, type: "error" });
+        return;
+      }
+      onResumeChange(signed.path);
+      fireToast({ message: "Resume attached." });
+    } finally {
+      setResumeBusy(false);
+      if (resumeRef.current) resumeRef.current.value = "";
+    }
+  }
+
+  async function openResume() {
+    const res = await fileUrl(resumeValue);
+    if (!res.ok) {
+      fireToast({ message: res.error, type: "error" });
+      return;
+    }
+    window.open(res.url, "_blank", "noopener,noreferrer");
+  }
 
   function commit(next: WorkSample[]) {
     itemsRef.current = next;
@@ -156,17 +217,85 @@ export function CandidateWorkSamplesField({
 
   return (
     <section className="mt-8 rounded-2xl border border-hairline bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] max-sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <div className="min-w-0 flex-1">
-          <h4 className="text-[15px] font-bold text-ink-strong">Work samples &amp; links</h4>
-          <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-            Optional. Add links to your work (portfolio, GitHub, LinkedIn, a Drive folder) and attach
-            files: pictures, PDFs or documents, up to 25 MB each.
-          </p>
+      <h4 className="text-[15px] font-bold text-ink-strong">Resume, Work Samples and Links</h4>
+      <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
+        Resume is compulsory to upload. Work samples and links are optional — add links to your
+        work (portfolio, GitHub, LinkedIn, a Drive folder) and attach files: pictures, PDFs or
+        documents, up to 25 MB each.
+      </p>
+
+      {/* Resume — the one required upload in this section. */}
+      <div
+        data-invalid={resumeInvalid ? "true" : undefined}
+        className="mt-4 rounded-xl border-2 p-4"
+        style={{ borderColor: resumeInvalid ? "var(--color-altus-red)" : "color-mix(in srgb, var(--color-altus-red) 15%, var(--color-hairline))" }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0 flex-1">
+            <span className="text-[13.5px] font-bold text-ink-strong">
+              Resume<span className="text-altus-red" aria-hidden> *</span>
+            </span>
+            {hasResume && !resumeBusy && (
+              <button
+                type="button"
+                onClick={() => void openResume()}
+                className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-ink-strong hover:text-altus-red"
+                title={`Open ${resumeName}`}
+              >
+                <FileText size={14} className="shrink-0 text-ink-muted" />
+                <span className="truncate">{resumeName}</span>
+                <ExternalLink size={11} className="shrink-0 opacity-50" />
+              </button>
+            )}
+          </div>
+          <span
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold"
+            style={
+              hasResume
+                ? { background: "color-mix(in srgb, #16a34a 12%, white)", color: "#15803d" }
+                : { background: "var(--color-surface-soft)", color: "var(--color-ink-soft)" }
+            }
+          >
+            {hasResume ? (
+              <>
+                <Check size={12} strokeWidth={2.8} /> Attached
+              </>
+            ) : (
+              "Required"
+            )}
+          </span>
         </div>
-        <span className="shrink-0 whitespace-nowrap rounded-pill bg-surface-soft px-2.5 py-1 text-[11.5px] font-bold text-ink-muted">
-          Optional
-        </span>
+        <input
+          ref={resumeRef}
+          type="file"
+          accept={RESUME_ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void uploadResume(f);
+          }}
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={resumeBusy}
+            onClick={() => resumeRef.current?.click()}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red disabled:opacity-60"
+          >
+            {resumeBusy ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} strokeWidth={2.3} />}
+            {hasResume ? "Replace resume" : "Upload resume"}
+          </button>
+          {hasResume && !resumeBusy && (
+            <button
+              type="button"
+              onClick={() => onResumeChange("")}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-altus-red"
+            >
+              <Trash2 size={15} strokeWidth={2.3} /> Remove
+            </button>
+          )}
+        </div>
+        {resumeInvalid && <p className="mt-2 text-[12px] font-semibold text-altus-red">This field is required.</p>}
       </div>
 
       {/* Add a link */}

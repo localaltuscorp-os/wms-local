@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { execCalendarDayMarkers, execCalendarEvents, execCalendarPrefs, execCalendarRoutines } from "@/db/schema";
@@ -10,7 +10,8 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { isExecCategoryKey } from "@/lib/exec-calendar/taxonomy";
 import { isExecClientKey } from "@/lib/exec-calendar/clients";
 import { checkConflicts } from "@/lib/exec-calendar/privacy";
-import { routineDays } from "@/lib/exec-calendar/grid";
+import { addMonths, routineDays } from "@/lib/exec-calendar/grid";
+import { parseRRule, generateOccurrences } from "@/lib/recurrence/rrule";
 import {
   MARKER_MAX_DAYS,
   MARKER_MAX_LABEL,
@@ -192,61 +193,62 @@ export async function saveExecGridPrefs(input: z.infer<typeof PrefsInput>): Prom
 
 /* ── Routines (§4B) ──────────────────────────────────────────────────────── */
 
-const RoutineInput = z.object({
-  title: z.string().trim().min(1, "Give the routine a title").max(200),
-  categoryKey: z.string().refine(isExecCategoryKey, "Pick a category"),
-  /** 0=Mon … 6=Sun. Empty = every day in the range. */
-  daysOfWeek: z.array(z.number().int().min(0).max(6)).max(7),
-  startMin: Minute,
-  endMin: Minute,
-  fromDate: Day,
-  toDate: Day,
-});
+/**
+ * How far a "never ends" or "after N occurrences" repeat gets materialized.
+ * Routines GENERATE real rows rather than expanding a rule at read time (see
+ * below), so an unbounded repeat still needs a horizon to stamp up to —
+ * "Edit a Routine" re-stamps further whenever this runs out.
+ */
+const RECUR_CAP_MONTHS = 24;
+
+/** RRULE weekday codes (SU..SA) → this app's 0=Mon..6=Sun. */
+function rruleDaysToAppDays(codes: string[]): number[] {
+  const order = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+  return [...new Set(codes.map((c) => order.indexOf(c.toUpperCase())).filter((i) => i >= 0))].sort(
+    (a, b) => a - b,
+  );
+}
 
 /**
- * Stamp a recurring routine across a date range — the 07:00 exercise block, the
- * Saturday cohort, the executive break.
- *
- * GENERATES ROWS rather than expanding a rule at read time, because one deleted
- * Tuesday has to stay deleted and a rule evaluated on every read cannot
- * remember that. Each generated row carries `routineId`, so the routine can be
- * re-stamped or swept up later.
- *
- * Days that already hold a block of the same routine are skipped, so running it
- * twice does not double-stamp. A day where the slot would clash with PROTECTED
- * time is skipped too and reported back, rather than failing the whole run —
- * stamping a quarter should not abort on one Tuesday.
+ * The calendar days a recurrence rule occupies, from `anchorDay` (always
+ * included, occurrence #1) up to `capDay` or the rule's own UNTIL, whichever
+ * is earlier. `null` rule → just the anchor (a non-repeating block, or a
+ * legacy routine already fully described by `daysOfWeek`/`fromDate`/`toDate`
+ * — callers of THAT shape use `routineDays()` instead, unchanged).
  */
-export async function stampExecRoutine(
-  input: z.infer<typeof RoutineInput>,
-): Promise<Result<{ created: number; skipped: number }>> {
-  const me = await requireUser();
-  const limited = rateLimitOrError(me.id, "write");
-  if (limited) return limited;
+function occurrenceDaysFromRule(rule: string, anchorDay: string, capDay: string): string[] {
+  const parsed = parseRRule(rule);
+  if (!parsed) return [anchorDay];
+  const anchor = new Date(`${anchorDay}T00:00:00Z`);
+  const untilCap = parsed.until && parsed.until < capDay ? parsed.until : capDay;
+  const windowEnd = new Date(`${untilCap}T00:00:00Z`);
+  return [anchorDay, ...generateOccurrences(parsed, anchor, windowEnd)];
+}
 
-  const parsed = RoutineInput.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]!.message };
-  const v = parsed.data;
-  if (v.endMin <= v.startMin) return { ok: false, error: "It has to end after it starts." };
-  if (v.toDate < v.fromDate) return { ok: false, error: "The range ends before it begins." };
-
-  const [routine] = await db
-    .insert(execCalendarRoutines)
-    .values({
-      ownerId: me.id,
-      title: v.title,
-      categoryKey: v.categoryKey,
-      daysOfWeek: v.daysOfWeek,
-      startMin: v.startMin,
-      endMin: v.endMin,
-      fromDate: v.fromDate,
-      toDate: v.toDate,
-      visibility: "public" as const,
-      createdById: me.id,
-    })
-    .returning({ id: execCalendarRoutines.id });
-  if (!routine) return { ok: false, error: "Could not save the routine." };
-
+/**
+ * Insert one event row per day in `days` for `routineId`, skipping a day that
+ * already carries this exact routine slot and a day whose slot would land on
+ * PROTECTED time (reported back as `skipped`, not a hard failure — stamping a
+ * year should not abort on one Tuesday). Shared by every path that
+ * materializes a routine's rows: new (`stampRecurringEvent`) and re-stamped
+ * on edit (`updateExecRoutine`).
+ */
+async function stampDays(
+  me: { id: string },
+  routineId: string,
+  v: {
+    title: string;
+    categoryKey: string;
+    startMin: number;
+    endMin: number;
+    location?: string | null;
+    notes?: string | null;
+    clientKey?: string | null;
+    batchLabel?: string | null;
+  },
+  days: string[],
+): Promise<{ created: number; skipped: number }> {
+  if (days.length === 0) return { created: 0, skipped: 0 };
   const existing = await db
     .select({
       day: execCalendarEvents.eventDate,
@@ -259,15 +261,14 @@ export async function stampExecRoutine(
     .where(
       and(
         eq(execCalendarEvents.ownerId, me.id),
-        gte(execCalendarEvents.eventDate, v.fromDate),
-        lte(execCalendarEvents.eventDate, v.toDate),
+        gte(execCalendarEvents.eventDate, days[0]!),
+        lte(execCalendarEvents.eventDate, days.at(-1)!),
       ),
     );
 
   const rows: (typeof execCalendarEvents.$inferInsert)[] = [];
   let skipped = 0;
-
-  for (const d of routineDays(v.fromDate, v.toDate, v.daysOfWeek)) {
+  for (const d of days) {
     const sameDay = existing.filter((e) => e.day === d);
     const already = sameDay.some(
       (e) => e.routineId != null && e.startMin === v.startMin && e.endMin === v.endMin,
@@ -290,14 +291,116 @@ export async function stampExecRoutine(
       endMin: v.endMin,
       allDay: false,
       visibility: "public" as const,
-      routineId: routine.id,
+      location: v.location ?? null,
+      notes: v.notes ?? null,
+      clientKey: v.clientKey ?? null,
+      batchLabel: v.batchLabel ?? null,
+      routineId,
       createdById: me.id,
     });
   }
-
   if (rows.length > 0) await db.insert(execCalendarEvents).values(rows);
+  return { created: rows.length, skipped };
+}
+
+const RecurringEventInput = z.object({
+  title: z.string().trim().min(1, "Give it a title").max(200),
+  categoryKey: z.string().refine(isExecCategoryKey, "Pick a category"),
+  /** The FIRST occurrence's day — every later one is derived from the rule. */
+  day: Day,
+  startMin: Minute,
+  endMin: Minute,
+  location: z.string().trim().max(200).nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+  clientKey: z.string().refine(isExecClientKey, "Pick a client from the list").nullable().optional(),
+  batchLabel: z.string().trim().max(120).nullable().optional(),
+  /** Built by `lib/recurrence/google-recurrence.ts`'s picker (event-editor.tsx). */
+  recurrenceRule: z.string().trim().min(1),
+});
+
+/**
+ * Create a REPEATING block from the event editor's inline "Repeat" picker —
+ * the Google-Calendar-style replacement for the old standalone "Routine"
+ * button (retired 2026-09-24; its Stamp form's fields are now these ones,
+ * reached from "New block" itself instead of a separate dialog).
+ *
+ * Writes REAL ROWS, same as the routine it replaces: once stamped, any one
+ * occurrence can be moved or deleted like an ordinary block and stays that
+ * way — see the architecture note this module has carried since §4B.
+ */
+export async function stampRecurringEvent(
+  input: z.infer<typeof RecurringEventInput>,
+): Promise<Result<{ routineId: string; created: number; skipped: number }>> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = RecurringEventInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]!.message };
+  const v = parsed.data;
+  if (v.endMin <= v.startMin) return { ok: false, error: "It has to end after it starts." };
+
+  const rule = parseRRule(v.recurrenceRule);
+  if (!rule) return { ok: false, error: "Could not understand that repeat rule." };
+
+  const capDay = addMonths(v.day, RECUR_CAP_MONTHS);
+  const days = occurrenceDaysFromRule(v.recurrenceRule, v.day, capDay);
+  const daysOfWeek = rule.freq === "WEEKLY" ? rruleDaysToAppDays(rule.byDay.length ? rule.byDay : []) : [];
+
+  const baseValues = {
+    ownerId: me.id,
+    title: v.title,
+    categoryKey: v.categoryKey,
+    daysOfWeek,
+    startMin: v.startMin,
+    endMin: v.endMin,
+    fromDate: v.day,
+    toDate: days.at(-1) ?? v.day,
+    visibility: "public" as const,
+    createdById: me.id,
+  };
+  // Full fidelity (Monthly/Yearly/custom interval/count) needs migration 0252's
+  // three columns. On a database that doesn't have them yet, fall back to a
+  // RAW SQL insert that names only the legacy columns — the typed Drizzle
+  // table object always references every schema-declared column (as `DEFAULT`
+  // for ones not passed), so going through it at all fails with
+  // "column ... does not exist" even when those three are omitted from
+  // `.values()`. The EVENT ROWS below are unaffected either way (`days` was
+  // already computed from the rule), so Daily/Weekly/Every-weekday still stamp
+  // correctly today; only a Monthly/Custom routine's re-editability is reduced
+  // until the migration lands.
+  let routine: { id: string } | undefined;
+  try {
+    [routine] = await db
+      .insert(execCalendarRoutines)
+      .values({
+        ...baseValues,
+        interval: rule.interval > 1 ? rule.interval : null,
+        count: rule.count,
+        recurrenceRule: v.recurrenceRule,
+      })
+      .returning({ id: execCalendarRoutines.id });
+  } catch {
+    // postgres.js does not auto-serialize a bare JS array parameter for an
+    // `integer[]` column — pass the Postgres array-literal string instead
+    // (`{3}`, matching what the typed Drizzle insert above sends).
+    const daysLiteral = `{${baseValues.daysOfWeek.join(",")}}`;
+    const rows = (await db.execute(sql`
+      INSERT INTO exec_calendar_routines
+        (owner_id, title, category_key, days_of_week, start_min, end_min, from_date, to_date, visibility, created_by_id)
+      VALUES
+        (${baseValues.ownerId}, ${baseValues.title}, ${baseValues.categoryKey}, ${daysLiteral}::integer[],
+         ${baseValues.startMin}, ${baseValues.endMin}, ${baseValues.fromDate}, ${baseValues.toDate},
+         ${baseValues.visibility}, ${baseValues.createdById})
+      RETURNING id
+    `)) as unknown as { id: string }[];
+    routine = rows[0];
+  }
+  if (!routine) return { ok: false, error: "Could not save the routine." };
+
+  const { created, skipped } = await stampDays(me, routine.id, v, days);
   revalidatePath("/events");
-  return { ok: true, created: rows.length, skipped };
+  return { ok: true, routineId: routine.id, created, skipped };
 }
 
 /* ── Importing the sheet (lib/exec-calendar/import.ts) ───────────────────── */
@@ -404,6 +507,10 @@ export interface RoutineSummary {
   blockCount: number;
   /** Of those, how many are today or later. */
   upcomingCount: number;
+  /** Set only when stamped (or since edited) with migration 0252 available. */
+  interval: number | null;
+  count: number | null;
+  recurrenceRule: string | null;
 }
 
 /** Every routine on YOUR calendar, newest first, with how many blocks each left. */
@@ -425,6 +532,21 @@ export async function listMyRoutines(today: string): Promise<Result<{ routines: 
     })
     .from(execCalendarRoutines)
     .where(eq(execCalendarRoutines.ownerId, me.id));
+
+  // Migration 0252's columns, fetched separately and soft-failed to an empty
+  // map — the list above (every routine's core fields) must keep working on a
+  // database that doesn't have 0252 yet; only the recurrence detail is optional.
+  const recurExtra = await db
+    .select({
+      id: execCalendarRoutines.id,
+      interval: execCalendarRoutines.interval,
+      count: execCalendarRoutines.count,
+      recurrenceRule: execCalendarRoutines.recurrenceRule,
+    })
+    .from(execCalendarRoutines)
+    .where(eq(execCalendarRoutines.ownerId, me.id))
+    .catch(() => [] as { id: string; interval: number | null; count: number | null; recurrenceRule: string | null }[]);
+  const extraById = new Map(recurExtra.map((r) => [r.id, r]));
 
   const blocks = await db
     .select({ routineId: execCalendarEvents.routineId, day: execCalendarEvents.eventDate })
@@ -455,6 +577,9 @@ export async function listMyRoutines(today: string): Promise<Result<{ routines: 
         toDate: r.toDate,
         blockCount: counts.get(r.id)?.all ?? 0,
         upcomingCount: counts.get(r.id)?.upcoming ?? 0,
+        interval: extraById.get(r.id)?.interval ?? null,
+        count: extraById.get(r.id)?.count ?? null,
+        recurrenceRule: extraById.get(r.id)?.recurrenceRule ?? null,
       })),
   };
 }
@@ -507,6 +632,115 @@ export async function deleteExecRoutine(
 
   revalidatePath("/events");
   return { ok: true, removedBlocks: removed.length };
+}
+
+const UpdateRoutineInput = z.object({
+  id: z.string().uuid(),
+  today: Day,
+  title: z.string().trim().min(1, "Give the routine a title").max(200),
+  categoryKey: z.string().refine(isExecCategoryKey, "Pick a category"),
+  startMin: Minute,
+  endMin: Minute,
+  fromDate: Day,
+  toDate: Day,
+  /** null → the simple "On these days" picker below; set → the full recurrence picker. */
+  recurrenceRule: z.string().trim().min(1).nullable(),
+  /** Used only when `recurrenceRule` is null. 0=Mon … 6=Sun. */
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).max(7),
+});
+
+/**
+ * Edit a routine — the "Edit a Routine" section (2026-09-24) that took the old
+ * "Stamp a routine" tab's place once stamping itself moved into the event
+ * editor. Same field set either way, pre-filled from the routine's current
+ * values.
+ *
+ * RE-STAMPS FORWARD rather than touching existing rows: every UPCOMING block
+ * this routine put on the calendar (today or later) is removed and replaced
+ * with fresh ones from the edited rule; anything in the PAST is untouched —
+ * the same "the record of what happened doesn't change" rule `deleteExecRoutine`
+ * already follows.
+ */
+export async function updateExecRoutine(
+  input: z.infer<typeof UpdateRoutineInput>,
+): Promise<Result<{ created: number; skipped: number }>> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = UpdateRoutineInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]!.message };
+  const v = parsed.data;
+  if (v.endMin <= v.startMin) return { ok: false, error: "It has to end after it starts." };
+  if (v.toDate < v.fromDate) return { ok: false, error: "The range ends before it begins." };
+
+  const [routine] = await db
+    .select({ id: execCalendarRoutines.id })
+    .from(execCalendarRoutines)
+    .where(and(eq(execCalendarRoutines.id, v.id), eq(execCalendarRoutines.ownerId, me.id)))
+    .limit(1);
+  if (!routine) return { ok: false, error: "That routine is not yours to edit." };
+
+  // Drop the upcoming rows it currently owns — they're about to be replaced.
+  // Past rows are never touched.
+  await db
+    .delete(execCalendarEvents)
+    .where(
+      and(
+        eq(execCalendarEvents.routineId, v.id),
+        eq(execCalendarEvents.ownerId, me.id),
+        gte(execCalendarEvents.eventDate, v.today),
+      ),
+    );
+
+  const rule = v.recurrenceRule ? parseRRule(v.recurrenceRule) : null;
+  const restampFrom = v.fromDate > v.today ? v.fromDate : v.today;
+  const days = v.recurrenceRule
+    ? occurrenceDaysFromRule(v.recurrenceRule, v.fromDate, v.toDate).filter((d) => d >= restampFrom)
+    : routineDays(restampFrom, v.toDate, v.daysOfWeek);
+  const daysOfWeek = rule
+    ? rule.freq === "WEEKLY"
+      ? rruleDaysToAppDays(rule.byDay.length ? rule.byDay : [])
+      : []
+    : v.daysOfWeek;
+
+  const baseValues = {
+    title: v.title,
+    categoryKey: v.categoryKey,
+    daysOfWeek,
+    startMin: v.startMin,
+    endMin: v.endMin,
+    fromDate: v.fromDate,
+    toDate: v.toDate,
+    updatedAt: new Date(),
+  };
+  try {
+    await db
+      .update(execCalendarRoutines)
+      .set({
+        ...baseValues,
+        interval: rule && rule.interval > 1 ? rule.interval : null,
+        count: rule?.count ?? null,
+        recurrenceRule: v.recurrenceRule,
+      })
+      .where(and(eq(execCalendarRoutines.id, v.id), eq(execCalendarRoutines.ownerId, me.id)));
+  } catch {
+    // Same reasoning as stampRecurringEvent's insert fallback — a raw
+    // statement naming only the legacy columns, for a database without 0252.
+    const daysLiteral = `{${baseValues.daysOfWeek.join(",")}}`;
+    await db.execute(sql`
+      UPDATE exec_calendar_routines
+      SET title = ${baseValues.title}, category_key = ${baseValues.categoryKey},
+          days_of_week = ${daysLiteral}::integer[], start_min = ${baseValues.startMin},
+          end_min = ${baseValues.endMin}, from_date = ${baseValues.fromDate}, to_date = ${baseValues.toDate},
+          updated_at = now()
+      WHERE id = ${v.id} AND owner_id = ${me.id}
+    `);
+  }
+
+  const { created, skipped } = await stampDays(me, v.id, v, days);
+  revalidatePath("/events");
+  return { ok: true, created, skipped };
 }
 
 

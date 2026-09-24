@@ -2956,8 +2956,19 @@ html {
  * (two stacked <tr>, the second naming sub-columns) would pin both rows to the
  * same offset and draw them on top of each other. Those tables are a handful
  * and each one needs its own per-row offset; a blanket rule would break them
- * to fix nothing. */
-:where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll) {
+ * to fix nothing.
+ *
+ * `.scroll-x-only` (the sideways-only box below) belongs in this reset too,
+ * and its absence was a real bug (found 2026-09-22, Client Engagement's Emp
+ * Grid / PCA Grid / Team bandwidth tables): those tables are short enough to
+ * never need internal vertical scrolling, but with `--table-head-top` left at
+ * the root's 3.5rem they still stuck their header 3.5rem down from the top of
+ * their own box — which for a five-row table lands mid-table, pinning the
+ * header directly on top of row one instead of above it. `overflow-y: hidden`
+ * still establishes a scroll container for `position: sticky` to measure
+ * against, so the offset has to be reset here exactly like the scrollable
+ * variants, even though this one never actually scrolls vertically. */
+:where(.overflow-x-auto, .overflow-y-auto, .overflow-auto, .overflow-x-scroll, .overflow-y-scroll, .scroll-x-only) {
   --table-head-top: 0px;
 }
 

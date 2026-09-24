@@ -219,8 +219,11 @@ export function buildPca(
     col.entries.push({ accountId: a.id, label: accountLabel(a.fullName, a.batchCode), hhStatus: a.hhStatus, group });
   }
 
-  // Unassigned is always shown — the brief asks for the row even when it is empty.
-  columns.push(unassigned);
+  // Unassigned is always shown — the brief asks for the row even when it is
+  // empty. It leads the list (asked 2026-09-22): the pool nobody's covering
+  // is the one that most needs to be seen first, not found after everyone
+  // else's row.
+  columns.unshift(unassigned);
 
   const total: PcaMatrixRow = { memberId: null, memberName: "Total", P: emptyCell(), C: emptyCell(), A: emptyCell(), all: emptyCell() };
   for (const c of columns) {

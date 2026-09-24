@@ -9,7 +9,7 @@ import { loadMastersCounts } from "@/lib/queries/operations-masters";
 
 export const dynamic = "force-dynamic";
 
-const TOPICS: OperationsMasterTopic[] = ["Checklist", "Events", "Job Description"];
+const TOPICS: OperationsMasterTopic[] = ["Checklist", "Events", "Job Description", "Dropdowns"];
 
 /**
  * OPERATIONS → MASTERS (account holder, 2026-09-15).
@@ -42,6 +42,10 @@ export default async function OperationsMastersPage() {
       fmt(c.peopleWithPersonalJd, "person", "people"),
     ],
     "/operations/masters/recruitment-jd": [fmt(c.recruitmentJds, "role", "roles")],
+    "/operations/masters/dd": [
+      fmt(c.ddCategories, "category", "categories"),
+      fmt(c.ddOptions, "option", "options"),
+    ],
   };
 
   return (

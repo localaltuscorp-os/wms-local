@@ -3,9 +3,9 @@
 import { useMemo, useState, useCallback, useRef, useEffect, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import {
-  Send,
   Loader2,
   Printer,
+  Download,
   Check,
   Building2,
   UserRound,
@@ -23,6 +23,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
+import { TrainingVerdictBar } from "@/components/hr/letters/training-verdict-bar";
 import { ENTITY_LIST, getEntity, type EntityId } from "@/lib/hr/entities";
 import {
   type LetterTemplate,
@@ -31,13 +32,14 @@ import {
   type LetterSignature,
   type LetterSignatory,
   collectFields,
-  hasBodyDateField,
   initialValues,
   resolveSpans,
   signatoryOf,
   tableRowVisible,
+  bulletItemSpans,
 } from "@/lib/hr/letters/types";
 import { templateToRichHtml } from "@/lib/hr/letters/rich";
+import { fitOnePageDefault } from "@/lib/hr/letters/fit";
 import { applyPronouns, normalizeGender, type Gender } from "@/lib/hr/pronouns";
 import {
   applyFirm,
@@ -269,16 +271,14 @@ export function LetterEditor({
   // Candidate gender → resolves gendered tokens ({title}/{he}/{his}/…) live.
   const [gender, setGender] = useState<Gender>("neutral");
   const [candidateId, setCandidateId] = useState<string>("");
-  const [issuing, setIssuing] = useState(false);
-  const [issued, setIssued] = useState(false);
-  const [emailing, setEmailing] = useState(false);
+  /** The Download-PDF button's in-flight flag — the pdfkit render takes a beat. */
+  const [downloading, setDownloading] = useState(false);
   // The "Send Email" composer (toolbar → modal). `null` = closed; otherwise the
-  // editable To / Subject / Message the sender is about to dispatch.
+  // editable To / Subject / Message the sender is about to dispatch. This is
+  // now the ONE send/archive action — the separate "Issue letter" button was
+  // removed 2026-09-24 (it only duplicated what this button already did).
   const [compose, setCompose] = useState<null | { to: string; subject: string; message: string }>(null);
   const [sending, setSending] = useState(false);
-  // The mandatory Print-Preview gate. "issue" or "email" → the confirm button in
-  // the modal runs the matching action; null → the modal is closed.
-  const [previewMode, setPreviewMode] = useState<null | "issue" | "email">(null);
   // "Hide boxes" — preview the FINISHED letter (no editable input chrome, empty
   // rows/fields dropped). Default OFF so every box is visible + fillable.
   const [clean, setClean] = useState(false);
@@ -362,7 +362,6 @@ export function LetterEditor({
 
   const setValue = useCallback((id: string, v: string) => {
     setValues((prev) => (prev[id] === v ? prev : { ...prev, [id]: v }));
-    setIssued(false);
   }, []);
 
   /** Write several field values at once (used by the CTC calculator). No-ops
@@ -395,7 +394,6 @@ export function LetterEditor({
       const url = typeof reader.result === "string" ? reader.result : null;
       if (url) {
         setSigImage(url);
-        setIssued(false);
         fireToast({ message: "Signature added to the sign-off." });
       }
     };
@@ -461,7 +459,6 @@ export function LetterEditor({
         setEntity(prefill.entity);
         clearCtcLetterPrefill();
       }
-      setIssued(false);
     },
     // `entity` is read only as the fallback for the "company" field when the
     // employee has no paying entity of their own.
@@ -526,7 +523,6 @@ export function LetterEditor({
     richGetHtmlRef.current = null;
     setRichDirty(false);
     setSigningModel(template.signature ?? "none");
-    setIssued(false);
     setRichMode(true);
   }, [template, values, entity, gender, savedRichHtml, signatory]);
 
@@ -537,7 +533,6 @@ export function LetterEditor({
     setSavedRichHtml(html);
     richSavedRef.current = html;
     setRichDirty(false);
-    setIssued(false);
     fireToast({ message: "Free-edit changes saved to this letter." });
   }, [currentRichHtml]);
 
@@ -552,7 +547,6 @@ export function LetterEditor({
     }
     setRichMode(false);
     setRichDirty(false);
-    setIssued(false);
   }, [richDirty]);
 
   /** Drop the saved free-edit override → the letter reverts to the field-driven
@@ -563,13 +557,11 @@ export function LetterEditor({
     richSavedRef.current = "";
     richHtmlRef.current = "";
     setRichDirty(false);
-    setIssued(false);
     fireToast({ message: "Free-edit discarded - using the field version." });
   }, []);
 
   const onRichChange = useCallback((html: string) => {
     richHtmlRef.current = html;
-    setIssued(false);
     setRichDirty(html !== richSavedRef.current);
   }, []);
 
@@ -577,90 +569,41 @@ export function LetterEditor({
     richGetHtmlRef.current = getHtml;
   }, []);
 
-  const today = useMemo(() => formatDateHr(new Date()), []);
-
-  // Letters that carry their own editable `Date:` row in the body (Intern
-  // Appointment, Confirmation, F&F…) must NOT also get the chrome's top-right
-  // date stamp — it rendered the date twice. The body field stays the single,
-  // editable source of the letter's date.
-  const showHeaderDate = useMemo(() => !hasBodyDateField(template), [template]);
+  /**
+   * THE LETTER'S DATE.
+   *
+   * The top-right chrome stamp this used to feed was removed app-wide
+   * (2026-09-22) — every letter now dates itself only where a template says so
+   * (its own body `date` field, or a signature block's `showDate`). `headerDate`
+   * stays as the value those still read (`ctx.today`, the signature's
+   * `Date:` line), and as the `date` sent with every render/archive request —
+   * kept out of `values` for the same reason as before: `values` is posted
+   * verbatim as the template's declared fields, and this is chrome, not one.
+   */
+  const headerDate = formatDateHr(new Date());
+  const today = headerDate;
 
   const recipientName = (values.candidateName ?? values.name ?? "").trim();
   const recipientEmail = (values.candidateEmail ?? values.email ?? "").trim();
 
-  /** Open the mandatory Print-Preview before ISSUING (validates recipient first). */
-  function requestIssue() {
-    if (!isAdmin) return;
-    if (!employeeId && !recipientName) {
-      fireToast({ message: "Fill the recipient's name, or attach an employee.", type: "error" });
-      return;
-    }
-    setPreviewMode("issue");
-  }
 
-  /** The confirmed ISSUE — the existing render + archive POST. */
-  async function runIssue() {
-    if (!isAdmin) return;
-    setIssuing(true);
-    try {
-      const url = usingRich ? "/api/hr/letters/issue-rich" : "/api/hr/letters/issue";
-      const payload = usingRich
-        ? {
-            key: template.key,
-            entity,
-            gender,
-            bodyHtml: currentRichHtml(),
-            signingModel,
-            signatory,
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
-          }
-        : {
-            key: template.key,
-            entity,
-            gender,
-            values,
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
-            signatureImage: sigImage ?? undefined,
-            signatory,
-          };
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const res = (await r.json().catch(() => ({ ok: false }))) as
-        | { ok: true; emailed?: boolean; emailedTo?: string | null }
-        | { ok: false; error?: string };
-      if (!res.ok) {
-        fireToast({ message: res.error ?? "Could not issue the letter.", type: "error" });
-        return;
-      }
-      setIssued(true);
-      setPreviewMode(null);
-      if (res.emailed && res.emailedTo) {
-        fireToast({ message: `Letter issued, archived & emailed to ${res.emailedTo}.` });
-      } else {
-        fireToast({
-          message:
-            "Letter issued & archived - but it was NOT emailed. Add a recipient email (or attach an employee with an email on file), then use “Export & Email PDF”.",
-          type: "error",
-        });
-      }
-    } catch {
-      fireToast({ message: "Could not issue the letter.", type: "error" });
-    } finally {
-      setIssuing(false);
-    }
-  }
-
-  /** The confirmed EXPORT & EMAIL — render the PDF server-side and email it to the
-   *  candidate (BCC the HR desk) in one shot. */
-  async function runEmailPdf() {
-    setEmailing(true);
+  /**
+   * DOWNLOAD THE PDF — the same server-rendered document that Issue and Email
+   * send, saved to disk instead.
+   *
+   * WHY NOT `window.print()` (the Print button beside it): that prints the
+   * BROWSER's rendering of the page, so the result depends on the machine's
+   * fonts, the print dialog's margins and whether the user remembers to turn
+   * headers off. This fetches the pdfkit render from
+   * /api/hr/letters/pdf - byte-identical to what gets archived on Issue and
+   * emailed to the recipient. For a document that is printed, signed by hand and
+   * filed, those must be the same sheet of paper.
+   *
+   * The endpoint has existed and been correct since the letters module was
+   * written; nothing in the UI had ever called it.
+   */
+  async function runDownloadPdf() {
+    setDownloading(true);
     try {
       const payload = usingRich
         ? {
@@ -669,42 +612,48 @@ export function LetterEditor({
             gender,
             contentKind: "rich" as const,
             bodyHtml: currentRichHtml(),
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
+            fitOnePage: fitOnePageDefault(template.key),
           }
         : {
             key: template.key,
             entity,
             gender,
             values,
-            date: today,
-            employeeId: employeeId || undefined,
-            candidateName: employeeId ? undefined : recipientName || undefined,
-            candidateEmail: employeeId ? undefined : recipientEmail || undefined,
+            date: headerDate,
             signatureImage: sigImage ?? undefined,
             signatory,
+            fitOnePage: fitOnePageDefault(template.key),
           };
-      const r = await fetch("/api/hr/letters/email-pdf", {
+      const r = await fetch("/api/hr/letters/pdf", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const res = (await r.json().catch(() => ({ ok: false }))) as
-        | { ok: true; to?: string }
-        | { ok: false; error?: string };
-      if (!res.ok) {
-        fireToast({ message: res.error ?? "Could not email the PDF.", type: "error" });
+      if (!r.ok) {
+        // The route answers 401/429/403/404 as JSON; anything else is a render
+        // failure. Either way say so rather than silently saving a broken file.
+        const msg = await r.json().then((j) => j?.error).catch(() => null);
+        fireToast({ message: msg || `Could not build the PDF (${r.status}).`, type: "error" });
         return;
       }
-      setPreviewMode(null);
-      fireToast({
-        message: res.to ? `PDF emailed to ${res.to} (HR copied).` : "PDF emailed to the candidate (HR copied).",
-      });
-    } catch {
-      fireToast({ message: "Could not email the PDF.", type: "error" });
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Name it after the RECIPIENT, not the template key: a folder of files all
+      // called declaration.pdf is unusable, and these get filed per person.
+      const who = (recipientName || values.employeeName || values.recipientName || "").trim();
+      a.download = `${who ? `${who} - ` : ""}${template.title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoke on the next tick - revoking synchronously races the download in
+      // Safari and lands an empty file.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (err) {
+      fireToast({ message: err instanceof Error ? err.message : "Could not build the PDF.", type: "error" });
     } finally {
-      setEmailing(false);
+      setDownloading(false);
     }
   }
 
@@ -864,12 +813,12 @@ export function LetterEditor({
                 if (id) onPickCandidate(id);
                 else {
                   setCandidateId("");
-                  setIssued(false);
                 }
               }}
               aria-label="Pick the candidate this letter is for"
               placeholder="- pick a candidate -"
               options={candidates.map((c) => ({ value: c.id, label: c.name }))}
+              className="min-w-[150px] max-w-[280px] w-full rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[12px] font-semibold text-ink-strong"
             />
           </label>
         )}
@@ -883,7 +832,6 @@ export function LetterEditor({
                 if (id) onSeedEmployee(id);
                 else {
                   setEmployeeId("");
-                  setIssued(false);
                 }
               }}
               aria-label="Pick the employee this letter is for"
@@ -893,6 +841,7 @@ export function LetterEditor({
                 value: r.id,
                 label: r.designation ? `${r.name} · ${r.designation}` : r.name,
               }))}
+              className="min-w-[150px] max-w-[280px] w-full rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[12px] font-semibold text-ink-strong"
             />
           </label>
         )}
@@ -913,7 +862,6 @@ export function LetterEditor({
               setSignatory(next);
               // Already ejected? Re-sign the live document in place.
               if (richMode) applyRichSignatory(next);
-              setIssued(false);
             }}
             aria-label="Who signs this letter"
           >
@@ -933,7 +881,6 @@ export function LetterEditor({
               value={signingModel}
               onChange={(e) => {
                 setSigningModel(e.target.value as LetterSignature);
-                setIssued(false);
               }}
               aria-label="Signing model"
             >
@@ -989,33 +936,26 @@ export function LetterEditor({
           <button type="button" className="alw-btn alw-btn-ghost" onClick={() => window.print()}>
             <Printer size={15} strokeWidth={2.2} /> Print
           </button>
+          <button
+            type="button"
+            className="alw-btn alw-btn-ghost"
+            onClick={runDownloadPdf}
+            disabled={downloading}
+            title="Save the server-rendered PDF — the same file Send Email archives"
+          >
+            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} strokeWidth={2.2} />}
+            {downloading ? "Building…" : "Download PDF"}
+          </button>
           {isAdmin && (
             <button
               type="button"
               className="alw-btn alw-btn-primary"
               onClick={openCompose}
               disabled={sending}
-              title="Email this letter as a PDF attachment"
+              title="Email this letter as a PDF attachment — also archives it"
             >
               {sending ? <Loader2 size={15} className="alw-spin" /> : <Mail size={15} strokeWidth={2.2} />}
               {sending ? "Sending…" : "Send Email"}
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              className="alw-btn alw-btn-primary"
-              onClick={requestIssue}
-              disabled={issuing || issued}
-            >
-              {issued ? (
-                <Check size={15} strokeWidth={2.6} />
-              ) : issuing ? (
-                <Loader2 size={15} className="alw-spin" />
-              ) : (
-                <Send size={15} strokeWidth={2.2} />
-              )}
-              {issued ? "Issued" : issuing ? "Issuing…" : "Issue letter"}
             </button>
           )}
         </div>
@@ -1034,6 +974,11 @@ export function LetterEditor({
       {/* ── CTC percentage calculator (CTC letter, structured mode) ── */}
       {isCtc && !usingRich && (
         <CtcCalculator values={values} setManyValues={setManyValues} />
+      )}
+
+      {/* ── Training verdict (After Free Training, structured mode) ── */}
+      {template.key === "after-free-training" && !usingRich && (
+        <TrainingVerdictBar outcome={values.outcome ?? ""} onChoose={(v) => setValue("outcome", v)} />
       )}
 
       {/* ── The letter on its letterhead ─────────────────────────── */}
@@ -1075,7 +1020,6 @@ export function LetterEditor({
           </div>
           <div className="alw-stage">
             <Letterhead entity={entity}>
-              {showHeaderDate && <div className="alw-date">{today}</div>}
               <div className="alw-rich-preview" dangerouslySetInnerHTML={{ __html: savedRichHtml }} />
             </Letterhead>
           </div>
@@ -1083,7 +1027,6 @@ export function LetterEditor({
       ) : (
         <div className="alw-stage">
           <Letterhead entity={entity}>
-            {showHeaderDate && <div className="alw-date">{today}</div>}
             {renderBlocks(template.blocks, ctx)}
           </Letterhead>
         </div>
@@ -1100,30 +1043,6 @@ export function LetterEditor({
         />
       )}
 
-      {/* ── Mandatory Print-Preview gate (Issue / Email) ─────────────── */}
-      {previewMode && (
-        <PrintPreviewModal
-          mode={previewMode}
-          busy={previewMode === "issue" ? issuing : emailing}
-          onCancel={() => setPreviewMode(null)}
-          onConfirm={previewMode === "issue" ? runIssue : runEmailPdf}
-          recipientEmail={employeeId ? undefined : recipientEmail || undefined}
-          attachedEmployee={Boolean(employeeId)}
-        >
-          <Letterhead entity={entity}>
-            {showHeaderDate && <div className="alw-date">{today}</div>}
-            {usingRich ? (
-              <div
-                className="alw-rich-preview"
-                // The current "Edit freely" HTML, rendered read-only as it will print.
-                dangerouslySetInnerHTML={{ __html: currentRichHtml() }}
-              />
-            ) : (
-              renderBlocks(template.blocks, { ...ctx, clean: true })
-            )}
-          </Letterhead>
-        </PrintPreviewModal>
-      )}
     </div>
   );
 }
@@ -1401,131 +1320,6 @@ function SendEmailModal({
 }
 
 /* ------------------------------------------------------------------ */
-/* Print-Preview modal — the mandatory confirm gate before Issue/Email   */
-/* ------------------------------------------------------------------ */
-
-/**
- * A compulsory, keyboard-accessible preview shown BEFORE a letter is issued or
- * emailed. Renders the letter on its letterhead exactly as it will print, with a
- * "Looks good" confirm and a "Back / Edit" cancel. Esc cancels; the confirm
- * button autofocuses; the backdrop click cancels. Body scroll is locked while open.
- */
-function PrintPreviewModal({
-  mode,
-  busy,
-  onConfirm,
-  onCancel,
-  recipientEmail,
-  attachedEmployee,
-  children,
-}: {
-  mode: "issue" | "email";
-  busy: boolean;
-  onConfirm: () => void | Promise<void>;
-  onCancel: () => void;
-  recipientEmail?: string;
-  attachedEmployee: boolean;
-  children: React.ReactNode;
-}) {
-  const confirmRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    // Lock body scroll while the modal is open.
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    // Focus the confirm button on open (keyboard-first).
-    confirmRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [busy, onCancel]);
-
-  const isIssue = mode === "issue";
-  const title = isIssue ? "Preview before issuing" : "Preview before emailing";
-  const sub = isIssue
-    ? "This is exactly how the letter will print and be archived."
-    : attachedEmployee
-      ? "This PDF will be emailed to the attached employee, with a copy to the HR desk."
-      : recipientEmail
-        ? `This PDF will be emailed to ${recipientEmail}, with a copy to the HR desk.`
-        : "This PDF will be emailed to the candidate, with a copy to the HR desk.";
-  const confirmLabel = busy
-    ? isIssue
-      ? "Issuing…"
-      : "Emailing…"
-    : isIssue
-      ? "Looks good - Issue"
-      : "Looks good - Email PDF";
-
-  return (
-    <div
-      className="alw-modal-backdrop no-print"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !busy) onCancel();
-      }}
-    >
-      <div
-        className="alw-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <div className="alw-modal-head">
-          <div>
-            <p className="alw-modal-title">{title}</p>
-            <p className="alw-modal-sub">{sub}</p>
-          </div>
-          <button
-            type="button"
-            className="alw-modal-x"
-            onClick={onCancel}
-            disabled={busy}
-            aria-label="Close preview"
-          >
-            <X size={18} strokeWidth={2.4} />
-          </button>
-        </div>
-
-        <div className="alw-modal-body">
-          <div className="alw-modal-stage">{children}</div>
-        </div>
-
-        <div className="alw-modal-foot">
-          <button type="button" className="alw-btn alw-btn-ghost" onClick={onCancel} disabled={busy}>
-            <ArrowLeft size={15} strokeWidth={2.2} /> Back / Edit
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
-            className="alw-btn alw-btn-primary"
-            onClick={() => void onConfirm()}
-            disabled={busy}
-          >
-            {busy ? (
-              <Loader2 size={15} className="alw-spin" />
-            ) : isIssue ? (
-              <Send size={15} strokeWidth={2.2} />
-            ) : (
-              <Mail size={15} strokeWidth={2.2} />
-            )}
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Block + span rendering (mirrors the PDF renderer's structure)        */
 /* ------------------------------------------------------------------ */
 
@@ -1630,11 +1424,15 @@ function BlockView({ block, ctx }: { block: Block; ctx: RenderCtx }) {
     case "bullets":
       return (
         <ul className="alw-ul">
-          {block.items.map((item, i) => (
-            <li key={i}>
-              <Spans spans={item} ctx={ctx} />
-            </li>
-          ))}
+          {block.items.map((_, i) => {
+            const spans = bulletItemSpans(block, i, ctx.values);
+            if (!spans) return null;
+            return (
+              <li key={i}>
+                <Spans spans={spans} ctx={ctx} />
+              </li>
+            );
+          })}
         </ul>
       );
     case "table":
@@ -2101,10 +1899,6 @@ const EDITOR_CSS = `
 .alw-stage .alh-page{max-width:none;}
 
 /* Body typography inside the letterhead */
-.alw-date{
-  text-align:right;font-size:13px;font-weight:600;
-  color:var(--color-ink-muted, #475569);margin-bottom:18px;
-}
 .alw-p{margin:0 0 14px;font-size:15px;line-height:1.95;color:var(--color-ink-strong, #0f172a);}
 .alw-heading{
   margin:16px 0 8px;font-weight:800;letter-spacing:-.01em;

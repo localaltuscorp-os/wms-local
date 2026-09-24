@@ -51,10 +51,22 @@ export function OperationsQuickNav({
   if (items.length < 2) return null;
 
   return (
-    // print:hidden — chrome, not content, like the HR bar it mirrors.
+    /* print:hidden — chrome, not content, like the HR bar it mirrors.
+
+       STICKY: the bar follows you down the page, so the pages inside the area
+       stay one click away on the long screens (Client Engagement's boards, the
+       Directory) rather than only at the top. `.sticky-below-topbar` reads
+       `--app-topbar-h` (app/globals.css) instead of hard-coding 56px, so the bar
+       cannot drift out of step with the top bar's height; `max-md:top-14`
+       covers the breakpoint where the top bar hides and DashboardSidebar
+       supplies its own fixed 56px mobile bar instead. z-40 sits UNDER the top
+       bar's z-60 on purpose — this slides beneath it, never over it. The
+       document is the scroller (chrome-shell.tsx deliberately avoids
+       overflow:hidden; see app/aura.css), so sticky resolves against the
+       viewport with no ancestor to clip it. */
     <nav
       aria-label={`${area!.label} pages`}
-      className="border-b border-hairline bg-white/90 px-6 py-2 backdrop-blur print:hidden max-md:px-4"
+      className="sticky sticky-below-topbar z-40 border-b border-hairline bg-white/90 px-6 py-2 backdrop-blur print:hidden max-md:top-14 max-md:px-4"
     >
       {/* overflow-x-auto + whitespace-nowrap: a narrow viewport scrolls the
           buttons sideways rather than wrapping to a second line, which would
@@ -74,7 +86,20 @@ export function OperationsQuickNav({
                   ? "font-semibold text-white shadow-sm transition-all duration-200"
                   : "font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
               }`}
-              style={active ? { background: "var(--color-altus-red)" } : undefined}
+              /* The active pill carries the design system's gradient, not a flat
+                 fill — the same 135° red→red-deep used for every other solid
+                 white-on-red control (design-system/SKILL.md § Buttons; the
+                 active segmented state at components/client-engagement/ui.tsx).
+                 Written as an inline style because that is the canonical
+                 spelling in this repo: there is no gradient button utility. */
+              style={
+                active
+                  ? {
+                      background:
+                        "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))",
+                    }
+                  : undefined
+              }
             >
               {item.label}
             </Link>

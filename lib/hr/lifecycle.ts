@@ -141,7 +141,10 @@ export const HR_STAGES: HrStage[] = [
     items: [
       // Declaration comes BEFORE Induction: it is what the joiner signs on
       // arrival, and the induction record is the step that follows it.
-      { slug: "declaration", label: "Declaration Letter", Icon: FileSignature, kind: "doc", typeKey: "declaration", blurb: "The employee's own declaration - information given is true, and confidentiality." },
+      { slug: "declaration", label: "Declaration Letter", Icon: FileSignature, kind: "doc", typeKey: "declaration", blurb: "The employee's own declaration - the documents and policies read, information given is true, and confidentiality." },
+      // The register of who has actually returned a signed one. Next to the
+      // letter, because printing it and chasing it are the same job.
+      { slug: "declaration-status", label: "Declaration Status", Icon: ShieldCheck, kind: "link", href: "/hr/declaration", blurb: "Who has returned a signed declaration, and who has not." },
       { slug: "induction", label: "Induction", Icon: GraduationCap, kind: "link", href: "/hr/induction", blurb: "Confirm the new joiner's details - auto-filled from their onboarding form." },
       // And AFTER it, the outcome of the pre-employment programme. The letter
       // the candidate signs before that programme is the Free Training Letter

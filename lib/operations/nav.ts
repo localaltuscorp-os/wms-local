@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   ListChecks,
+  ListFilter,
   Megaphone,
   MessageSquareHeart,
   Network,
@@ -178,7 +179,7 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
     items: [
       { href: "/operations/client-engagement", label: "Overview", Icon: LayoutGrid, exact: true },
       { href: "/operations/client-engagement/calendar", label: "Calendar", Icon: CalendarDays },
-      { href: "/operations/client-engagement/employees", label: "Emp Grid", Icon: Users2 },
+      { href: "/operations/client-engagement/employees", label: "Employee Grid", Icon: Users2 },
       { href: "/operations/client-engagement/pca", label: "PCA Grid", Icon: ClipboardList },
       { href: "/operations/client-engagement/references", label: "References", Icon: Share2 },
       { href: "/operations/client-engagement/team", label: "Team & Log", Icon: History },
@@ -316,16 +317,17 @@ export function isOperationsItemActive(item: OperationsSubItem, pathname: string
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-/* ── MASTERS (account holder, 2026-09-15) ────────────────────────────────────
+/* ── MASTERS (account holder, 2026-09-15; Dropdowns added 2026-09-22) ───────
  * Every master the room keeps, in a rail section of its own, each topic kept
- * separate: Checklist · Events · Job Description (General, and per person).
+ * separate: Checklist · Events · Job Description (General, and per person) ·
+ * Dropdowns.
  *
  * A SECTION, not an eighth area. The areas above are where the work happens;
  * these are the reference lists the work is built from, and they were buried
  * one inside each area. The same list feeds the left rail (main-nav.tsx), the
  * tab strip on every Masters page and the Masters overview — one copy, so the
  * three cannot disagree about what a master is. */
-export type OperationsMasterTopic = "Overview" | "Checklist" | "Events" | "Job Description";
+export type OperationsMasterTopic = "Overview" | "Checklist" | "Events" | "Job Description" | "Dropdowns";
 
 export interface OperationsMasterItem extends OperationsSubItem {
   topic: OperationsMasterTopic;
@@ -381,5 +383,17 @@ export const OPERATIONS_MASTERS: OperationsMasterItem[] = [
     Icon: UserPlus,
     topic: "Job Description",
     blurb: "What recruiters send candidates — the original master, a recruiter copy to edit freely, and WhatsApp or email to anyone.",
+  },
+  /* DD MASTER (account holder, 2026-09-22) — the dropdown-options registry:
+     every WMS field that picks from a managed list, in one place, grouped by
+     category with an "add a category" door for whatever comes next. Reading
+     is open like every master; adding and retiring options are admin only,
+     enforced in app/(app)/operations/masters/dd/actions.ts. */
+  {
+    href: "/operations/masters/dd",
+    label: "DD Master",
+    Icon: ListFilter,
+    topic: "Dropdowns",
+    blurb: "Every dropdown's selectable options, managed in one place — add a new one, retire an old one.",
   },
 ];

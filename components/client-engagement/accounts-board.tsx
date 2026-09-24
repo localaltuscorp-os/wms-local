@@ -1,7 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRightLeft, Plus, Search, UserPlus } from "lucide-react";
+import {
+  closestCorners,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { ArrowRightLeft, GripVertical, Plus, Search, UserPlus } from "lucide-react";
+import { fireToast } from "@/lib/toast";
+import { ceAssignAccount } from "@/app/(app)/operations/client-engagement/actions";
 import { accountLabel, CE_CATEGORIES, categoryNeedsBatch } from "@/lib/client-engagement/constants";
 import { isInactiveAccount, lifecycleLabel } from "@/lib/client-engagement/status";
 import { formatDuration } from "@/lib/client-engagement/schedule";
@@ -262,14 +278,96 @@ function Lanes({
   /** List the people carrying nothing here, so spare hands are visible. */
   showIdle?: boolean;
 }) {
-  const lanes: { id: string | null; name: string; rows: CeAccountRow[] }[] = [];
-  const unassigned = accounts.filter((a) => !a.assignedTo || !memberName.has(a.assignedTo));
-  if (unassigned.length) lanes.push({ id: null, name: "Unassigned", rows: unassigned });
-  for (const m of members) {
-    const rows = accounts.filter((a) => a.assignedTo === m.id);
-    if (rows.length) lanes.push({ id: m.id, name: m.name, rows });
-  }
+  /* Memoised because `dropLanes` below derives from it: a fresh array every
+     render would make that memo recompute every render, which is the same as
+     not having one. */
+  const lanes = React.useMemo(() => {
+    const out: { id: string | null; name: string; rows: CeAccountRow[] }[] = [];
+    const unassigned = accounts.filter((a) => !a.assignedTo || !memberName.has(a.assignedTo));
+    if (unassigned.length) out.push({ id: null, name: "Unassigned", rows: unassigned });
+    for (const m of members) {
+      const rows = accounts.filter((a) => a.assignedTo === m.id);
+      if (rows.length) out.push({ id: m.id, name: m.name, rows });
+    }
+    return out;
+  }, [accounts, members, memberName]);
+
   const idle = showIdle ? members.filter((m) => !accounts.some((a) => a.assignedTo === m.id)) : [];
+
+  /* ── DRAG AND DROP ──────────────────────────────────────────────────────
+     Dropping a card on a lane is the SAME operation as the Assign / Transfer
+     button beside it — both call `ceAssignAccount`, which is manager-gated on
+     the server, moves the account's scheduled calls with it, reports clashes
+     and writes the audit row. Drag is a faster way to reach it, never a second
+     way of doing it, so there is no second code path to keep in step.
+
+     The button STAYS. Drag is unavailable to keyboard-only use in any
+     satisfying way here, and on touch it competes with scrolling — the button
+     is the accessible path and the only one that offers "Return to
+     Unassigned". */
+  const [dragging, setDragging] = React.useState<CeAccountRow | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  // 6px before a drag starts, so a click on the card's own buttons is still a
+  // click; touch waits 220ms so a finger can scroll the board.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const UNASSIGNED_LANE = "__unassigned__";
+
+  /* WHILE DRAGGING, EVERY ACTIVE MEMBER IS A LANE. Lanes are otherwise built
+     only from people who already carry something, which left nowhere to drop
+     somebody's FIRST account — the one case where the drag is most useful. */
+  const dropLanes = React.useMemo(() => {
+    if (!dragging) return lanes;
+    const shown = new Set(lanes.map((l) => l.id));
+    const extra = members
+      .filter((m) => m.isActive && !shown.has(m.id))
+      .map((m) => ({ id: m.id as string | null, name: m.name, rows: [] as CeAccountRow[] }));
+    const withUnassigned = shown.has(null)
+      ? lanes
+      : [{ id: null as string | null, name: "Unassigned", rows: [] as CeAccountRow[] }, ...lanes];
+    return [...withUnassigned, ...extra];
+  }, [dragging, lanes, members]);
+
+  function onDragStart(e: DragStartEvent) {
+    const a = accounts.find((x) => x.id === String(e.active.id));
+    if (a) setDragging(a);
+  }
+
+  async function onDragEnd(e: DragEndEvent) {
+    const account = dragging;
+    setDragging(null);
+    if (!account || !e.over) return;
+
+    const overId = String(e.over.id);
+    const to = overId === UNASSIGNED_LANE ? null : overId;
+    if ((account.assignedTo ?? null) === to) return;
+
+    setSaving(true);
+    const res = await ceAssignAccount(account.id, to);
+    setSaving(false);
+
+    // The action's verdict is reported, never assumed. It refuses a return to
+    // Unassigned while calls are still booked, and it counts the calls that now
+    // clash with the new owner's calendar — the same wording the dialog uses,
+    // because it is the same answer.
+    if (!res.ok) {
+      fireToast({ message: res.error, type: "error", duration: 9000 });
+      return;
+    }
+    const name = to === null ? "Unassigned" : (memberName.get(to) ?? "someone");
+    fireToast({
+      message: res.clashes
+        ? `Moved to ${name}. ${res.clashes} call${res.clashes === 1 ? "" : "s"} now overlap their calendar. Re-time them there.`
+        : `Moved to ${name}`,
+      type: res.clashes ? "info" : "success",
+      duration: res.clashes ? 9000 : undefined,
+    });
+  }
 
   if (!lanes.length) {
     return (
@@ -279,75 +377,192 @@ function Lanes({
     );
   }
 
+  const board = (
+    <div className="grid items-start gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+      {(canManage ? dropLanes : lanes).map((lane) => (
+        <Lane key={lane.id ?? UNASSIGNED_LANE} lane={lane} droppable={canManage} dropId={lane.id ?? UNASSIGNED_LANE}>
+          {lane.rows.map((a) => (
+            <AccountCard
+              key={a.id}
+              account={a}
+              load={loads[a.id]}
+              inactive={inactive}
+              canManage={canManage}
+              draggable={canManage && !saving}
+              laneId={lane.id}
+              onOpen={onOpen}
+              onMove={onMove}
+            />
+          ))}
+        </Lane>
+      ))}
+    </div>
+  );
+
   return (
     <>
-      <div className="grid items-start gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
-        {lanes.map((lane) => (
-          <div
-            key={lane.id ?? "unassigned"}
-            className="min-w-0 rounded-xl border"
-            style={{
-              borderColor: lane.id === null ? "color-mix(in srgb, var(--color-altus-red) 30%, transparent)" : "var(--color-hairline)",
-              background: lane.id === null ? "color-mix(in srgb, var(--color-altus-red) 3%, var(--color-surface-card))" : "var(--color-surface-soft)",
-              borderStyle: lane.id === null ? "dashed" : "solid",
-            }}
-          >
-            <div className="flex items-center gap-2 px-3 pb-1.5 pt-2">
-              {lane.id === null ? <UserPlus size={13} strokeWidth={2.4} className="text-altus-red" /> : null}
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-soft">{lane.name}</span>
-              <span className="text-[11.5px] font-bold tabular-nums text-ink-subtle">{lane.rows.length}</span>
-            </div>
-            <ul className="grid gap-1 px-1.5 pb-1.5">
-              {lane.rows.map((a) => {
-                const load = loads[a.id];
-                return (
-                  <li key={a.id}>
-                    <div
-                      className="group flex items-center gap-2 rounded-lg border border-hairline bg-surface-card py-1.5 pl-2.5 pr-1.5 transition-colors hover:border-hairline-strong"
-                      style={{ borderLeft: `3px solid ${statusEdge(a.hhStatus)}`, opacity: inactive ? 0.92 : 1 }}
-                    >
-                      <button type="button" onClick={() => onOpen(a)} className="min-w-0 flex-1 text-left">
-                        <span className="block truncate text-[13px] font-bold text-ink-strong">{accountLabel(a.fullName, a.batchCode)}</span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1">
-                          <HhStatusPill status={a.hhStatus} small />
-                          {inactive && a.lifecycleStatus !== "active" ? (
-                            <span className="rounded-full bg-surface-soft px-1.5 py-px text-[10px] font-bold text-ink-muted">{lifecycleLabel(a.lifecycleStatus)}</span>
-                          ) : null}
-                          {!inactive ? (
-                            <span className="text-[11px] tabular-nums text-ink-subtle">
-                              {load && load.calls ? `${load.calls} call${load.calls === 1 ? "" : "s"} · ${formatDuration(load.minutes)} / wk` : "No calls this week"}
-                            </span>
-                          ) : null}
-                          {a.organization && !categoryNeedsBatch(a.category) ? (
-                            <span className="truncate text-[11px] text-ink-subtle">· {a.organization}</span>
-                          ) : null}
-                        </span>
-                      </button>
-                      {canManage ? (
-                        <button
-                          type="button"
-                          onClick={() => onMove(a)}
-                          title={lane.id === null ? "Assign" : "Transfer"}
-                          aria-label={`${lane.id === null ? "Assign" : "Transfer"} ${a.fullName}`}
-                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-[11.5px] font-bold text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red-deep"
-                        >
-                          <ArrowRightLeft size={13} strokeWidth={2.4} />
-                          {lane.id === null ? "Assign" : null}
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </div>
+      {canManage ? (
+        <DndContext
+          /* A STATED id, because dnd-kit numbers its own accessibility ids from
+             a module counter that runs independently on the server and in the
+             browser: without this the markup hydrates with
+             aria-describedby="DndDescribedBy-0" against "-4" and React throws
+             the whole subtree away (seen 2026-09-22). */
+          id="ce-accounts-board"
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setDragging(null)}
+        >
+          {board}
+          {/* The ghost under the cursor. Rendered outside the lanes so no lane
+              clips it, and deliberately plain: it says what is being moved, it
+              is not a second copy of the card. */}
+          <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.2,0.7,0.3,1)" }}>
+            {dragging ? (
+              <div
+                className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-card py-1.5 pl-2.5 pr-3 shadow-lg"
+                style={{ borderLeft: `3px solid ${statusEdge(dragging.hhStatus)}` }}
+              >
+                <GripVertical size={13} className="text-ink-subtle" />
+                <span className="truncate text-[13px] font-bold text-ink-strong">
+                  {accountLabel(dragging.fullName, dragging.batchCode)}
+                </span>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        board
+      )}
       {idle.length ? (
         <p className="mt-2.5 px-1 text-[11.5px] font-medium text-ink-subtle">
           Carrying none here: {idle.map((m) => m.name).join(", ")}
         </p>
       ) : null}
     </>
+  );
+}
+
+/** One owner's column, and - when the viewer may assign - a drop target. */
+function Lane({
+  lane,
+  dropId,
+  droppable,
+  children,
+}: {
+  lane: { id: string | null; name: string; rows: CeAccountRow[] };
+  dropId: string;
+  droppable: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId, disabled: !droppable });
+  const unassigned = lane.id === null;
+  return (
+    <div
+      ref={setNodeRef}
+      className="min-w-0 rounded-xl border transition-colors"
+      style={{
+        // `isOver` is the only thing that says "let go here". Without it, a drop
+        // onto one of several identically-coloured columns is a guess.
+        borderColor: isOver
+          ? "var(--color-altus-red)"
+          : unassigned
+            ? "color-mix(in srgb, var(--color-altus-red) 30%, transparent)"
+            : "var(--color-hairline)",
+        background: isOver
+          ? "color-mix(in srgb, var(--color-altus-red) 8%, var(--color-surface-card))"
+          : unassigned
+            ? "color-mix(in srgb, var(--color-altus-red) 3%, var(--color-surface-card))"
+            : "var(--color-surface-soft)",
+        borderStyle: unassigned ? "dashed" : "solid",
+      }}
+    >
+      <div className="flex items-center gap-2 px-3 pb-1.5 pt-2">
+        {unassigned ? <UserPlus size={13} strokeWidth={2.4} className="text-altus-red" /> : null}
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-extrabold uppercase tracking-[0.06em] text-ink-soft">{lane.name}</span>
+        <span className="text-[11.5px] font-bold tabular-nums text-ink-subtle">{lane.rows.length}</span>
+      </div>
+      {/* min-h keeps an EMPTY lane a usable target: a header with nothing under
+          it gives a drag nowhere to aim. */}
+      <ul className={`grid gap-1 px-1.5 pb-1.5 ${lane.rows.length ? "" : "min-h-[44px]"}`}>{children}</ul>
+    </div>
+  );
+}
+
+/** One account. Draggable to another lane when the viewer may assign. */
+function AccountCard({
+  account: a,
+  load,
+  inactive,
+  canManage,
+  draggable,
+  laneId,
+  onOpen,
+  onMove,
+}: {
+  account: CeAccountRow;
+  load: Load | undefined;
+  inactive: boolean;
+  canManage: boolean;
+  draggable: boolean;
+  laneId: string | null;
+  onOpen: (a: CeAccountRow) => void;
+  onMove: (a: CeAccountRow) => void;
+}) {
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: a.id, disabled: !draggable });
+  return (
+    <li ref={setNodeRef} style={{ opacity: isDragging ? 0.4 : undefined }}>
+      <div
+        className="group flex items-center gap-2 rounded-lg border border-hairline bg-surface-card py-1.5 pl-2.5 pr-1.5 transition-colors hover:border-hairline-strong"
+        style={{ borderLeft: `3px solid ${statusEdge(a.hhStatus)}`, opacity: inactive ? 0.92 : 1 }}
+      >
+        {/* A drag HANDLE, not the whole card. The card body is a button that
+            opens the record and its right edge is another that transfers it;
+            making the whole card draggable would put a 6px-tolerance drag in
+            front of both. */}
+        {draggable ? (
+          <span
+            {...attributes}
+            {...listeners}
+            className="-ml-1 shrink-0 cursor-grab touch-none text-ink-subtle opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+            title="Drag to another person"
+            aria-label={`Drag ${a.fullName} to another person`}
+          >
+            <GripVertical size={13} strokeWidth={2.2} />
+          </span>
+        ) : null}
+        <button type="button" onClick={() => onOpen(a)} className="min-w-0 flex-1 text-left">
+          <span className="block truncate text-[13px] font-bold text-ink-strong">{accountLabel(a.fullName, a.batchCode)}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-1">
+            <HhStatusPill status={a.hhStatus} small />
+            {inactive && a.lifecycleStatus !== "active" ? (
+              <span className="rounded-full bg-surface-soft px-1.5 py-px text-[10px] font-bold text-ink-muted">{lifecycleLabel(a.lifecycleStatus)}</span>
+            ) : null}
+            {!inactive ? (
+              <span className="text-[11px] tabular-nums text-ink-subtle">
+                {load && load.calls ? `${load.calls} call${load.calls === 1 ? "" : "s"} · ${formatDuration(load.minutes)} / wk` : "No calls this week"}
+              </span>
+            ) : null}
+            {a.organization && !categoryNeedsBatch(a.category) ? (
+              <span className="truncate text-[11px] text-ink-subtle">· {a.organization}</span>
+            ) : null}
+          </span>
+        </button>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => onMove(a)}
+            title={laneId === null ? "Assign" : "Transfer"}
+            aria-label={`${laneId === null ? "Assign" : "Transfer"} ${a.fullName}`}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-[11.5px] font-bold text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red-deep"
+          >
+            <ArrowRightLeft size={13} strokeWidth={2.4} />
+            {laneId === null ? "Assign" : null}
+          </button>
+        ) : null}
+      </div>
+    </li>
   );
 }

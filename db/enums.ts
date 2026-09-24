@@ -1317,6 +1317,10 @@ export const ALLOCATION_CATEGORIES = [
     full: "Ecosystem Clients (Apps)",
     expected: 2,
   },
+  // Added 2026-09-22. `expected: 0` — no target count was given for it, and 0
+  // leaves ALLOCATION_EXPECTED_TOTAL (the other three categories' 17) exactly
+  // as it was rather than inventing a figure nobody asked for.
+  { code: "os_clients", short: "OS Clients", label: "OS Clients", full: "OS Clients", expected: 0 },
 ] as const;
 
 /**
@@ -1326,7 +1330,7 @@ export const ALLOCATION_CATEGORIES = [
  * The Intern form lists products in THIS order, which is not the employee one:
  * Retainer and Eco System first, because that is where interns mostly sit.
  */
-export const INTERN_SECTIONS: readonly string[] = ["retainer", "ecosystem", "ps", "bss"];
+export const INTERN_SECTIONS: readonly string[] = ["retainer", "ecosystem", "ps", "bss", "os_clients"];
 
 /** ALLOCATION_CATEGORIES in the Intern form's order. */
 export const INTERN_PRODUCTS = INTERN_SECTIONS.map(

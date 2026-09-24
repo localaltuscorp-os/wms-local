@@ -141,7 +141,7 @@ export default async function MonthlyEventsMasterPage({
             canEdit={canEdit}
             draftDay={canEdit && /^\d{4}-\d{2}-\d{2}$/.test(sp.new ?? "") ? sp.new : null}
             openRoutine={canEdit && (sp.routine === "1" || sp.routine === "delete")}
-            routineMode={sp.routine === "delete" ? "delete" : "stamp"}
+            routineMode={sp.routine === "delete" ? "delete" : "edit"}
             openImport={canEdit && sp.import === "1"}
           />
         </div>

@@ -383,7 +383,7 @@ export function AllocationScreen({
         >
           <p className="text-[15px] font-bold text-ink-strong">Select a name above</p>
           <p className="mt-1 text-[13.5px] text-ink-subtle">
-            Their {tab === "employee" ? "four sections" : "App Development section"} will open here.
+            Their {tab === "employee" ? "sections" : "App Development section"} will open here.
           </p>
         </section>
       ) : (

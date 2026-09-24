@@ -578,6 +578,43 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     children: [
       { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
       { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
+      {
+        key: "operations.client-engagement",
+        label: "Client Engagement",
+        children: [
+          {
+            key: "operations.client-engagement.overview",
+            label: "Overview",
+            routes: ["/operations/client-engagement"],
+          },
+          {
+            key: "operations.client-engagement.calendar",
+            label: "Calendar",
+            routes: ["/operations/client-engagement/calendar"],
+          },
+          {
+            key: "operations.client-engagement.employees",
+            label: "Employee Grid",
+            routes: ["/operations/client-engagement/employees"],
+          },
+          {
+            key: "operations.client-engagement.pca",
+            label: "PCA Grid",
+            routes: ["/operations/client-engagement/pca"],
+          },
+          {
+            key: "operations.client-engagement.references",
+            label: "References",
+            routes: ["/operations/client-engagement/references"],
+          },
+          {
+            key: "operations.client-engagement.team",
+            label: "Team & Log",
+            routes: ["/operations/client-engagement/team"],
+          },
+        ],
+      },
+      { key: "operations.directory", label: "Directory", routes: ["/operations/directory"] },
       { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
       /* One switch for all of Masters, including Recruitment JD — which moved
          here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
@@ -597,7 +634,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "events",
     label: "Monthly Events Master",
     children: [
-      { key: "events.overview", label: "Overview", routes: ["/events"] },
+      { key: "events.overview", label: "Overview", routes: ["/events", "/api/events/export"] },
       { key: "events.calendar", label: "Calendar", routes: ["/events/calendar"] },
       { key: "events.masters", label: "Masters", routes: ["/events/masters"] },
       { key: "events.batches", label: "Batches", routes: ["/events/batches"] },

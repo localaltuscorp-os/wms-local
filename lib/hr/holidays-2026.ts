@@ -76,7 +76,6 @@ export const HOLIDAYS_2026: Holiday2026[] = [
   { date: "28-Aug-2026", day: "Friday", name: "Rakshabandhan", national: false, month: 8, dayNum: 28 },
   { date: "04-Sep-2026", day: "Friday", name: "Janmashtami", national: false, month: 9, dayNum: 4 },
   { date: "14-Sep-2026", day: "Monday", name: "Ganpati Day 1", national: false, month: 9, dayNum: 14 },
-  { date: "23-Sep-2026", day: "Wednesday", name: "Ganpati Day 10", national: false, month: 9, dayNum: 23 },
   { date: "20-Oct-2026", day: "Tuesday", name: "Dashera", national: false, month: 10, dayNum: 20 },
   { date: "08-Nov-2026", day: "Sunday", name: "Diwali", national: false, month: 11, dayNum: 8 },
   { date: "09-Nov-2026", day: "Monday", name: "New Year", national: false, month: 11, dayNum: 9 },

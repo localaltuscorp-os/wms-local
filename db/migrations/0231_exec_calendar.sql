@@ -46,9 +46,17 @@ CREATE TABLE IF NOT EXISTS exec_calendar_events (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
-ALTER TABLE exec_calendar_events DROP CONSTRAINT IF EXISTS exec_calendar_events_category_chk;
-ALTER TABLE exec_calendar_events ADD CONSTRAINT exec_calendar_events_category_chk
-  CHECK (category_key IN ('personal','recovery','client','cohort','bizdev','ops','marker'));
+-- category_key's CHECK is deliberately NOT added here. This migration
+-- originally added it against the seven launch categories
+-- ('personal','recovery','client','cohort','bizdev','ops','marker'), but
+-- 0237_exec_calendar_categories_markers.sql (2026-09-18) replaced that set
+-- with the fourteen the team actually plans with and re-adds the constraint
+-- against THAT list once it has remapped every row. Keeping the old CHECK
+-- here just to have 0237 drop and replace it moments later serves no purpose
+-- on a fresh database, and on a database whose exec_calendar_events already
+-- holds rows on the new taxonomy (created before this migration was ever
+-- applied to it) the old CHECK fails outright on ordinary data. See 0237 for
+-- the category constraint that actually matters.
 
 ALTER TABLE exec_calendar_events DROP CONSTRAINT IF EXISTS exec_calendar_events_visibility_chk;
 ALTER TABLE exec_calendar_events ADD CONSTRAINT exec_calendar_events_visibility_chk
@@ -98,9 +106,7 @@ CREATE TABLE IF NOT EXISTS exec_calendar_routines (
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
-ALTER TABLE exec_calendar_routines DROP CONSTRAINT IF EXISTS exec_calendar_routines_category_chk;
-ALTER TABLE exec_calendar_routines ADD CONSTRAINT exec_calendar_routines_category_chk
-  CHECK (category_key IN ('personal','recovery','client','cohort','bizdev','ops','marker'));
+-- Same reasoning as exec_calendar_events above — 0237 adds the real constraint.
 
 ALTER TABLE exec_calendar_routines DROP CONSTRAINT IF EXISTS exec_calendar_routines_time_chk;
 ALTER TABLE exec_calendar_routines ADD CONSTRAINT exec_calendar_routines_time_chk

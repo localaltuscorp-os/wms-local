@@ -24,7 +24,12 @@ import {
 import { hhStatusMeta, isInactiveAccount } from "@/lib/client-engagement/status";
 import type { MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeEngagementRow, CeMemberRow, HhOverlayCall } from "@/lib/queries/client-engagement";
+// Month view (2026-09-22) reuses the exec calendar's pure, CE-agnostic month
+// grid math instead of re-deriving the same ISO-week arithmetic here.
+import { addMonths, monthStart } from "@/lib/exec-calendar/grid";
+import { monthName } from "@/lib/exec-calendar/period";
 import { EngagementDialog } from "./engagement-dialog";
+import { CeMonthGrid } from "./month-view";
 import { BTN_NEUTRAL, BTN_PRIMARY, CARD, CARD_SHADOW, DISPLAY, Select, TONE_VAR, Toolbar } from "./ui";
 
 /**
@@ -119,6 +124,8 @@ export function CalendarView({
 }) {
   const router = useRouter();
   const [dialog, setDialog] = React.useState<{ engagement: CeEngagementRow | null; preset?: { dayOfWeek: string; startMin: number; endMin: number } } | null>(null);
+  const [view, setView] = React.useState<"week" | "month">("week");
+  const [monthAnchor, setMonthAnchor] = React.useState(() => monthStart(monday));
 
   const accountById = React.useMemo(() => new Map(accounts.map((a) => [a.id, a] as const)), [accounts]);
   const member = members.find((m) => m.id === memberId);
@@ -192,19 +199,56 @@ export function CalendarView({
         ) : (
           <span className="shrink-0 text-[13px] font-bold text-ink-strong">{member?.name}</span>
         )}
+        {/* Week / Month — a view switch, not a navigation: it never touches
+            the URL's `week`, so flipping back to Week always lands on the
+            week you left (2026-09-22). */}
+        <div className="flex shrink-0 items-center gap-1 rounded-lg p-0.5" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
+          {(["week", "month"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => {
+                if (v === "month") setMonthAnchor(monthStart(monday));
+                setView(v);
+              }}
+              className="rounded-md px-2.5 py-1 text-[12.5px] font-bold capitalize transition-colors"
+              style={
+                view === v
+                  ? { background: "var(--color-altus-red-wash)", color: "var(--color-altus-red-deep)" }
+                  : { color: "var(--color-ink-soft)" }
+              }
+            >
+              {v}
+            </button>
+          ))}
+        </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button type="button" className={`${BTN_NEUTRAL} !px-2`} onClick={() => go({ week: addDays(monday, -7) })} aria-label="Previous week">
+          <button
+            type="button"
+            className={`${BTN_NEUTRAL} !px-2`}
+            onClick={() => (view === "month" ? setMonthAnchor(addMonths(monthAnchor, -1)) : go({ week: addDays(monday, -7) }))}
+            aria-label={view === "month" ? "Previous month" : "Previous week"}
+          >
             <ChevronLeft size={15} strokeWidth={2.4} />
           </button>
-          <button type="button" className={BTN_NEUTRAL} onClick={() => go({ week: today })}>
-            This week
+          <button
+            type="button"
+            className={BTN_NEUTRAL}
+            onClick={() => (view === "month" ? setMonthAnchor(monthStart(today)) : go({ week: today }))}
+          >
+            {view === "month" ? "This month" : "This week"}
           </button>
-          <button type="button" className={`${BTN_NEUTRAL} !px-2`} onClick={() => go({ week: addDays(monday, 7) })} aria-label="Next week">
+          <button
+            type="button"
+            className={`${BTN_NEUTRAL} !px-2`}
+            onClick={() => (view === "month" ? setMonthAnchor(addMonths(monthAnchor, 1)) : go({ week: addDays(monday, 7) }))}
+            aria-label={view === "month" ? "Next month" : "Next week"}
+          >
             <ChevronRight size={15} strokeWidth={2.4} />
           </button>
         </div>
         <span className="shrink-0 whitespace-nowrap text-[13.5px] font-extrabold text-ink-strong" style={DISPLAY}>
-          {fmtDate(monday)} – {fmtDate(sunday)}
+          {view === "month" ? monthName(monthAnchor, true) : `${fmtDate(monday)} – ${fmtDate(sunday)}`}
         </span>
         <span className="min-w-0 flex-1" />
         {canEdit ? (
@@ -214,6 +258,13 @@ export function CalendarView({
         ) : null}
       </Toolbar>
 
+      {view === "month" ? (
+        // Overview only — see the docblock in ./month-view. No stats strip
+        // (they're all "this week" numbers, which a month anchor would make
+        // misleading), no legend, no team strip: click a day to reach those.
+        <CeMonthGrid anchor={monthAnchor} today={today} engagements={engagements} accountById={accountById} onPickWeek={(m) => { setView("week"); go({ week: m }); }} />
+      ) : (
+        <>
       {/* Bandwidth — the reason this calendar exists. */}
       <div className="mb-3 grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
         <Stat label="Booked this week" value={formatDuration(weekBooked)} sub={`${weekCalls} call${weekCalls === 1 ? "" : "s"}`} />
@@ -409,6 +460,8 @@ export function CalendarView({
           onPick={(id) => go({ member: id })}
         />
       ) : null}
+        </>
+      )}
 
       {dialog ? (
         <EngagementDialog

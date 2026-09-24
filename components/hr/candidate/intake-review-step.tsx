@@ -7,6 +7,7 @@ import type { IntakeSection } from "@/lib/hr/candidate/intake-schema";
 import { resumeHeader, resumeGroups } from "@/lib/hr/candidate/resume-model";
 import { fireToast } from "@/lib/toast";
 import { WORK_SAMPLES_KEY, parseWorkSamples, type WorkSample } from "@/lib/hr/candidate/work-samples";
+import { RESUME_KEY } from "@/lib/hr/candidate/resume";
 import type { WorkFileUrlFn } from "./candidate-work-samples-field";
 
 const ALTUS_RED = "#E10600";
@@ -34,6 +35,7 @@ export function IntakeReviewStep({
   workFileUrl?: WorkFileUrlFn;
 }) {
   const samples = parseWorkSamples(values[WORK_SAMPLES_KEY]);
+  const resumePath = values[RESUME_KEY] ?? "";
 
   async function openSample(s: WorkSample) {
     if (s.kind === "link") {
@@ -42,6 +44,16 @@ export function IntakeReviewStep({
     }
     if (!workFileUrl) return;
     const res = await workFileUrl(s.path);
+    if (!res.ok) {
+      fireToast({ message: res.error, type: "error" });
+      return;
+    }
+    window.open(res.url, "_blank", "noopener,noreferrer");
+  }
+
+  async function openResume() {
+    if (!workFileUrl || !resumePath) return;
+    const res = await workFileUrl(resumePath);
     if (!res.ok) {
       fireToast({ message: res.error, type: "error" });
       return;
@@ -240,6 +252,38 @@ export function IntakeReviewStep({
             </div>
           </section>
         ))}
+
+        {/* Resume (required; Personal Details). */}
+        <section className="overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <header className="border-b border-hairline px-6 py-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: ALTUS_RED }}>
+              Section
+            </p>
+            <h3
+              className="mt-0.5 text-ink-strong"
+              style={{ ...DISPLAY_FONT, fontWeight: 800, fontSize: 18, letterSpacing: "-0.01em" }}
+            >
+              Resume
+            </h3>
+          </header>
+          {resumePath ? (
+            <button
+              type="button"
+              onClick={() => void openResume()}
+              className="group flex w-full items-center gap-3 px-6 py-3 text-left"
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-50" style={{ color: ALTUS_RED }}>
+                <FileText size={15} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[14.5px] text-ink-strong group-hover:underline">
+                {resumePath.split("/").pop()}
+              </span>
+              <ExternalLink size={14} className="shrink-0 text-ink-subtle" />
+            </button>
+          ) : (
+            <p className="px-6 py-3 text-[13.5px] text-ink-subtle">No resume attached.</p>
+          )}
+        </section>
 
         {/* Work samples & links (optional; Personal Details). */}
         {samples.length > 0 && (

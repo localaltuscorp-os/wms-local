@@ -1,4 +1,5 @@
 import { visibleFields, type FormFieldDef } from "@/lib/forms/field-types";
+import { RESUME_KEY } from "./resume";
 
 /**
  * Wizard schema for the Candidate Interview Form — restructured into rail
@@ -11,12 +12,11 @@ import { visibleFields, type FormFieldDef } from "@/lib/forms/field-types";
  *   repeater:    `${sectionId}.${instanceIndex}.${fieldKey}`
  * The Declaration photo/signature are file uploads handled outside FieldInput.
  *
- * Special Personal-section fields (rendered specially by IntakeSectionStep):
- *   position  — managed dropdown fed by the Interview Positions master (add/delete)
- *   department — dropdown fed by the Departments master
- *   aadhaar   — seeds an Aadhaar-based lookup that auto-fills Mobile + Location
- *   age       — auto-computed (whole years) from Date of Birth, read-only
- *   homeLoan/monthlyRent — conditional on "Do you own a house?" (showIf)
+ * Special-rendered fields (handled by IntakeSectionStep, not the generic renderer):
+ *   position  — managed dropdown fed by the Interview Positions master (add/delete), Job Details section
+ *   department — dropdown fed by the Departments master, Job Details section
+ *   age       — auto-computed (whole years) from Date of Birth, read-only, Personal Details section
+ *   homeLoan/monthlyRent — conditional on "Do you own a house?" (showIf), Personal Details section
  */
 export interface IntakeSection {
   id: string;
@@ -109,15 +109,11 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
     title: "Personal Details",
     subtitle: "The candidate's core information.",
     fields: [
-      // Row 1 — Position · Department · Aadhaar (three across).
-      { key: "position", label: "Position Applied For", type: "select", optionsFrom: "positions", required: true, span: 4 },
-      { key: "department", label: "Function", type: "select", optionsFrom: "departments", required: true, span: 4 },
-      { key: "aadhaar", label: "Aadhaar Card Number", type: "text", placeholder: "12-digit Aadhaar number", aadhaarLookup: true, required: true, span: 4 },
-      // Row 2 — Full Name (wide) · Date of Birth · Age.
+      // Row 1 — Full Name (wide) · Date of Birth · Age.
       { key: "fullName", label: "Full Name", type: "text", required: true, span: 6 },
       { key: "dob", label: "Date of Birth", type: "date", required: true, span: 3 },
       { key: "age", label: "Age", type: "number", readOnly: true, compute: "ageFromDob", span: 3 },
-      // Row 3 — Gender (span 5) · Marital Status (span 7) side by side; both force
+      // Row 2 — Gender (span 5) · Marital Status (span 7) side by side; both force
       // their chips onto ONE line (nowrap).
       { key: "gender", label: "Gender", type: "buttons", options: ["Male", "Female", "Prefer not to say"], required: true, span: 5, nowrap: true },
       { key: "marital", label: "Marital Status", type: "buttons", options: ["Single", "Married", "Divorced", "Separated", "Widowed"], required: true, span: 7, nowrap: true },
@@ -132,8 +128,8 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
       { key: "nativePlace", label: "Native Place", type: "text", required: true },
       { key: "mobile", label: "Mobile Number", type: "tel", required: true },
       { key: "email", label: "Email Address", type: "email", required: true },
-      // Structured address (replaces the old single "Location"). Aadhaar auto-fill
-      // populates these. Line 1 + City + Pincode + State are mandatory.
+      // Structured address (replaces the old single "Location"). Line 1 + City +
+      // Pincode + State are mandatory.
       { key: "addressLine1", label: "Address Line 1", type: "text", required: true },
       { key: "addressLine2", label: "Address Line 2", type: "text", optional: true },
       { key: "addressLine3", label: "Address Line 3", type: "text", optional: true },
@@ -150,8 +146,21 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
       { key: "policeRecord", label: "Do you have a police record?", type: "buttons", options: YN, required: true, groupLabel: "Health & Habits" },
       { key: "majorIllness", label: "History of any major illness?", type: "buttons", options: YN, required: true },
       { key: "majorIllnessDetails", label: "Please describe the illness", type: "textarea", showIf: { key: "majorIllness", value: "Yes" } },
+    ],
+  },
+  {
+    id: "jobDetails",
+    title: "Job Details",
+    subtitle: "The role applied for, and when the candidate can start.",
+    fields: [
+      { key: "position", label: "Position Applied For", type: "select", optionsFrom: "positions", required: true, span: 6 },
+      { key: "department", label: "Function", type: "select", optionsFrom: "departments", required: true, span: 6 },
       { key: "source", label: "How did you learn about the opening?", type: "select", options: ["Company Website", "Friend or Relative", "Job Portal", "HR Agency", "Social Media", "Other"], span: 6 },
-      { key: "sourceOther", label: "Please specify", type: "text", showIf: { key: "source", value: "Other" } },
+      { key: "sourceOther", label: "Please specify", type: "text", showIf: { key: "source", value: "Other" }, span: 6 },
+      { key: "immediateJoining", label: "Immediate Joining", type: "buttons", options: YN, required: true },
+      { key: "earliestJoinDate", label: "What is the earliest date you can join us?", type: "date", required: true },
+      { key: "openSunday", label: "Open to Work on Sunday", type: "buttons", options: YN, required: true },
+      { key: "sitTill9", label: "Open to working till 9 PM?", type: "buttons", options: YN, required: true },
     ],
   },
   {
@@ -180,8 +189,6 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
       { key: "endTime", label: "End Time", type: "text", placeholder: "e.g. 7:00 PM" },
       { key: "satWorking", label: "Saturday Working", type: "buttons", options: YN },
       { key: "sunWorking", label: "Sunday Working", type: "buttons", options: YN },
-      { key: "openSunday", label: "Open to Work on Sunday", type: "buttons", options: YN },
-      { key: "sitTill9", label: "Open to working till 9 PM?", type: "buttons", options: YN },
       { key: "languages", label: "Languages Known", type: "text" },
       // Moved to the END of the work-experience block (was mid-section).
       { key: "totalJobs", label: "Total Number of Jobs", type: "number" },
@@ -290,9 +297,14 @@ export function sectionRequiredKeys(
     }
     return out;
   }
-  return visibleFields(s.fields, sectionView(s, values))
+  const keys = visibleFields(s.fields, sectionView(s, values))
     .filter(isRequiredField)
     .map((f) => vkey(s.id, f.key));
+  // RESUME is required but lives outside the schema (a file upload, not a
+  // FormFieldDef type — same reason Photo/Work Samples are ad-hoc keys, just on
+  // the required side of that line). Personal Details is where it's rendered.
+  if (s.id === "personal") keys.push(RESUME_KEY);
+  return keys;
 }
 
 /** All required value keys across the whole form. */
