@@ -1,8 +1,51 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-19
+**Updated:** 2026-09-23
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
+
+---
+
+## 0. Latest delivery — 22–23 September 2026
+
+### Branch state
+
+- **Branch:** `Vinal`
+- **Current delivery commit:** `0f42bc9b` — `feat: refine operations, goals, and employee dashboards`
+- **Main baseline:** `5da93849` — current `origin/main` is already included; `git merge origin/main` reported *Already up to date*.
+- **Push target:** `origin/Vinal` — push attempted on 23 September and blocked with HTTP 403 for GitHub account `vinalpatil1901`; use an account with write access to complete the push.
+- **Management-ready summary:** [`docs/handoffs/vinal-2026-09-23-summary.md`](./docs/handoffs/vinal-2026-09-23-summary.md)
+- **Merged-main handoff:** [`HANDOFF-MAIN-2026-09-23.md`](./HANDOFF-MAIN-2026-09-23.md)
+
+### What changed in this delivery
+
+| Area | Delivered |
+|---|---|
+| **Goals Dashboard** | Compact page heading; WMS-style light KPI cards; Day/Range/Month/FY filter; annual pace target; full-width quarterly cards; goal tables with **Progress**, Period, Area, Attainment, Pace and Status; Transpose; table-only size control; scrollbars; 10-row Load more; weekly per-goal progress; a full-height Daily Commitments graph and matching KPI cards. |
+| **Operations** | New Operations Command Center; New JD opens in a dialog; JD form cleanup; redundant descriptions removed from Job Description, Checklist, Masters, Checklist Masters, Event Masters, JD Master, and person-specific JD surfaces. |
+| **Accounts / navigation** | Accounts sidebar reordered, MIS opens only when clicked, Collection Master moved to Billing, and Important Links added to Accounts. |
+| **Employee compliance** | Dashboard colours aligned to the WMS status palette, including meaningful completion and workload colours. |
+| **Merged work carried on Vinal** | Incentive, salary slips/statements, global logs, Control Panel, Access Control, employee administration, templates, task visibility, Goals Review/Approve, and other main work are inherited from the current main baseline. See the main handoff for the full inventory. |
+
+### Database work
+
+**No SQL was executed during this delivery.** Before production verification, review and apply these repository migrations in order against the confirmed target database:
+
+1. `db/migrations/0242_visibility_grants.sql`
+2. `db/migrations/0243_incentive_product_master_rows.sql`
+3. `db/migrations/0244_incentive_applicability_and_intern_type.sql`
+4. `db/migrations/0245_global_logs.sql`
+5. `db/migrations/0246_control_panel.sql`
+6. `db/migrations/0247_activity_logs_allow_fk_null.sql`
+
+Migration `0244` is especially important: it repairs the old `incentive_eligibility` column mismatch, makes incentive applicability explicit (All Employees / Function / Selected Employees), creates function scope mapping, and adds designation/employee type and internship fields. Use the migration files in `db/migrations/` directly; do not use the superseded scripts in `Change-made/SQL/`.
+
+### Validation
+
+- `npm run typecheck` — passed.
+- `npm run lint` — passed with 0 errors and 409 existing warnings in unrelated modules.
+- Goals browser smoke test — passed for the dashboard layout, date selection, transpose, table sizing, progress column, and daily chart.
+- `npm test` — 5,130 passed, 34 skipped, 24 failures in unrelated auth, permissions, backup, WCC/MCC, incentive, salary, and filter tests. No failed test names a Goals or Operations file changed in this delivery.
 
 ---
 

@@ -14,7 +14,17 @@ import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 
 const RETRY = { attempts: 3, timeoutMs: [6000, 10000, 14000] as number[] };
 
-export type SessionStatus = "scheduled" | "done" | "cancelled";
+export type SessionStatus =
+  | "draft"
+  | "scheduled"
+  | "live"
+  | "done"
+  | "completed"
+  | "test_pending"
+  | "feedback_pending"
+  | "closed"
+  | "cancelled"
+  | "rescheduled";
 export type SessionMode = "in_person" | "online";
 
 /**
@@ -109,7 +119,7 @@ export async function listSessions(opts: {
           attendedCount: sql<number>`(
             SELECT count(*)::int FROM ${tcSessionAttendees} a
             WHERE a.session_id = ${tcSessions.id}
-              AND a.status IN ('attended','left_halfway')
+              AND a.status IN ('attended','left_halfway','present','late','partial','completed_via_recording')
           )`,
         })
         .from(tcSessions)
@@ -145,7 +155,7 @@ export interface SessionAttendeeRow {
   id: string;
   employeeId: string;
   employeeName: string;
-  status: "invited" | "attended" | "left_halfway" | "absent";
+  status: "invited" | "attended" | "left_halfway" | "present" | "late" | "absent" | "partial" | "completed_via_recording" | "excused";
   attendedMin: number | null;
 }
 

@@ -35,7 +35,6 @@ export default async function EventMastersPage() {
         Icon={Palette}
         topic="Events"
         title="Event Masters"
-        description="Event categories — the colour legend behind every event — and the batch types that block the calendar from schedules."
         actions={
           enabled ? (
             <Link

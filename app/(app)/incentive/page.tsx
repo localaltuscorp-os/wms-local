@@ -12,7 +12,6 @@ import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
 import {
   getIncentiveDashboard,
-  getIncentiveTargetVsActual,
   listIncentiveEntriesAdmin,
 } from "@/lib/queries/incentives";
 import { getBillingDashboard } from "@/lib/queries/billing";
@@ -27,16 +26,16 @@ import { getIncentiveStatusReport, listIncentiveEntriesStatus } from "@/lib/quer
 import {
   incentiveLeaders,
   loadIncentiveAnalytics,
-  restrictTargetVsActual,
 } from "@/lib/queries/incentive-analytics";
 import { applyAnalyticsView, incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
 import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
-import { selectableMonths } from "@/lib/incentive/analytics/periods";
+import { currentMonthKey, selectableMonths } from "@/lib/incentive/analytics/periods";
 import { incentiveStatusUiEnabled } from "@/lib/incentive/status-flag";
 import { IncentiveStatusTab } from "@/components/incentive/incentive-status-tab";
 import { withRetry } from "@/lib/db/with-timeout";
 import { IncentiveCatalogDialog } from "@/components/incentive/incentive-catalog-dialog";
 import { PageShell } from "@/components/layout/page-shell";
+import { getTargetBoard, listTargetProducts, listTeams } from "@/lib/queries/incentive-target-plans";
 
 export const dynamic = "force-dynamic";
 
@@ -86,10 +85,9 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   // set = nobody — the two must not be conflated.
   const visibleNames = await r("incentive:visible-names", () => visibleNameKeysFor(scope));
 
-  const [dashboard, targetVsActualAll, rows, catalog, entries, employees, products] =
+  const [dashboard, rows, catalog, entries, employees, products] =
     await Promise.all([
       scope.all ? r("incentive:dashboard", () => getIncentiveDashboard(year)) : Promise.resolve(null),
-      r("incentive:target-vs-actual", () => getIncentiveTargetVsActual(year)),
       r("incentive:requests", () =>
         listIncentiveRequests({
           employeeId: me.id,
@@ -168,10 +166,23 @@ export default async function IncentivePage({ searchParams }: PageProps) {
     return formatInr(profile.annualCtc / 12);
   });
 
-  // The Targets tab's data, narrowed server-side for a scoped viewer.
-  const targetVsActual = scope.all
-    ? targetVsActualAll
-    : restrictTargetVsActual(targetVsActualAll, analytics.employees.map((e) => e.name));
+  // Target planning & performance (0249) — the granular target system. The
+  // legacy whole-year Targets tab is superseded by this dashboard; the legacy
+  // `incentive_targets` table still feeds the analytics dashboard unchanged.
+  const [targetProducts, targetTeams, targetInitial] = await Promise.all([
+    r("incentive:target-products", () => listTargetProducts()),
+    r("incentive:target-teams", () => listTeams()),
+    r("incentive:target-board", () =>
+      getTargetBoard({
+        type: "month",
+        value: currentMonthKey(),
+        level: analytics.scope.canSeeTeam ? "team" : "user",
+        subjectId: null,
+        productName: null,
+        allowedIds: scope.all ? null : [...scope.employeeIds],
+      }),
+    ),
+  ]);
 
   // WS-6 — incentive 3-status (Booked/Accrued/Paid) tab: admin-only + flag-gated
   // (INCENTIVE_STATUS_UI, default on). Only fetched when shown, so non-admins pay
@@ -299,7 +310,10 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           leaders={leaders}
           analytics={analytics}
           analyticsMonths={selectableMonths()}
-          targetVsActual={targetVsActual}
+          targetProducts={targetProducts}
+          targetTeams={targetTeams}
+          targetInitial={targetInitial}
+          canSeeTargetTeam={analytics.scope.canSeeTeam}
           shiftTypes={shiftTypes}
           monthlyCtc={myMonthlyCtc}
           defaultShift={myShift}

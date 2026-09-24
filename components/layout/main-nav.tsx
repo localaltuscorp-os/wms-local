@@ -170,6 +170,12 @@ interface NavItem {
    * nobody can scan. Folded away they cost one line until you want them.
    */
   children?: NavItem[];
+  /**
+   * Keep a disclosure closed until the reader explicitly opens it, even when
+   * they arrive directly on one of its child routes. Accounts' MIS uses this:
+   * the register list is intentionally hidden until MIS is clicked.
+   */
+  closedUntilClicked?: boolean;
 }
 
 /**
@@ -562,7 +568,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * appended to every rail in the app. See IMPORTANT_LINKS_ITEM.
      */
     top: [
-      { href: "/accounts" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/accounts" as Route, label: "Index", Icon: LayoutDashboard, exact: true },
       { href: "/accounts/weekly-checklist" as Route, label: "Weekly CC", Icon: CalendarCheck },
       { href: "/accounts/monthly-quarterly-annual" as Route, label: "Monthly CC", Icon: CalendarRange },
       { href: "/accounts/due-dates" as Route, label: "Due Dates Master", Icon: CalendarClock },
@@ -586,6 +592,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         href: "/accounts/mis" as Route,
         label: "MIS",
         Icon: BarChart3,
+        closedUntilClicked: true,
         children: [
           { href: "/accounts/bank-balance" as Route, label: "Bank Balance Master", Icon: Landmark },
           {
@@ -671,7 +678,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
        * destination as "Outstanding", which is the collections chase rather
        * than the master view — two doors to one ledger, deliberately, the same
        * way Overtime is reachable from both HR and Accounts. */
-      { href: "/billing/outstanding" as Route, label: "Outstanding", Icon: IndianRupee, exact: false },
+      { href: "/billing/outstanding" as Route, label: "Collection Master", Icon: IndianRupee, exact: false },
       { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
     ],
     groups: [],
@@ -1021,16 +1028,18 @@ export function MainNav({
   /**
    * Which disclosures are open.
    *
-   * A key is only present once the user has actually clicked that parent. Until
-   * then the fallback is `isActiveDeep`, so arriving on /accounts/shares-register
-   * from a link or a refresh shows MIS already open with the current page lit,
-   * rather than a collapsed rail that gives no clue where you are.
+   * A key is only present once the user has actually clicked that parent. Most
+   * disclosures open when they contain the current route, but an item may opt
+   * into `closedUntilClicked` when its children must remain out of sight until
+   * the reader explicitly asks for them (Accounts' MIS).
    */
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const defaultExpanded = (item: NavItem): boolean =>
+    item.closedUntilClicked ? false : isActiveDeep(item);
   const isExpanded = (item: NavItem): boolean =>
-    openKeys[navKey(item)] ?? isActiveDeep(item);
+    openKeys[navKey(item)] ?? defaultExpanded(item);
   const toggleExpanded = (item: NavItem) =>
-    setOpenKeys((m) => ({ ...m, [navKey(item)]: !(m[navKey(item)] ?? isActiveDeep(item)) }));
+    setOpenKeys((m) => ({ ...m, [navKey(item)]: !(m[navKey(item)] ?? defaultExpanded(item)) }));
 
   function renderPill(item: NavItem) {
     return (
