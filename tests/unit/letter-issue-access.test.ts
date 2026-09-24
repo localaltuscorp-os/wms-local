@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readdirSync } from "node:fs";
 import { codeOf } from "../fixtures/source-code";
 
 vi.mock("server-only", () => ({}));
@@ -134,16 +135,43 @@ describe("ONE definition, three enforcement points", () => {
 describe("the code list and the database constraint cannot drift", () => {
   it("every DB-backed capability is allowed by the CHECK constraint", () => {
     // A capability stored in the database but rejected by the constraint would
-    // fail the INSERT at runtime, on the one path that matters. Migration 0226
-    // pinned the column to master-admin alone; 0228 widens it.
-    const grants = codeOf("lib/security/capability-grants.ts");
-    const sql = codeOf("db/migrations/0228_letter_issue_capability.sql");
+    // fail the INSERT at runtime, on the one path that matters.
+    //
+    // ── THE CONSTRAINT IS READ FROM WHERE IT LAST STOOD ────────────────────
+    // This used to read `0228_letter_issue_capability.sql` by name, which was
+    // right when 0228 held the newest version of the constraint. It is not a
+    // fixed file: 0226 pinned the column to master-admin alone, 0228 added
+    // `hr.letters.issue`, and 0248 added `dcc.coordinator` — each by DROPPING
+    // and RECREATING the same constraint. So the file that matters is whichever
+    // one touched it LAST, and checking an earlier one would pass on the
+    // strength of a migration the database no longer obeys.
+    //
+    // Adding a capability therefore has to do two things — write a migration
+    // that admits it, and add it to `DB_BACKED_CAPABILITIES` — and forgetting
+    // either fails here rather than in production.
+    const dir = "db/migrations";
+    const owners = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .filter((f) => codeOf(`${dir}/${f}`).includes("capability_grants_capability_chk"));
+    const enforcing = owners.at(-1);
+    expect(enforcing, "a migration must define capability_grants_capability_chk").toBeDefined();
 
+    const sql = codeOf(`${dir}/${enforcing!}`);
+    const allowed = sql.match(/CHECK \(capability IN \(([^)]*)\)\)/)?.[1] ?? "";
+    expect(allowed, `could not read the CHECK list from ${enforcing}`).not.toBe("");
+
+    const grants = codeOf("lib/security/capability-grants.ts");
     const declared = [...grants.matchAll(/"([a-z_]+\.[a-z_]+)"/g)].map((m) => m[1]!);
     const unique = [...new Set(declared)];
     expect(unique.length).toBeGreaterThan(0);
     for (const cap of unique) {
-      expect(sql, `${cap} must be permitted by the CHECK constraint`).toContain(cap);
+      expect(allowed, `${cap} must be permitted by the CHECK constraint in ${enforcing}`).toContain(cap);
+    }
+    // And the other way round: a name the constraint admits but the code never
+    // declares is dead weight the database would accept and nothing would read.
+    for (const cap of allowed.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
+      expect(unique, `${cap[1]} is permitted by ${enforcing} but not declared in the code`).toContain(cap[1]!);
     }
   });
 });

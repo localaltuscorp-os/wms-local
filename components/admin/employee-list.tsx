@@ -39,6 +39,8 @@ interface Props {
   masterAdminIds: string[];
   /** Employee ids holding the narrow `hr.letters.issue` grant. */
   letterIssuerIds: string[];
+  /** Employee ids holding the narrow `dcc.coordinator` grant. */
+  dccCoordinatorIds: string[];
   /** Employee ids on the super-admin allow-list. Computed server-side so the
    *  email allow-list itself never reaches the browser. */
   superAdminIds: string[];
@@ -194,6 +196,7 @@ export function EmployeeList({
   canManageMasterAdmin,
   masterAdminIds,
   letterIssuerIds,
+  dccCoordinatorIds,
   departmentOptions,
   managerOptions,
 }: Props) {
@@ -209,6 +212,10 @@ export function EmployeeList({
   const letterIssuerSet = React.useMemo(
     () => new Set(letterIssuerIds),
     [letterIssuerIds],
+  );
+  const dccCoordinatorSet = React.useMemo(
+    () => new Set(dccCoordinatorIds),
+    [dccCoordinatorIds],
   );
 
   const deptNames = (e: Employee) =>
@@ -230,6 +237,7 @@ export function EmployeeList({
       isAdmin: e.isAdmin,
       isMasterAdmin: masterAdminSet.has(e.id),
       canIssueLetters: letterIssuerSet.has(e.id),
+      canCoordinateDcc: dccCoordinatorSet.has(e.id),
       phone: e.phone,
       whatsappPhone: e.whatsappPhone,
       whatsappOptedIn: e.whatsappOptedIn,
@@ -249,7 +257,11 @@ export function EmployeeList({
       weeklyTargetHours: salaryProfileByEmployee[e.id]?.weeklyTargetHours ?? null,
       monthlyFee: salaryProfileByEmployee[e.id]?.monthlyFee ?? null,
     }),
-    [membershipsByEmployee, salaryProfileByEmployee],
+    // The three capability sets are named here because the callback reads them.
+    // Each is memoised on its own id array, which only changes when the server
+    // sends a new one, so this re-creates the row mapper no more often than the
+    // roster itself changes.
+    [membershipsByEmployee, salaryProfileByEmployee, masterAdminSet, letterIssuerSet, dccCoordinatorSet],
   );
 
   return (

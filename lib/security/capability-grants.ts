@@ -9,26 +9,32 @@ import { emailsWithCapability } from "./capabilities";
 /**
  * CAPABILITIES HELD AS DATA RATHER THAN AS CODE.
  *
- * ── WHY ONLY ONE ───────────────────────────────────────────────────────────
+ * ── WHY SO FEW ─────────────────────────────────────────────────────────────
  * Every other capability in `lib/security/capabilities.ts` is consulted
  * SYNCHRONOUSLY — `isPrivilegedAccount` calls it inside a `.filter()`, and the
  * device guards run inside render paths. Answering those from a table would put
  * a query in the middle of a render and force those call sites async.
  *
- * `master_admin.manage` is different: its guards are a layout, three actions and
- * two roster reads, all already async. So it — and only it — becomes a row.
+ * Only the three below are different, and each is here because every one of its
+ * guards is already async:
+ *
+ *   master_admin.manage — a layout, three actions and two roster reads
+ *   hr.letters.issue    — one page and two route handlers (migration 0228)
+ *   dcc.coordinator     — the WCC / MCC scope loader and one action
+ *                         (migration 0248)
  *
  * `DB_BACKED_CAPABILITIES` is the one list that says which capabilities are read
- * from here. It is mirrored by a CHECK constraint in migration 0226, and a unit
- * test asserts the two agree. Adding a name to it WITHOUT making that
- * capability's guards async would produce the worst possible outcome: a grant
- * row that the application silently ignores, i.e. somebody told they hold a
- * power they do not have.
+ * from here. It is mirrored by a CHECK constraint in migration 0226, widened by
+ * 0228 and 0248, and a unit test asserts the two agree. Adding a name to it
+ * WITHOUT making that capability's guards async would produce the worst possible
+ * outcome: a grant row that the application silently ignores, i.e. somebody told
+ * they hold a power they do not have.
  */
 
 export const DB_BACKED_CAPABILITIES = [
   "master_admin.manage",
   "hr.letters.issue",
+  "dcc.coordinator",
 ] as const;
 export type DbBackedCapability = (typeof DB_BACKED_CAPABILITIES)[number];
 

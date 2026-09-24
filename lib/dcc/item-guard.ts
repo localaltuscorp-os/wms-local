@@ -2,7 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { dccKpiItems, employees, type Employee } from "@/db/schema";
-import { loadDccScope, canManageItemsFor } from "@/lib/dcc/access";
+import { loadComplianceScope, canManageItemsFor } from "@/lib/dcc/access";
 import { checkDccItemDelete } from "@/lib/dcc/item-lock";
 import { isMissingTable, masterDesignationForItem } from "@/lib/dcc/master-sync";
 import { masterLockedMessage } from "@/lib/dcc/master";
@@ -28,7 +28,12 @@ export async function guardItemWrite(itemId: string, me: Employee): Promise<Guar
     .limit(1);
   if (!item) return { ok: false, error: "That compliance no longer exists." };
 
-  const scope = await loadDccScope(me);
+  /* The COORDINATOR scope: the reporting chain, widened to everyone for whoever
+     holds `dcc.coordinator` (lib/dcc/access.ts). Reached from the WCC / MCC
+     board and, through updateDccItem / deleteDccItem, from the DCC Masters
+     person tab — which lists only the reporting chain, so a coordinator finds
+     nobody new to edit there. */
+  const scope = await loadComplianceScope(me);
   if (!canManageItemsFor(scope, item.owner)) {
     return { ok: false, error: "You can't change this person's compliances." };
   }

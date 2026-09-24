@@ -73,6 +73,9 @@ export interface EditableEmployee {
   /** May create, issue and email HR letters WITHOUT being an admin. A row in
    *  `capability_grants`, resolved server-side. */
   canIssueLetters: boolean;
+  /** May see and maintain EVERY employee's WCC and MCC compliances. A row in
+   *  `capability_grants`, resolved server-side. */
+  canCoordinateDcc: boolean;
   phone: string | null;
   whatsappPhone: string | null;
   /** WhatsApp consent — gates whether we may message them at all. */
@@ -200,6 +203,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
   // sparse by construction and must not carry a privilege change.
   const [isMasterAdmin, setIsMasterAdmin] = useState(one?.isMasterAdmin ?? false);
   const [canIssueLetters, setCanIssueLetters] = useState(one?.canIssueLetters ?? false);
+  const [canCoordinateDcc, setCanCoordinateDcc] = useState(one?.canCoordinateDcc ?? false);
   const [waPhone, setWaPhone] = useState(one?.whatsappPhone ?? "");
   const [waOptIn, setWaOptIn] = useState<boolean | null>(
     bulk ? null : (one?.whatsappOptedIn ?? false),
@@ -348,6 +352,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
     if (isAdmin !== e.isAdmin) patch.isAdmin = isAdmin;
     if (isMasterAdmin !== e.isMasterAdmin) patch.isMasterAdmin = isMasterAdmin;
     if (canIssueLetters !== e.canIssueLetters) patch.canIssueLetters = canIssueLetters;
+    if (canCoordinateDcc !== e.canCoordinateDcc) patch.canCoordinateDcc = canCoordinateDcc;
     if ((managerId ?? null) !== (e.managerId ?? null)) patch.managerId = managerId ?? null;
     if (quota !== null && quota !== (e.dailyTaskQuota ?? 3)) patch.dailyTaskQuota = quota;
     const trimmedPhone = waPhone.trim();
@@ -658,6 +663,42 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                             {isAdmin
                               ? "Included with admin access."
                               : "Can create, issue and email HR letters, without managing employees or settings."}
+                          </span>
+                        </span>
+                      </label>
+                    ) : null}
+
+                    {/* ── DCC COORDINATOR ─────────────────────────────────────
+                        The second narrow grant, and the one that unblocks a real
+                        job: WCC and MCC are administrative checklists, so the
+                        person keeping the rosters right is whoever was handed
+                        the work — an HR admin, a coordinator, an intern — and
+                        NOT the manager of the people on the list. Until this
+                        grant existed the only ways to widen a DCC view were the
+                        super-admin list in the code (a deploy) or writing a
+                        reporting line that is not true. Any admin may grant it;
+                        see editEmployee.
+
+                        Deliberately NOT disabled for admins, the way the Issue
+                        letters box above is: admins do not hold this
+                        automatically. A super-admin does not need it, but
+                        ticking it for them is a no-op rather than a trap. */}
+                    {!bulk && one ? (
+                      <label
+                        className="flex items-start gap-2.5 text-[14px] text-ink-soft"
+                        title="See and maintain every employee's WCC and MCC compliances — records their completion, and adds, edits or removes the compliances themselves and sets their Mins."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={canCoordinateDcc}
+                          onChange={(ev) => setCanCoordinateDcc(ev.target.checked)}
+                          className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
+                        />
+                        <span>
+                          DCC Coordinator
+                          <span className="block text-[12px] text-ink-subtle">
+                            Works on everyone&apos;s WCC and MCC. Does not include
+                            approving them, and closed days still lock.
                           </span>
                         </span>
                       </label>
