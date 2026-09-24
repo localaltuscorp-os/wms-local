@@ -2,7 +2,7 @@ import {
   FINE_BUCKET_OFFSETS,
   type FineBucketKey,
 } from "@/lib/transforms/aging-buckets-fine";
-import { and, eq, gte, inArray, isNotNull, lt, or, asc, desc, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, or, asc, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { unstable_cache } from "next/cache";
 import { db, employees, tasks, taskTimeRollup } from "@/lib/db";
@@ -216,6 +216,16 @@ function statusFilterCondition(statuses: TaskStatus[]) {
   return or(byStatus, inArray(tasks.approvalStatus, verdicts as ApprovalStatus[]));
 }
 
+function initiatorStatusFilterCondition(statuses: string[] | undefined) {
+  if (!statuses?.length) return undefined;
+  const conditions = [];
+  const verdicts = statuses.filter((status) => APPROVAL_VERDICTS.has(status as TaskStatus));
+  if (verdicts.length) conditions.push(inArray(tasks.approvalStatus, verdicts as ApprovalStatus[]));
+  if (statuses.includes("pending")) conditions.push(isNull(tasks.approvalStatus));
+  if (statuses.includes("not_applicable")) conditions.push(and(eq(tasks.initiatorId, tasks.doerId), isNull(tasks.approvalStatus)));
+  return conditions.length === 1 ? conditions[0] : or(...conditions);
+}
+
 /**
  * THE VISIBILITY CEILING, as a condition.
  *
@@ -248,6 +258,8 @@ async function listTasksUncached(filters: TaskListFilters): Promise<TaskListRow[
     conditions.push(lt(tasks.createdAt, new Date(filters.endDate.getTime() + MS_PER_DAY)));
   const statusCond = statusFilterCondition(filters.statuses);
   if (statusCond)                    conditions.push(statusCond);
+  const initiatorStatusCond = initiatorStatusFilterCondition(filters.initiatorStatuses);
+  if (initiatorStatusCond)           conditions.push(initiatorStatusCond);
   if (filters.doerIds.length > 0)    conditions.push(inArray(tasks.doerId, filters.doerIds));
   if (filters.initiatorIds.length > 0)
     conditions.push(inArray(tasks.initiatorId, filters.initiatorIds));
@@ -507,6 +519,8 @@ async function listTasksPageUncached(
     conditions.push(lt(tasks.createdAt, new Date(filters.endDate.getTime() + MS_PER_DAY)));
   const statusCond = statusFilterCondition(filters.statuses);
   if (statusCond) conditions.push(statusCond);
+  const initiatorStatusCond = initiatorStatusFilterCondition(filters.initiatorStatuses);
+  if (initiatorStatusCond) conditions.push(initiatorStatusCond);
   if (filters.doerIds.length > 0) conditions.push(inArray(tasks.doerId, filters.doerIds));
   if (filters.initiatorIds.length > 0)
     conditions.push(inArray(tasks.initiatorId, filters.initiatorIds));
@@ -691,6 +705,8 @@ async function listBoardTasksUncached(filters?: TaskListFilters): Promise<BoardT
       conditions.push(lt(tasks.createdAt, new Date(filters.endDate.getTime() + MS_PER_DAY)));
     const statusCond = statusFilterCondition(filters.statuses);
     if (statusCond) conditions.push(statusCond);
+    const initiatorStatusCond = initiatorStatusFilterCondition(filters.initiatorStatuses);
+    if (initiatorStatusCond) conditions.push(initiatorStatusCond);
     if (filters.doerIds.length > 0) conditions.push(inArray(tasks.doerId, filters.doerIds));
     if (filters.initiatorIds.length > 0)
       conditions.push(inArray(tasks.initiatorId, filters.initiatorIds));
@@ -853,6 +869,8 @@ export async function listTasksForExport(
     conditions.push(lt(tasks.createdAt, new Date(filters.endDate.getTime() + MS_PER_DAY)));
   const statusCond = statusFilterCondition(filters.statuses);
   if (statusCond)                    conditions.push(statusCond);
+  const initiatorStatusCond = initiatorStatusFilterCondition(filters.initiatorStatuses);
+  if (initiatorStatusCond)           conditions.push(initiatorStatusCond);
   if (filters.doerIds.length > 0)    conditions.push(inArray(tasks.doerId, filters.doerIds));
   if (filters.initiatorIds.length > 0)
     conditions.push(inArray(tasks.initiatorId, filters.initiatorIds));

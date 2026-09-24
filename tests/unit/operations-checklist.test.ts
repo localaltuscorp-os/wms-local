@@ -162,8 +162,8 @@ describe("parseOffset", () => {
 
 describe("formatting", () => {
   it("writes dates the way the business does", () => {
-    expect(formatDMY("2026-03-14")).toBe("14/03/2026");
-    expect(formatDMY("2026-01-02")).toBe("02/01/2026");
+    expect(formatDMY("2026-03-14")).toBe("14-Mar-2026");
+    expect(formatDMY("2026-01-02")).toBe("02-Jan-2026");
     expect(formatDMY(null)).toBe("—");
   });
 

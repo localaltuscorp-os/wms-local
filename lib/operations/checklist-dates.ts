@@ -153,8 +153,8 @@ export function formatDMY(ymd: string | null | undefined): string {
   const p = parseYmd(ymd);
   if (!p) return "—";
   const dd = String(p.d).padStart(2, "0");
-  const mm = String(p.m).padStart(2, "0");
-  return `${dd}/${mm}/${p.y}`;
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][p.m - 1];
+  return month ? `${dd}-${month}-${p.y}` : "—";
 }
 
 /** Sunday is the default weekly off, so a target landing there gets badged. */

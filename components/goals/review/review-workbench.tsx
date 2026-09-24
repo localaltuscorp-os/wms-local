@@ -808,15 +808,14 @@ function EmptyLevel({ level, counts, onSwitch, fyStartYear }: {
 type ReviewOverviewFilter = "all" | "selfComplete" | "pending" | "awaitingApproval" | "reviewed" | "inProgress" | "notStarted";
 
 function ReviewOverview({
-  data,
+  items,
   activeFilter,
   onFilterChange,
 }: {
-  data: ReviewData;
+  items: ReviewItem[];
   activeFilter: ReviewOverviewFilter;
   onFilterChange: (filter: ReviewOverviewFilter) => void;
 }) {
-  const items = Object.values(data.levels).flat();
   const reviewed = items.filter((item) => item.approvable && item.acceptPct != null).length;
   const awaitingApproval = items.filter((item) => item.approvable && item.acceptPct == null && item.pctDone > 0).length;
   const selfComplete = items.filter((item) => item.pctDone >= 100).length;
@@ -959,7 +958,7 @@ export function ReviewWorkbench({
         <div className="min-w-0 max-w-full">{compactTabs}</div>
       </header>
       <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto">
-        <ReviewOverview data={data} activeFilter={overviewFilter} onFilterChange={setOverviewFilter} />
+        <ReviewOverview items={items} activeFilter={overviewFilter} onFilterChange={setOverviewFilter} />
         <button
           type="button"
           onClick={() => setFullscreen((value) => !value)}
@@ -1137,7 +1136,9 @@ export function ReviewWorkbench({
             )}
             <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">{headerControls}</div>
             <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">
-                <span className="font-semibold">Showing {firstRow}–{lastRow} of {orderedItems.length}</span>
+                <span className="font-semibold">
+                  Showing {pagedItems.length} {pagedItems.length === 1 ? "row" : "rows"} · {firstRow}–{lastRow} of {orderedItems.length}
+                </span>
                 <label className="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface-card px-2 font-semibold">
                   <span className="sr-only">Rows per page</span>
                   <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="bg-transparent font-bold text-ink-strong outline-none" aria-label="Rows per page">

@@ -437,6 +437,8 @@ export interface TaskListFilters {
   startDate: Date | null;
   endDate: Date | null;
   statuses: TaskStatus[];
+  /** Initiator/approver decisions, stored separately from the doer's task status. */
+  initiatorStatuses?: string[];
   doerIds: string[];
   initiatorIds: string[];
   departments: Department[];

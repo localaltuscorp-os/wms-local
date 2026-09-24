@@ -61,6 +61,9 @@ export function parseTaskFilters(
   const statuses = rawStatuses.filter((s): s is TaskStatus =>
     STATUS_SET.has(s as TaskStatus),
   );
+  const initiatorStatuses = split(get("initiator_status")).filter((s) =>
+    ["not_applicable", "pending", "approved", "not_approved", "on_hold", "archived", "cancelled"].includes(s),
+  );
   // "archived" is a pseudo-status chip in the filter: it isn't a real
   // `tasks.status` value (archived lives on its own boolean column), so
   // selecting it flips the list to show archived tasks. Any real status chips
@@ -116,6 +119,7 @@ export function parseTaskFilters(
     startDate: parseDate(get("start")) ?? DEFAULT_START,
     endDate: parseDate(get("end")) ?? todayUtcMidnight(),
     statuses,
+    initiatorStatuses,
     doerIds,
     initiatorIds: split(get("initiator") ?? get("manager")),
     departments,
@@ -149,6 +153,7 @@ export function taskFiltersToSearchString(f: TaskListFilters): string {
   if (f.startDate) sp.set("start", f.startDate.toISOString().slice(0, 10));
   if (f.endDate)   sp.set("end",   f.endDate.toISOString().slice(0, 10));
   if (f.statuses.length > 0)     sp.set("status", f.statuses.join(","));
+  if (f.initiatorStatuses?.length) sp.set("initiator_status", f.initiatorStatuses.join(","));
   // Round-trip the assignee selector. "default" intentionally omits the param
   // so re-parsing (without a defaultDoerId) resolves to "all"; the page-level
   // defaulting handles the non-admin scoping at the call site.

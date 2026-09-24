@@ -708,7 +708,8 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // Projects because it is the only item that answers "what is in this
       // plan?" without a click. The five level items below it slice the same
       // rows by level once you know which branch you want.
-      { href: "/project-plan/views" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/project-plan/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/project-plan/views" as Route, label: "Project Views", Icon: FolderTree, exact: true },
       { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
       { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
       { href: "/project-plan/results" as Route, label: "Results", Icon: Target },

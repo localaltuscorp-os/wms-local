@@ -310,6 +310,8 @@ export function WeeklyCascadeBoard({
   const [sortKey, setSortKey] = React.useState<SortKey>("position");
   const [areaFilter, setAreaFilter] = React.useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = React.useState<Set<string>>(new Set());
+  const [doerStatusFilter, setDoerStatusFilter] = React.useState<Set<string>>(new Set());
+  const [initiatorStatusFilter, setInitiatorStatusFilter] = React.useState<Set<string>>(new Set());
   const [rowsPerPage, setRowsPerPage] = React.useState<number | "all">(25);
   const [visibleCols, setVisibleCols] = React.useState<Set<string>>(() => new Set(ALL_VISIBLE_COLS));
   const [colOrder, setColOrder] = useColOrder();
@@ -334,9 +336,12 @@ export function WeeklyCascadeBoard({
       }
       if (areaFilter.size > 0 && !areaFilter.has(g.area ?? "")) return false;
       if (typeFilter.size > 0 && !typeFilter.has(goalTypeLabel(g))) return false;
+      if (doerStatusFilter.size > 0 && !doerStatusFilter.has(g.status ?? "not_started")) return false;
+      const initiatorStatus = g.approvalStatus ?? "pending";
+      if (initiatorStatusFilter.size > 0 && !initiatorStatusFilter.has(initiatorStatus)) return false;
       return true;
     },
-    [completion, areaFilter, typeFilter, goalTypeLabel],
+    [completion, areaFilter, typeFilter, doerStatusFilter, initiatorStatusFilter, goalTypeLabel],
   );
 
   // Sort comparator — mirrors the level boards' (Sr. No. / Score /
@@ -509,6 +514,19 @@ export function WeeklyCascadeBoard({
               myEmployeeId={me.id}
             />
           )}
+
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={displayed.length === 0}
+            aria-label="Export visible goals to CSV"
+            className={`inline-flex shrink-0 items-center gap-1.5 h-9 px-3 rounded-pill text-[12px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
+          >
+            <Download size={13} strokeWidth={2.4} /> Export
+          </button>
+          <div className="shrink-0">
+            <WeeklyGoalsImport employeeId={scopeEmp} weekStart={weekStart} weekLabel={weekLabel} isAdmin={me.isAdmin} />
+          </div>
         </div>
       </div>
 
@@ -518,7 +536,7 @@ export function WeeklyCascadeBoard({
           order as the Yearly/Quarterly/Monthly toolbar. Add Goal now lives in
           the row above, right after the week selector. ── */}
       <div
-        className="wg-rise mb-3 flex flex-wrap items-center gap-1 rounded-section border border-hairline px-2.5 py-1.5 max-md:px-2.5"
+        className="wg-rise mb-3 flex flex-nowrap items-center gap-1 overflow-x-auto rounded-section border border-hairline px-2 py-1.5 max-md:px-2"
         style={{
           background: "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
           backdropFilter: "blur(14px) saturate(140%)",
@@ -630,6 +648,8 @@ export function WeeklyCascadeBoard({
 
             <MultiPickFilter label="Areas" options={areaFilterOptions} selected={areaFilter} onChange={setAreaFilter} compact />
             <MultiPickFilter label="Types" options={QUARTER_TYPE_OPTIONS} selected={typeFilter} onChange={setTypeFilter} compact />
+            <MultiPickFilter label="Doer Status" options={["Not Read", "Not Started", "Initiated", "Follow Up", "Need Info", "Done", "Abandoned"]} selected={new Set([...doerStatusFilter].map((status) => ({ not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" })[status] ?? status))} onChange={(labels) => setDoerStatusFilter(new Set(Object.entries({ not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" }).filter(([, label]) => labels.has(label)).map(([status]) => status)))} compact />
+            <MultiPickFilter label="Initiator Status" options={["Not Applicable", "Pending", "Approved", "Not Approved", "On Hold", "Archived", "Cancelled"]} selected={new Set([...initiatorStatusFilter].map((status) => ({ not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" })[status] ?? status))} onChange={(labels) => setInitiatorStatusFilter(new Set(Object.entries({ not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" }).filter(([, label]) => labels.has(label)).map(([status]) => status)))} compact />
 
             <div className="inline-flex h-7 shrink-0 items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
               <span className="text-[11px] font-semibold text-ink-subtle">Rows</span>
@@ -656,27 +676,10 @@ export function WeeklyCascadeBoard({
               compact
             />
 
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={displayed.length === 0}
-              aria-label="Export visible goals to CSV"
-              className={`inline-flex shrink-0 items-center gap-1 h-7 px-2 rounded-pill text-[11px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
-            >
-              <Download size={11} strokeWidth={2.4} /> Export
-            </button>
           </>
         )}
 
         {/* Bulk upload — the weekly cascade engine's own bulk file import. */}
-        <div className="shrink-0">
-          <WeeklyGoalsImport
-            employeeId={scopeEmp}
-            weekStart={weekStart}
-            weekLabel={weekLabel}
-            isAdmin={me.isAdmin}
-          />
-        </div>
       </div>
 
       {/* Body — analytics dashboard, classic list, or the drag-to-plan Kanban */}

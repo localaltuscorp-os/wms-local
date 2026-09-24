@@ -38,6 +38,7 @@ import { PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { TaskTimerCell } from "@/components/tasks/task-timer-cell";
+import { MultiSelect } from "@/components/ui/multi-select";
 import type { PlanRow } from "./plan-board";
 
 /**
@@ -184,7 +185,7 @@ export function ProjectViews({
     [tree, initialSelection],
   );
 
-  const [rootId, setRootId] = React.useState<string | null>(arriving.projectId);
+  const [rootIds, setRootIds] = React.useState<string[]>(arriving.projectId ? [arriving.projectId] : []);
   const [query, setQuery] = React.useState("");
   const [expanded, setExpanded] = React.useState<Set<string>>(() =>
     // Nothing named in the URL? Open the projects themselves, so the screen
@@ -195,8 +196,8 @@ export function ProjectViews({
   );
 
   const rows = React.useMemo(
-    () => flattenPlanTree(tree, expanded, { rootId, query }),
-    [tree, expanded, rootId, query],
+    () => flattenPlanTree(rootIds.length > 0 ? tree.filter((project) => rootIds.includes(project.id)) : tree, expanded, { query }),
+    [tree, expanded, rootIds, query],
   );
 
   // Recomputed as rows open and close: expand down to an Action and the Start /
@@ -219,22 +220,21 @@ export function ProjectViews({
 
   /** Keep the project filter in the URL — it is the one piece of this screen's
    *  state worth sharing, and `replaceState` avoids a refetch of rows we hold. */
-  function pickProject(id: string) {
-    const next = id || null;
-    setRootId(next);
-    if (next) setExpanded((prev) => new Set(prev).add(next));
-    window.history.replaceState(null, "", next ? `?project=${next}` : window.location.pathname);
+  function pickProject(ids: string[]) {
+    setRootIds(ids);
+    if (ids.length === 1) setExpanded((prev) => new Set(prev).add(ids[0]!));
+    window.history.replaceState(null, "", ids.length === 1 ? `?project=${ids[0]!}` : window.location.pathname);
   }
 
   /** Open the real WMS task record for an executable row. */
   function openTask(taskId: string) {
     const q = new URLSearchParams();
-    if (rootId) q.set("project", rootId);
+    if (rootIds.length === 1) q.set("project", rootIds[0]!);
     q.set("task", taskId);
     router.push(`/project-plan/views?${q.toString()}` as Route);
   }
 
-  const project = rootId ? projects.find((p) => p.id === rootId) ?? null : null;
+  const project = rootIds.length === 1 ? projects.find((p) => p.id === rootIds[0]) ?? null : null;
   const scope = React.useMemo(
     () => (project ? [project] : tree),
     [project, tree],
@@ -278,20 +278,13 @@ export function ProjectViews({
             )}
           </label>
 
-          <select
-            value={rootId ?? ""}
-            onChange={(e) => pickProject(e.target.value)}
-            aria-label="Filter by project"
+          <MultiSelect
+            selected={rootIds}
+            onChange={pickProject}
+            placeholder="All projects"
+            options={projects.map((p, i) => ({ value: p.id, label: `P${i + 1} · ${p.name}` }))}
             className="min-w-[200px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13.5px] font-bold text-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-altus-red/30"
-          >
-            <option value="">All projects</option>
-            {projects.map((p, i) => (
-              <option key={p.id} value={p.id}>
-                P{i + 1} · {p.name}
-              </option>
-            ))}
-          </select>
-
+          />
           <button
             type="button"
             onClick={() => setExpanded(new Set(expandableIds(scope)))}
