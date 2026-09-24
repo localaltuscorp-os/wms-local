@@ -156,6 +156,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
           expandable: Boolean(visibility?.canExpand),
           label: visibility?.scopeLabel ?? "Only you",
         }}
+        // The page opens on the signed-in person's work. Keep that baseline
+        // implicit in the filter bar: "Only Me" is the default view, not an
+        // active person filter. Selecting anyone else still uses the same
+        // multi-select and appears in the active-filter row.
+        offersScopeChoice
+        // The Assignee multi-select already offers every permitted person and
+        // All employees, so a second My Tasks / All Tasks switch is redundant.
+        hideScopeToggle
         assigneeMode={filters.assigneeMode}
         taskCount={rows.length}
         initial={{

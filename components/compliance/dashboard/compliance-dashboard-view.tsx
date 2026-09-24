@@ -9,7 +9,6 @@ import {
   BarChart3,
   CalendarCheck2,
   CalendarRange,
-  CircleSlash,
   Clock,
   Gauge,
   ListChecks,
@@ -57,7 +56,7 @@ import type {
 
 type SortKey = keyof Pick<
   CompliancePersonRow,
-  "ownerName" | "due" | "done" | "onTime" | "late" | "notFilled" | "carried" | "lapsed" | "ratePct"
+  "ownerName" | "due" | "done" | "onTime" | "late" | "carried" | "lapsed" | "ratePct"
 >;
 
 /**
@@ -69,7 +68,6 @@ type SortKey = keyof Pick<
  * which is the darkness that holds up as a fill.
  */
 const STATUS_FILL: Record<string, string> = {
-  unfilled: "var(--color-altus-red)",
   done: "#15803D",
   abandoned: "var(--color-altus-red)",
   need_info: "var(--color-altus-red)",
@@ -182,7 +180,6 @@ export function ComplianceDashboardView({
       { label: "Due", align: "right" },
       { label: "Done", align: "right" },
       { label: "On time", align: "right" },
-      { label: "Not filled", align: "right", tone: "count" },
       { label: "Lapsed", align: "right", tone: "count" },
       { label: "Rate", align: "right" },
     ],
@@ -191,7 +188,6 @@ export function ComplianceDashboardView({
       String(person.due),
       String(person.done),
       String(person.onTime),
-      String(person.notFilled),
       String(person.lapsed),
       `${person.ratePct}%`,
     ]),
@@ -254,14 +250,6 @@ export function ComplianceDashboardView({
           icon={<CalendarRange size={15} strokeWidth={2.4} />}
         />
         <Kpi
-          cardKey="pending"
-          label="Not Filled"
-          href={go("none")}
-          value={k.notFilled.toLocaleString("en-IN")}
-          sub={`${k.abandoned.toLocaleString("en-IN")} abandoned`}
-          icon={<CircleSlash size={15} strokeWidth={2.4} />}
-        />
-        <Kpi
           cardKey="notStarted"
           label="Lapsed"
           href={go("lapsed")}
@@ -297,10 +285,7 @@ export function ComplianceDashboardView({
                 // than its label — "Not Filled" is the chip `none`.
                 const slice = data.status.find((x) => x.label === bar.label);
                 if (!slice) return;
-                const href = drillHref(
-                  slice.status === "unfilled" ? "none" : (slice.status as KpiDrill),
-                  who,
-                );
+                const href = drillHref(slice.status as KpiDrill, who);
                 if (href) router.push(href as Route);
               }}
             />
@@ -431,9 +416,6 @@ export function ComplianceDashboardView({
                 <Th onClick={() => toggleSort("late")} active={sort.key === "late"} dir={sort.dir} align="right">
                   Late
                 </Th>
-                <Th onClick={() => toggleSort("notFilled")} active={sort.key === "notFilled"} dir={sort.dir} align="right">
-                  Not Filled
-                </Th>
                 <Th onClick={() => toggleSort("carried")} active={sort.key === "carried"} dir={sort.dir} align="right">
                   Carried
                 </Th>
@@ -448,7 +430,7 @@ export function ComplianceDashboardView({
             <tbody>
               {people.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-[13px] text-ink-muted">
+                  <td colSpan={8} className="px-4 py-10 text-center text-[13px] text-ink-muted">
                     {/* "Nobody matched" and "nothing was due" are different facts,
                         and saying "no data" for a typo teaches distrust. */}
                     {query.trim()
@@ -472,7 +454,6 @@ export function ComplianceDashboardView({
                   <Td>{p.done}</Td>
                   <Td>{p.onTime}</Td>
                   <Td tone={p.late > 0 ? "warn" : undefined}>{p.late}</Td>
-                  <Td tone={p.notFilled > 0 ? "warn" : undefined}>{p.notFilled}</Td>
                   <Td tone={p.carried > 0 ? "warn" : undefined}>{p.carried}</Td>
                   <Td tone={p.lapsed > 0 ? "bad" : undefined}>{p.lapsed}</Td>
                   <td className="px-4 py-2.5 text-right">

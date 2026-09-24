@@ -195,7 +195,7 @@ export { isClosed };
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export interface StatusSlice {
-  status: DoerStatus | "unfilled";
+  status: DoerStatus;
   label: string;
   count: number;
 }
@@ -211,14 +211,12 @@ export interface StatusSlice {
  */
 export function statusBreakdown(rows: readonly ComplianceRow[]): StatusSlice[] {
   const counts = new Map<string, number>();
-  let unfilled = 0;
   for (const row of rows) {
     if (!isDue(row)) continue;
-    if (row.doerStatus === null) unfilled += 1;
-    else counts.set(row.doerStatus, (counts.get(row.doerStatus) ?? 0) + 1);
+    const status = row.doerStatus ?? "dont_know";
+    counts.set(status, (counts.get(status) ?? 0) + 1);
   }
   const out: StatusSlice[] = [];
-  if (unfilled > 0) out.push({ status: "unfilled", label: "Not Filled", count: unfilled });
   for (const st of DOER_STATUSES) {
     const n = counts.get(st) ?? 0;
     if (n > 0) out.push({ status: st, label: doerLabel(st), count: n });
@@ -332,7 +330,7 @@ export function byFrequency(rows: readonly ComplianceRow[]): FrequencyRow[] {
  * would land the reader on 450 rows after clicking a tile that said 389, and a
  * dashboard that does that once is not trusted again.
  */
-export type KpiDrill = "all" | "none" | "carried" | "lapsed" | "done" | null;
+export type KpiDrill = "all" | "carried" | "lapsed" | "done" | DoerStatus | null;
 
 /**
  * Where a tile's link goes: the WCC board, filtered.

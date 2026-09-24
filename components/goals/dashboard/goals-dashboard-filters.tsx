@@ -45,6 +45,7 @@ function isWholeMonth(range: { from: string; to: string }) {
 function modeForRange(range: { from: string; to: string }, fyRange: { from: string; to: string }): CalendarMode {
   if (range.from === fyRange.from && range.to === fyRange.to) return "year";
   if (isWholeMonth(range)) return "month";
+  if (range.from !== range.to) return "range";
   return "day";
 }
 
@@ -122,9 +123,19 @@ export function GoalsDashboardFilters({
     if (!draftRange?.from || !draftRange.to) return;
     const from = format(draftRange.from, "yyyy-MM-dd");
     const to = format(draftRange.to, "yyyy-MM-dd");
+    if (from > to) return;
     setCalendarMonth(draftRange.from);
     setDateOpen(false);
     go({ from, to, fy: fiscalYearOf(draftRange.from) });
+  };
+
+  const setRangeDate = (edge: "from" | "to", value: string) => {
+    if (!value) return;
+    const date = asDate(value);
+    setDraftRange((current) => ({
+      from: edge === "from" ? date : (current?.from ?? date),
+      to: edge === "to" ? date : (current?.to ?? date),
+    }));
   };
 
   const applyMonth = () => {
@@ -163,6 +174,12 @@ export function GoalsDashboardFilters({
 
   const selectedDay = range.from === range.to ? asDate(range.from) : undefined;
   const yearOptions = Array.from({ length: 8 }, (_, offset) => fyStartYear - 3 + offset);
+  const calendarClassNames = {
+    root: "w-full",
+    months: "w-full",
+    month: "w-full",
+    month_grid: "w-full",
+  };
 
   return (
     <PageShell as="div" width="full" py={false} className="flex flex-wrap items-center gap-2 py-2">
@@ -193,7 +210,7 @@ export function GoalsDashboardFilters({
             align="start"
             sideOffset={10}
             collisionPadding={12}
-            className="slim-scroll z-[100] w-[330px] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-chip border border-hairline-strong bg-surface-card p-3"
+            className="slim-scroll z-[100] w-[min(460px,calc(100vw-24px))] max-w-[var(--radix-popover-content-available-width)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-chip border border-hairline-strong bg-surface-card p-4"
             style={{ boxShadow: "0 16px 40px rgba(15, 23, 42, 0.14)" }}
           >
             <div className="mb-3 grid grid-cols-4 rounded-lg bg-slate-100 p-1" aria-label="Calendar selection mode">
@@ -224,41 +241,47 @@ export function GoalsDashboardFilters({
                   endMonth={asDate(`${fyStartYear + 4}-03-01`)}
                   showOutsideDays
                   weekStartsOn={1}
+                  classNames={calendarClassNames}
                 />
               </>
             )}
 
             {calendarMode === "range" && (
-              <div>
-                <p className="mb-2 text-[12px] font-semibold text-ink-subtle">Choose a start and end date, then apply the range.</p>
-                <DayPicker
-                  mode="range"
-                  selected={draftRange}
-                  month={calendarMonth}
-                  onMonthChange={setCalendarMonth}
-                  onSelect={setDraftRange}
-                  captionLayout="dropdown"
-                  navLayout="after"
-                  startMonth={asDate(`${fyStartYear - 3}-04-01`)}
-                  endMonth={asDate(`${fyStartYear + 4}-03-01`)}
-                  showOutsideDays
-                  weekStartsOn={1}
-                />
-                <div className="mt-2 flex items-center justify-between gap-2 border-t border-hairline pt-2">
-                  <span className="min-w-0 truncate text-[11.5px] font-semibold text-ink-subtle">
+              <div className="space-y-3">
+                <p className="text-[12px] font-semibold text-ink-subtle">Choose the exact start and end dates for this dashboard view.</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
+                    Start date
+                    <input
+                      type="date"
+                      value={draftRange?.from ? format(draftRange.from, "yyyy-MM-dd") : ""}
+                      onChange={(event) => setRangeDate("from", event.target.value)}
+                      className="mt-1 block h-10 w-full rounded-lg border border-hairline-strong bg-white px-3 text-[13px] font-bold text-ink-strong outline-none focus:border-altus-red"
+                    />
+                  </label>
+                  <label className="block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
+                    End date
+                    <input
+                      type="date"
+                      value={draftRange?.to ? format(draftRange.to, "yyyy-MM-dd") : ""}
+                      onChange={(event) => setRangeDate("to", event.target.value)}
+                      className="mt-1 block h-10 w-full rounded-lg border border-hairline-strong bg-white px-3 text-[13px] font-bold text-ink-strong outline-none focus:border-altus-red"
+                    />
+                  </label>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-hairline pt-3">
+                  <span className="min-w-0 text-[11.5px] font-semibold text-ink-subtle">
                     {draftRange?.from && draftRange.to
-                      ? `${format(draftRange.from, "dd MMM yyyy")} – ${format(draftRange.to, "dd MMM yyyy")}`
-                      : draftRange?.from
-                        ? `${format(draftRange.from, "dd MMM yyyy")} — choose an end date`
-                        : "Select a range"}
+                      ? `${format(draftRange.from, "dd MMM yyyy")} to ${format(draftRange.to, "dd MMM yyyy")}`
+                      : "Choose both dates"}
                   </span>
                   <button
                     type="button"
                     onClick={applyRange}
-                    disabled={!draftRange?.from || !draftRange.to}
-                    className="shrink-0 rounded-lg bg-altus-red px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+                    disabled={!draftRange?.from || !draftRange.to || draftRange.from > draftRange.to}
+                    className="shrink-0 rounded-lg bg-altus-red px-4 py-2 text-[12px] font-bold text-white transition hover:bg-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
                   >
-                    Apply
+                    Apply range
                   </button>
                 </div>
               </div>

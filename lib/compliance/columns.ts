@@ -80,7 +80,10 @@ export const COLUMNS: Record<ColKey, ColumnDef> = {
   compliance: { key: "compliance", width: 330, sortable: true, movable: true, sortKind: "text" },
   // WCC's — "Mon, Tue, Wed, Thu & Fri" on one line. MCC's is narrower: columnDef.
   frequency: { key: "frequency", width: 215, sortable: true, movable: true, sortKind: "text" },
-  deadline: { key: "deadline", width: 150, sortable: true, movable: true, sortKind: "date", hint: "The day it is due, shown as DD-MMM-YYYY." },
+  // WCC is grouped by day and shows Mins in this slot; only MCC needs a
+  // separate due-date column. Keeping the constraint on the definition means
+  // saved column orders cannot accidentally restore Deadline on WCC.
+  deadline: { key: "deadline", width: 150, sortable: true, movable: true, only: "mcc", sortKind: "date", hint: "The day it is due, shown as DD-MMM-YYYY." },
   mins: {
     key: "mins",
     width: 120,
@@ -235,15 +238,14 @@ export function visibleColumns(order: readonly ColKey[], multiPerson: boolean, k
 /* ── Sorting ─────────────────────────────────────────────────────────────── */
 
 /** Outstanding first: not filled, then the WMS statuses up to Done, then Abandoned. */
-const DOER_RANK: Record<DoerStatus | "none", number> = {
-  none: 0,
-  dont_know: 1,
-  not_started: 2,
-  need_info: 3,
-  follow_up: 4,
-  initiated: 5,
-  done: 6,
-  abandoned: 7,
+const DOER_RANK: Record<DoerStatus, number> = {
+  dont_know: 0,
+  not_started: 1,
+  need_info: 2,
+  follow_up: 3,
+  initiated: 4,
+  done: 5,
+  abandoned: 6,
 };
 
 function valueOf(r: ComplianceRow, key: ColKey): string | number | null {
@@ -260,7 +262,7 @@ function valueOf(r: ComplianceRow, key: ColKey): string | number | null {
     case "mins":
       return r.minutes;
     case "doerStatus":
-      return DOER_RANK[r.doerStatus ?? "none"];
+      return DOER_RANK[r.doerStatus ?? "dont_know"];
     case "qty":
       // Share of the target reached, so the shortest fall first; nothing
       // recorded (or nothing to count) sorts with the blanks.

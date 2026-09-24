@@ -10,6 +10,12 @@ import {
   Search,
   ChevronsDownUp,
   ChevronsUpDown,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  ListTree,
+  TrendingUp,
+  Paperclip,
   X,
 } from "lucide-react";
 import {
@@ -34,11 +40,10 @@ import {
   type ViewSelection,
   type TreeRow,
 } from "@/lib/project-plan/views";
-import { PlanStatusCell, planActorFor } from "./plan-status-cell";
-import { PlanProgressCell } from "./plan-progress-cell";
-import { PlanAttachmentCell } from "./plan-attachment-cell";
-import { TaskTimerCell } from "@/components/tasks/task-timer-cell";
+import { CollapseToggle, CollapsibleBody } from "@/components/dashboard/section-chrome";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import type { PlanRow } from "./plan-board";
+import { effectivePlanStatus, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, type PlanStatus } from "@/lib/project-plan/status";
 
 /**
  * PROJECT VIEWS — the whole plan as ONE indented tree.
@@ -125,6 +130,45 @@ const COLUMN_SPEC = [
 ] as const;
 
 type ColumnKey = (typeof COLUMN_SPEC)[number]["key"];
+type TreeSort = { key: ColumnKey; direction: "asc" | "desc" } | null;
+
+function nodeStatus(node: PlanRow): PlanStatus {
+  return effectivePlanStatus(node.status, node.approvalStatus, false);
+}
+
+function allPlanRows(nodes: PlanRow[]): PlanRow[] {
+  return nodes.flatMap((node) => [node, ...allPlanRows(node.children)]);
+}
+
+function sortValue(node: PlanRow, key: ColumnKey, attachmentCounts: Record<string, number>): string | number {
+  switch (key) {
+    case "name": return node.name;
+    case "status": return PLAN_STATUS_LABEL[nodeStatus(node)];
+    case "target": return node.targetDate ?? "";
+    case "start": return node.startsAt ?? "";
+    case "end": return node.endsAt ?? "";
+    case "progress": return toPercent(nodeFraction(node));
+    case "children": return node.children.length;
+    case "files": return attachmentCounts[node.id] ?? 0;
+    case "task": return node.task?.statusLabel ?? "";
+  }
+}
+
+/** Sort every sibling set, preserving the tree relationship while ordering rows. */
+function sortPlanTree(nodes: PlanRow[], sort: TreeSort, attachmentCounts: Record<string, number>): PlanRow[] {
+  const nested = nodes.map((node) => ({
+    ...node,
+    children: sortPlanTree(node.children, sort, attachmentCounts),
+  }));
+  if (!sort) return nested;
+  const direction = sort.direction === "asc" ? 1 : -1;
+  return nested.sort((left, right) => {
+    const a = sortValue(left, sort.key, attachmentCounts);
+    const b = sortValue(right, sort.key, attachmentCounts);
+    if (typeof a === "number" && typeof b === "number") return (a - b) * direction;
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" }) * direction;
+  });
+}
 
 /**
  * Which columns the rows on screen can actually fill.
@@ -158,8 +202,6 @@ export function ProjectViews({
   tree,
   initialSelection,
   attachmentCounts,
-  me,
-  downline,
 }: {
   /** The whole plan — the same tree the board and registers receive. */
   tree: PlanRow[];
@@ -168,13 +210,9 @@ export function ProjectViews({
   initialSelection: ViewSelection;
   /** nodeId → attached file count, batched by the server in one query. */
   attachmentCounts: Record<string, number>;
-  me: { id: string; isAdmin: boolean };
-  downline: string[];
 }) {
   const router = useRouter();
 
-  const downlineSet = React.useMemo(() => new Set(downline), [downline]);
-  const projects = React.useMemo(() => tree.filter((n) => n.kind === "project"), [tree]);
 
   // The arriving URL is resolved against the REAL tree first, so a bookmark
   // naming a milestone that has since moved opens the project and stops there
@@ -186,28 +224,54 @@ export function ProjectViews({
 
   const [rootId, setRootId] = React.useState<string | null>(arriving.projectId);
   const [query, setQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<PlanStatus | "all">("all");
+  const [sort, setSort] = React.useState<TreeSort>(null);
   const [expanded, setExpanded] = React.useState<Set<string>>(() =>
     // Nothing named in the URL? Open the projects themselves, so the screen
     // never opens on a wall of collapsed one-liners with the work hidden.
     expansionForSelection(arriving).size > 0
       ? expansionForSelection(arriving)
-      : new Set(tree.filter((n) => n.kind === "project").map((n) => n.id)),
+       : new Set(tree.filter((n) => n.kind === "project").map((n) => n.id)),
   );
 
+  const orderedTree = React.useMemo(
+    () => sortPlanTree(tree, sort, attachmentCounts),
+    [tree, sort, attachmentCounts],
+  );
+  const projects = React.useMemo(() => orderedTree.filter((n) => n.kind === "project"), [orderedTree]);
+
   const rows = React.useMemo(
-    () => flattenPlanTree(tree, expanded, { rootId, query }),
-    [tree, expanded, rootId, query],
+    () => flattenPlanTree(orderedTree, expanded, { rootId, query }),
+    [orderedTree, expanded, rootId, query],
+  );
+  const filteredRows = React.useMemo(
+    () => statusFilter === "all" ? rows : rows.filter((row) => nodeStatus(row.node) === statusFilter),
+    [rows, statusFilter],
   );
 
   // Recomputed as rows open and close: expand down to an Action and the Start /
   // End / Duration / Task columns appear alongside it; collapse back to the
   // projects and they go again rather than sitting there empty.
-  const columns = React.useMemo(() => activeColumns(rows), [rows]);
+  const columns = React.useMemo(() => activeColumns(filteredRows), [filteredRows]);
   const shown = React.useMemo(
     () => COLUMN_SPEC.filter((c) => columns.has(c.key)),
     [columns],
   );
   const grid = React.useMemo(() => shown.map((c) => c.width).join(" "), [shown]);
+
+  const allNodes = React.useMemo(() => allPlanRows(orderedTree), [orderedTree]);
+  const metrics = React.useMemo(() => {
+    const projectStatuses = projects.reduce<Record<PlanStatus, number>>((counts, projectNode) => {
+      const status = nodeStatus(projectNode);
+      counts[status] = (counts[status] ?? 0) + 1;
+      return counts;
+    }, {} as Record<PlanStatus, number>);
+    const milestoneCount = allNodes.filter((node) => node.kind === "milestone").length;
+    const progress = projects.length
+      ? Math.round(projects.reduce((sum, projectNode) => sum + toPercent(nodeFraction(projectNode)), 0) / projects.length)
+      : 0;
+    return { projectStatuses, milestoneCount, progress };
+  }, [allNodes, projects]);
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -234,24 +298,49 @@ export function ProjectViews({
     router.push(`/project-plan/views?${q.toString()}` as Route);
   }
 
+  function openNode(node: PlanRow) {
+    if (node.task) {
+      openTask(node.task.id);
+      return;
+    }
+    const route: Record<PlanKind, Route> = {
+      project: "/project-plan?view=tree" as Route,
+      milestone: "/project-plan/milestones?view=tree" as Route,
+      result: "/project-plan/results?view=tree" as Route,
+      action: "/project-plan/actions?view=tree" as Route,
+      sub_action: "/project-plan/sub-actions?view=tree" as Route,
+      sub_sub_action: "/project-plan/sub-actions?view=tree" as Route,
+    };
+    router.push(route[node.kind]);
+  }
+
+  function changeSort(key: ColumnKey) {
+    setSort((current) => current?.key === key
+      ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+      : { key, direction: "asc" });
+  }
+
   const project = rootId ? projects.find((p) => p.id === rootId) ?? null : null;
   const scope = React.useMemo(
-    () => (project ? [project] : tree),
-    [project, tree],
+    () => (project ? [project] : orderedTree),
+    [project, orderedTree],
   );
+  const scopeExpandable = React.useMemo(() => expandableIds(scope), [scope]);
+  const allExpanded = scopeExpandable.length > 0 && scopeExpandable.every((id) => expanded.has(id));
 
   return (
     <div className="flex flex-col gap-5">
       {/* ── Title + controls ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[19px] font-black tracking-tight text-ink-strong">Project Views</h1>
+          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">Project Dashboard</h1>
           <p className="mt-0.5 text-[13px] font-medium text-ink-muted">
             The whole plan as one tree — open a row to see what sits under it.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <CollapsibleSearch scope="project rows">
           <label className="relative flex items-center">
             <Search
               size={14}
@@ -277,6 +366,7 @@ export function ProjectViews({
               </button>
             )}
           </label>
+          </CollapsibleSearch>
 
           <select
             value={rootId ?? ""}
@@ -292,26 +382,51 @@ export function ProjectViews({
             ))}
           </select>
 
-          <button
-            type="button"
-            onClick={() => setExpanded(new Set(expandableIds(scope)))}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
-            title="Open every level"
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as PlanStatus | "all")}
+            aria-label="Filter by project status"
+            className="min-w-[150px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-altus-red/30"
           >
-            <ChevronsUpDown size={13} strokeWidth={2.4} aria-hidden />
-            Expand all
-          </button>
-          <button
-            type="button"
-            onClick={() => setExpanded(new Set())}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
-            title="Close every level"
-          >
-            <ChevronsDownUp size={13} strokeWidth={2.4} aria-hidden />
-            Collapse
-          </button>
+            <option value="all">All statuses</option>
+            {Object.entries(PLAN_STATUS_LABEL).map(([status, label]) => (
+              <option key={status} value={status}>{label}</option>
+            ))}
+          </select>
+
         </div>
       </div>
+
+      <nav className="sticky sticky-below-topbar z-30 -mx-8 border-y border-hairline bg-white/95 px-8 py-2.5 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4" aria-label="Project dashboard quick access">
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+          {[{ id: "project-overview", label: "Overview" }, { id: "project-status", label: "Status Distribution" }, { id: "project-breakdown", label: "Milestone Breakdown" }, { id: "project-delivery", label: "Delivery Timeline" }, { id: "project-execution", label: "Execution" }, { id: "project-tree", label: "Project Tree" }].map((item) => (
+            <button key={item.id} type="button" onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-altus-red">{item.label}</button>
+          ))}
+        </div>
+      </nav>
+
+      <section id="project-overview" className="grid gap-3 scroll-mt-32 sm:grid-cols-2 xl:grid-cols-5" aria-label="Project summary">
+        <MetricCard label="Total projects" value={projects.length} icon={<FolderKanban size={18} />} onClick={() => pickProject("")} />
+        <MetricCard label="Initiated" value={metrics.projectStatuses.initiated ?? 0} tone="cyan" icon={<TrendingUp size={18} />} onClick={() => { setStatusFilter("initiated"); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+        <MetricCard label="Not started" value={metrics.projectStatuses.not_started ?? 0} tone="slate" icon={<ListTree size={18} />} onClick={() => { setStatusFilter("not_started"); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+        <MetricCard label="Total milestones" value={metrics.milestoneCount} tone="violet" icon={<BarChart3 size={18} />} onClick={() => router.push("/project-plan/milestones" as Route)} />
+        <MetricCard label="Overall progress" value={`${metrics.progress}%`} tone="green" icon={<TrendingUp size={18} />} onClick={() => document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+      </section>
+
+      <section className="space-y-5">
+        <DashboardWidget id="project-status" title="Project status distribution" icon={<BarChart3 size={17} />} subtitle="Current status across top-level projects">
+          <StatusDistribution counts={metrics.projectStatuses} total={projects.length} onPick={(status) => { setStatusFilter(status); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
+        </DashboardWidget>
+        <DashboardWidget id="project-breakdown" title="Milestone & results breakdown" icon={<TrendingUp size={17} />} subtitle="Completion across the top-level project portfolio">
+          <ProjectProgressChart projects={projects} onPick={pickProject} />
+        </DashboardWidget>
+        <DashboardWidget id="project-delivery" title="Delivery timeline" icon={<ListTree size={17} />} subtitle="Target dates and current delivery state for each project">
+          <DeliveryTimeline projects={projects} onPick={pickProject} />
+        </DashboardWidget>
+        <DashboardWidget id="project-execution" title="Execution breakdown" icon={<FolderKanban size={17} />} subtitle="How the portfolio is distributed across milestones, results, and work items">
+          <ExecutionBreakdown nodes={allNodes} />
+        </DashboardWidget>
+      </section>
 
       {project && <ProjectSummary project={project} />}
 
@@ -320,7 +435,7 @@ export function ProjectViews({
           title="No projects yet."
           body="Add a project from the hierarchy board and its tree will open here."
         />
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <EmptyState
           title={query ? `Nothing matches “${query}”.` : "Nothing to show."}
           body={
@@ -338,10 +453,14 @@ export function ProjectViews({
         // already `sticky top-0`, which needs a scrolling ancestor to stick to —
         // it now has one, so it pins to the top of this box while the rows move
         // under it.
-        <div
-          className="overflow-auto rounded-xl border border-hairline-strong bg-white"
-          style={{ maxHeight: "calc(100vh - 300px)", minHeight: 220 }}
+        <DashboardWidget
+          id="project-tree"
+          title="Project tree"
+          icon={<ListTree size={17} />}
+          subtitle="Read-only portfolio structure, milestones, results, progress, and files"
+          actions={<button type="button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(scopeExpandable))} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red" title={allExpanded ? "Collapse every project level" : "Expand every project level"}>{allExpanded ? <ChevronsDownUp size={13} strokeWidth={2.4} /> : <ChevronsUpDown size={13} strokeWidth={2.4} />}{allExpanded ? "Collapse all" : "Expand all"}</button>}
         >
+        <div className="overflow-auto rounded-xl border border-hairline-strong bg-white" style={{ maxHeight: "calc(100vh - 300px)", minHeight: 220 }}>
           {/* `w-max min-w-full`: as wide as the columns need, never narrower
               than the card — so the header and the rows always agree on their
               width, and the scrollbar appears only when the columns earn it. */}
@@ -353,33 +472,45 @@ export function ProjectViews({
               className="sticky top-0 z-10 grid items-center gap-x-3 border-b border-hairline-strong bg-surface-soft px-4 py-2"
               style={{ gridTemplateColumns: grid }}
             >
-              {shown.map((c) => (
-                <span
-                  key={c.key}
-                  className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-subtle"
-                >
-                  {c.label}
-                </span>
-              ))}
+              {shown.map((c) => {
+                const active = sort?.key === c.key;
+                const SortIcon = active ? (sort.direction === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
+                return (
+                  <div
+                    key={c.key}
+                    role="columnheader"
+                    aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => changeSort(c.key)}
+                      title={`Sort by ${c.label}`}
+                      className={`group/sort inline-flex items-center gap-1 text-left text-[10.5px] font-bold uppercase tracking-[0.08em] transition-colors hover:text-ink-strong ${active ? "text-ink-strong" : "text-ink-subtle"}`}
+                    >
+                      {c.label}
+                      <SortIcon size={12} strokeWidth={2.5} className={active ? "text-altus-red" : "opacity-40 group-hover/sort:opacity-100"} aria-hidden />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <ul className="divide-y divide-hairline-soft">
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <TreeLine
                   key={row.node.id}
                   row={row}
                   columns={columns}
                   grid={grid}
                   onToggle={toggle}
-                  onOpenTask={openTask}
+                  onOpenNode={openNode}
                   attachmentCount={attachmentCounts[row.node.id] ?? 0}
-                  me={me}
-                  downlineSet={downlineSet}
                 />
               ))}
             </ul>
           </div>
         </div>
+        </DashboardWidget>
       )}
     </div>
   );
@@ -388,6 +519,61 @@ export function ProjectViews({
 /* ────────────────────────────────────────────────────────────── Summary ─ */
 
 /** The filtered project's own line: what it contains and where it stands. */
+function MetricCard({
+  label,
+  value,
+  icon,
+  tone = "red",
+  onClick,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  tone?: "red" | "cyan" | "slate" | "violet" | "green";
+  onClick: () => void;
+}) {
+  const tones = {
+    red: "border-red-200 bg-red-50/50 text-altus-red",
+    cyan: "border-cyan-200 bg-cyan-50/70 text-cyan-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    violet: "border-violet-200 bg-violet-50/70 text-violet-700",
+    green: "border-emerald-200 bg-emerald-50/70 text-emerald-700",
+  };
+  return <button type="button" onClick={onClick} className={`group rounded-[16px] border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 ${tones[tone]}`}><span className="flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-wider">{label}<span className="opacity-70 transition-transform group-hover:scale-110">{icon}</span></span><span className="mt-3 block text-[28px] font-black leading-none tabular-nums text-ink-strong">{value}</span></button>;
+}
+
+function DashboardWidget({ id, title, subtitle, icon, actions, children }: { id?: string; title: string; subtitle: string; icon: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(true);
+  return <section id={id} className="scroll-mt-32 rounded-[18px] border border-hairline-strong bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-altus-red/10 text-altus-red">{icon}</span><div className="min-w-0"><h2 className="truncate text-[15px] font-black text-ink-strong">{title}</h2><p className="truncate text-[11.5px] font-medium text-ink-subtle">{subtitle}</p></div></div><div className="flex shrink-0 items-center gap-2">{actions}<CollapseToggle expanded={open} onToggle={() => setOpen((value) => !value)} label={title} /></div></div><CollapsibleBody expanded={open}><div className="pt-5">{children}</div></CollapsibleBody></section>;
+}
+
+function StatusDistribution({ counts, total, onPick }: { counts: Partial<Record<PlanStatus, number>>; total: number; onPick: (status: PlanStatus) => void }) {
+  const entries = (Object.entries(counts) as [PlanStatus, number][]).filter(([, count]) => count > 0);
+  if (entries.length === 0) return <p className="py-6 text-center text-[13px] font-semibold text-ink-subtle">No project statuses to display.</p>;
+  return <div className="space-y-5"><div className="flex h-12 w-full overflow-hidden rounded-xl bg-slate-100 shadow-inner">{entries.map(([status, count]) => <button key={status} type="button" onClick={() => onPick(status)} title={`${PLAN_STATUS_LABEL[status]}: ${count} projects`} className="min-w-0 transition-[filter] hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" style={{ flexGrow: count, background: PLAN_STATUS_TONE[status] }}><span className="sr-only">{PLAN_STATUS_LABEL[status]} {count}</span></button>)}</div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{entries.map(([status, count]) => { const percent = total ? Math.round((count / total) * 100) : 0; return <button key={status} type="button" onClick={() => onPick(status)} className="rounded-xl border border-hairline p-3 text-left transition-colors hover:border-altus-red/40 hover:bg-surface-soft"><span className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-[12px] font-bold text-ink-strong"><i className="size-2.5 rounded-full" style={{ background: PLAN_STATUS_TONE[status] }} />{PLAN_STATUS_LABEL[status]}</span><strong className="text-[18px] font-black tabular-nums" style={{ color: PLAN_STATUS_TONE[status] }}>{count}</strong></span><span className="mt-2 block text-[11px] font-semibold text-ink-subtle">{percent}% of the portfolio</span></button>; })}</div></div>;
+}
+
+function ProjectProgressChart({ projects, onPick }: { projects: PlanRow[]; onPick: (id: string) => void }) {
+  if (projects.length === 0) return <p className="py-6 text-center text-[13px] font-semibold text-ink-subtle">No projects to compare.</p>;
+  return <div className="space-y-4">{projects.map((project) => { const progress = toPercent(nodeFraction(project)); const milestones = childCompletion(project, "milestone"); const results = project.children.flatMap((milestone) => milestone.children).filter((node) => node.kind === "result").length; return <button key={project.id} type="button" onClick={() => onPick(project.id)} className="group w-full text-left"><span className="flex items-end justify-between gap-3"><span className="truncate text-[12.5px] font-bold text-ink-strong group-hover:text-altus-red">{project.name}</span><span className="shrink-0 text-[12px] font-black tabular-nums text-ink-strong">{progress}%</span></span><span className="mt-2 block h-3 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-altus-red transition-[width] group-hover:bg-altus-red-deep" style={{ width: `${progress}%` }} /></span><span className="mt-1.5 block text-[11px] font-semibold text-ink-subtle">{formatCompletion(milestones)} milestones complete · {results} results</span></button>; })}</div>;
+}
+
+function DeliveryTimeline({ projects, onPick }: { projects: PlanRow[]; onPick: (id: string) => void }) {
+  const ordered = projects.slice().sort((a, b) => (a.targetDate ?? "9999").localeCompare(b.targetDate ?? "9999"));
+  const dated = ordered.filter((project) => project.targetDate).map((project) => new Date(`${project.targetDate}T12:00:00`).getTime());
+  const start = dated.length > 0 ? Math.min(...dated) : 0;
+  const end = dated.length > 0 ? Math.max(...dated) : 1;
+  const span = Math.max(1, end - start);
+  return <div className="space-y-5"><div className="ml-[180px] hidden justify-between border-b border-dashed border-hairline pb-2 text-[10px] font-bold uppercase tracking-wider text-ink-subtle md:flex"><span>Earliest target</span><span>Latest target</span></div>{ordered.map((project) => { const status = nodeStatus(project); const point = project.targetDate ? ((new Date(`${project.targetDate}T12:00:00`).getTime() - start) / span) * 100 : 0; return <button key={project.id} type="button" onClick={() => onPick(project.id)} className="group grid w-full items-center gap-3 text-left md:grid-cols-[168px_minmax(0,1fr)_150px]"><span className="truncate text-[12.5px] font-bold text-ink-strong group-hover:text-altus-red">{project.name}</span><span className="relative h-8 rounded-lg bg-slate-100"><span className="absolute inset-y-0 left-0 rounded-lg bg-altus-red/10" style={{ width: `${Math.max(4, point)}%` }} /><i className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow" style={{ left: `${Math.max(2, Math.min(98, point))}%`, background: PLAN_STATUS_TONE[status] }} /><span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-ink-subtle">Target</span></span><span className="flex items-center justify-between gap-2"><small className="text-[11.5px] font-semibold text-ink-subtle">{formatPlanDate(project.targetDate) || "No date"}</small><ReadOnlyStatus status={status} /></span></button>; })}</div>;
+}
+
+function ExecutionBreakdown({ nodes }: { nodes: PlanRow[] }) {
+  const groups: { kind: PlanKind; label: string }[] = [{ kind: "milestone", label: "Milestones" }, { kind: "result", label: "Results" }, { kind: "action", label: "Actions" }, { kind: "sub_action", label: "Sub-actions" }];
+  const stats = groups.map(({ kind, label }, index) => { const rows = nodes.filter((node) => node.kind === kind); return { kind, label, total: rows.length, done: rows.filter((node) => nodeStatus(node) === "done").length, color: ["#7C3AED", "#0891B2", "#E10600", "#F59E0B"][index]! }; });
+  const max = Math.max(1, ...stats.map((item) => item.total));
+  return <div className="grid min-h-[230px] grid-cols-4 items-end gap-5 rounded-xl border border-hairline bg-surface-soft/45 p-5 sm:gap-8">{stats.map((item) => <div key={item.kind} className="flex h-[180px] min-w-0 flex-col justify-end text-center"><strong className="mb-2 text-[18px] font-black tabular-nums text-ink-strong">{item.total}</strong><span className="relative mx-auto block w-full max-w-[120px] overflow-hidden rounded-t-xl" style={{ height: `${Math.max(item.total ? 18 : 4, (item.total / max) * 100)}%`, background: `${item.color}25` }}><span className="absolute inset-x-0 bottom-0 rounded-t-xl" style={{ height: `${item.total ? (item.done / item.total) * 100 : 0}%`, background: item.color }} /></span><span className="mt-3 block truncate text-[11px] font-bold uppercase tracking-wide text-ink-subtle">{item.label}</span><small className="mt-1 text-[10.5px] font-semibold text-ink-subtle">{item.done} done</small></div>)}</div>;
+}
+
 function ProjectSummary({ project }: { project: PlanRow }) {
   const milestones = childCompletion(project, "milestone");
   const percent = toPercent(nodeFraction(project));
@@ -430,10 +616,8 @@ function TreeLine({
   columns,
   grid,
   onToggle,
-  onOpenTask,
+  onOpenNode,
   attachmentCount,
-  me,
-  downlineSet,
 }: {
   row: TreeRow<PlanRow>;
   /** The columns being drawn this render — the header's own answer, passed down
@@ -441,23 +625,15 @@ function TreeLine({
   columns: ReadonlySet<ColumnKey>;
   grid: string;
   onToggle: (id: string) => void;
-  onOpenTask: (taskId: string) => void;
+  onOpenNode: (node: PlanRow) => void;
   attachmentCount: number;
-  me: { id: string; isAdmin: boolean };
-  downlineSet: ReadonlySet<string>;
 }) {
   const n = row.node;
   const kind = row.kind;
   const fields = LEVEL_FIELDS[kind];
-  const actor = planActorFor(n, me, downlineSet);
   const rollupKind = childOf(kind);
   const rollup = childCompletion(n, rollupKind);
   const hasChildren = row.childCount > 0;
-  // The same authority setPlanNodeProgress enforces server-side.
-  // Open to anyone: `setPlanNodeProgress` no longer tests who is asking, so a
-  // gate here would only hide a control the server would accept. STATUS is the
-  // one guarded action in this module.
-  const canRecord = true;
 
   return (
     <li
@@ -497,20 +673,22 @@ function TreeLine({
 
         <Ref>{row.ref}</Ref>
 
-        <span
+        <button
+          type="button"
+          onClick={() => onOpenNode(n)}
           style={levelTextStyle(kind)}
-          className="min-w-0 truncate text-ink-strong"
+          className="min-w-0 truncate text-left text-ink-strong transition-colors hover:text-altus-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
           title={`${row.fullRef} · ${KIND_LABEL[kind]} — ${n.name}`}
         >
           {n.name}
-        </span>
+        </button>
       </div>
 
       {/* Status — the same picker and the same server-enforced rule as every
           other Project surface. `linkedToTask` tells the cell the change will
           land on the WMS task, which is true only for executable rows. */}
       <div className="min-w-0">
-        <PlanStatusCell node={n} actor={actor} linkedToTask={Boolean(n.task)} />
+        <ReadOnlyStatus status={nodeStatus(n)} />
       </div>
 
       {/* Target date — every level keeps this one. */}
@@ -546,11 +724,7 @@ function TreeLine({
           is why PlanProgressCell renders a dash for one. */}
       {columns.has("progress") && (
         <div className="min-w-0 overflow-hidden">
-          {!fields.wmsTask ? (
-            // No child count here: the Children column beside this one is that
-            // number, and two copies in adjacent columns is what overlapped.
-            <PlanProgressCell node={n} canRecord={canRecord} showChildCount={false} />
-          ) : null}
+          {!fields.wmsTask ? <ReadOnlyProgress percent={toPercent(nodeFraction(n))} /> : null}
         </div>
       )}
       {columns.has("children") && (
@@ -564,7 +738,7 @@ function TreeLine({
       )}
 
       <div className="min-w-0">
-        <PlanAttachmentCell nodeId={n.id} initialCount={attachmentCount} canManage />
+        <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-subtle" title={`${attachmentCount} file${attachmentCount === 1 ? "" : "s"}`}><Paperclip size={13} aria-hidden />{attachmentCount || "—"}</span>
       </div>
 
       {/* The WMS record. Only executable rows have one; a row that has not been
@@ -573,19 +747,16 @@ function TreeLine({
           and the hierarchy board carry, writing the same session ledger. */}
       {columns.has("task") && (
         <div className="flex min-w-0 items-center gap-1.5">
-          {fields.wmsTask && n.task && (
-            <TaskTimerCell taskId={n.task.id} running={n.task.timerRunning} canOperate />
-          )}
           {fields.wmsTask ? (
             n.task ? (
               <button
                 type="button"
-                onClick={() => onOpenTask(n.task!.id)}
+                onClick={() => onOpenNode(n)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong px-2 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
                 title="Open the WMS task — schedule, repeat, timer, approvals"
               >
                 <SquareArrowOutUpRight size={13} strokeWidth={2.3} aria-hidden />
-                Task
+                View task
               </button>
             ) : (
               <span
@@ -603,6 +774,14 @@ function TreeLine({
 }
 
 /* ---------------------------------------------------------------- bits */
+
+function ReadOnlyStatus({ status }: { status: PlanStatus }) {
+  return <span className="inline-flex max-w-full items-center rounded-md px-2 py-1 text-[11px] font-bold" style={{ color: PLAN_STATUS_TONE[status], background: `${PLAN_STATUS_TONE[status]}18` }}>{PLAN_STATUS_LABEL[status]}</span>;
+}
+
+function ReadOnlyProgress({ percent }: { percent: number }) {
+  return <span className="flex min-w-[112px] items-center gap-2"><span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-altus-red" style={{ width: `${percent}%` }} /></span><span className="w-8 text-right text-[11.5px] font-bold tabular-nums text-ink-strong">{percent}%</span></span>;
+}
 
 /** A plain read-only grid cell. Empty children render an empty cell, which is
  *  how a level that has no business carrying a field keeps the grid aligned. */

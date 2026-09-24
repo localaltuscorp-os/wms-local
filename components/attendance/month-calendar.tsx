@@ -393,6 +393,14 @@ function LegendDot({ c, label }: { c: string; label: string }) {
 
 const POPOVER_CSS = `
 .att-cal{position:relative;overflow:visible;}
+/*
+ * The wg-rise animation uses a transform, which makes this calendar its own
+ * stacking context. A following card (Upcoming Holidays on Attendance or the
+ * Daily Salary Report on My Salary) can otherwise paint over a day popover
+ * despite the popover's own high z-index. Raise the whole calendar while it is
+ * being used, so every check-in/out detail stays fully readable.
+ */
+.att-cal:hover,.att-cal:focus-within{z-index:60;}
 .att-day{z-index:0;}
 .att-day:hover,.att-day:focus-within{z-index:40;}
 .att-pop{
