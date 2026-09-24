@@ -87,6 +87,7 @@ The existing `0251` move is preserved:
 - `components/admin/logs/log-detail-panel.tsx`
 - `components/control-panel/users-table.tsx`
 - `app/(app)/control-panel/users/page.tsx`
+- `scripts/backfill-employee-codes.ts`
 - existing Control Panel module/navigation/permission files listed in
   [`17-control-panel-module.md`](./17-control-panel-module.md)
 
@@ -106,3 +107,22 @@ against another database only if the Control Panel permission-key migration has
 not already been applied. Then run the read-only verification script. Missing
 Employee Codes must be resolved through the application code-registry flow so
 prefix selection, locking, history, and retirement rules are preserved.
+
+## Existing employee backfill
+
+The guarded script `scripts/backfill-employee-codes.ts` uses the same allocator
+as normal employee creation. It was run against the configured database on
+24 September 2026:
+
+| Employee | Allocated Code |
+|---|---|
+| Daniel Sayyed | `KI-101` |
+| Nandini Maurya | `KI-102` |
+| Om Jadhav | `K-101` |
+| Proveeka Makwana | `KI-103` |
+| Vinal Patil | `KI-104` |
+
+Eighteen active employee rows were left unchanged because they have no entity
+or intern prefix. The script deliberately refuses to guess those prefixes.
+After their entity/designation data is corrected, run the same script again in
+dry-run mode and then with `--apply --actor-email=...`.
