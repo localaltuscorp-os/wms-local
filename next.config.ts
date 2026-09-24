@@ -226,6 +226,18 @@ const nextConfig: NextConfig = {
       // `?emp=` rides along: Next forwards a source query string the
       // destination does not itself set.
       { source: "/appraisal", destination: "/productivity/appraisal", permanent: false },
+      // THE CONTROL PANEL'S OLD HOME (2026-09-24). It was a group inside the
+      // Admin Panel at `/admin/control-panel/*`; it is a module of its own now.
+      // These forward rather than 404 because the old paths are in people's
+      // history, in bookmarks and in links sent two days before the move — and
+      // because the Admin Panel is no longer allowed to answer for it, so a
+      // redirect is the only honest response left there.
+      //
+      // Answering from the routing layer (rather than a catch-all page under
+      // `app/(admin)/admin/`) is deliberate: it keeps the Admin Panel's route
+      // tree free of Control Panel paths entirely.
+      { source: "/admin/control-panel/:path*", destination: "/control-panel/:path*", permanent: false },
+      { source: "/admin/temporary-access", destination: "/control-panel/temporary-access", permanent: false },
     ];
   },
   /**

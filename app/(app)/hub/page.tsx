@@ -3,7 +3,7 @@ import type { Route } from "next";
 import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
-import { MODULE_ORDER } from "@/lib/module-theme";
+import { listedModules } from "@/lib/module-theme";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
 import { AuraSheen } from "@/components/hub/aura-chrome";
 import { AuraTopBar } from "@/components/layout/aura-top-bar";
@@ -227,7 +227,10 @@ export default async function HubPage() {
 
   // Access first — it decides which panes may even be fetched.
   const access = await accessFor(me);
-  const visible = MODULE_ORDER.filter((id) => canAccessWorkspace(id, access));
+  // `listedModules`, not MODULE_ORDER: the Control Panel is appended for the
+  // people who may enter it and absent for everybody else. The other rooms are
+  // the same fixed set as before.
+  const visible = listedModules(access);
   const canSeeWms = canAccessWorkspace("wms", access);
   const canSeeGoals = canAccessWorkspace("goals", access);
 

@@ -30,6 +30,9 @@ export function IncentiveTabs({
   leaders,
   analytics,
   analyticsMonths,
+  analyticsQuarters,
+  analyticsYears,
+  viewEmployeeId,
   targetProducts,
   targetTeams,
   targetInitial,
@@ -60,6 +63,18 @@ export function IncentiveTabs({
   analytics: IncentiveAnalytics;
   /** Months the dashboard's "Specific Month" picker offers. */
   analyticsMonths: string[];
+  /** Quarters the dashboard's "Specific Quarter" picker offers. */
+  analyticsQuarters: string[];
+  /** Years the dashboard's "Specific Year" picker offers. */
+  analyticsYears: string[];
+  /**
+   * The employee the page is VIEWING, "" when that is the viewer themselves.
+   *
+   * Resolved and validated on the server, and passed down rather than read from
+   * the URL here, so the client-side period fetches carry an id the server has
+   * already accepted. See the note on `viewedId` in app/(app)/incentive/page.tsx.
+   */
+  viewEmployeeId: string;
   /** Granular target planning products (incentive catalog + live rate). */
   targetProducts: TargetProductOption[];
   /** Teams for the target picker — managers with at least one report. */
@@ -173,6 +188,9 @@ export function IncentiveTabs({
         <IncentiveAnalyticsDashboard
           initial={analytics}
           months={analyticsMonths}
+          quarters={analyticsQuarters}
+          years={analyticsYears}
+          viewEmployeeId={viewEmployeeId}
           /* The company year roll-up (monthly charts, leaderboard and
              incentive-name totals) is kept, and only for viewers who may see
              everyone. It moved from a <details> ABOVE nothing to the bottom of
@@ -197,7 +215,7 @@ export function IncentiveTabs({
       ) : active === "billing" ? (
         billingSlot
       ) : active === "entries" && isAdmin ? (
-        <IncentiveEntries rows={entries} employees={employees} year={year} />
+        <IncentiveEntries rows={entries} employees={employees} products={products} year={year} />
       ) : active === "status" && showStatus ? (
         statusTab
       ) : (

@@ -60,6 +60,7 @@ import {
 } from "@/lib/email/resend";
 import { siteUrl, rehostActionLink } from "@/lib/site-url";
 import { generateInvitePassword } from "@/lib/auth/default-password";
+import { issueSuggestedEmployeeCode } from "@/lib/employees/code-registry";
 
 /**
  * Priv-esc guard: super-admins are ordinary `employees` rows identified by email.
@@ -375,6 +376,13 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
   if (!inserted) {
     await auth.deleteUser(fbUid).catch(() => {});
     return { ok: false, error: "DB: insert returned no row" };
+  }
+
+  const code = await issueSuggestedEmployeeCode({ employeeId: inserted.id, actorId: me.id });
+  if (!code.ok) {
+    await db.delete(employees).where(eq(employees.id, inserted.id)).catch(() => {});
+    await auth.deleteUser(fbUid).catch(() => {});
+    return { ok: false, error: code.error };
   }
 
   // 3b. Record department memberships (many-to-many). Non-fatal: the

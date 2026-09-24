@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees, incentiveEntries, incentiveTargets } from "@/db/schema";
@@ -15,6 +15,7 @@ import {
 import {
   parseIncentiveImport,
   type IncentiveRosterEntry,
+  type ParseIncentiveResult,
 } from "@/lib/import/incentive-import";
 import { notifyIfPaidIncreased } from "@/lib/incentive/notifications/paid-increase";
 import { recordManualIncentivePayment } from "@/lib/incentive/record-manual-payment";
@@ -22,6 +23,8 @@ import { round2 } from "@/lib/incentive/payout-math";
 import { incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
 import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
 import { nameKey } from "@/lib/incentive/payout-sources";
+import { listActiveProductNames } from "@/lib/queries/products";
+import { resolveEmployeeReference } from "@/lib/employees/resolver";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -51,6 +54,7 @@ const EntryShape = {
   amount: money.default(0),
   approved: z.boolean().default(false),
   approvedAmt: money.default(0),
+  approvedDate: dateStr,
   paid: z.boolean().default(false),
   paidAmt: money.default(0),
   paidDate: dateStr,
@@ -68,6 +72,20 @@ function monthStartOf(d: string | null | undefined): string | null {
   return `${d.slice(0, 7)}-01`;
 }
 
+const employeeNameKey = (name: string) => name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+/** Resolve both employee fields against Employee Master and the product against Product Master. */
+async function resolveEntryReferences<T extends IncentiveEntryInput>(v: T): Promise<ActionResult<{ value: T }>> {
+  const [roster, products] = await Promise.all([activeRoster(), listActiveProductNames()]);
+  const resolved = await resolveEmployeeReference({ employeeId: v.employeeId, employeeName: v.empName });
+  if (!resolved.ok) return resolved;
+  const employee = roster.find((row) => row.id === resolved.employee.id);
+  if (!employee) return { ok: false, error: "Employee must be a current Employee Master record with an Employee Code." };
+  const product = products.find((name) => employeeNameKey(name) === employeeNameKey(v.incentiveName));
+  if (!product) return { ok: false, error: "Incentive Product must be a current Product Master product." };
+  return { ok: true, value: { ...v, empName: employee.name, employeeId: employee.id, incentiveName: product } };
+}
+
 // --- manual entry CRUD (admin) ---------------------------------------------
 
 /** Create one incentive_entries row. Admin-only. */
@@ -82,7 +100,9 @@ export async function createIncentiveEntry(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const v = parsed.data;
+  const checked = await resolveEntryReferences(parsed.data);
+  if (!checked.ok) return checked;
+  const v = checked.value;
 
   const [row] = await db
     .insert(incentiveEntries)
@@ -97,6 +117,7 @@ export async function createIncentiveEntry(
       amount: money2(v.amount),
       approved: v.approved,
       approvedAmt: money2(v.approvedAmt),
+      approvedDate: v.approvedDate ?? null,
       paid: v.paid,
       paidAmt: money2(v.paidAmt),
       paidDate: v.paidDate ?? null,
@@ -120,7 +141,9 @@ export async function updateIncentiveEntry(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const v = parsed.data;
+  const checked = await resolveEntryReferences(parsed.data);
+  if (!checked.ok) return checked;
+  const v = checked.value;
 
   // Read the paid amount BEFORE the update so a raise can notify the employee —
   // the same "paid increased" edge the Status editor fires on.
@@ -154,6 +177,7 @@ export async function updateIncentiveEntry(
         amount: money2(v.amount),
         approved: v.approved,
         approvedAmt: money2(v.approvedAmt),
+        approvedDate: v.approvedDate ?? null,
         paid: v.paid,
         paidAmt: money2(v.paidAmt),
         paidDate: v.paidDate ?? null,
@@ -219,13 +243,23 @@ const SetTargetSchema = z
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date"),
     targetAmount: money,
+    /**
+     * WHICH KIND OF PERIOD the target is for (migration 0250). Defaults to
+     * `month`, which is what every existing caller and every existing row is —
+     * so omitting it behaves exactly as before.
+     */
+    periodType: z.enum(["month", "quarter"]).default("month"),
     note: z.string().trim().max(2000).nullable().optional(),
   })
   .strict();
 
 /**
- * Upsert a per-person monthly target, keyed by (emp_name, period_month) on the
- * unique index. Admin-only. period_month is normalised to first-of-month.
+ * Upsert a per-person target, keyed by (emp_name, period_month, period_type) on
+ * the unique index. Admin-only. period_month is normalised to first-of-month.
+ *
+ * `period_type` is part of the key, not an attribute: a Q3 target and a July
+ * target both anchor on 2026-07-01, and they are two different commitments that
+ * must both be storable (migration 0250).
  */
 export async function setIncentiveTarget(
   input: z.input<typeof SetTargetSchema>,
@@ -247,11 +281,16 @@ export async function setIncentiveTarget(
       empName: v.empName,
       employeeId: v.employeeId ?? null,
       periodMonth,
+      periodType: v.periodType,
       targetAmount: money2(v.targetAmount),
       note: v.note ?? null,
     })
     .onConflictDoUpdate({
-      target: [incentiveTargets.empName, incentiveTargets.periodMonth],
+      target: [
+        incentiveTargets.empName,
+        incentiveTargets.periodMonth,
+        incentiveTargets.periodType,
+      ],
       set: {
         targetAmount: money2(v.targetAmount),
         employeeId: v.employeeId ?? null,
@@ -285,79 +324,96 @@ export async function setIncentiveYearTarget(
 // --- bulk Excel upload (admin) ---------------------------------------------
 
 async function activeRoster(): Promise<IncentiveRosterEntry[]> {
-  return db
-    .select({ id: employees.id, name: employees.name })
+  const rows = await db
+    .select({ id: employees.id, employeeCode: employees.employeeCode, name: employees.name })
     .from(employees)
-    .where(eq(employees.isActive, true));
+    .where(and(eq(employees.isActive, true), isNotNull(employees.employeeCode)));
+  return rows.map((row) => ({ ...row, employeeCode: row.employeeCode! }));
 }
 
 export interface BulkUploadResult {
   ok: boolean;
   created: number;
   skipped: number;
+  issues?: { rowNumber: number; field: string; message: string }[];
   error?: string;
 }
 
 /**
- * Parse an uploaded .xlsx/.csv server-side and insert every usable row into
- * incentive_entries. Fuzzy header matching + safe coercion live in
- * lib/import/incentive-import.ts. Admin-only.
+ * Read the uploaded workbook and parse it, or report why it could not be read.
+ *
+ * ── WHY THIS IS A DISCRIMINATED RESULT, NOT A UNION WITH THE PARSE ─────────
+ * `ParseIncentiveResult` carries an OPTIONAL `fatal` of its own, so a caller
+ * cannot tell "no file was uploaded" from "the file parsed, with a fatal
+ * problem" by testing that property — `"fatal" in parsed` matched both branches
+ * and narrowed neither, which is what stopped this module compiling. The two
+ * cases are genuinely different results, so they are different shapes here.
  */
-export async function bulkUploadIncentiveEntries(
-  formData: FormData,
-): Promise<BulkUploadResult> {
+type ImportRead =
+  | { ok: false; error: string }
+  | { ok: true; parsed: ParseIncentiveResult };
+
+async function readImport(formData: FormData): Promise<ImportRead> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "No file uploaded." };
+  const [roster, products] = await Promise.all([activeRoster(), listActiveProductNames()]);
+  return { ok: true, parsed: await parseIncentiveImport(file, roster, products) };
+}
+
+/** Parse every row and return every issue. This action writes nothing. */
+export async function validateIncentiveEntriesImport(formData: FormData): Promise<BulkUploadResult> {
+  await requireAdmin();
+  const read = await readImport(formData);
+  if (!read.ok) return { ok: false, created: 0, skipped: 0, error: read.error };
+  const parsed = read.parsed;
+  if (parsed.fatal) return { ok: false, created: 0, skipped: parsed.skipped, error: parsed.fatal };
+  if (parsed.issues.length) return { ok: false, created: 0, skipped: parsed.skipped, issues: parsed.issues, error: "Fix every invalid row before import." };
+  if (!parsed.rows.length) return { ok: false, created: 0, skipped: parsed.skipped, error: "No usable rows found." };
+  return { ok: true, created: parsed.rows.length, skipped: parsed.skipped };
+}
+
+/** Re-validate then insert all rows in one transaction after user confirmation. */
+export async function confirmIncentiveEntriesImport(formData: FormData): Promise<BulkUploadResult> {
   const me = await requireAdmin();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, created: 0, skipped: 0, error: limited.error };
+  const read = await readImport(formData);
+  if (!read.ok) return { ok: false, created: 0, skipped: 0, error: read.error };
+  const parsed = read.parsed;
+  if (parsed.fatal) return { ok: false, created: 0, skipped: parsed.skipped, error: parsed.fatal };
+  if (parsed.issues.length) return { ok: false, created: 0, skipped: parsed.skipped, issues: parsed.issues, error: "Workbook changed. Fix every invalid row before import." };
+  if (!parsed.rows.length) return { ok: false, created: 0, skipped: parsed.skipped, error: "No usable rows found." };
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return { ok: false, created: 0, skipped: 0, error: "No file uploaded." };
-  }
-
-  const roster = await activeRoster();
-  const parsed = await parseIncentiveImport(file, roster);
-  if (parsed.fatal) {
-    return { ok: false, created: 0, skipped: parsed.skipped, error: parsed.fatal };
-  }
-  if (parsed.rows.length === 0) {
-    return { ok: false, created: 0, skipped: parsed.skipped, error: "No usable rows found." };
-  }
-
-  const values = parsed.rows.map((r) => ({
-    srcSrNo: r.srcSrNo,
-    entryDate: r.entryDate,
-    incentiveName: r.incentiveName,
-    periodMonth: r.periodMonth,
-    empName: r.empName,
-    employeeId: r.employeeId,
-    participantName: r.participantName,
-    prospectGroupName: r.prospectGroupName,
-    amount: r.amount.toFixed(2),
-    approved: r.approved,
-    approvedAmt: r.approvedAmt.toFixed(2),
-    paid: r.paid,
-    paidAmt: r.paidAmt.toFixed(2),
-    paidDate: r.paidDate,
-    note: r.note,
+  const values = parsed.rows.map((row) => ({
+    incentiveName: row.incentiveName,
+    periodMonth: row.periodMonth,
+    empName: row.empName,
+    employeeId: row.employeeId,
+    amount: row.amount.toFixed(2),
+    approved: row.approved,
+    approvedAmt: row.approvedAmt.toFixed(2),
+    approvedDate: row.approvedDate,
+    paid: row.paid,
+    paidAmt: row.paidAmt.toFixed(2),
+    paidDate: row.paidDate,
+    note: row.note,
   }));
-
-  let created = 0;
   try {
-    // Insert in chunks so a very large sheet stays within statement limits.
-    const CHUNK = 250;
-    for (let i = 0; i < values.length; i += CHUNK) {
-      const slice = values.slice(i, i + CHUNK);
-      await db.insert(incentiveEntries).values(slice);
-      created += slice.length;
-    }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, created, skipped: parsed.skipped, error: `Import stopped after ${created}: ${msg}` };
+    await db.transaction(async (tx) => {
+      for (let index = 0; index < values.length; index += 250) {
+        await tx.insert(incentiveEntries).values(values.slice(index, index + 250));
+      }
+    });
+  } catch (error: unknown) {
+    return { ok: false, created: 0, skipped: parsed.skipped, error: error instanceof Error ? error.message : "Import failed." };
   }
-
   revalidatePath("/incentive");
-  return { ok: true, created, skipped: parsed.skipped };
+  return { ok: true, created: values.length, skipped: parsed.skipped };
+}
+
+/** Legacy call shape retained for integrations; browser flow uses validation then confirmation. */
+export async function bulkUploadIncentiveEntries(formData: FormData): Promise<BulkUploadResult> {
+  return confirmIncentiveEntriesImport(formData);
 }
 
 // --- drill-down read action (any signed-in user; gated) --------------------

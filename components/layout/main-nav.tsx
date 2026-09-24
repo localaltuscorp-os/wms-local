@@ -65,6 +65,12 @@ import {
   BarChart3,
   CheckCircle2,
   Users2,
+  // The Control Panel's rail icons (2026-09-24). The room is new to this file;
+  // its five entries are the five the Admin Panel group listed before it moved.
+  UserCog,
+  KeyRound,
+  Eye,
+  Clock,
 } from "lucide-react";
 import type { Route } from "next";
 import type { LucideIcon } from "lucide-react";
@@ -542,6 +548,35 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },
       { href: "/incentive" as Route, label: "Status", Icon: Layers, tab: "status", adminOnly: true },
       { href: "/incentive" as Route, label: "Billing", Icon: IndianRupee, tab: "billing" },
+    ],
+    groups: [],
+  },
+  /**
+   * CONTROL PANEL — its own room (2026-09-24), lifted out of the Admin Panel.
+   *
+   * The five entries are the five the Admin Panel's "Control Panel" group
+   * listed, in the same order, with the same icons and the same labels, plus
+   * Temporary Access which already hung off that group. Nothing was rebuilt:
+   * the screens are the same files, moved to `/control-panel/*`, and the rail
+   * is a second view of the permission nodes that govern them.
+   *
+   * ── NOTHING HERE GATES THE ROOM ──────────────────────────────────────────
+   * A person the matrix excludes never reaches this rail — the room is not in
+   * their module list at all and `(app)/layout.tsx` refuses the path — so the
+   * entries carry no `adminOnly` flag. Adding one would be a second, weaker copy
+   * of a decision already made in one place (`canControlPanel` in
+   * lib/auth/workspace-access.ts), and the two could disagree.
+   *
+   * `hiddenByMatrix` still filters individual entries: switching off one screen
+   * — Roles, say — removes that pill while leaving the rest of the room intact.
+   */
+  "control-panel": {
+    top: [
+      { href: "/control-panel/users" as Route, label: "Users", Icon: Users },
+      { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
+      { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
+      { href: "/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
+      { href: "/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
     ],
     groups: [],
   },

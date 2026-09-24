@@ -27,6 +27,10 @@ export const WORKSPACE_IDS = [
   "project-plan",
   "operations",
   "incentive",
+  // CONTROL PANEL — its own room since 2026-09-24. It was a group inside the
+  // Admin Panel; it is now a module of its own, shown only to the people the
+  // permission matrix lets in. See the note on `canControlPanel` below.
+  "control-panel",
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_IDS)[number];
@@ -51,6 +55,7 @@ export const WORKSPACE_LABEL: Record<WorkspaceId, string> = {
   "project-plan": "Project",
   operations: "Operations",
   incentive: "Incentive",
+  "control-panel": "Control Panel",
 };
 
 /** Where each card drops you when you enter the workspace. */
@@ -100,6 +105,10 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // deep link and the two export routes already point at `/incentive`, so
   // reusing it means the extraction needs no redirect and breaks no bookmark.
   incentive: "/incentive",
+  // CONTROL PANEL — the room opens on its first area, Users, exactly as the
+  // Admin Panel group opened on it. The room's own path is what the layout
+  // gate reads, so the landing and the gate always name the same prefix.
+  "control-panel": "/control-panel/users",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";
@@ -137,11 +146,41 @@ export function matchesDepartment(departments: string[], required: string): bool
  */
 export const ACCOUNTS_DEPARTMENT = "Accounts";
 
+/**
+ * What `canAccessWorkspace` is allowed to know about a person.
+ *
+ * `canControlPanel` is resolved ONCE per request in `accessFor`
+ * (lib/auth/workspace-access.ts) because the answer needs a database read —
+ * the permission matrix — and this function is pure so both the client nav and
+ * a route handler can call it.
+ *
+ * OPTIONAL, and absent means NO. Every existing caller passes only the three
+ * original fields, and for them the Control Panel is simply closed — which is
+ * the correct default for a room almost nobody may enter.
+ */
+export interface WorkspaceAccessInput {
+  departments: string[];
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  canControlPanel?: boolean;
+}
+
 export function canAccessWorkspace(
   ws: WorkspaceId,
-  user: { departments: string[]; isAdmin: boolean; isSuperAdmin: boolean },
+  user: WorkspaceAccessInput,
 ): boolean {
-  // Super-admins see every room.
+  // ── THE CONTROL PANEL IS CHECKED FIRST, BEFORE THE SUPER-ADMIN BYPASS ────
+  //
+  // It is the ONE room the permission matrix may close to everybody, and the
+  // ordering is the whole reason: it is the surface that hands out the matrix
+  // itself, so a matrix row that switches it off has to bind even for a
+  // super-admin, or there would be no way to close the tool that opens the
+  // tool. (`canControlPanel` is computed in `accessFor`, and a MASTER ADMIN is
+  // exempt from the matrix there — so the two people who can always get back in
+  // still can. See `governedByMatrix` in lib/permissions/resolve.ts.)
+  if (ws === "control-panel") return user.canControlPanel === true;
+
+  // Super-admins see every other room.
   if (user.isSuperAdmin) return true;
   const isAccountsRole = matchesDepartment(user.departments, ACCOUNTS_DEPARTMENT);
   // The Admin card opens the Accounts module (/accounts). Admins OR the Accounts
@@ -197,6 +236,16 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // FIRST and segment-exactly: `/archived` is the older, unrelated WMS page
   // (admin archived tasks) and a `startsWith("/archive")` would swallow it.
   if (p === "/archive" || p.startsWith("/archive/")) return archiveWorkspaceForPath(p);
+
+  // THE CONTROL PANEL — its own room (2026-09-24), lifted out of the Admin
+  // Panel, where it was a group of five pages under `/admin/control-panel`.
+  //
+  // Claiming the path here is what makes the room's access rule real rather
+  // than cosmetic: `(app)/layout.tsx` gates every route on the workspace
+  // `workspaceForPath` returns, so `/control-panel/anything` — typed,
+  // bookmarked or linked — is refused for a person the matrix does not let in,
+  // without depending on a catalogue entry existing for that exact path.
+  if (p === "/control-panel" || p.startsWith("/control-panel/")) return "control-panel";
 
   // Goals — the Y→Q→M→W cascade + commit/approve/plan/review surfaces, plus the
   // Weekly Goals + Daily Checklist modules (re-parented here from WMS).

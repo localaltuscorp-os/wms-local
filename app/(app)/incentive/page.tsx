@@ -8,7 +8,7 @@ import { BillingDashboard } from "@/components/incentive/billing-dashboard";
 import { IncentiveFormDialog } from "@/components/incentive/incentive-form-dialog";
 import { IncentiveTableSkeleton } from "@/components/incentive/ui/states";
 import { requireUser } from "@/lib/auth/current";
-import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
+import { canEditIncentiveTable, canReviewIncentives } from "@/lib/auth/incentive-permissions";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
 import {
   getIncentiveDashboard,
@@ -29,7 +29,20 @@ import {
 } from "@/lib/queries/incentive-analytics";
 import { applyAnalyticsView, incentiveAnalyticsScopeFor } from "@/lib/incentive/analytics/scope";
 import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
-import { currentMonthKey, selectableMonths } from "@/lib/incentive/analytics/periods";
+import {
+  currentMonthKey,
+  selectableMonths,
+  selectableQuarters,
+  selectableYears,
+} from "@/lib/incentive/analytics/periods";
+import {
+  VIEW_EMPLOYEE_PARAM,
+  canViewEmployee,
+  hasViewableOthers,
+  incentivePageTitle,
+  viewedEmployeeName,
+} from "@/lib/incentive/analytics/viewer";
+import { EmployeeViewer } from "@/components/incentive/analytics/employee-viewer";
 import { incentiveStatusUiEnabled } from "@/lib/incentive/status-flag";
 import { IncentiveStatusTab } from "@/components/incentive/incentive-status-tab";
 import { withRetry } from "@/lib/db/with-timeout";
@@ -79,6 +92,23 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   // their downline, and the company-wide queries are not even run for them —
   // what is never loaded can never be serialised into their page.
   const scope = await r("incentive:scope", () => incentiveAnalyticsScopeFor(me));
+
+  // ── WHOSE DASHBOARD (the `?emp=` parameter) ──────────────────────────────
+  //
+  // Validated against the scope the SERVER just resolved, and dropped to null
+  // the moment it names somebody outside it. That check is here rather than only
+  // in the loader because the TITLE prints the person's name: an unpermitted id
+  // must not be able to put a colleague's name on the page, never mind their
+  // figures. Downstream, `narrowToEmployee` applies the same rule again — two
+  // doors onto one lock, which is the shape the brief asks for on the write
+  // paths and is just as cheap on a read.
+  // Parsed here rather than through the page's `firstParam` helper, which is
+  // declared further down: this has to be known BEFORE the dashboard's first
+  // query, so that first paint is already the right person's.
+  const rawEmp = sp[VIEW_EMPLOYEE_PARAM];
+  const requestedEmp =
+    (Array.isArray(rawEmp) ? rawEmp[0] : rawEmp)?.trim() || null;
+  const viewedId = requestedEmp && canViewEmployee(scope, requestedEmp) ? requestedEmp : null;
 
   // THE CEILING, in the shape the NAME-keyed ledgers need (their only identity
   // column is the typed employee name). `null` = organisation-wide, an empty
@@ -132,9 +162,20 @@ export default async function IncentivePage({ searchParams }: PageProps) {
   // (in rounds of at most five), and adding them to the page's burst would
   // exceed the 10-connection pool.
   const analytics = await r("incentive:analytics", () =>
-    loadIncentiveAnalytics(me, { kind: "current_month" }, { scope }),
+    loadIncentiveAnalytics(me, { kind: "current_month" }, { scope, emp: viewedId }),
   );
   if (!analytics) throw new Error("Incentive analytics could not be resolved for the current month.");
+
+  // ── THE EMPLOYEE PICKER'S ROWS, AND THE PAGE'S TITLE ─────────────────────
+  //
+  // `viewablePeople` is the loader's answer to "who may this viewer look at",
+  // computed from the entitlement BEFORE the view narrows — so it keeps
+  // offering everybody while one of them is being viewed. An ordinary employee
+  // gets a list holding only themselves, `hasViewableOthers` is false, and no
+  // picker is drawn: their page names them and offers nothing to switch.
+  const viewable = analytics.viewablePeople ?? [];
+  const showEmployeePicker = hasViewableOthers(viewable, me.id);
+  const viewedName = viewedEmployeeName(viewable, viewedId ?? "", me.name);
 
   // THE TRENDS LEADERBOARD RANKING — the same % of CTC the dashboard ranks on,
   // read from the analytics model rather than sorted a second time by amount
@@ -248,7 +289,12 @@ export default async function IncentivePage({ searchParams }: PageProps) {
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="wide">
         <PageCommandBar
-          title="Incentive"
+          /* WHOSE DASHBOARD THIS IS, IN THE TITLE. The brief's own form —
+             `Incentive | <employee>` — and it names the employee being VIEWED,
+             which for most people is themselves. `viewedName` can only ever be
+             somebody the server already permitted (see `viewedId` above), so the
+             heading cannot be made to name a colleague by editing the URL. */
+          title={incentivePageTitle(viewedName)}
           hint={
             me.isAdmin
               ? "Earned, paid and target attainment across the company."
@@ -256,7 +302,25 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           }
           actions={
             <>
-              <IncentiveCatalogDialog rows={catalog} isAdmin={me.isAdmin} defaultOpen={openTable} />
+              {/* WHO AM I LOOKING AT. Drawn only when there is somebody else to
+                  look at — an ordinary employee sees no control at all, per the
+                  brief, and their own name arrives in the title instead. */}
+              {showEmployeePicker && (
+                <EmployeeViewer
+                  people={viewable}
+                  selectedId={viewedId ?? ""}
+                  viewerId={me.id}
+                  param={VIEW_EMPLOYEE_PARAM}
+                />
+              )}
+              {/* Edit/Delete on the Incentive Table is Manan's alone — NOT the
+                  admin flag. The same rule is re-checked on the server in
+                  `catalog-actions.ts`; this decides only what is drawn. */}
+              <IncentiveCatalogDialog
+                rows={catalog}
+                canEdit={canEditIncentiveTable(me.email)}
+                defaultOpen={openTable}
+              />
               {/* The module's primary action, on every area — it used to sit in
                   a bare right-aligned div above the Requests list, where a long
                   queue pushed it off the fold. */}
@@ -310,6 +374,13 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           leaders={leaders}
           analytics={analytics}
           analyticsMonths={selectableMonths()}
+          analyticsQuarters={selectableQuarters()}
+          analyticsYears={selectableYears()}
+          /* Whose dashboard the client-side period fetches must stay on. Sent
+             down rather than read from the URL in the browser so the id the
+             server VALIDATED is the one the fetches carry — a crafted `?emp=`
+             cannot make the browser ask for somebody the server refused. */
+          viewEmployeeId={viewedId ?? ""}
           targetProducts={targetProducts}
           targetTeams={targetTeams}
           targetInitial={targetInitial}

@@ -47,6 +47,7 @@ export async function listEmployees(
 
 export interface EmployeeOption {
   id: string;
+  employeeCode?: string | null;
   name: string;
 }
 
@@ -61,7 +62,7 @@ export interface EmployeeOption {
 export const listEmployeeOptions = unstable_cache(
   async (): Promise<EmployeeOption[]> => {
     return db
-      .select({ id: employees.id, name: employees.name })
+      .select({ id: employees.id, employeeCode: employees.employeeCode, name: employees.name })
       .from(employees)
       .where(eq(employees.isActive, true))
       .orderBy(asc(employees.name));

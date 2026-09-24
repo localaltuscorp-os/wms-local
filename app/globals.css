@@ -4248,6 +4248,12 @@ html {
   cursor: pointer;
   border-radius: 6px;
   transition: color 160ms ease;
+  /* A COLUMN HEADING NEVER WRAPS. Before this, a narrow column broke its
+     heading over two or three lines — "Incentive Earned" became a two-line
+     stack and pushed its own sort arrow out of line with the values beneath.
+     The table's scroll container takes the overflow instead, and columns that
+     need a floor set their own `min-w-*`. */
+  white-space: nowrap;
 }
 @utility admin-th-btn {
   &:hover { color: var(--color-ink-strong); }

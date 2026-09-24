@@ -29,7 +29,7 @@ import { ModuleFooter } from "@/components/layout/module-footer";
 import { ModuleShortcuts } from "@/components/layout/module-shortcuts";
 import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 import { FocusMode } from "@/components/layout/focus-mode";
-import { MODULE_ORDER } from "@/lib/module-theme";
+import { listedModules } from "@/lib/module-theme";
 import { IdleTimerClient } from "@/components/auth/idle-timer-client";
 import { ActivityTracker } from "@/components/logs/activity-tracker";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
@@ -250,11 +250,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           opens the third module. Placed after the gate chain's early returns, so
           a digit can never be used to walk out of a daily ritual. The allow-list
           reuses the layout's single `accessFor` result — no extra query. */}
-      {/* `adminAllowed` carries the standalone ADMIN PANEL entry (Alt+A). It is
+      {/* `allowed` is `listedModules`, not MODULE_ORDER: the Control Panel is in
+          it only for somebody who may enter the room, and it carries no letter,
+          so `moduleForShortcut` cannot reach it either way.
+          `adminAllowed` carries the standalone ADMIN PANEL entry (Alt+A). It is
           not a workspace, so it cannot travel in `allowed`; `access.isAdmin` is
           the same test the hub card and `/admin`'s own layout guard read. */}
       <ModuleShortcuts
-        allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))}
+        allowed={listedModules(access)}
         adminAllowed={access.isAdmin}
       />
       {/* DEV_AUTH_BYPASS=true (.env.local, non-production only) — the idle
@@ -298,7 +301,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
              the route gate and the module footer already used, so adding the bar
              cost no extra query. */
           <AuraTopBar
-            rooms={roomsFor(MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)))}
+            rooms={roomsFor(listedModules(access))}
             bell={<NotificationBell />}
             userMenu={<UserMenuServer />}
           />

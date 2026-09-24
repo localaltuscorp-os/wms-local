@@ -4098,11 +4098,12 @@ export const incentiveEntries = pgTable(
     participantName: text("participant_name"),
     prospectGroupName: text("prospect_group_name"),
     amount: numeric("amount", { precision: 14, scale: 2 }).notNull().default("0"),
-    approved: boolean("approved").notNull().default(false),
-    approvedAmt: numeric("approved_amt", { precision: 14, scale: 2 })
-      .notNull()
-      .default("0"),
-    paid: boolean("paid").notNull().default(false),
+      approved: boolean("approved").notNull().default(false),
+      approvedAmt: numeric("approved_amt", { precision: 14, scale: 2 })
+        .notNull()
+        .default("0"),
+      approvedDate: date("approved_date"),
+      paid: boolean("paid").notNull().default(false),
     paidAmt: numeric("paid_amt", { precision: 14, scale: 2 }).notNull().default("0"),
     paidDate: date("paid_date"),
     // WS-4 Phase B1 — 3-status split (migration 0106). booked = partial client
@@ -4225,12 +4226,25 @@ export const incentiveTargets = pgTable(
       onDelete: "set null",
     }),
     periodMonth: date("period_month").notNull(),
+    /**
+     * WHICH KIND OF PERIOD THIS TARGET IS FOR (migration 0250).
+     *
+     * `month` is every row that has ever existed, and a whole-YEAR target too —
+     * a year target is stored as the January row, which is what makes it sum
+     * into YTD. `quarter` is a quarterly target, anchored on the quarter's first
+     * month so the dashboard can find it, and excluded from every month-range
+     * reader in the app so it is never counted as that month's target.
+     */
+    periodType: text("period_type").notNull().default("month").$type<"month" | "quarter">(),
     targetAmount: numeric("target_amount", { precision: 14, scale: 2 }).notNull().default("0"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("incentive_targets_name_period_uq").on(t.empName, t.periodMonth)],
+  (t) => [
+    uniqueIndex("incentive_targets_name_period_type_uq").on(t.empName, t.periodMonth, t.periodType),
+    check("incentive_targets_period_type_chk", sql`${t.periodType} in ('month', 'quarter')`),
+  ],
 );
 export type IncentiveTarget = typeof incentiveTargets.$inferSelect;
 export type NewIncentiveTarget = typeof incentiveTargets.$inferInsert;

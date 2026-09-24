@@ -4,11 +4,16 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { WorkspaceId } from "@/lib/workspaces";
-import { canAccessWorkspace, workspaceForPath } from "@/lib/workspaces";
+import {
+  canAccessWorkspace,
+  workspaceForPath,
+  type WorkspaceAccessInput,
+} from "@/lib/workspaces";
 import {
   ADMIN_PANEL_ENTRY,
   MODULE_ORDER,
   MODULE_THEME,
+  listedModules,
   moduleShortcutHint,
   moduleShortcutLabel,
 } from "@/lib/module-theme";
@@ -39,11 +44,7 @@ const SHORT_LABEL: Partial<Record<WorkspaceId, string>> = {
   admin: "Accounts",
 };
 
-export function ModuleBar({
-  access,
-}: {
-  access: { departments: string[]; isAdmin: boolean; isSuperAdmin: boolean };
-}) {
+export function ModuleBar({ access }: { access: WorkspaceAccessInput }) {
   const pathname = usePathname();
   const activeWs = workspaceForPath(pathname ?? "/");
 
@@ -52,8 +53,11 @@ export function ModuleBar({
       aria-label="All modules"
       className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto no-scrollbar"
     >
-      {MODULE_ORDER.map((id, i) => {
+      {listedModules(access).map((id) => {
         const m = MODULE_THEME[id];
+        // Indexed off MODULE_ORDER, not off this list — see module-footer.tsx.
+        // A conditional module owns no letter anyway, and -1 resolves to none.
+        const i = MODULE_ORDER.indexOf(id);
         const allowed = canAccessWorkspace(id, access);
         const Icon = m.Icon;
         const shortcut = moduleShortcutHint(i);

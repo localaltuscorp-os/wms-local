@@ -324,6 +324,9 @@ export interface EmployeeMasterRow {
   tdsMonthly: number | null;
   ptExempt: boolean | null;
   payType: string | null;
+  monthlyPayAtTarget: number | null;
+  weeklyTargetHours: number | null;
+  monthlyFee: number | null;
 
   isActive: boolean;
   employmentStatus: string | null;
@@ -401,6 +404,9 @@ export async function loadEmployeeMasterRows(
       tdsMonthly: salaryProfiles.tdsMonthly,
       ptExempt: salaryProfiles.ptExempt,
       payType: salaryProfiles.payType,
+      monthlyPayAtTarget: salaryProfiles.monthlyPayAtTarget,
+      weeklyTargetHours: salaryProfiles.weeklyTargetHours,
+      monthlyFee: salaryProfiles.monthlyFee,
 
       isActive: employees.isActive,
       employmentStatus: employees.employmentStatus,
@@ -429,6 +435,9 @@ export async function loadEmployeeMasterRows(
     const annual = r.annualCtc == null ? null : Number(r.annualCtc);
     return {
       ...r,
+      monthlyPayAtTarget: r.monthlyPayAtTarget == null ? null : Number(r.monthlyPayAtTarget),
+      weeklyTargetHours: r.weeklyTargetHours == null ? null : Number(r.weeklyTargetHours),
+      monthlyFee: r.monthlyFee == null ? null : Number(r.monthlyFee),
       // The EFFECTIVE type, resolved once here so no screen has to re-derive it
       // (and so a screen cannot leave the override in charge and forget the
       // designation behind it).

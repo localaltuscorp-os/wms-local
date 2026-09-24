@@ -2,7 +2,7 @@
 
 **Branch:** `Om` · **Repo:** `https://github.com/localaltuscorp-os/wms-local`
 **Audience:** an engineer or a terminal Claude picking this up cold, and whoever runs the SQL against production.
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 
 ---
 
@@ -37,6 +37,8 @@ applied to the branch's database, and `SQL/` exists for other databases.
 | 14 | [`14-global-logs-system.md`](./14-global-logs-system.md) | **Migration `0245`, applied 2026-09-22.** Admin Panel → Logs: an immutable append-only activity log + per-employee daily sessions, a client tracker (IndexedDB → batched HTTP), midnight finalization, a filterable admin UI and server-side Excel export |
 | 15 | [`15-control-panel.md`](./15-control-panel.md) | **Migration `0246`, applied 2026-09-22.** Admin Panel → Control Panel (Users / Roles / Permissions / Effective Access / Temporary Access), Temporary Access relocated (reused), a Roles template layer over the existing permission matrix, and Salary Profile renamed to Salary Breakup |
 | 16 | [`16-training-learning-module.md`](./16-training-learning-module.md) | **Migrations `0248` + `0249` + `0250`, applied 2026-09-23.** Training & Learning (LMS) built by extending the Training Centre: scheduling/audience/recurrence/lifecycle, self check-in + per-second recording progress, anonymous per-training surveys, per-role learning targets with history, daily learning-share rotation, role-aware dashboard, target-vs-actual, analytics, month/week/day calendar grids, and writable master data |
+| 17 | [`17-control-panel-module.md`](./17-control-panel-module.md) | **Migration `0251`, applied 2026-09-24.** Control Panel out of the Admin Panel and into a module of its own at `/control-panel`, visible only to people the permission matrix lets in — and absent everywhere, not greyed out, for everybody else. Same five screens, same write paths, same tables; node keys moved with the screens and the stored grants moved with the keys. Supersedes part of doc 15 |
+| 18 | [`18-incentive-dashboard-redesign.md`](./18-incentive-dashboard-redesign.md) | **Migration `0250_incentive_target_period_type.sql` — applied 2026-09-24** (another session's file; verified here). Built by TWO sessions in one working tree: this document covers the employee viewer, the dynamic `Incentive \| [Employee]` title, the Specific Year period, the Target-vs-Actual visuals and the table-header layout, plus the repair of the other session's abandoned mid-edit (21 type errors and an unguarded route handler) and a `me`-vs-subject bug the audit uncovered. The period controls, KPI band and Manan-only Edit/Delete are the other session's. **Read §0 and §6 before touching this module** |
 | — | [`SQL/`](./SQL/README.md) | Production SQL: what to run, in what order, and how to verify it |
 
 Read `07-files-changed.md` last if you are reviewing; read it first if you are about to execute the SQL.
@@ -71,3 +73,9 @@ full unit suite                        3528 tests: 3520 passed, 7 failed, 1 skip
 ```
 
 The 7 failures are pre-existing and unrelated (see [`07-files-changed.md`](./07-files-changed.md#known-failing-tests-not-caused-by-this-work)).
+
+## Latest change set: Employee ID standardization and Control Panel completion
+
+See [`19-employee-id-standardization-and-control-panel.md`](./19-employee-id-standardization-and-control-panel.md).
+The SQL runbook is [`SQL/19-apply-employee-id-and-control-panel.sql`](./SQL/19-apply-employee-id-and-control-panel.sql),
+with read-only checks in [`SQL/19-verify-employee-id-and-control-panel.sql`](./SQL/19-verify-employee-id-and-control-panel.sql).

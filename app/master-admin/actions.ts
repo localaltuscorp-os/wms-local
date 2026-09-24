@@ -172,14 +172,19 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
 
   revalidatePath(PATH);
 
-  // Mirror into the immutable global Logs feed (Control Panel → Logs). Additive:
-  // the domain audit above still runs; this is the human-readable copy.
+  // Mirror into the immutable global Logs feed. Additive: the domain audit
+  // above still runs; this is the human-readable copy.
+  //
+  // THE ROUTE IS THE SCREEN THAT CAN WRITE THIS, not the screen the writer is
+  // standing on — the Master Admin matrix edits the same rows the Control
+  // Panel's Permissions screen does, and this stays pointed at that screen so
+  // one filter in the Logs feed finds every permission change.
   auditAction({
     eventType: "CONFIG_CHANGE",
     employeeId: me.id,
-    route: "/admin/control-panel/permissions",
-    module: "Admin Panel",
-    page: "Control Panel",
+    route: "/control-panel/permissions",
+    module: "Control Panel",
+    page: "Permissions",
     resourceType: "module_permission",
     resourceId: `${employeeId}:${nodeKey}`,
     action: stored ? "permission_grant" : "permission_revoke",
