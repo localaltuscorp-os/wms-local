@@ -33,7 +33,30 @@ vi.mock("@/lib/auth/current", () => ({
 // resolveDepartmentSelection issues a select on departments — return [] so it
 // resolves to no departments. writeMemberships inserts; make insert chainable
 // for both .returning() and plain awaits.
+// Issuing the Employee Code is a SEPARATE concern with its own tests. It joins
+// paying entities and designations to pick a prefix and refuses when none is
+// set, which would abort the invite before it ever reaches the credentials
+// step this file is about. Stubbed to succeed so the assertions below are
+// about Firebase and the email, not about code allocation.
+vi.mock("@/lib/employees/code-registry", () => ({
+  issueSuggestedEmployeeCode: vi.fn().mockResolvedValue({ ok: true, code: "ALT-0001" }),
+}));
+
 vi.mock("@/lib/db", () => {
+  /** A query builder that answers any step and always resolves to []. */
+  const chain = (): Record<string, unknown> => {
+    const settled = Promise.resolve([] as unknown[]);
+    const self: Record<string, unknown> = {};
+    const step = () => self;
+    for (const k of ["from", "leftJoin", "innerJoin", "where", "set", "orderBy", "groupBy"]) self[k] = step;
+    self.limit = () => settled;
+    self.returning = () => settled;
+    // A real thenable, so `await`, `.then`, `.catch` and `.finally` all work.
+    self.then = settled.then.bind(settled);
+    self.catch = settled.catch.bind(settled);
+    self.finally = settled.finally.bind(settled);
+    return self;
+  };
   const insertBuilder = {
     values: () => ({
       returning: () =>
@@ -53,8 +76,17 @@ vi.mock("@/lib/db", () => {
   return {
     db: {
       query: { employees: { findFirst: vi.fn().mockResolvedValue(undefined) } },
-      select: () => ({ from: () => ({ where: () => Promise.resolve([]) }) }),
+      // ONE CHAINABLE STUB for every query builder this action touches.
+      // Issuing an employee code (lib/employees/code-registry.ts, added
+      // 2026-09-24) joins paying entities and designations, then reserves and
+      // releases rows — so the graph reaches leftJoin, delete and update, and
+      // awaits some of them with .catch(). Every step returns the same object
+      // and every await resolves to [], so the action falls back to its default
+      // prefix, which is all this test cares about.
+      select: () => chain(),
       insert: () => insertBuilder,
+      delete: () => chain(),
+      update: () => chain(),
     },
   };
 });

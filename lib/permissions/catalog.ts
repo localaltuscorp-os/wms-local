@@ -694,6 +694,15 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     label: "Admin Panel",
     note: "Already admin-only by its layout. These nodes narrow WITHIN that.",
     children: [
+      // RESTORED 2026-09-24. Both were dropped while the Control Panel was
+      // moved out to its own module, but neither moved WITH it: /admin and
+      // /admin/activity are still real pages here. With nothing claiming
+      // `/admin`, nodeKeyForPath returned null for the Admin Panel and every
+      // path under it that no other node owns — so the matrix could not narrow
+      // the panel at all, and the guarded /admin/activity/export handler
+      // resolved to no node.
+      { key: "admin.overview", label: "Overview", routes: ["/admin"] },
+      { key: "admin.activity", label: "Activity", routes: ["/admin/activity"] },
       {
         key: "admin.people",
         label: "People",

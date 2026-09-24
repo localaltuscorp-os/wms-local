@@ -168,7 +168,11 @@ describe("an event checklist sheet", () => {
     expect(rows.slice(0, 4).every((r) => r.errors.length === 0)).toBe(true);
     expect(rows[4]!.errors[0]).toMatch(/disagree/);
     // A repeat on an event row is spoken about its own day.
-    expect(rows[2]!.when).toMatch(/1 day before the event · 09\/10\/2026/);
+    // Displayed as dd-MMM-yyyy since 2026-09-24 (formatDMY): 09/10/2026 cannot
+    // be read without knowing whether the sheet is day-first or month-first,
+    // and this string is read by people rather than parsed. INPUT is unchanged
+    // - the rows above still supply 07/10/2026.
+    expect(rows[2]!.when).toMatch(/1 day before the event · 09-Oct-2026/);
   });
 
   it("refuses a date more than a year from the event", () => {
