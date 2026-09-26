@@ -105,10 +105,10 @@ export const WORKSPACE_LANDING: Record<WorkspaceId, string> = {
   // deep link and the two export routes already point at `/incentive`, so
   // reusing it means the extraction needs no redirect and breaks no bookmark.
   incentive: "/incentive",
-  // CONTROL PANEL — the room opens on its first area, Users, exactly as the
+  // CONTROL PANEL — the room opens on its first area, Roles, exactly as the
   // Admin Panel group opened on it. The room's own path is what the layout
   // gate reads, so the landing and the gate always name the same prefix.
-  "control-panel": "/control-panel/users",
+  "control-panel": "/control-panel/roles",
 };
 
 export const ACTIVE_WORKSPACE_COOKIE = "aw";

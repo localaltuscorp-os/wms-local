@@ -145,17 +145,6 @@ export default async function EmployeesPage() {
               useless for somebody who has just been given it. Drawn only for a
               super-admin, matching the master-admin toggle below; the route has
               its own gate either way. */}
-          {canManageMasterAdmin && (
-            <a
-              href="/master-admin"
-              className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong transition-colors px-3.5 py-2 rounded-pill border border-hairline bg-surface-card wg-btn"
-              style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
-              title="Decide who can see, read and edit each module"
-            >
-              <ShieldCheck size={14} strokeWidth={2.2} />
-              Module permissions
-            </a>
-          )}
           <InviteEmployeeDialog
             departmentOptions={departmentOptions}
             designationOptions={masterOptions.designations}

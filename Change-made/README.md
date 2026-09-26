@@ -79,3 +79,11 @@ The 7 failures are pre-existing and unrelated (see [`07-files-changed.md`](./07-
 See [`19-employee-id-standardization-and-control-panel.md`](./19-employee-id-standardization-and-control-panel.md).
 The SQL runbook is [`SQL/19-apply-employee-id-and-control-panel.sql`](./SQL/19-apply-employee-id-and-control-panel.sql),
 with read-only checks in [`SQL/19-verify-employee-id-and-control-panel.sql`](./SQL/19-verify-employee-id-and-control-panel.sql).
+
+## Latest change set: Control Panel simplification and Role UI
+
+See [`22-control-panel-simplification-and-role-ui.md`](./22-control-panel-simplification-and-role-ui.md).
+There is no apply SQL because this change set creates, modifies, and deletes no
+database objects or rows. Use read-only
+[`SQL/20-verify-control-panel-simplification.sql`](./SQL/20-verify-control-panel-simplification.sql)
+to inventory existing role and permission data.

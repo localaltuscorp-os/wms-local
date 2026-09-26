@@ -30,6 +30,7 @@ import {
 export interface ControlPanelUser {
   id: string;
   name: string;
+  email: string | null;
   employeeCode: string | null;
   functionName: string | null;
   designationName: string | null;
@@ -45,6 +46,7 @@ export async function listControlPanelUsers(): Promise<ControlPanelUser[]> {
     .select({
       id: employees.id,
       name: employees.name,
+      email: employees.email,
       employeeCode: employees.employeeCode,
       functionName: functions.name,
       designationName: designations.name,

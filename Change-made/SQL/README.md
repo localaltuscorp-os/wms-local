@@ -9,6 +9,14 @@ for the idempotent Control Panel permission-key transition and safe Employee
 Code inventory. Run [`19-verify-employee-id-and-control-panel.sql`](./19-verify-employee-id-and-control-panel.sql)
 afterwards. Employee Code allocation remains application-owned; do not generate
 missing codes with raw SQL.
+
+## Latest: Control Panel simplification and Role UI
+
+No apply SQL exists for this change set. It changes presentation and route
+ownership only; it does not create, alter, delete, or migrate database data.
+Run [`20-verify-control-panel-simplification.sql`](./20-verify-control-panel-simplification.sql)
+only when an inventory of existing roles, permissions, assignments, or legacy
+Master Admin grants is needed.
 >
 > Everything below was checked against `aws-0-ap-south-1`, which is **not** production
 > (production is Supabase project `fjopgyqytfvbudkwhdto`, `aws-0-ap-northeast-1`), so

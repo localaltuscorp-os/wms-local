@@ -932,10 +932,9 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
   {
     key: "control-panel",
     label: "Control Panel",
-    note: "Who can reach what: the user directory, the role templates, the per-employee permission matrix and temporary access. Switching this node off hides the whole module — it does not appear in the navigation and its screens refuse a direct URL. Write actions are still limited by their own checks (a master admin for roles) and this cannot widen them.",
+    note: "Who can reach what: role templates, the per-employee permission matrix and temporary access. Switching this node off hides the whole module — it does not appear in the navigation and its screens refuse a direct URL. Write actions are still limited by their own checks (a master admin for roles) and this cannot widen them.",
     routes: ["/control-panel"],
     children: [
-      { key: "control-panel.users", label: "Users", routes: ["/control-panel/users"] },
       { key: "control-panel.roles", label: "Roles", routes: ["/control-panel/roles"] },
       {
         key: "control-panel.permissions",
@@ -954,13 +953,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         note: "Granting is additionally gated by the reporting hierarchy or the delegated_access.grant_any capability.",
       },
     ],
-  },
-
-  {
-    key: "master-admin",
-    label: "Master Admin",
-    note: "The permission matrix itself. Gated by the master_admin.manage capability and NOT governed by this table — see resolveModulePermissions.",
-    routes: ["/master-admin"],
   },
 
   {
