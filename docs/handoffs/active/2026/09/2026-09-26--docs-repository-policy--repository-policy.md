@@ -45,12 +45,11 @@ Document the repository workflow and engineering policies for the Development an
 - PR #2 is open from `docs/repository-policy` to `main`.
 - Vercel Preview Comments: passed.
 - `test` (`ci`): failed.
-- Vercel: pending.
+- Vercel: failed.
 - The PR review confirmed that this PR changes no application or test files; the CI failure is not caused by application or test files changed by this PR.
 - The PR is currently blocked by checks.
 
 ## Next steps
 
-1. Complete maintainer review of PR #2.
-2. Resolve or otherwise address the current PR check status before merge.
-3. Do not merge, approve, deploy, or promote this work until the required review and checks are complete.
+1. Resolve the failed CI and Vercel checks, then complete maintainer review of PR #2.
+2. Do not merge, approve, deploy, or promote this work until the failed checks and required review are complete.
