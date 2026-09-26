@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
 import { localDateString } from "@/lib/format";
 import { monthsOfQuarterKey, quarterKeyOfMonthKey } from "@/lib/goals/types";
+import { mccPeriodColumns } from "@/lib/compliance/period-checks";
+import { loadCompliancePeriodChecks } from "@/lib/queries/compliance-period-checks";
 import { loadComplianceBoard } from "@/lib/queries/compliance-board";
 import { ComplianceBoard } from "@/components/compliance/compliance-board";
 import { MccPeriodBar, ScopePicker } from "@/components/compliance/compliance-controls";
@@ -43,6 +45,8 @@ export default async function MccPage({
     monthKeys,
     personalGroup: "month",
   });
+  const periodColumns = mccPeriodColumns(today);
+  const periodChecks = await loadCompliancePeriodChecks(board.itemIds, "mcc", periodColumns[0]?.periodYear ?? Number(today.slice(0, 4)));
 
   return (
     <PageShell>
@@ -71,6 +75,8 @@ export default async function MccPage({
            this board already showing exactly the rows behind it. */
         initialStatuses={sp.status ? sp.status.split(",") : undefined}
         initialQuery={sp.find}
+        periodColumns={periodColumns}
+        periodChecks={periodChecks}
       />
     </PageShell>
   );

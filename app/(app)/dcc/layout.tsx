@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { DccQuickNav } from "@/components/dcc/dcc-quick-nav";
 
 /**
  * The DCC module's chrome: the five doors across the top, then the page.
@@ -10,10 +9,5 @@ import { DccQuickNav } from "@/components/dcc/dcc-quick-nav";
  * gets the bar — the old module let two of its pages quietly render without it.
  */
 export default function DccLayout({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <DccQuickNav />
-      {children}
-    </>
-  );
+  return children;
 }
