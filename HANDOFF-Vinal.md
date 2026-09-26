@@ -1,6 +1,55 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-23
+**Updated:** 2026-09-26
+**Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
+**Audience:** team, lead, and whoever runs the SQL in Supabase.
+
+## Latest delivery — 26 September 2026
+
+### Branch and deployment state
+
+- **Branch:** `Vinal`
+- **Delivery commit:** `ba501251` — `Improve compliance boards, task tables, and project views`
+- **Pushed:** `origin/Vinal` successfully on 26 September 2026.
+- **Main comparison:** fetched `origin/main` before the push; it was identical to the branch baseline, so **no main commits were pulled or merged**. `Vinal` is now one commit ahead of `origin/main`.
+- **Database:** migration `0253_dcc_compliance_period_checks.sql` was applied successfully to the configured Supabase database.
+
+### Delivered today
+
+| Area | Delivered |
+|---|---|
+| **WCC / MCC table behaviour** | Frozen the selection, S. No., Compliance and Section rail; kept Delete permanently frozen at the right. Fixed horizontal-scroll overlap so scrolled body cells do not show through frozen headings/columns. Added selection and bulk-delete handling, respecting DCC Master restrictions. |
+| **WCC / MCC period timeline** | Added Accounts-style editable period cells: **Wk1–Wk5** in WCC and **Apr–Mar** in MCC. Each cell supports Done, Pending, Need Help, Not Applicable, and clear. Period columns can be dragged and dropped within their own WCC/MCC timeline; order is saved per person and per checklist. Existing Doer/Approver flows and dated compliance entries are unchanged. |
+| **Compliance entry usability** | Added a frozen Section column beside Compliance. Doer Notes and Approver Notes now use an explicit write → tick-to-save → pencil-to-edit flow. Quantity Done uses compact empty boxes. Fixed the WCC six-day range to include all six upcoming dates, including days crossing into the next week. |
+| **Compliance create/import** | WCC/MCC bulk upload now follows the Tasks bulk-upload flow, including in-dialog import, editable rows, template/download support, drag/drop file area, and correct WCC day selection. The redundant outside bulk-upload button was removed. |
+| **Compliance navigation** | Employees navigation labels now read **Weekly CC** and **Monthly CC**. The DCC quick-access strip (Dashboard, WCC, MCC, Sample data) was completely removed; DCC uses shared application navigation only. |
+| **Tasks table** | Fixed frozen-column/header overlap during horizontal scroll, narrowed Client/Subject/Task columns, and kept full truncated values available on hover. |
+| **Project module** | Moved dashboard analytics into the Project Dashboard and retained the Project Tree in Project View. Updated Project View controls/table presentation to match the supplied reference layout. |
+
+### Database migration applied
+
+`db/migrations/0253_dcc_compliance_period_checks.sql` creates `dcc_compliance_period_checks`. It stores only the new Accounts-style WCC/MCC period summaries; it does **not** replace or modify `dcc_entries`, so dated compliance records, Doer Status, Approver Status, notes, and quantity data stay intact.
+
+The migration is additive and idempotent:
+
+```sql
+CREATE TABLE IF NOT EXISTS dcc_compliance_period_checks (...);
+CREATE UNIQUE INDEX IF NOT EXISTS dcc_compliance_period_checks_uq
+  ON dcc_compliance_period_checks (item_id, kind, period_year, period_month, week_no);
+CREATE INDEX IF NOT EXISTS dcc_compliance_period_checks_period_idx
+  ON dcc_compliance_period_checks (kind, period_year, period_month);
+```
+
+See the migration file for the complete table definition and constraints.
+
+### Verification
+
+- `tsc --noEmit --pretty false` — passed.
+- `vitest run tests/unit/compliance-wcc-mcc.test.ts tests/unit/compliance-columns.test.ts` — **44 passed**.
+- `git diff --check` — passed before commit.
+- Commit `ba501251` pushed successfully to `origin/Vinal`.
+
+---
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
 
