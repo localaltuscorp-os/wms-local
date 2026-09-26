@@ -120,10 +120,12 @@ export function ArchiveSectionChips({
 /** One module's tables, in the order its loader returned them. */
 export function ArchiveTables({
   tables,
+  activePeople,
   emptyTitle,
   emptyLine,
 }: {
   tables: ArchiveTable[];
+  activePeople?: import("@/lib/queries/archive").ArchivePerson[];
   emptyTitle?: string;
   emptyLine?: string;
 }) {
@@ -140,7 +142,7 @@ export function ArchiveTables({
   }
   // The rows themselves are a client island: they carry a search box and, where
   // a record was put away by hand, Unarchive and Delete.
-  return <ArchiveTablesClient tables={tables} />;
+  return <ArchiveTablesClient tables={tables} activePeople={activePeople} />;
 }
 
 export function EmptyPanel({ title, line }: { title: string; line: string }) {

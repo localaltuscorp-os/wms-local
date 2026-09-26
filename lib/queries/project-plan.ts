@@ -195,6 +195,83 @@ async function loadPlanExtras(): Promise<Map<string, PlanExtras>> {
 }
 
 /**
+ * `task_time_rollup` is a derived timer projection introduced in migration
+ * 0175. A database brought up only through the older project-plan migrations
+ * still has perfectly usable projects and tasks, but does not have this table.
+ *
+ * Do not let that optional timer badge take down the whole Project module. The
+ * fallback is deliberately narrow: only a missing rollup table/column retries
+ * without the join. Connectivity, permissions and every other query failure
+ * continue to surface normally instead of being mistaken for "not running".
+ */
+function missingTimeRollupProjection(err: unknown): boolean {
+  let current: unknown = err;
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    const message = current instanceof Error ? current.message : String(current);
+    if (
+      /task_time_rollup|open_session_count/i.test(message) &&
+      /(does not exist|undefined table|undefined column|42P01|42703)/i.test(message)
+    ) {
+      return true;
+    }
+    current =
+      typeof current === "object" && current !== null && "cause" in current
+        ? (current as { cause?: unknown }).cause
+        : null;
+  }
+  return false;
+}
+
+async function loadPlanTaskRows() {
+  const doer = alias(employees, "plan_doer");
+  const fields = {
+    id: tasks.id,
+    projectNodeId: tasks.projectNodeId,
+    status: tasks.status,
+    priority: tasks.priority,
+    doerId: tasks.doerId,
+    doerName: doer.name,
+    dueAt: tasks.dueAt,
+    startsAt: tasks.startsAt,
+    endsAt: tasks.endsAt,
+    estimatedMinutes: tasks.estimatedMinutes,
+    updatedAt: tasks.updatedAt,
+    googleEventId: tasks.googleEventId,
+    client: tasks.client,
+    subject: tasks.subject,
+    notes: tasks.notes,
+    createdAt: tasks.createdAt,
+  };
+  const activePlanTasks = and(isNotNull(tasks.projectNodeId), eq(tasks.archived, false));
+
+  try {
+    return await db
+      .select({
+        ...fields,
+        // Left-joined, so a task that has never been timed simply has no
+        // rollup row and reads as "not running" rather than dropping out.
+        openSessions: taskTimeRollup.openSessionCount,
+      })
+      .from(tasks)
+      .leftJoin(doer, eq(doer.id, tasks.doerId))
+      .leftJoin(taskTimeRollup, eq(taskTimeRollup.taskId, tasks.id))
+      .where(activePlanTasks)
+      .orderBy(asc(tasks.createdAt));
+  } catch (err) {
+    if (!missingTimeRollupProjection(err)) throw err;
+
+    // Migration 0175 is absent. Projects remain fully usable; only the live
+    // timer indicator is unavailable until the migration is applied.
+    return db
+      .select({ ...fields, openSessions: sql<number>`0` })
+      .from(tasks)
+      .leftJoin(doer, eq(doer.id, tasks.doerId))
+      .where(activePlanTasks)
+      .orderBy(asc(tasks.createdAt));
+  }
+}
+
+/**
  * The full active tree, children ordered by (sort_order, name) at every level.
  *
  * Ordering is applied ONCE in SQL and then preserved as rows are threaded into
@@ -203,7 +280,6 @@ async function loadPlanExtras(): Promise<Map<string, PlanExtras>> {
  */
 export async function listPlanTree(): Promise<PlanNode[]> {
   const owner = alias(employees, "plan_owner");
-  const doer = alias(employees, "plan_doer");
 
   const [nodeRows, taskRows, metaById, extrasById] = await Promise.all([
     db
@@ -232,33 +308,7 @@ export async function listPlanTree(): Promise<PlanNode[]> {
     // so that if a node somehow carries more than one task (the older /projects
     // screen lets any task link to any node), the FIRST one is deterministically
     // the row's task and the rest are left alone rather than fighting over it.
-    db
-      .select({
-        id: tasks.id,
-        projectNodeId: tasks.projectNodeId,
-        status: tasks.status,
-        priority: tasks.priority,
-        doerId: tasks.doerId,
-        doerName: doer.name,
-        dueAt: tasks.dueAt,
-        startsAt: tasks.startsAt,
-        endsAt: tasks.endsAt,
-        estimatedMinutes: tasks.estimatedMinutes,
-        updatedAt: tasks.updatedAt,
-        googleEventId: tasks.googleEventId,
-        client: tasks.client,
-        subject: tasks.subject,
-        notes: tasks.notes,
-        createdAt: tasks.createdAt,
-        // Left-joined, so a task that has never been timed simply has no
-        // rollup row and reads as "not running" rather than dropping out.
-        openSessions: taskTimeRollup.openSessionCount,
-      })
-      .from(tasks)
-      .leftJoin(doer, eq(doer.id, tasks.doerId))
-      .leftJoin(taskTimeRollup, eq(taskTimeRollup.taskId, tasks.id))
-      .where(and(isNotNull(tasks.projectNodeId), eq(tasks.archived, false)))
-      .orderBy(asc(tasks.createdAt)),
+    loadPlanTaskRows(),
 
     loadPlanMeta(),
     loadPlanExtras(),
