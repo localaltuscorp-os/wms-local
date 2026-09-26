@@ -72,6 +72,7 @@ const URGENCY_COLOR: Record<Urgency["level"], string> = {
   none: "var(--color-ink-muted)",
 };
 import * as Tooltip from "@radix-ui/react-tooltip";
+import { HoverTip } from "@/components/ui/hover-tip";
 import {
   SlidersHorizontal,
   Check,
@@ -269,9 +270,9 @@ const UNMOVABLE_COLUMNS = new Set(["select", "actions"]);
  */
 const FROZEN_LEFT_WIDTH: Record<string, number> = {
   select: 44,
-  client: 150,
-  subject: 150,
-  title: 360,
+  client: 132,
+  subject: 128,
+  title: 315,
   timer: 92,
 };
 
@@ -353,9 +354,11 @@ function buildColumns(
       cell: (info) => {
         const v = info.getValue<string | null>();
         return v ? (
-          <span className="text-ink-strong font-semibold" style={{ fontSize: 15 }}>
-            {v}
-          </span>
+          <HoverTip text={v} className="block min-w-0 max-w-full">
+            <span className="block truncate text-ink-strong font-semibold" style={{ fontSize: 15 }}>
+              {v}
+            </span>
+          </HoverTip>
         ) : (
           <span className="text-ink-subtle">-</span>
         );
@@ -365,11 +368,14 @@ function buildColumns(
       accessorKey: "subject",
       header: "Subject",
       meta: { narrow: true },
-      cell: (info) => (
-        <span className="text-body-lg text-ink-muted">
-          {info.getValue<string>() ?? "-"}
-        </span>
-      ),
+      cell: (info) => {
+        const subject = info.getValue<string>() ?? "-";
+        return (
+          <HoverTip text={subject} className="block min-w-0 max-w-full">
+            <span className="block truncate text-body-lg text-ink-muted">{subject}</span>
+          </HoverTip>
+        );
+      },
     },
     {
       accessorKey: "title",
@@ -1340,6 +1346,7 @@ export function TaskTable({
                     className={`group/head sticky top-0 px-4 py-1.5 text-table-head whitespace-nowrap max-md:px-3 max-md:py-3 text-left ${frozen ? `${frozen.className} z-30` : isActions ? "right-0 z-30" : "z-20"} ${!frozen && col.meta?.wide ? "w-full" : ""} ${hide ? "max-md:hidden" : ""}`}
                     style={{
                       ...(frozen?.style ?? {}),
+                      zIndex: frozen || isActions ? 40 : 20,
                       // Crisp glass header strip — a near-opaque frosted
                       // gradient (blur catches the rows scrolling beneath)
                       // with a hairline seat drawn as an inset shadow so it

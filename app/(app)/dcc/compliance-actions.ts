@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { dccEntries, dccKpiItems, employees } from "@/db/schema";
+import { dccCompliancePeriodChecks, dccEntries, dccKpiItems, employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
@@ -16,6 +16,7 @@ import { checkFillWindow, kindOf, periodFor } from "@/lib/compliance/schedule";
 import { localDateString } from "@/lib/format";
 import { MAX_QUANTITY, quantityTargetOf } from "@/lib/compliance/quantity";
 import { MAX_MINUTES, MINUTES_WORDS } from "@/lib/compliance/minutes";
+import { COMPLIANCE_PERIOD_STATUSES } from "@/lib/compliance/period-checks";
 import { MCC_FREQUENCIES, mccColumns, normalizeMccSchedule } from "@/lib/compliance/mcc-frequency";
 import { COMPLIANCE_BULK_MAX, normTitle } from "@/lib/compliance/bulk";
 import { isMissingColumn } from "@/lib/queries/compliance";
@@ -608,6 +609,35 @@ export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promis
   return { ok: true };
 }
 
+/** Archive selected WCC/MCC compliances in one guarded write. */
+export async function archiveComplianceItems(rawItemIds: string[]): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(rawItemIds);
+  if (!parsed.success) return fail("Choose between 1 and 100 valid compliances to remove.");
+  const itemIds = [...new Set(parsed.data)];
+
+  // Authorize every item before changing any of them. A WCC item can appear
+  // more than once in the table, so the client and this action deduplicate it.
+  const guards = await Promise.all(itemIds.map((itemId) => guardItemWrite(itemId, me)));
+  const approved = guards.filter((guard): guard is { ok: true; owner: string } => guard.ok);
+  if (approved.length !== guards.length) {
+    return guards.find((guard) => !guard.ok)!;
+  }
+
+  await db
+    .update(dccKpiItems)
+    .set({ archived: true, updatedAt: new Date() })
+    .where(and(inArray(dccKpiItems.id, itemIds), eq(dccKpiItems.archived, false)));
+
+  for (const owner of new Set(approved.map((guard) => guard.owner))) scheduleDccCalendarSync(owner);
+  revalidateCompliance();
+  revalidatePath("/dcc/masters");
+  return { ok: true };
+}
+
 const MinutesInput = z.object({
   itemId: z.string().uuid(),
   /** Null clears it. */
@@ -654,6 +684,43 @@ export async function setComplianceMinutes(raw: z.input<typeof MinutesInput>): P
 }
 
 /** Remove a compliance. Archived, never deleted — its fills are the record. */
+const PeriodCheckInput = z.object({
+  itemId: z.string().uuid(),
+  kind: z.enum(["wcc", "mcc"]),
+  periodYear: z.number().int().min(2000).max(2100),
+  periodMonth: z.number().int().min(1).max(12),
+  weekNo: z.number().int().min(0).max(5),
+  status: z.string().trim().refine((s) => s === "" || (COMPLIANCE_PERIOD_STATUSES as readonly string[]).includes(s), "Invalid status."),
+});
+
+/** Save one Accounts-style Wk1–Wk5 or Apr–Mar summary cell. */
+export async function setCompliancePeriodCheck(raw: z.input<typeof PeriodCheckInput>): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = PeriodCheckInput.safeParse(raw);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid period status.");
+  const v = parsed.data;
+  if ((v.kind === "wcc" && (v.weekNo < 1 || v.weekNo > 5)) || (v.kind === "mcc" && v.weekNo !== 0)) return fail("That checklist period is invalid.");
+
+  const [item] = await db.select({ owner: dccKpiItems.ownerEmployeeId }).from(dccKpiItems)
+    .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false))).limit(1);
+  if (!item) return fail("That compliance no longer exists.");
+  const scope = await loadComplianceScope(me);
+  if (item.owner !== me.id && !canManageItemsFor(scope, item.owner)) return fail("You can update period checks for your own compliances and your team's only.");
+
+  try {
+    const where = and(eq(dccCompliancePeriodChecks.itemId, v.itemId), eq(dccCompliancePeriodChecks.kind, v.kind), eq(dccCompliancePeriodChecks.periodYear, v.periodYear), eq(dccCompliancePeriodChecks.periodMonth, v.periodMonth), eq(dccCompliancePeriodChecks.weekNo, v.weekNo));
+    if (v.status === "") await db.delete(dccCompliancePeriodChecks).where(where);
+    else await db.insert(dccCompliancePeriodChecks).values({ itemId: v.itemId, kind: v.kind, periodYear: v.periodYear, periodMonth: v.periodMonth, weekNo: v.weekNo, status: v.status, updatedById: me.id })
+      .onConflictDoUpdate({ target: [dccCompliancePeriodChecks.itemId, dccCompliancePeriodChecks.kind, dccCompliancePeriodChecks.periodYear, dccCompliancePeriodChecks.periodMonth, dccCompliancePeriodChecks.weekNo], set: { status: v.status, updatedById: me.id, updatedAt: new Date() } });
+  } catch {
+    return fail("Could not save this period status. Apply migration 0253 and try again.");
+  }
+  revalidateCompliance();
+  return { ok: true };
+}
+
 export async function archiveComplianceItem(itemId: string): Promise<ActionResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");

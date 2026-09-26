@@ -2,7 +2,9 @@ import { CalendarCheck2 } from "lucide-react";
 import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
 import { localDateString } from "@/lib/format";
-import { addDays } from "@/lib/compliance/schedule";
+import { wccWindow } from "@/lib/compliance/schedule";
+import { wccPeriodColumns } from "@/lib/compliance/period-checks";
+import { loadCompliancePeriodChecks } from "@/lib/queries/compliance-period-checks";
 import { loadComplianceBoard } from "@/lib/queries/compliance-board";
 import { ComplianceBoard } from "@/components/compliance/compliance-board";
 import { ScopePicker, WccViewBar } from "@/components/compliance/compliance-controls";
@@ -33,7 +35,7 @@ export default async function WccPage({
   const today = localDateString("Asia/Kolkata");
   const days = (sp.days === "3" ? 3 : sp.days === "6" ? 6 : 1) as 1 | 3 | 6;
   const end = /^\d{4}-\d{2}-\d{2}$/.test(sp.end ?? "") && sp.end! < today ? sp.end! : today;
-  const from = addDays(end, -(days - 1));
+  const { from, to } = wccWindow(end, days);
 
   const board = await loadComplianceBoard({
     me,
@@ -41,9 +43,11 @@ export default async function WccPage({
     who: sp.who,
     today,
     from,
-    to: end,
+    to,
     personalGroup: "day",
   });
+  const periodColumns = wccPeriodColumns(today);
+  const periodChecks = await loadCompliancePeriodChecks(board.itemIds, "wcc", periodColumns[0]?.periodYear ?? Number(today.slice(0, 4)));
 
   return (
     <PageShell>
@@ -72,6 +76,8 @@ export default async function WccPage({
            this board already showing exactly the rows behind it. */
         initialStatuses={sp.status ? sp.status.split(",") : undefined}
         initialQuery={sp.find}
+        periodColumns={periodColumns}
+        periodChecks={periodChecks}
       />
     </PageShell>
   );
