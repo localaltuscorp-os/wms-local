@@ -2,8 +2,12 @@
 
 - **Date:** 2026-09-26
 - **Work item / branch:** `docs/repository-policy`
-- **Status:** Ready for review; not pushed and no pull request created yet.
-- **Commit:** `5b72393e` (`docs: add repository workflow and engineering policies`)
+- **Status:** PR #2 is open and currently blocked by checks.
+- **Commits:**
+  - `5b72393e` (`docs: add repository workflow and engineering policies`)
+  - `62a98c01` (`docs: add policy change handoff`)
+- **Remote branch:** `origin/docs/repository-policy` (pushed successfully)
+- **Pull request:** #2, base `main`, head `docs/repository-policy`
 
 ## Objective
 
@@ -25,7 +29,9 @@ Document the repository workflow and engineering policies for the Development an
 
 - No application or runtime behavior changed.
 - No SQL, schema, migration, database, deployment, or Vercel changes were made.
-- No existing handoff files were modified.
+- No pre-existing handoff files outside this active policy handoff were modified.
+- No merge, approval, deployment, or production push has occurred.
+- The original dirty `main` worktree remains untouched.
 
 ## Validation completed
 
@@ -34,8 +40,17 @@ Document the repository workflow and engineering policies for the Development an
 - Reviewed the changes for secrets, credentials, tokens, and real PII; none were introduced.
 - Confirmed the branch is based on `origin/main` and contains only the documentation-policy commit before this handoff commit.
 
+## Pull request state
+
+- PR #2 is open from `docs/repository-policy` to `main`.
+- Vercel Preview Comments: passed.
+- `test` (`ci`): failed.
+- Vercel: pending.
+- The PR review confirmed that this PR changes no application or test files; the CI failure is not caused by application or test files changed by this PR.
+- The PR is currently blocked by checks.
+
 ## Next steps
 
-1. Review the documentation-policy branch.
-2. Push `docs/repository-policy` to `origin` after this handoff is committed.
-3. Create a pull request to `origin/main`; do not merge without maintainer approval.
+1. Complete maintainer review of PR #2.
+2. Resolve or otherwise address the current PR check status before merge.
+3. Do not merge, approve, deploy, or promote this work until the required review and checks are complete.
