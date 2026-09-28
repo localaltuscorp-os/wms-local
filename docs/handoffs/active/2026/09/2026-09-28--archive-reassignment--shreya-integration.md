@@ -3,7 +3,7 @@
 - **Date:** 2026-09-28
 - **Work item:** `archive-reassignment`
 - **Source:** `origin/Shreya`, commit `078db129`.
-- **Status:** Merged locally and validated; documentation handoff commit and authorized push to `origin/main` are pending.
+- **Status:** Merged, validated, and integrated into `origin/main`; authorized promotion to `fork/main` is pending.
 - **Local merge commit:** `45f864ec526fd2aae5afb6bc9ce02eb54e04c5e0`.
 
 ## Objective
@@ -42,4 +42,4 @@ Integrate the Archive reassignment improvements and related Project Plan access/
 
 ## Remaining action
 
-Review the combined diff for unrelated changes, then an authorized maintainer may push the merge and the accompanying policy/handoff updates to `origin/main`.
+The change is available on Development `origin/main` at `a14e34bcea52c3e10467d3d5f7da7a1bd51e6065`. Production promotion must follow the documented release handoff and use the approved fast-forward range.
