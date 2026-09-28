@@ -7,7 +7,8 @@ import { ceAccounts, ceAuditLog, ceEngagements, ceReferences, ceTeamMembers } fr
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
-import { canEditAccount, canManageCe, CE_MANAGER_NAMES } from "@/lib/client-engagement/access";
+import { CE_MANAGER_NAMES } from "@/lib/client-engagement/access";
+import { canEditAccount, canManageCe } from "@/lib/client-engagement/access-server";
 import {
   accountLabel,
   categoryNeedsBatch,
@@ -29,7 +30,7 @@ import type { Employee } from "@/db/schema";
 /**
  * CLIENT ENGAGEMENT — the writes (rebuild, 0238).
  *
- *   · ADD an account — anyone signed in; it lands in Unassigned.
+ *   · ADD an account, or DELETE one — Manan and Ruchita only (canManageCe).
  *   · ASSIGN / TRANSFER — Manan and Ruchita only (canManageCe).
  *   · EDIT an account or SCHEDULE its calls — a manager, or its assignee.
  *   · TEAM ROSTER — managers only.
@@ -59,7 +60,7 @@ async function guard(): Promise<{ me: Employee; error: string | null }> {
   return { me, error: limited ? limited.error : null };
 }
 
-const isManager = (me: Employee) => canManageCe(me, DUMMY_MODE);
+const isManager = (me: Employee) => canManageCe(me, DUMMY_MODE); // async — every call site awaits it
 
 const clean = (v: string | null | undefined, max = 200): string => (v ?? "").trim().slice(0, max);
 const orNull = (v: string | null | undefined, max = 200): string | null => clean(v, max) || null;
@@ -185,19 +186,20 @@ function readAccount(input: AccountInput):
 }
 
 /**
- * Add a participant, client or ambassador. Anyone may; it lands in Unassigned.
- * A manager may assign it in the same step (`assignTo`).
+ * Add a participant, client or ambassador — Manan and Ruchita only (2026-09-26:
+ * "Only Super Admin, HR team can add or delete participants... this feature is
+ * missing in the Client Engagement Module completely" — it previously let
+ * anyone signed in add one, unassigned; that gap is what this closes). A
+ * manager may assign it in the same step (`assignTo`).
  */
 export async function ceAddAccount(input: AccountInput & { assignTo?: string | null }): Promise<Result<{ id: string }>> {
   const { me, error } = await guard();
   if (error) return { ok: false, error };
+  if (!(await isManager(me))) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can add a participant, client or ambassador.` };
   const parsed = readAccount(input);
   if ("error" in parsed) return { ok: false, error: parsed.error };
 
   const assignTo = input.assignTo || null;
-  if (assignTo && !isManager(me)) {
-    return { ok: false, error: `Only ${CE_MANAGER_NAMES} can assign. Add it unassigned and ask them.` };
-  }
 
   try {
     const id = await db.transaction(async (tx) => {
@@ -240,7 +242,7 @@ export async function ceUpdateAccount(id: string, input: AccountInput): Promise<
   if (error) return { ok: false, error };
   const found = await loadAccount(id);
   if (!found) return { ok: false, error: "That record no longer exists." };
-  if (!canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE)) {
+  if (!(await canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE))) {
     return { ok: false, error: `Only ${CE_MANAGER_NAMES}, or the person it is assigned to, can edit it.` };
   }
   const parsed = readAccount(input);
@@ -316,7 +318,7 @@ export async function ceAssignAccount(
 ): Promise<Result<{ clashes: number }>> {
   const { me, error } = await guard();
   if (error) return { ok: false, error };
-  if (!isManager(me)) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can assign or transfer.` };
+  if (!(await isManager(me))) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can assign or transfer.` };
 
   const found = await loadAccount(id);
   if (!found) return { ok: false, error: "That record no longer exists." };
@@ -390,7 +392,7 @@ export async function ceAssignAccount(
 export async function ceDeleteAccount(id: string): Promise<Result> {
   const { me, error } = await guard();
   if (error) return { ok: false, error };
-  if (!isManager(me)) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can delete a record.` };
+  if (!(await isManager(me))) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can delete a record.` };
   const found = await loadAccount(id);
   if (!found) return { ok: true };
   try {
@@ -465,7 +467,7 @@ export async function ceSaveEngagement(input: EngagementInput): Promise<Result<{
   let parsedNew: Extract<ReturnType<typeof readAccount>, { values: unknown }>["values"] | null = null;
   if (!accountId) {
     if (!input.newAccount) return { ok: false, error: "Pick who the call is with." };
-    if (!isManager(me)) {
+    if (!(await isManager(me))) {
       return { ok: false, error: `A new person has to be assigned first, and only ${CE_MANAGER_NAMES} can assign. Add them on Overview.` };
     }
     const parsed = readAccount(input.newAccount);
@@ -482,7 +484,7 @@ export async function ceSaveEngagement(input: EngagementInput): Promise<Result<{
           : `${accountLabel(found.account.fullName, found.account.batchCode)} is unassigned. ${CE_MANAGER_NAMES} need to assign it first.`,
       };
     }
-    if (!canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE)) {
+    if (!(await canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE))) {
       return { ok: false, error: `Only ${CE_MANAGER_NAMES}, or ${member.name}, can schedule ${member.name}'s calls.` };
     }
   }
@@ -582,7 +584,7 @@ export async function ceDeleteEngagement(id: string): Promise<Result> {
   const [row] = await db.select().from(ceEngagements).where(eq(ceEngagements.id, id)).limit(1);
   if (!row) return { ok: true };
   const found = await loadAccount(row.accountId);
-  if (!found || !canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE)) {
+  if (!found || !(await canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE))) {
     return { ok: false, error: `Only ${CE_MANAGER_NAMES}, or the person it is assigned to, can remove it.` };
   }
   try {
@@ -621,7 +623,7 @@ export interface MemberInput {
 export async function ceSaveMember(input: MemberInput): Promise<Result<{ id: string }>> {
   const { me, error } = await guard();
   if (error) return { ok: false, error };
-  if (!isManager(me)) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can change the team.` };
+  if (!(await isManager(me))) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can change the team.` };
 
   const name = clean(input.name, 80);
   if (!name) return { ok: false, error: "Give them a name." };
@@ -702,9 +704,9 @@ export interface ReferenceInput {
 
 /** May this person work on a reference quota? Managers, the account's assignee, or its collector. */
 async function canWorkReference(me: Employee, accountId: string, collectorId: string | null): Promise<boolean> {
-  if (isManager(me)) return true;
+  if (await isManager(me)) return true;
   const found = await loadAccount(accountId);
-  if (found && canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE)) return true;
+  if (found && (await canEditAccount(me, found.assigneeEmployeeId, DUMMY_MODE))) return true;
   if (!collectorId) return false;
   const [c] = await db
     .select({ employeeId: ceTeamMembers.employeeId })
@@ -811,7 +813,7 @@ export async function ceBumpReference(id: string, delta: 1 | -1): Promise<Result
 export async function ceDeleteReference(id: string): Promise<Result> {
   const { me, error } = await guard();
   if (error) return { ok: false, error };
-  if (!isManager(me)) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can delete a reference quota.` };
+  if (!(await isManager(me))) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can delete a reference quota.` };
   const [row] = await db.select().from(ceReferences).where(eq(ceReferences.id, id)).limit(1);
   if (!row) return { ok: true };
   try {

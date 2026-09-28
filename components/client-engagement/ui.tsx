@@ -4,6 +4,8 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { Chevroned } from "@/components/ui/chevroned-select";
 import { hhStatusMeta } from "@/lib/client-engagement/status";
+import { CE_DAY_END_MIN, CE_DAY_START_MIN } from "@/lib/client-engagement/constants";
+import { parseClockInput, toClock } from "@/lib/client-engagement/schedule";
 import { DISPLAY, FIELD } from "./tokens";
 
 /**
@@ -24,6 +26,7 @@ export function Select({
   className = "",
   disabled,
   ariaLabel,
+  highlighted,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -31,6 +34,13 @@ export function Select({
   className?: string;
   disabled?: boolean;
   ariaLabel?: string;
+  /**
+   * A red ring around the field — used to show WHICH filter a KPI-card click
+   * just changed (asked 2026-09-28: "make sure the filter changed is
+   * highlighted so the user knows what changed and what to change to go
+   * back"), so the source of an unexpected filter is never a mystery.
+   */
+  highlighted?: boolean;
 }) {
   return (
     <Chevroned className={className}>
@@ -39,12 +49,91 @@ export function Select({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className={`${FIELD} cursor-pointer appearance-none`}
-        style={{ paddingRight: 36, appearance: "none", WebkitAppearance: "none" }}
+        className={`${FIELD} cursor-pointer appearance-none ${highlighted ? "ring-2 ring-offset-1" : ""}`}
+        style={{
+          paddingRight: 36,
+          appearance: "none",
+          WebkitAppearance: "none",
+          ...(highlighted ? ({ "--tw-ring-color": "var(--color-altus-red)" } as React.CSSProperties) : {}),
+        }}
       >
         {children}
       </select>
     </Chevroned>
+  );
+}
+
+const QUARTER_HOURS = Array.from({ length: (CE_DAY_END_MIN - CE_DAY_START_MIN) / 15 + 1 }, (_, i) => CE_DAY_START_MIN + i * 15);
+
+/**
+ * A TYPABLE time field — "11:47 am" or "23:15", not just a fixed slot list
+ * (asked 2026-09-26: the old dropdown only offered fixed increments). A
+ * datalist still offers quarter-hour picks for a quick click, but any minute
+ * inside the window can be typed. Reverts to the last valid value on blur if
+ * what's there doesn't parse or falls outside `min`/`max`.
+ */
+export function TimeField({
+  value,
+  onChange,
+  ariaLabel,
+  min = CE_DAY_START_MIN,
+  max = CE_DAY_END_MIN,
+  className = "",
+}: {
+  /** Minutes since midnight. */
+  value: number;
+  onChange: (min: number) => void;
+  ariaLabel: string;
+  min?: number;
+  max?: number;
+  className?: string;
+}) {
+  const [text, setText] = React.useState(() => toClock(value));
+  // The value can change from outside (e.g. "Call duration" moving "To").
+  // Adjusted during render rather than in an effect (React's own pattern for
+  // this — https://react.dev/learn/you-might-not-need-an-effect) so the typed
+  // text stays in sync without an extra render pass.
+  const [prevValue, setPrevValue] = React.useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setText(toClock(value));
+  }
+  const id = React.useId();
+
+  function commit(raw: string) {
+    const parsed = parseClockInput(raw);
+    if (parsed === null || parsed < min || parsed > max) {
+      setText(toClock(value));
+      return;
+    }
+    onChange(parsed);
+    setText(toClock(parsed));
+  }
+
+  return (
+    <>
+      <input
+        type="text"
+        inputMode="numeric"
+        list={id}
+        className={`${FIELD} ${className}`}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          commit(e.currentTarget.value);
+          e.currentTarget.blur();
+        }}
+        aria-label={ariaLabel}
+        placeholder="e.g. 11:47 AM"
+      />
+      <datalist id={id}>
+        {QUARTER_HOURS.filter((t) => t >= min && t <= max).map((t) => (
+          <option key={t} value={toClock(t)} />
+        ))}
+      </datalist>
+    </>
   );
 }
 

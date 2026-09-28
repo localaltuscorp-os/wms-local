@@ -128,7 +128,7 @@ export function BackgroundCheckCard({ employeeId }: { employeeId: string | null 
             onClick={() => setConfirming("yes")}
             className="inline-flex items-center gap-1.5 rounded-pill border-2 border-hairline-strong px-3.5 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:border-altus-red"
           >
-            <Check size={13} strokeWidth={3} /> Yes
+            <Check size={13} strokeWidth={3} /> Done
           </button>
           <button
             type="button"
@@ -140,7 +140,7 @@ export function BackgroundCheckCard({ employeeId }: { employeeId: string | null 
                 : { borderColor: "var(--color-hairline-strong)", color: "var(--color-ink-strong)" }
             }
           >
-            <X size={13} strokeWidth={3} /> No
+            <X size={13} strokeWidth={3} /> Not Done
           </button>
           {status === "no" && (
             <span className="text-[12px] font-medium text-ink-subtle">Not done yet — can be changed.</span>

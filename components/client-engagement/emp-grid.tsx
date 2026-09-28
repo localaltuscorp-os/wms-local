@@ -25,11 +25,12 @@ import { CARD, CARD_SHADOW, DISPLAY, HhStatusPill, Segmented, Select, Toolbar } 
  * Only ACTIVE accounts; an account on hold is not this week's work.
  */
 
-type CatFilter = "ps" | "bss" | "retainer" | "corporate" | "ambassador" | "all";
+type CatFilter = "ps" | "bss" | "os" | "retainer" | "corporate" | "ambassador" | "all";
 
 const FILTERS: { value: CatFilter; label: string }[] = [
   { value: "ps", label: "PS Participants" },
   { value: "bss", label: "BSS Participants" },
+  { value: "os", label: "OS Participants" },
   { value: "retainer", label: "Retainer" },
   { value: "corporate", label: "Corporate" },
   { value: "ambassador", label: "Ambassadors" },
@@ -53,7 +54,7 @@ export function EmpGrid({
 }) {
   const [cat, setCat] = React.useState<CatFilter>("ps");
   const [who, setWho] = React.useState("");
-  const [hideEmpty, setHideEmpty] = React.useState(false);
+  const [hideEmpty, setHideEmpty] = React.useState(true);
 
   const categories = new Set(cat === "all" ? CE_CATEGORIES.map((c) => c.code) : [cat]);
   const grid = buildEmpGrid(members, accounts, engagements, monday, categories);

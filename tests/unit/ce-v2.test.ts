@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { canEditAccount, canManageCe, canViewAnyCalendar } from "@/lib/client-engagement/access";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { Employee } from "@/db/schema";
 import { accountLabel, categoryNeedsBatch, groupOf } from "@/lib/client-engagement/constants";
 import {
   dateInWeek,
@@ -15,69 +15,96 @@ import { isInactiveAccount } from "@/lib/client-engagement/status";
 import { buildCapacity, buildEmpGrid, buildPca, capacityTone } from "@/lib/client-engagement/grids";
 import { needsWeeklyReminder, referenceStatus } from "@/lib/client-engagement/references";
 
-const MANAN = { id: "e-manan", email: "manan@unleashed.in", name: "Manan Vasa", isAdmin: true };
-const RUCHITA = { id: "e-ruchita", email: "ruchitaambre.altuscorp@gmail.com", name: "Ruchita Ambre", isAdmin: true };
-const RASHMI = { id: "e-rashmi", email: "rashmitripathi.altuscorp@gmail.com", name: "Rashmi Tripathi", isAdmin: false };
-const OTHER_ADMIN = { id: "e-rohan", email: "rohanchoudhary.altuscorp@gmail.com", name: "Rohan Choudhary", isAdmin: true };
+/**
+ * WHO MAY MANAGE CLIENT ENGAGEMENT.
+ *
+ * Until 2026-09-28 this was a hardcoded two-email allowlist (Manan, Ruchita).
+ * It is now a ROLE — super-admin or HR staff, via `isHrStaff` — same as
+ * `canPublishPolicies` for firm policies (tests/unit/policy-access.test.ts),
+ * for the same reason: mocked here rather than exercised against a real
+ * database, since the department lookup itself is `isHrStaff`'s job, not
+ * this module's.
+ */
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/hr/access", () => ({ isHrStaff: vi.fn() }));
 
-describe("who may transfer", () => {
-  it("is Manan and Ruchita", () => {
-    expect(canManageCe(MANAN)).toBe(true);
-    expect(canManageCe(RUCHITA)).toBe(true);
+const { canEditAccount, canManageCe, canViewAnyCalendar } = await import("@/lib/client-engagement/access-server");
+const { isHrStaff } = await import("@/lib/hr/access");
+const hrStaff = vi.mocked(isHrStaff);
+
+beforeEach(() => hrStaff.mockReset());
+
+const person = (email: string | null, name: string, isAdmin = false): Employee => ({ id: `e-${name}`, email, name, isAdmin }) as unknown as Employee;
+
+const MANAN = person("manan@unleashed.in", "Manan Vasa", true);
+const RUCHITA = person("ruchitaambre.altuscorp@gmail.com", "Ruchita Ambre", true);
+const RASHMI = person("rashmitripathi.altuscorp@gmail.com", "Rashmi Tripathi", false);
+const OTHER_ADMIN = person("rohanchoudhary.altuscorp@gmail.com", "Rohan Choudhary", true);
+
+describe("who may manage — assign, transfer, add, delete", () => {
+  it("is whoever isHrStaff admits — super-admins and HR staff", async () => {
+    hrStaff.mockResolvedValue(true);
+    expect(await canManageCe(MANAN)).toBe(true);
+    expect(await canManageCe(RUCHITA)).toBe(true);
   });
 
-  it("is nobody else — not Rashmi, not another admin", () => {
-    expect(canManageCe(RASHMI)).toBe(false);
-    expect(canManageCe(OTHER_ADMIN)).toBe(false);
+  it("is nobody else — not Rashmi, not a plain admin isHrStaff refuses", async () => {
+    hrStaff.mockResolvedValue(false);
+    expect(await canManageCe(RASHMI)).toBe(false);
+    expect(await canManageCe(OTHER_ADMIN)).toBe(false);
   });
 
-  it("reads the ADDRESS and never the name", () => {
-    // There was a first-name fallback here until 2026-09-21. It also admitted
-    // any colleague whose first name happened to be one of the two, so a new
-    // Ruchita on the roster would have silently been able to reassign accounts
-    // and edit anyone else's calls.
-    expect(canManageCe({ email: "x@y.z", name: "Ruchita" })).toBe(false);
-    expect(canManageCe({ email: "x@y.z", name: "Ruchita Nair" })).toBe(false);
-    expect(canManageCe({ email: "x@y.z", name: "Manan Rao" })).toBe(false);
-    expect(canManageCe({ email: "x@y.z", name: "Mananjay Rao" })).toBe(false);
-    // The two who do hold it are admitted by their address.
-    expect(canManageCe({ email: "manan@unleashed.in", name: "" })).toBe(true);
-    expect(canManageCe({ email: "ruchitaambre.altuscorp@gmail.com", name: "" })).toBe(true);
+  it("reads the ROLE and never the name", async () => {
+    // There was a first-name fallback here once, and a hardcoded address list
+    // after that. Both admitted whoever the code happened to name; neither
+    // reacted to who is actually HR staff today.
+    hrStaff.mockResolvedValue(false);
+    for (const name of ["Ruchita", "Ruchita Nair", "Manan Rao", "Mananjay Rao"]) {
+      expect(await canManageCe(person("x@y.z", name))).toBe(false);
+    }
+    hrStaff.mockResolvedValue(true);
+    expect(await canManageCe(person("someone.new@altuscorp.in", "Someone New"))).toBe(true);
   });
 
-  it("admits the dummy admin only in dummy mode", () => {
-    const dummy = { email: "dummy.admin@example.invalid", name: "Dummy Admin" };
-    expect(canManageCe(dummy, false)).toBe(false);
-    expect(canManageCe(dummy, true)).toBe(true);
+  it("admits the dummy admin only in dummy mode", async () => {
+    hrStaff.mockResolvedValue(false);
+    const dummy = person("dummy.admin@example.invalid", "Dummy Admin");
+    expect(await canManageCe(dummy, false)).toBe(false);
+    expect(await canManageCe(dummy, true)).toBe(true);
   });
 });
 
 describe("calendar visibility and editing", () => {
-  it("lets admins and super-admins pick anyone", () => {
-    expect(canViewAnyCalendar(OTHER_ADMIN, false)).toBe(true);
-    expect(canViewAnyCalendar(RASHMI, true)).toBe(true);
-    expect(canViewAnyCalendar(RASHMI, false)).toBe(false);
+  it("lets admins and super-admins pick anyone", async () => {
+    hrStaff.mockResolvedValue(false);
+    expect(await canViewAnyCalendar(OTHER_ADMIN, false)).toBe(true); // OTHER_ADMIN.isAdmin
+    expect(await canViewAnyCalendar(RASHMI, true)).toBe(true); // isSuperAdmin flag
+    expect(await canViewAnyCalendar(RASHMI, false)).toBe(false);
   });
 
-  it("lets the assignee edit their own account, and managers any", () => {
-    expect(canEditAccount(RASHMI, "e-rashmi")).toBe(true);
-    expect(canEditAccount(RASHMI, "e-jeevan")).toBe(false);
-    expect(canEditAccount(RASHMI, null)).toBe(false);
-    expect(canEditAccount(RUCHITA, "e-jeevan")).toBe(true);
+  it("lets the assignee edit their own account, and managers any", async () => {
+    hrStaff.mockResolvedValue(false);
+    expect(await canEditAccount(RASHMI, RASHMI.id)).toBe(true);
+    expect(await canEditAccount(RASHMI, "e-jeevan")).toBe(false);
+    expect(await canEditAccount(RASHMI, null)).toBe(false);
+    hrStaff.mockResolvedValue(true);
+    expect(await canEditAccount(RUCHITA, "e-jeevan")).toBe(true);
   });
 });
 
 describe("vocabulary", () => {
-  it("asks for a batch on PS and BSS only", () => {
+  it("asks for a batch on PS and BSS only — not OS", () => {
     expect(categoryNeedsBatch("ps")).toBe(true);
     expect(categoryNeedsBatch("bss")).toBe(true);
+    expect(categoryNeedsBatch("os")).toBe(false);
     expect(categoryNeedsBatch("retainer")).toBe(false);
     expect(categoryNeedsBatch("corporate")).toBe(false);
     expect(categoryNeedsBatch("ambassador")).toBe(false);
   });
 
-  it("groups into P / C / A", () => {
+  it("groups into P / C / A, OS alongside PS and BSS", () => {
     expect(groupOf("ps")).toBe("P");
+    expect(groupOf("os")).toBe("P");
     expect(groupOf("retainer")).toBe("C");
     expect(groupOf("corporate")).toBe("C");
     expect(groupOf("ambassador")).toBe("A");

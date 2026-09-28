@@ -4,7 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2, Plus, Repeat, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Maximize2, Minimize2, Plus, Upload } from "lucide-react";
 import { ExecWeekGrid } from "./week-grid";
 import { ExecMonthGrid } from "./month-grid";
 import { ExecMonthlyGridView } from "./monthly-grid-view";
@@ -107,14 +107,15 @@ export function ExecCalendarWorkspace({
   const [importOpen, setImportOpen] = React.useState(openImport);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [exportBusy, setExportBusy] = React.useState<"pdf" | "jpg" | null>(null);
-  /** Weekly Grid's "maximize" — a full-viewport overlay, not the browser
+  /** Calendar "maximize" — a full-viewport overlay, not the browser
    *  Fullscreen API (no existing pattern for that here, and it needs a user
-   *  gesture / can be blocked in embedded contexts). Esc closes it. */
-  const [gridMaximized, setGridMaximized] = React.useState(false);
+   *  gesture / can be blocked in embedded contexts). Esc closes it. Works for
+   *  whichever view is currently active, not just the Weekly Grid it started on. */
+  const [maximized, setMaximized] = React.useState(false);
   React.useEffect(() => {
-    if (!gridMaximized) return;
+    if (!maximized) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setGridMaximized(false);
+      if (e.key === "Escape") setMaximized(false);
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -123,7 +124,7 @@ export function ExecCalendarWorkspace({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [gridMaximized]);
+  }, [maximized]);
 
   /** Export the MONTH `day` falls in, as a PDF or JPG — read-only, so unlike
    *  Import/Routine/New block this isn't gated on `canEdit`. */
@@ -237,6 +238,19 @@ export function ExecCalendarWorkspace({
   const label = periodLabel(view, day, today);
   const onNow = isNow(view, day, today);
 
+  // Per-view slot granularity (asked 2026-09-26): Day/Week wants a finer
+  // 15-minute row, Weekly Grid and Monthly Grid want a coarser hourly one.
+  // `cfg`'s startMin/endMin window is shared; only slotMin is overridden per
+  // view rather than threading a second config down from the page — the
+  // per-person window picker this would otherwise collide with was removed
+  // back in 2026-09-18 (see DEFAULT_GRID in lib/exec-calendar/grid.ts).
+  const dayWeekCfg: GridConfig = { ...cfg, slotMin: 15 };
+  // Rounded up to the next whole hour (was 6:30) so hourly rows read 7:00,
+  // 8:00, 9:00… instead of 6:30, 7:30, 8:30 — slotMin alone doesn't move the
+  // window's own start, and a 60-minute step off a half-hour start never
+  // lands on the hour.
+  const gridCfg: GridConfig = { ...cfg, startMin: Math.ceil(cfg.startMin / 60) * 60, slotMin: 60 };
+
   return (
     <>
       {/* Horizons left · stepper · add buttons right. */}
@@ -245,7 +259,11 @@ export function ExecCalendarWorkspace({
           {CALENDAR_VIEWS.map((v) => (
             <button
               key={v.key}
-              onClick={() => go(v.key, day)}
+              // Monthly Grid always opens on the current week, even when
+              // switched to from some other day you'd navigated to elsewhere
+              // (asked 2026-09-26) — every other tab keeps `day` so switching
+              // views mid-browse doesn't lose your place.
+              onClick={() => go(v.key, v.key === "monthgrid" ? today : day)}
               className={`whitespace-nowrap rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold transition ${
                 view === v.key ? "text-white" : "text-ink-muted hover:text-ink-strong"
               }`}
@@ -287,75 +305,76 @@ export function ExecCalendarWorkspace({
           </button>
         </div>
 
-        <div className="relative ml-auto flex shrink-0 items-center gap-2">
-          {view === "grid" && (
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+          <div className="relative shrink-0">
             <button
-              onClick={() => setGridMaximized((v) => !v)}
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
+              onClick={() => setExportOpen((v) => !v)}
+              disabled={exportBusy !== null}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong disabled:opacity-60"
             >
-              <Maximize2 size={14} /> Maximize
+              {exportBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {exportBusy ? "Exporting…" : "Export"}
             </button>
-          )}
-          <button
-            onClick={() => setExportOpen((v) => !v)}
-            disabled={exportBusy !== null}
-            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong disabled:opacity-60"
-          >
-            {exportBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            {exportBusy ? "Exporting…" : "Export"}
-          </button>
-          {exportOpen && (
-            <div
-              className="absolute right-0 top-[calc(100%+4px)] z-20 w-36 overflow-hidden rounded-lg border border-hairline-strong bg-surface-card shadow-lg"
-              onMouseLeave={() => setExportOpen(false)}
-            >
-              <button
-                onClick={() => void runExport("pdf")}
-                className="block w-full px-3 py-2 text-left text-[12.5px] font-semibold text-ink-strong hover:bg-surface-soft"
+            {exportOpen && (
+              <div
+                // z-50: above the grid's own sticky headers (z-30 for the day
+                // names, z-20 for each week's bar) — a plain z-20 here sat in
+                // the SAME stacking context as those and lost, so the menu
+                // rendered half-hidden under the grid instead of over it.
+                className="absolute right-0 top-[calc(100%+4px)] z-50 w-36 overflow-hidden rounded-lg border border-hairline-strong bg-surface-card shadow-lg"
+                onMouseLeave={() => setExportOpen(false)}
               >
-                Export as PDF
-              </button>
-              <button
-                onClick={() => void runExport("jpg")}
-                className="block w-full px-3 py-2 text-left text-[12.5px] font-semibold text-ink-strong hover:bg-surface-soft"
-              >
-                Export as JPG
-              </button>
-            </div>
-          )}
-        </div>
-
-        {canEdit && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button
-              onClick={() => setImportOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
-            >
-              <Upload size={14} /> Import
-            </button>
-            <button
-              onClick={() => setRoutineOpen(true)}
-              title="Edit or delete a repeat — to CREATE one, give New block a Repeat"
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
-            >
-              <Repeat size={14} /> Manage routines
-            </button>
-            <button
-              onClick={() => setEditing(blankEvent(day, 10 * 60))}
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill px-3.5 py-2 text-[12.5px] font-bold text-white"
-              style={{ background: "var(--color-altus-red)" }}
-            >
-              <Plus size={14} /> New block
-            </button>
+                <button
+                  onClick={() => void runExport("pdf")}
+                  className="block w-full px-3 py-2 text-left text-[12.5px] font-semibold text-ink-strong hover:bg-surface-soft"
+                >
+                  Export as PDF
+                </button>
+                <button
+                  onClick={() => void runExport("jpg")}
+                  className="block w-full px-3 py-2 text-left text-[12.5px] font-semibold text-ink-strong hover:bg-surface-soft"
+                >
+                  Export as JPG
+                </button>
+              </div>
+            )}
           </div>
-        )}
+
+          {canEdit && (
+            <>
+              <button
+                onClick={() => setImportOpen(true)}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
+              >
+                <Upload size={14} /> Import
+              </button>
+              <button
+                onClick={() => setEditing(blankEvent(day, 10 * 60))}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill px-3.5 py-2 text-[12.5px] font-bold text-white"
+                style={{ background: "var(--color-altus-red)" }}
+              >
+                <Plus size={14} /> New block
+              </button>
+            </>
+          )}
+          {/* Icon-only, right of New block (2026-09-26: was its own "Maximize"
+              pill on the left side of this group) — same toggle, every view. */}
+          <button
+            onClick={() => setMaximized((v) => !v)}
+            aria-label="Maximize"
+            title="Maximize"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-hairline bg-surface-card text-ink-muted transition hover:border-hairline-strong hover:text-ink-strong"
+          >
+            <Maximize2 size={15} />
+          </button>
+        </div>
       </div>
 
-      {(view === "day" || view === "week") && (
+      {!maximized && (view === "day" || view === "week") && (
         <ExecWeekGrid
           days={view === "day" ? [day] : weekDays(weekStart(day))}
           events={events}
-          cfg={cfg}
+          cfg={dayWeekCfg}
           today={today}
           onPickDay={pickDay}
           onPickEvent={canEdit ? openEvent : undefined}
@@ -366,12 +385,12 @@ export function ExecCalendarWorkspace({
         />
       )}
 
-      {view === "grid" && !gridMaximized && (
+      {!maximized && view === "grid" && (
         <ExecWeeklyGridView
           monday={weekStart(day)}
           events={events}
           markers={markers}
-          cfg={cfg}
+          cfg={gridCfg}
           today={today}
           onPickEvent={canEdit ? openEvent : undefined}
           onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
@@ -379,43 +398,7 @@ export function ExecCalendarWorkspace({
         />
       )}
 
-      {view === "grid" &&
-        gridMaximized &&
-        createPortal(
-          // Portaled straight to <body> — a plain descendant `fixed inset-0`
-          // rendered this deep in the tree left the sticky topbar/sidebar (and
-          // the legend column) visible through it in testing, the same class
-          // of containing-block bug as the Attendance hover-card fix. A portal
-          // sidesteps whichever ancestor was doing that instead of hunting it
-          // down, and guarantees this can never happen again from a future
-          // ancestor style change either.
-          <div className="fixed inset-0 z-[200] flex flex-col bg-surface-soft p-4">
-            <div className="mb-3 flex shrink-0 items-center justify-between">
-              <span className="text-[14px] font-bold text-ink-strong">{label} — Weekly Grid</span>
-              <button
-                onClick={() => setGridMaximized(false)}
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline bg-surface-card px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
-              >
-                <Minimize2 size={14} /> Close
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-auto">
-              <ExecWeeklyGridView
-                monday={weekStart(day)}
-                events={events}
-                markers={markers}
-                cfg={cfg}
-                today={today}
-                onPickEvent={canEdit ? openEvent : undefined}
-                onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
-                onPickMarker={openMarker}
-              />
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {view === "month" && (
+      {!maximized && view === "month" && (
         <div className="border border-hairline bg-surface-card p-4">
           <ExecMonthGrid
             anchor={monthStart(day)}
@@ -430,17 +413,21 @@ export function ExecCalendarWorkspace({
         </div>
       )}
 
-      {view === "monthgrid" && (
+      {!maximized && view === "monthgrid" && (
         <ExecMonthlyGridView
-          anchor={monthStart(day)}
+          anchor={day}
           events={events}
+          cfg={gridCfg}
           today={today}
+          markers={markers}
           onPickDay={pickDay}
           onPickEvent={canEdit ? openEvent : undefined}
+          onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
+          onPickMarker={openMarker}
         />
       )}
 
-      {view === "year" && (
+      {!maximized && view === "year" && (
         // Four across, always (2026-09-23: was 5, read as cramped) — two on a
         // narrow viewport or with the sidebar open, so a month never clips its
         // Sat/Sun column.
@@ -460,6 +447,101 @@ export function ExecCalendarWorkspace({
           ))}
         </div>
       )}
+
+      {maximized &&
+        createPortal(
+          // Portaled straight to <body> — a plain descendant `fixed inset-0`
+          // rendered this deep in the tree left the sticky topbar/sidebar (and
+          // the legend column) visible through it in testing, the same class
+          // of containing-block bug as the Attendance hover-card fix. A portal
+          // sidesteps whichever ancestor was doing that instead of hunting it
+          // down, and guarantees this can never happen again from a future
+          // ancestor style change either.
+          <div className="fixed inset-0 z-[200] flex flex-col bg-surface-soft p-4">
+            <div className="mb-3 flex shrink-0 items-center justify-between">
+              <span className="text-[14px] font-bold text-ink-strong">
+                {label} — {CALENDAR_VIEWS.find((v) => v.key === view)?.label ?? ""}
+              </span>
+              <button
+                onClick={() => setMaximized(false)}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline bg-surface-card px-3 py-2 text-[12.5px] font-bold text-ink-strong transition hover:border-hairline-strong"
+              >
+                <Minimize2 size={14} /> Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {(view === "day" || view === "week") && (
+                <ExecWeekGrid
+                  days={view === "day" ? [day] : weekDays(weekStart(day))}
+                  events={events}
+                  cfg={dayWeekCfg}
+                  today={today}
+                  onPickDay={pickDay}
+                  onPickEvent={canEdit ? openEvent : undefined}
+                  onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
+                  onMove={canEdit ? (row, d, s, e) => void commitMove(row, d, s, e) : undefined}
+                  markers={markers}
+                  onPickMarker={openMarker}
+                />
+              )}
+              {view === "grid" && (
+                <ExecWeeklyGridView
+                  monday={weekStart(day)}
+                  events={events}
+                  markers={markers}
+                  cfg={gridCfg}
+                  today={today}
+                  onPickEvent={canEdit ? openEvent : undefined}
+                  onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
+                  onPickMarker={openMarker}
+                />
+              )}
+              {view === "month" && (
+                <ExecMonthGrid
+                  anchor={monthStart(day)}
+                  events={events}
+                  today={today}
+                  onPickDay={pickDay}
+                  onPickWeek={pickWeek}
+                  onPickEvent={canEdit ? openEvent : undefined}
+                  markers={markers}
+                  onPickMarker={openMarker}
+                />
+              )}
+              {view === "monthgrid" && (
+                <ExecMonthlyGridView
+                  anchor={day}
+                  events={events}
+                  cfg={gridCfg}
+                  today={today}
+                  markers={markers}
+                  onPickDay={pickDay}
+                  onPickEvent={canEdit ? openEvent : undefined}
+                  onPickSlot={canEdit ? (d, startMin) => setEditing(blankEvent(d, startMin)) : undefined}
+                  onPickMarker={openMarker}
+                />
+              )}
+              {view === "year" && (
+                <div className="grid grid-cols-2 gap-4 min-[1400px]:grid-cols-4">
+                  {Array.from({ length: 12 }, (_, m) => (
+                    <ExecMonthGrid
+                      key={m}
+                      anchor={addMonths(`${day.slice(0, 4)}-01-01`, m)}
+                      events={events}
+                      today={today}
+                      compact
+                      onPickDay={pickDay}
+                      onPickMonth={pickMonth}
+                      onPickWeek={pickWeek}
+                      markers={markers}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {editing && <ExecEventEditor initial={editing} today={today} onClose={() => setEditing(null)} />}
       {markerEditing && (

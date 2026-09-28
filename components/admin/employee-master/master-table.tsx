@@ -74,7 +74,8 @@ type ColumnKey =
   | "personalEmail"
   | "phone"
   | "tds"
-  | "ptExempt";
+  | "ptExempt"
+  | "backgroundCheck";
 
 interface ColumnDef {
   key: ColumnKey;
@@ -189,6 +190,13 @@ const COLUMNS: ColumnDef[] = [
   { key: "phone", label: "Personal Cell", default: false, value: (r) => t(r.phone) },
   { key: "tds", label: "Monthly TDS", default: false, numeric: true, pay: true, value: (r) => inr(r.tdsMonthly), sort: (r) => r.tdsMonthly ?? -1 },
   { key: "ptExempt", label: "PT Exempt", default: false, value: (r) => (r.ptExempt == null ? DASH : yn(r.ptExempt)) },
+  {
+    key: "backgroundCheck",
+    label: "Background Check",
+    default: false,
+    value: (r) => (r.backgroundCheck === "yes" ? "Done" : r.backgroundCheck === "no" ? "Not Done" : DASH),
+    sort: (r) => r.backgroundCheck ?? "",
+  },
 ];
 
 /**

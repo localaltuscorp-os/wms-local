@@ -3,6 +3,7 @@ import { and, asc, desc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employeeManagerHistory, employees } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isManagerFlagOf } from "@/lib/employees/is-manager";
 
 /**
  * REPORTING-MANAGER HISTORY.
@@ -171,6 +172,19 @@ export async function setReportingManager(input: {
           "That would create a loop in the reporting chain — the chosen manager already reports to this employee.",
       };
     }
+
+    // A manager can't be placed under somebody who isn't one themselves
+    // (Team Reporting, 2026-09-26 — "Jeevan cannot be moved under Rudra").
+    // "Manager" here is the same either/or `getHierarchy` uses: has at least
+    // one direct report right now, OR carries the explicit 0253 flag.
+    if (await isManagerOf(input.employeeId)) {
+      if (!(await isManagerOf(input.managerId))) {
+        return {
+          ok: false,
+          error: "A manager can't be moved to report to someone who isn't a manager themselves.",
+        };
+      }
+    }
   }
 
   const [current] = await db
@@ -205,6 +219,17 @@ export async function setReportingManager(input: {
 
   const { changed } = await recordManagerChange({ ...input, managerId: next });
   return { ok: true, changed };
+}
+
+/** Has at least one direct report, or carries the explicit 0253 flag. */
+async function isManagerOf(employeeId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(eq(employees.managerId, employeeId))
+    .limit(1);
+  if (row) return true;
+  return isManagerFlagOf(employeeId);
 }
 
 /**
