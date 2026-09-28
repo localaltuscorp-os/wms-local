@@ -1,7 +1,6 @@
-import { KeyRound } from "lucide-react";
 import { listControlPanelUsers } from "@/lib/queries/control-panel";
 import { allPermissionNodes } from "@/lib/permissions/catalog";
-import { AdminSection } from "@/components/admin/ui/section-shell";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { PermissionsClient } from "@/components/control-panel/permissions-client";
 
 export const dynamic = "force-dynamic";
@@ -24,15 +23,12 @@ export default async function ControlPanelPermissionsPage() {
     }));
 
   return (
-    <AdminSection
-      title="Control Panel · Permissions"
-      subtitle="Per-employee module permissions (show / view / edit), from the existing permission matrix."
-      icon={KeyRound}
-    >
+    <main className="w-full px-8 pt-6 pb-8 max-md:px-4 max-md:pt-5 max-md:pb-6">
+      <PageCommandBar title="Permissions" hint="Employee Show, View and Edit access." />
       <PermissionsClient
         users={users.map((u) => ({ id: u.id, name: u.name }))}
         nodes={nodes}
       />
-    </AdminSection>
+    </main>
   );
 }

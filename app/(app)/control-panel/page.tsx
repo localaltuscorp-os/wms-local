@@ -33,5 +33,5 @@ export const dynamic = "force-dynamic";
  */
 export default async function ControlPanelPage() {
   await requireWorkspace("control-panel");
-  redirect("/control-panel/users" as Route);
+  redirect("/control-panel/roles" as Route);
 }

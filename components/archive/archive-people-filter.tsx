@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { Search, Users, X } from "lucide-react";
 import {
@@ -24,13 +24,6 @@ import type { ArchivePerson } from "@/lib/queries/archive";
  * The search matches name, email and department, so "finance" or a surname
  * both work.
  */
-const CHIP_ACTIVE: React.CSSProperties = {
-  borderColor: "var(--color-altus-red)",
-  background: "color-mix(in srgb, var(--color-altus-red) 8%, var(--color-surface-card))",
-  color: "var(--color-altus-red-deep, #A80400)",
-  fontWeight: 700,
-};
-
 /** Only worth a search box once the row would otherwise wrap and wrap. */
 const SEARCH_FROM = 8;
 
@@ -45,7 +38,10 @@ export function ArchivePeopleFilter({
   employeeId?: string;
   basePath: string;
 }) {
+  const router = useRouter();
   const [q, setQ] = React.useState("");
+  const [recordSearch, setRecordSearch] = React.useState("");
+  const [recordSearchOpen, setRecordSearchOpen] = React.useState(false);
   if (people.length === 0) return null;
 
   const needle = q.trim().toLowerCase();
@@ -66,7 +62,7 @@ export function ArchivePeopleFilter({
         {ARCHIVE_SCOPE_LABEL[scope]}
       </span>
 
-      {people.length >= SEARCH_FROM && (
+      {false && people.length >= SEARCH_FROM && (
         <label className="inline-flex items-center gap-1.5 rounded-chip border border-hairline bg-surface-card px-2.5 py-1.5">
           <Search size={13} strokeWidth={2.2} className="text-ink-soft" />
           <input
@@ -90,32 +86,24 @@ export function ArchivePeopleFilter({
         </label>
       )}
 
-      <Link
-        href={href()}
-        className="filter-chip text-[12.5px]"
-        style={!employeeId ? CHIP_ACTIVE : undefined}
-        aria-current={!employeeId ? "page" : undefined}
+      <select
+        value={employeeId ?? ""}
+        onChange={(e) => router.push(href(e.target.value || undefined))}
+        aria-label={`Select ${ARCHIVE_SCOPE_LABEL[scope].toLowerCase()}`}
+        className="w-[185px] rounded-chip border border-hairline bg-surface-card px-2.5 py-1 text-[12px] font-medium text-ink-strong outline-none"
       >
-        Everyone
-      </Link>
-
-      {shown.map((p) => {
-        const active = p.id === employeeId;
-        return (
-          <Link
-            key={p.id}
-            href={href(p.id)}
-            className="filter-chip text-[12.5px]"
-            style={active ? CHIP_ACTIVE : undefined}
-            aria-current={active ? "page" : undefined}
-            title={[p.email, p.department, p.lastWorkingDay && `Last day ${p.lastWorkingDay}`]
-              .filter(Boolean)
-              .join(" · ")}
-          >
-            {p.name}
-          </Link>
-        );
-      })}
+        <option value="">All {ARCHIVE_SCOPE_LABEL[scope]}</option>
+        {shown.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      {recordSearchOpen ? (
+        <label className="inline-flex items-center gap-1 rounded-chip border border-hairline bg-surface-card px-2 py-1">
+          <Search size={13} strokeWidth={2.2} className="text-ink-soft" />
+          <input autoFocus type="search" value={recordSearch} onChange={(e) => { const value = e.target.value; setRecordSearch(value); window.dispatchEvent(new CustomEvent("archive-record-search", { detail: value })); }} placeholder="Search records" aria-label="Search archived records" className="w-[14ch] bg-transparent text-[12px] text-ink-strong outline-none placeholder:text-ink-subtle" />
+          <button type="button" onClick={() => { setRecordSearch(""); setRecordSearchOpen(false); window.dispatchEvent(new CustomEvent("archive-record-search", { detail: "" })); }} aria-label="Close search" className="text-ink-soft hover:text-ink-strong"><X size={13} strokeWidth={2.2} /></button>
+        </label>
+      ) : (
+        <button type="button" onClick={() => setRecordSearchOpen(true)} aria-label="Search archived records" title="Search archived records" className="rounded-chip border border-hairline bg-surface-card p-1.5 text-ink-soft hover:text-ink-strong"><Search size={14} strokeWidth={2.2} /></button>
+      )}
 
       {shown.length === 0 && (
         <span className="text-[12.5px] font-medium text-ink-soft">
