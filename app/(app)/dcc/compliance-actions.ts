@@ -4,12 +4,22 @@ import { revalidatePath } from "next/cache";
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { dccCompliancePeriodChecks, dccEntries, dccKpiItems, employees } from "@/db/schema";
+import {
+  dccCompliancePeriodChecks,
+  dccEntries,
+  dccKpiItems,
+  employees,
+} from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { canEditPastDccEntries } from "@/lib/security/capabilities";
-import { loadDccScope, loadComplianceScope, canManageItemsFor, isComplianceCoordinator } from "@/lib/dcc/access";
+import {
+  loadDccScope,
+  loadComplianceScope,
+  canManageItemsFor,
+  isComplianceCoordinator,
+} from "@/lib/dcc/access";
 import { guardItemWrite } from "@/lib/dcc/item-guard";
 import { scheduleDccCalendarSync } from "@/lib/dcc/calendar-sync";
 import { checkFillWindow, kindOf, periodFor } from "@/lib/compliance/schedule";
@@ -17,10 +27,15 @@ import { localDateString } from "@/lib/format";
 import { MAX_QUANTITY, quantityTargetOf } from "@/lib/compliance/quantity";
 import { MAX_MINUTES, MINUTES_WORDS } from "@/lib/compliance/minutes";
 import { COMPLIANCE_PERIOD_STATUSES } from "@/lib/compliance/period-checks";
-import { MCC_FREQUENCIES, mccColumns, normalizeMccSchedule } from "@/lib/compliance/mcc-frequency";
+import {
+  MCC_FREQUENCIES,
+  mccColumns,
+  normalizeMccSchedule,
+} from "@/lib/compliance/mcc-frequency";
 import { COMPLIANCE_BULK_MAX, normTitle } from "@/lib/compliance/bulk";
 import { isMissingColumn } from "@/lib/queries/compliance";
 import {
+  COMPLIANCE_APPROVER_CHOICES,
   DOER_STATUSES,
   approverStatusOf,
   isComplianceApproverChoice,
@@ -95,7 +110,10 @@ const fail = (error: string): ActionResult => ({ ok: false, error });
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const optNote = z
-  .preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().max(2000).nullable().optional())
+  .preprocess(
+    (v) => (typeof v === "string" ? v.trim() : v),
+    z.string().max(2000).nullable().optional(),
+  )
   .transform((v) => (v ? v : null));
 
 function revalidateCompliance() {
@@ -148,7 +166,10 @@ async function loadItem(itemId: string): Promise<Item | null> {
   ];
   for (const [i, fields] of attempts.entries()) {
     try {
-      const [row] = (await read(fields as typeof base)) as (Awaited<ReturnType<typeof read>>[number] & Partial<Item>)[];
+      const [row] = (await read(fields as typeof base)) as (Awaited<
+        ReturnType<typeof read>
+      >[number] &
+        Partial<Item>)[];
       if (!row) return null;
       return {
         ...row,
@@ -164,7 +185,8 @@ async function loadItem(itemId: string): Promise<Item | null> {
   return null;
 }
 
-const NOT_A_DEADLINE = "That date is not one of this compliance's deadlines — refresh the page and try again.";
+const NOT_A_DEADLINE =
+  "That date is not one of this compliance's deadlines — refresh the page and try again.";
 
 /** The fill inside this deadline's period — the latest, as the tables read it. */
 async function findFill(
@@ -185,7 +207,9 @@ async function findFill(
     .where(
       and(
         eq(dccEntries.itemId, itemId),
-        period.mode === "day" ? eq(dccEntries.entryDate, deadline) : gte(dccEntries.entryDate, period.start),
+        period.mode === "day"
+          ? eq(dccEntries.entryDate, deadline)
+          : gte(dccEntries.entryDate, period.start),
         lte(dccEntries.entryDate, period.end),
         isNull(dccEntries.subjectId),
       ),
@@ -197,7 +221,8 @@ async function findFill(
 
 /* ── The doer's side ──────────────────────────────────────────────────────── */
 
-const QUANTITY_WORDS = "Enter how many were completed, as a whole number — 0 or more.";
+const QUANTITY_WORDS =
+  "Enter how many were completed, as a whole number — 0 or more.";
 
 const DoerInput = z.object({
   itemId: z.string().uuid(),
@@ -209,7 +234,10 @@ const DoerInput = z.object({
     .number({ message: QUANTITY_WORDS })
     .int(QUANTITY_WORDS)
     .min(0, QUANTITY_WORDS)
-    .max(MAX_QUANTITY, `That is more than ${MAX_QUANTITY.toLocaleString("en-IN")}.`)
+    .max(
+      MAX_QUANTITY,
+      `That is more than ${MAX_QUANTITY.toLocaleString("en-IN")}.`,
+    )
     .optional(),
 });
 
@@ -225,19 +253,11 @@ const DoerInput = z.object({
  * the way into Done, accepted on its own to correct a Done row's count, and
  * refused for a compliance with nothing to count or a row that is not Done.
  */
-export async function setComplianceDoer(raw: z.input<typeof DoerInput>): Promise<ActionResult> {
-  const me = await requireUser();
-  const limited = rateLimitOrError(me.id, "write");
-  if (limited) return limited;
-
-  const parsed = DoerInput.safeParse(raw);
-  if (!parsed.success) {
-    const quantityIssue = parsed.error.issues.find((i) => i.path[0] === "completedQuantity");
-    return fail(quantityIssue?.message ?? "That didn't look like a compliance update.");
-  }
-  const v = parsed.data;
-  if (v.doerStatus === undefined && v.notes === undefined && v.completedQuantity === undefined) return { ok: true };
-
+async function saveComplianceDoer(
+  me: Awaited<ReturnType<typeof requireUser>>,
+  v: z.output<typeof DoerInput>,
+  revalidate = true,
+): Promise<ActionResult> {
   const item = await loadItem(v.itemId);
   if (!item) return fail("That compliance no longer exists.");
   /* WHOSE ROW MAY THIS PERSON RECORD AGAINST?
@@ -246,13 +266,20 @@ export async function setComplianceDoer(raw: z.input<typeof DoerInput>): Promise
      (migration 0248; the grant is on the employee editor). And as before, the
      past-entry editor and super-admins, who are the only ones the day lock below
      also bends for. */
-  const mayRecordAnyone = isSuperAdmin(me.email) || canEditPastDccEntries(me.email);
-  if (!(item.owner === me.id || mayRecordAnyone || (await isComplianceCoordinator(me.email)))) {
+  const mayRecordAnyone =
+    isSuperAdmin(me.email) || canEditPastDccEntries(me.email);
+  if (!(
+    item.owner === me.id ||
+    mayRecordAnyone ||
+    (await isComplianceCoordinator(me.email))
+  )) {
     return fail("Only the person it belongs to can update their Doer Status.");
   }
   const quantity = quantityTargetOf(item);
   if (v.completedQuantity !== undefined && !quantity) {
-    return fail("This compliance has no quantity to count — just mark it Done.");
+    return fail(
+      "This compliance has no quantity to count — just mark it Done.",
+    );
   }
   const period = periodFor(item, v.deadline);
   if (!period) return fail(NOT_A_DEADLINE);
@@ -272,25 +299,40 @@ export async function setComplianceDoer(raw: z.input<typeof DoerInput>): Promise
     const prevDoer = doerStatusOf(fill);
     const prevApprover = approverStatusOf(fill);
     const doer: DoerStatus | null = v.doerStatus ?? prevDoer;
-    const leavingDone = v.doerStatus !== undefined && v.doerStatus !== "done" && prevDoer === "done";
+    const leavingDone =
+      v.doerStatus !== undefined &&
+      v.doerStatus !== "done" &&
+      prevDoer === "done";
     if (quantity) {
       if (v.completedQuantity !== undefined && doer !== "done") {
         return fail("Mark it Done first, then record how many were completed.");
       }
-      if (doer === "done" && prevDoer !== "done" && v.completedQuantity === undefined) {
-        return fail(`Enter how many were completed out of ${quantity.target}${quantity.unit ? ` ${quantity.unit}` : ""}.`);
+      if (
+        doer === "done" &&
+        prevDoer !== "done" &&
+        v.completedQuantity === undefined
+      ) {
+        return fail(
+          `Enter how many were completed out of ${quantity.target}${quantity.unit ? ` ${quantity.unit}` : ""}.`,
+        );
       }
     }
     // The count moves with Done: set when given, cleared on the way out, and
     // otherwise left exactly as it is. value_number carries it for DCC's readers.
     const count =
       quantity && v.completedQuantity !== undefined
-        ? { completedQuantity: v.completedQuantity, valueNumber: String(v.completedQuantity) }
+        ? {
+            completedQuantity: v.completedQuantity,
+            valueNumber: String(v.completedQuantity),
+          }
         : quantity && leavingDone
           ? { completedQuantity: null, valueNumber: null }
           : null;
     const approver =
-      leavingDone && (prevApprover === "approved" || prevApprover === "not_approved") ? null : prevApprover;
+      leavingDone &&
+      (prevApprover === "approved" || prevApprover === "not_approved")
+        ? null
+        : prevApprover;
     // A notes-only save leaves the actual date alone; a repeat Done keeps the
     // first stamp; a new Done stamps now; anything else clears it.
     const doneAt =
@@ -341,8 +383,33 @@ export async function setComplianceDoer(raw: z.input<typeof DoerInput>): Promise
   }
 
   scheduleDccCalendarSync(item.owner, v.deadline);
-  revalidateCompliance();
+  if (revalidate) revalidateCompliance();
   return { ok: true };
+}
+
+export async function setComplianceDoer(
+  raw: z.input<typeof DoerInput>,
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = DoerInput.safeParse(raw);
+  if (!parsed.success) {
+    const quantityIssue = parsed.error.issues.find(
+      (i) => i.path[0] === "completedQuantity",
+    );
+    return fail(
+      quantityIssue?.message ?? "That didn't look like a compliance update.",
+    );
+  }
+  if (
+    parsed.data.doerStatus === undefined &&
+    parsed.data.notes === undefined &&
+    parsed.data.completedQuantity === undefined
+  )
+    return { ok: true };
+  return saveComplianceDoer(me, parsed.data);
 }
 
 /* ── The approver's side ──────────────────────────────────────────────────── */
@@ -351,7 +418,13 @@ const ApproverInput = z.object({
   itemId: z.string().uuid(),
   deadline: ymd,
   /** WCC / MCC's four rulings — Approved · Not Approved · On Hold · Archive. */
-  status: z.string().refine(isComplianceApproverChoice, "Pick Approved, Not Approved, On Hold or Archive.").optional(),
+  status: z
+    .string()
+    .refine(
+      isComplianceApproverChoice,
+      "Pick Approved, Not Approved, On Hold or Archive.",
+    )
+    .optional(),
   notes: optNote.optional(),
 });
 
@@ -360,7 +433,10 @@ const ApproverInput = z.object({
  * still has an approver — their Team Lead — so there is no "self-raised, not
  * applicable" case here as there is on a task: the manager chain always rules.
  */
-async function actorFor(me: Awaited<ReturnType<typeof requireUser>>, item: Item): Promise<ApproverActor> {
+async function actorFor(
+  me: Awaited<ReturnType<typeof requireUser>>,
+  item: Item,
+): Promise<ApproverActor> {
   const scope = await loadDccScope(me);
   const isDoer = item.owner === me.id;
   return {
@@ -372,16 +448,11 @@ async function actorFor(me: Awaited<ReturnType<typeof requireUser>>, item: Item)
   };
 }
 
-export async function setComplianceApprover(raw: z.input<typeof ApproverInput>): Promise<ActionResult> {
-  const me = await requireUser();
-  const limited = rateLimitOrError(me.id, "write");
-  if (limited) return limited;
-
-  const parsed = ApproverInput.safeParse(raw);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid ruling.");
-  const v = parsed.data;
-  if (v.status === undefined && v.notes === undefined) return { ok: true };
-
+async function saveComplianceApprover(
+  me: Awaited<ReturnType<typeof requireUser>>,
+  v: z.output<typeof ApproverInput>,
+  revalidate = true,
+): Promise<ActionResult> {
   const item = await loadItem(v.itemId);
   if (!item) return fail("That compliance no longer exists.");
   const period = periodFor(item, v.deadline);
@@ -396,11 +467,15 @@ export async function setComplianceApprover(raw: z.input<typeof ApproverInput>):
       const verdict = canSetApproverStatus(actor, v.status, doer);
       if (!verdict.ok) return fail(verdict.reason);
     } else if (!canRuleOn(actor)) {
-      return fail("Only the doer's manager, whoever gave the compliance, or an admin can write the Approver Notes.");
+      return fail(
+        "Only the doer's manager, whoever gave the compliance, or an admin can write the Approver Notes.",
+      );
     }
 
     const approver =
-      v.status !== undefined && isComplianceApproverChoice(v.status) ? approverStored(v.status) : approverStatusOf(fill);
+      v.status !== undefined && isComplianceApproverChoice(v.status)
+        ? approverStored(v.status)
+        : approverStatusOf(fill);
     const set = {
       approverStatus: approver,
       status: legacyStatusFor(doer, approver),
@@ -429,16 +504,113 @@ export async function setComplianceApprover(raw: z.input<typeof ApproverInput>):
       `);
     }
   } catch {
-    return fail("Could not save that. If this keeps happening, migration 0238 may not have been run.");
+    return fail(
+      "Could not save that. If this keeps happening, migration 0238 may not have been run.",
+    );
   }
 
-  revalidateCompliance();
+  if (revalidate) revalidateCompliance();
   return { ok: true };
+}
+
+export async function setComplianceApprover(
+  raw: z.input<typeof ApproverInput>,
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = ApproverInput.safeParse(raw);
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? "Invalid ruling.");
+  if (parsed.data.status === undefined && parsed.data.notes === undefined)
+    return { ok: true };
+  return saveComplianceApprover(me, parsed.data);
+}
+
+const BulkStatusInput = z
+  .object({
+    rows: z
+      .array(z.object({ itemId: z.string().uuid(), deadline: ymd }))
+      .min(1, "Select at least one compliance.")
+      .max(100, "You can update at most 100 selected compliances at once."),
+    doerStatus: z.enum(DOER_STATUSES).optional(),
+    approverStatus: z.enum(COMPLIANCE_APPROVER_CHOICES).optional(),
+  })
+  .refine(
+    (value) =>
+      (value.doerStatus ? 1 : 0) + (value.approverStatus ? 1 : 0) === 1,
+    "Choose one status to apply.",
+  );
+
+export type BulkStatusResult =
+  | { ok: true; updated: number; skipped: number }
+  | { ok: false; error: string; updated: number; skipped: number };
+
+/** Apply one status to selected occurrences, retaining every single-row permission and workflow check. */
+export async function bulkSetComplianceStatus(
+  raw: z.input<typeof BulkStatusInput>,
+): Promise<BulkStatusResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ...limited, updated: 0, skipped: 0 };
+
+  const parsed = BulkStatusInput.safeParse(raw);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid bulk status update.",
+      updated: 0,
+      skipped: 0,
+    };
+  const value = parsed.data;
+  const uniqueRows = [
+    ...new Map(
+      value.rows.map((row) => [`${row.itemId}:${row.deadline}`, row]),
+    ).values(),
+  ];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const row of uniqueRows) {
+    const result = value.doerStatus
+      ? await saveComplianceDoer(
+          me,
+          { ...row, doerStatus: value.doerStatus },
+          false,
+        )
+      : await saveComplianceApprover(
+          me,
+          { ...row, status: value.approverStatus! },
+          false,
+        );
+    if (result.ok) updated += 1;
+    else skipped += 1;
+  }
+
+  if (updated > 0) revalidateCompliance();
+  if (updated === 0)
+    return {
+      ok: false,
+      error:
+        "None of the selected compliances could be updated. Check their access and workflow requirements.",
+      updated,
+      skipped,
+    };
+  return { ok: true, updated, skipped };
 }
 
 /* ── The compliances themselves ───────────────────────────────────────────── */
 
-const WEEKDAY_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const WEEKDAY_LONG = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const ItemInput = z.object({
@@ -455,7 +627,11 @@ const ItemInput = z.object({
   /** MCC: how often (lib/compliance/mcc-frequency). Left out = Monthly, by `monthDay`. */
   mccFrequency: z.enum(MCC_FREQUENCIES).optional(),
   /** MCC: every deadline day, in order — null = month-end. Left out = [monthDay]. */
-  mccDays: z.array(z.number().int().min(1).max(31).nullable()).min(1).max(3).optional(),
+  mccDays: z
+    .array(z.number().int().min(1).max(31).nullable())
+    .min(1)
+    .max(3)
+    .optional(),
   /** MCC: a month it is due in, for Alternate Month, Quarterly, Half Yearly, Annually. */
   mccStartMonth: z.number().int().min(1).max(12).nullable().optional(),
   /**
@@ -467,16 +643,34 @@ const ItemInput = z.object({
     .number()
     .int("The target must be a whole number.")
     .min(1, "The target must be 1 or more — leave it blank for none.")
-    .max(MAX_QUANTITY, `The target must be ${MAX_QUANTITY.toLocaleString("en-IN")} or less.`)
+    .max(
+      MAX_QUANTITY,
+      `The target must be ${MAX_QUANTITY.toLocaleString("en-IN")} or less.`,
+    )
     .nullable()
     .optional(),
   /** What is counted — "emails", "calls". */
-  unit: z.string().trim().max(40, "Keep the unit to 40 characters.").nullable().optional(),
+  unit: z
+    .string()
+    .trim()
+    .max(40, "Keep the unit to 40 characters.")
+    .nullable()
+    .optional(),
   /** WCC's Mins — minutes it takes each time. Null = not set; left out = unchanged. */
-  minutes: z.number().int(MINUTES_WORDS).min(1, MINUTES_WORDS).max(MAX_MINUTES, MINUTES_WORDS).nullable().optional(),
+  minutes: z
+    .number()
+    .int(MINUTES_WORDS)
+    .min(1, MINUTES_WORDS)
+    .max(MAX_MINUTES, MINUTES_WORDS)
+    .nullable()
+    .optional(),
 });
 
-type McColumns = { mccFrequency: string; mccDays: number[] | null; mccStartMonth: number | null };
+type McColumns = {
+  mccFrequency: string;
+  mccDays: number[] | null;
+  mccStartMonth: number | null;
+};
 
 /**
  * The schedule columns together — `frequency` is the text people (and the DCC
@@ -486,7 +680,14 @@ type McColumns = { mccFrequency: string; mccDays: number[] | null; mccStartMonth
  * the frequency's own label ("Quarterly"), and schedule_kind stays 'monthly'.
  */
 function scheduleColumns(v: Omit<z.infer<typeof ItemInput>, "itemId">):
-  | { ok: true; frequency: string; weekdays: number; scheduleKind: string; monthDay: number | null; mcc: McColumns | null }
+  | {
+      ok: true;
+      frequency: string;
+      weekdays: number;
+      scheduleKind: string;
+      monthDay: number | null;
+      mcc: McColumns | null;
+    }
   | { ok: false; error: string } {
   if (v.kind === "mcc") {
     const s = normalizeMccSchedule({
@@ -502,20 +703,51 @@ function scheduleColumns(v: Omit<z.infer<typeof ItemInput>, "itemId">):
       weekdays: 0,
       scheduleKind: "monthly",
       monthDay: c.monthDay,
-      mcc: { mccFrequency: c.mccFrequency, mccDays: c.mccDays, mccStartMonth: c.mccStartMonth },
+      mcc: {
+        mccFrequency: c.mccFrequency,
+        mccDays: c.mccDays,
+        mccStartMonth: c.mccStartMonth,
+      },
     };
   }
   const days = [...new Set(v.weekdays)].sort();
   const mask = days.reduce((m, b) => m | (1 << b), 0);
   if ((v.wccMode ?? "days") === "weekly") {
     const frequency =
-      days.length === 0 ? "Weekly" : days.length === 1 ? `Every ${WEEKDAY_LONG[days[0]!]}` : days.map((b) => WEEKDAY_SHORT[b]).join(" or ");
-    return { ok: true, frequency, weekdays: mask, scheduleKind: "weekly", monthDay: null, mcc: null };
+      days.length === 0
+        ? "Weekly"
+        : days.length === 1
+          ? `Every ${WEEKDAY_LONG[days[0]!]}`
+          : days.map((b) => WEEKDAY_SHORT[b]).join(" or ");
+    return {
+      ok: true,
+      frequency,
+      weekdays: mask,
+      scheduleKind: "weekly",
+      monthDay: null,
+      mcc: null,
+    };
   }
-  if (mask === 0) return { ok: false, error: "Pick at least one day, or the compliance will never be due." };
+  if (mask === 0)
+    return {
+      ok: false,
+      error: "Pick at least one day, or the compliance will never be due.",
+    };
   const frequency =
-    mask === 0b0111111 ? "Daily" : days.map((b) => WEEKDAY_SHORT[b]).join(", ").replace(/, ([^,]*)$/, " & $1");
-  return { ok: true, frequency, weekdays: mask, scheduleKind: "scheduled", monthDay: null, mcc: null };
+    mask === 0b0111111
+      ? "Daily"
+      : days
+          .map((b) => WEEKDAY_SHORT[b])
+          .join(", ")
+          .replace(/, ([^,]*)$/, " & $1");
+  return {
+    ok: true,
+    frequency,
+    weekdays: mask,
+    scheduleKind: "scheduled",
+    monthDay: null,
+    mcc: null,
+  };
 }
 
 /** Is that a live employee a WCC/MCC compliance may be assigned to? */
@@ -529,19 +761,27 @@ async function isActiveEmployee(id: string): Promise<boolean> {
 }
 
 /** Add a compliance to someone's WCC or MCC, or change one. */
-export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promise<ActionResult> {
+export async function saveComplianceItem(
+  raw: z.input<typeof ItemInput>,
+): Promise<ActionResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
   const parsed = ItemInput.safeParse(raw);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid compliance.");
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? "Invalid compliance.");
   const v = parsed.data;
   const sched = scheduleColumns(v);
   if (!sched.ok) return fail(sched.error);
   // target_number is numeric; Drizzle takes numerics as strings.
   const target = {
-    ...(v.targetQuantity !== undefined ? { targetNumber: v.targetQuantity === null ? null : String(v.targetQuantity) } : {}),
+    ...(v.targetQuantity !== undefined
+      ? {
+          targetNumber:
+            v.targetQuantity === null ? null : String(v.targetQuantity),
+        }
+      : {}),
     ...(v.unit !== undefined ? { unit: v.unit || null } : {}),
   };
   // Only named when given, so an edit that leaves Mins alone still saves on a
@@ -569,7 +809,9 @@ export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promis
           needsReview: false,
           updatedAt: new Date(),
         })
-        .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)));
+        .where(
+          and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)),
+        );
       scheduleDccCalendarSync(guard.owner);
     } else {
       /* ANY ACTIVE EMPLOYEE MAY BE GIVEN A WCC OR MCC COMPLIANCE (2026-09-23).
@@ -601,7 +843,9 @@ export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promis
       scheduleDccCalendarSync(v.ownerEmployeeId);
     }
   } catch {
-    return fail("Could not save the compliance. If this keeps happening, migrations 0238, 0240 and 0242 may not have been run.");
+    return fail(
+      "Could not save the compliance. If this keeps happening, migrations 0238, 0240 and 0242 may not have been run.",
+    );
   }
 
   revalidateCompliance();
@@ -610,19 +854,30 @@ export async function saveComplianceItem(raw: z.input<typeof ItemInput>): Promis
 }
 
 /** Archive selected WCC/MCC compliances in one guarded write. */
-export async function archiveComplianceItems(rawItemIds: string[]): Promise<ActionResult> {
+export async function archiveComplianceItems(
+  rawItemIds: string[],
+): Promise<ActionResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
-  const parsed = z.array(z.string().uuid()).min(1).max(100).safeParse(rawItemIds);
-  if (!parsed.success) return fail("Choose between 1 and 100 valid compliances to remove.");
+  const parsed = z
+    .array(z.string().uuid())
+    .min(1)
+    .max(100)
+    .safeParse(rawItemIds);
+  if (!parsed.success)
+    return fail("Choose between 1 and 100 valid compliances to remove.");
   const itemIds = [...new Set(parsed.data)];
 
   // Authorize every item before changing any of them. A WCC item can appear
   // more than once in the table, so the client and this action deduplicate it.
-  const guards = await Promise.all(itemIds.map((itemId) => guardItemWrite(itemId, me)));
-  const approved = guards.filter((guard): guard is { ok: true; owner: string } => guard.ok);
+  const guards = await Promise.all(
+    itemIds.map((itemId) => guardItemWrite(itemId, me)),
+  );
+  const approved = guards.filter(
+    (guard): guard is { ok: true; owner: string } => guard.ok,
+  );
   if (approved.length !== guards.length) {
     return guards.find((guard) => !guard.ok)!;
   }
@@ -630,9 +885,12 @@ export async function archiveComplianceItems(rawItemIds: string[]): Promise<Acti
   await db
     .update(dccKpiItems)
     .set({ archived: true, updatedAt: new Date() })
-    .where(and(inArray(dccKpiItems.id, itemIds), eq(dccKpiItems.archived, false)));
+    .where(
+      and(inArray(dccKpiItems.id, itemIds), eq(dccKpiItems.archived, false)),
+    );
 
-  for (const owner of new Set(approved.map((guard) => guard.owner))) scheduleDccCalendarSync(owner);
+  for (const owner of new Set(approved.map((guard) => guard.owner)))
+    scheduleDccCalendarSync(owner);
   revalidateCompliance();
   revalidatePath("/dcc/masters");
   return { ok: true };
@@ -641,7 +899,12 @@ export async function archiveComplianceItems(rawItemIds: string[]): Promise<Acti
 const MinutesInput = z.object({
   itemId: z.string().uuid(),
   /** Null clears it. */
-  minutes: z.number().int(MINUTES_WORDS).min(1, MINUTES_WORDS).max(MAX_MINUTES, MINUTES_WORDS).nullable(),
+  minutes: z
+    .number()
+    .int(MINUTES_WORDS)
+    .min(1, MINUTES_WORDS)
+    .max(MAX_MINUTES, MINUTES_WORDS)
+    .nullable(),
 });
 
 /**
@@ -649,13 +912,16 @@ const MinutesInput = z.object({
  * Whoever manages that person's compliances may, including on one a DCC
  * Master gave: the master decides what is done and when, not how long it takes.
  */
-export async function setComplianceMinutes(raw: z.input<typeof MinutesInput>): Promise<ActionResult> {
+export async function setComplianceMinutes(
+  raw: z.input<typeof MinutesInput>,
+): Promise<ActionResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
   const parsed = MinutesInput.safeParse(raw);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? MINUTES_WORDS);
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? MINUTES_WORDS);
   const v = parsed.data;
 
   const [item] = await db
@@ -667,16 +933,22 @@ export async function setComplianceMinutes(raw: z.input<typeof MinutesInput>): P
   // The COORDINATOR scope, so whoever runs the rosters can time them too.
   const scope = await loadComplianceScope(me);
   if (!canManageItemsFor(scope, item.owner)) {
-    return fail("You can set the Mins of your own compliances and your team's only.");
+    return fail(
+      "You can set the Mins of your own compliances and your team's only.",
+    );
   }
 
   try {
     await db
       .update(dccKpiItems)
       .set({ minutes: v.minutes, updatedAt: new Date() })
-      .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)));
+      .where(
+        and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)),
+      );
   } catch {
-    return fail("Could not save the Mins. If this keeps happening, migration 0242 may not have been run.");
+    return fail(
+      "Could not save the Mins. If this keeps happening, migration 0242 may not have been run.",
+    );
   }
 
   revalidateCompliance();
@@ -690,42 +962,95 @@ const PeriodCheckInput = z.object({
   periodYear: z.number().int().min(2000).max(2100),
   periodMonth: z.number().int().min(1).max(12),
   weekNo: z.number().int().min(0).max(5),
-  status: z.string().trim().refine((s) => s === "" || (COMPLIANCE_PERIOD_STATUSES as readonly string[]).includes(s), "Invalid status."),
+  status: z
+    .string()
+    .trim()
+    .refine(
+      (s) =>
+        s === "" ||
+        (COMPLIANCE_PERIOD_STATUSES as readonly string[]).includes(s),
+      "Invalid status.",
+    ),
 });
 
 /** Save one Accounts-style Wk1–Wk5 or Apr–Mar summary cell. */
-export async function setCompliancePeriodCheck(raw: z.input<typeof PeriodCheckInput>): Promise<ActionResult> {
+export async function setCompliancePeriodCheck(
+  raw: z.input<typeof PeriodCheckInput>,
+): Promise<ActionResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   const parsed = PeriodCheckInput.safeParse(raw);
-  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid period status.");
+  if (!parsed.success)
+    return fail(parsed.error.issues[0]?.message ?? "Invalid period status.");
   const v = parsed.data;
-  if ((v.kind === "wcc" && (v.weekNo < 1 || v.weekNo > 5)) || (v.kind === "mcc" && v.weekNo !== 0)) return fail("That checklist period is invalid.");
+  if (
+    (v.kind === "wcc" && (v.weekNo < 1 || v.weekNo > 5)) ||
+    (v.kind === "mcc" && v.weekNo !== 0)
+  )
+    return fail("That checklist period is invalid.");
 
-  const [item] = await db.select({ owner: dccKpiItems.ownerEmployeeId }).from(dccKpiItems)
-    .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false))).limit(1);
+  const [item] = await db
+    .select({ owner: dccKpiItems.ownerEmployeeId })
+    .from(dccKpiItems)
+    .where(and(eq(dccKpiItems.id, v.itemId), eq(dccKpiItems.archived, false)))
+    .limit(1);
   if (!item) return fail("That compliance no longer exists.");
   const scope = await loadComplianceScope(me);
-  if (item.owner !== me.id && !canManageItemsFor(scope, item.owner)) return fail("You can update period checks for your own compliances and your team's only.");
+  if (item.owner !== me.id && !canManageItemsFor(scope, item.owner))
+    return fail(
+      "You can update period checks for your own compliances and your team's only.",
+    );
 
   try {
-    const where = and(eq(dccCompliancePeriodChecks.itemId, v.itemId), eq(dccCompliancePeriodChecks.kind, v.kind), eq(dccCompliancePeriodChecks.periodYear, v.periodYear), eq(dccCompliancePeriodChecks.periodMonth, v.periodMonth), eq(dccCompliancePeriodChecks.weekNo, v.weekNo));
-    if (v.status === "") await db.delete(dccCompliancePeriodChecks).where(where);
-    else await db.insert(dccCompliancePeriodChecks).values({ itemId: v.itemId, kind: v.kind, periodYear: v.periodYear, periodMonth: v.periodMonth, weekNo: v.weekNo, status: v.status, updatedById: me.id })
-      .onConflictDoUpdate({ target: [dccCompliancePeriodChecks.itemId, dccCompliancePeriodChecks.kind, dccCompliancePeriodChecks.periodYear, dccCompliancePeriodChecks.periodMonth, dccCompliancePeriodChecks.weekNo], set: { status: v.status, updatedById: me.id, updatedAt: new Date() } });
+    const where = and(
+      eq(dccCompliancePeriodChecks.itemId, v.itemId),
+      eq(dccCompliancePeriodChecks.kind, v.kind),
+      eq(dccCompliancePeriodChecks.periodYear, v.periodYear),
+      eq(dccCompliancePeriodChecks.periodMonth, v.periodMonth),
+      eq(dccCompliancePeriodChecks.weekNo, v.weekNo),
+    );
+    if (v.status === "")
+      await db.delete(dccCompliancePeriodChecks).where(where);
+    else
+      await db
+        .insert(dccCompliancePeriodChecks)
+        .values({
+          itemId: v.itemId,
+          kind: v.kind,
+          periodYear: v.periodYear,
+          periodMonth: v.periodMonth,
+          weekNo: v.weekNo,
+          status: v.status,
+          updatedById: me.id,
+        })
+        .onConflictDoUpdate({
+          target: [
+            dccCompliancePeriodChecks.itemId,
+            dccCompliancePeriodChecks.kind,
+            dccCompliancePeriodChecks.periodYear,
+            dccCompliancePeriodChecks.periodMonth,
+            dccCompliancePeriodChecks.weekNo,
+          ],
+          set: { status: v.status, updatedById: me.id, updatedAt: new Date() },
+        });
   } catch {
-    return fail("Could not save this period status. Apply migration 0253 and try again.");
+    return fail(
+      "Could not save this period status. Apply migration 0253 and try again.",
+    );
   }
   revalidateCompliance();
   return { ok: true };
 }
 
-export async function archiveComplianceItem(itemId: string): Promise<ActionResult> {
+export async function archiveComplianceItem(
+  itemId: string,
+): Promise<ActionResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
-  if (!z.string().uuid().safeParse(itemId).success) return fail("Unknown compliance.");
+  if (!z.string().uuid().safeParse(itemId).success)
+    return fail("Unknown compliance.");
 
   const guard = await guardItemWrite(itemId, me);
   if (!guard.ok) return guard;
@@ -752,7 +1077,10 @@ const BulkInput = z.object({
   rows: z
     .array(BulkRow)
     .min(1, "There are no rows to add.")
-    .max(COMPLIANCE_BULK_MAX, `Upload at most ${COMPLIANCE_BULK_MAX} rows at a time.`),
+    .max(
+      COMPLIANCE_BULK_MAX,
+      `Upload at most ${COMPLIANCE_BULK_MAX} rows at a time.`,
+    ),
   /** Check only — report each row's problems and add nothing. */
   dryRun: z.boolean().optional(),
 });
@@ -768,7 +1096,9 @@ export type BulkResult =
  * wrong with each row first. All or nothing: rows with problems are sent back
  * and nothing is added, so a sheet never lands half in.
  */
-export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promise<BulkResult> {
+export async function bulkAddCompliances(
+  raw: z.input<typeof BulkInput>,
+): Promise<BulkResult> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -776,8 +1106,16 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
   const parsed = BulkInput.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const line = issue && issue.path[0] === "rows" && typeof issue.path[1] === "number" ? raw.rows?.[issue.path[1]]?.line : undefined;
-    return { ok: false, error: line ? `Row ${line}: ${issue!.message}` : (issue?.message ?? "Those rows could not be read.") };
+    const line =
+      issue && issue.path[0] === "rows" && typeof issue.path[1] === "number"
+        ? raw.rows?.[issue.path[1]]?.line
+        : undefined;
+    return {
+      ok: false,
+      error: line
+        ? `Row ${line}: ${issue!.message}`
+        : (issue?.message ?? "Those rows could not be read."),
+    };
   }
   const { kind, rows, dryRun } = parsed.data;
   const checklist = kind.toUpperCase();
@@ -787,7 +1125,9 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
     db
       .select({ id: employees.id, name: employees.name })
       .from(employees)
-      .where(and(inArray(employees.id, ownerIds), eq(employees.isActive, true))),
+      .where(
+        and(inArray(employees.id, ownerIds), eq(employees.isActive, true)),
+      ),
     db
       .select({
         owner: dccKpiItems.ownerEmployeeId,
@@ -796,10 +1136,19 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
         isParticipantList: dccKpiItems.isParticipantList,
       })
       .from(dccKpiItems)
-      .where(and(inArray(dccKpiItems.ownerEmployeeId, ownerIds), eq(dccKpiItems.archived, false))),
+      .where(
+        and(
+          inArray(dccKpiItems.ownerEmployeeId, ownerIds),
+          eq(dccKpiItems.archived, false),
+        ),
+      ),
   ]);
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
-  const onChecklist = new Set(existing.filter((e) => kindOf(e) === kind).map((e) => `${e.owner}|${normTitle(e.title)}`));
+  const onChecklist = new Set(
+    existing
+      .filter((e) => kindOf(e) === kind)
+      .map((e) => `${e.owner}|${normTitle(e.title)}`),
+  );
 
   const problems: BulkProblem[] = [];
   const firstLine = new Map<string, number>();
@@ -810,7 +1159,10 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
        owner ids, so a miss means that id is not a live employee. */
     const who = nameOf.get(r.ownerEmployeeId);
     if (!who) {
-      problems.push({ line: r.line, error: "That employee is not on the active list." });
+      problems.push({
+        line: r.line,
+        error: "That employee is not on the active list.",
+      });
       continue;
     }
     const sched = scheduleColumns({ ...r, kind });
@@ -820,12 +1172,18 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
     }
     const key = `${r.ownerEmployeeId}|${normTitle(r.title)}`;
     if (onChecklist.has(key)) {
-      problems.push({ line: r.line, error: `Already on ${who}'s ${checklist}.` });
+      problems.push({
+        line: r.line,
+        error: `Already on ${who}'s ${checklist}.`,
+      });
       continue;
     }
     const seen = firstLine.get(key);
     if (seen !== undefined) {
-      problems.push({ line: r.line, error: `The same compliance for ${who} as row ${seen}.` });
+      problems.push({
+        line: r.line,
+        error: `The same compliance for ${who} as row ${seen}.`,
+      });
       continue;
     }
     firstLine.set(key, r.line);
@@ -857,7 +1215,8 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
 
   try {
     await db.transaction(async (tx) => {
-      for (let i = 0; i < values.length; i += 100) await tx.insert(dccKpiItems).values(values.slice(i, i + 100));
+      for (let i = 0; i < values.length; i += 100)
+        await tx.insert(dccKpiItems).values(values.slice(i, i + 100));
     });
   } catch {
     return {
@@ -866,7 +1225,8 @@ export async function bulkAddCompliances(raw: z.input<typeof BulkInput>): Promis
     };
   }
 
-  for (const owner of new Set(values.map((v) => v.ownerEmployeeId))) scheduleDccCalendarSync(owner);
+  for (const owner of new Set(values.map((v) => v.ownerEmployeeId)))
+    scheduleDccCalendarSync(owner);
   revalidateCompliance();
   revalidatePath("/dcc/masters");
   return { ok: true, dryRun: false, created: values.length };

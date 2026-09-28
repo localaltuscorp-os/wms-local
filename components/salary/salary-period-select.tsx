@@ -47,13 +47,13 @@ export function SalaryPeriodSelect({
     return [...ys].sort((a, b) => Number(b) - Number(a)); // newest first
   }, [months]);
 
-  /** The months that actually have a sheet in the selected year, newest-first. */
+  /** The months that actually have a sheet in the selected year, January to December. */
   const monthsOfYear = React.useMemo(
     () =>
       months
         .filter((m) => m.startsWith(selYear))
         .map((m) => m.slice(5, 7))
-        .sort((a, b) => Number(b) - Number(a)),
+        .sort((a, b) => Number(a) - Number(b)),
     [months, selYear],
   );
 

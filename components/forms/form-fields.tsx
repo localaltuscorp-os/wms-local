@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/select";
 import { fireToast } from "@/lib/toast";
 import { addProductOption } from "@/app/(app)/forms/actions";
 import { useDictation } from "@/components/ui/use-dictation";
+import { DateField } from "@/components/ui/date-field";
 import type { FormFieldDef } from "@/lib/forms/field-types";
 
 const inputClass =
@@ -83,18 +84,36 @@ export function FieldInput({
     );
   }
   if (field.type === "select") {
+    const isOther = value === "Other" || value.startsWith("Other: ");
+    const selectValue = isOther ? "Other" : value;
     return (
-      <Select
-        options={(field.options ?? []).map((o) => ({ value: o, label: o }))}
-        value={value}
-        onValueChange={(v) => onChange(field.key, v)}
-        placeholder="- Select -"
-        ariaLabel={field.label}
-      />
+      <div className="space-y-2">
+        <Select
+          options={(field.options ?? []).map((o) => ({ value: o, label: o }))}
+          value={selectValue}
+          onValueChange={(v) => onChange(field.key, v === "Other" ? "Other: " : v)}
+          placeholder="- Select -"
+          ariaLabel={field.label}
+        />
+        {isOther && (
+          <input
+            autoFocus
+            value={value.replace(/^Other:\s*/, "")}
+            onChange={(event) => onChange(field.key, `Other: ${event.target.value}`)}
+            placeholder={`Enter other ${field.label.toLowerCase()}`}
+            maxLength={2000}
+            className={inputClass}
+            aria-label={`Other ${field.label}`}
+          />
+        )}
+      </div>
     );
   }
   if (field.type === "textarea") {
     return <DictatableTextarea field={field} value={value} onChange={onChange} />;
+  }
+  if (field.type === "date") {
+    return <DateField value={value} onChange={(event) => onChange(field.key, event.target.value)} className={inputClass} aria-label={field.label} />;
   }
   return (
     <input
