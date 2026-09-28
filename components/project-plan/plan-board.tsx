@@ -1133,6 +1133,10 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
   /** The same archive as the row control, over a selection. */
   function bulkDelete() {
+    if (!isAdmin && selectedRows.some((row) => row.node.kind === "project")) {
+      fireToast({ message: "Only an administrator can archive a project.", type: "error" });
+      return;
+    }
     const n = selectedRows.length;
     const kids = selectedRows.reduce((a, r) => a + countBelow(r.node), 0);
     const lines = [`Archive ${n} selected row${n === 1 ? "" : "s"}?`];
@@ -1715,6 +1719,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           statusLabels={labels}
           onClear={() => setSelected(new Set())}
           showArchive={false}
+          // A selected Project may only be archived by an administrator. Hide
+          // the bulk action rather than offering a request the server rejects.
+          showDelete={isAdmin || !selectedRows.some((row) => row.node.kind === "project")}
           onDeleteOverride={bulkDelete}
           extras={
             <>
@@ -1964,7 +1971,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 onRun={run}
                 onDelete={remove}
                 onPurge={purge}
-                canPurge={canManage}
+                canPurge={isAdmin}
                 clientOf={clientOf}
                 detailOpen={detail?.node.id === row.node.id}
                 onOpenDetail={openDetail}
@@ -2397,9 +2404,11 @@ function Row({
                       <Trash2 size={13} />
                     </IconBtn>
                   )}
-                  <IconBtn label="Archive" onClick={() => onDelete(node)} disabled={rowBusy} danger>
-                    <Archive size={13} />
-                  </IconBtn>
+                  {(node.kind !== "project" || isAdmin) && (
+                    <IconBtn label="Archive" onClick={() => onDelete(node)} disabled={rowBusy} danger>
+                      <Archive size={13} />
+                    </IconBtn>
+                  )}
                   {rowBusy && <Loader2 size={13} className="ml-0.5 animate-spin text-ink-subtle" />}
                 </div>
               </td>
