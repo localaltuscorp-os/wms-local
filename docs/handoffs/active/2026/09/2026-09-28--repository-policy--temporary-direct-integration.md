@@ -2,7 +2,8 @@
 
 - **Date:** 2026-09-28
 - **Work item:** `repository-policy`
-- **Status:** Ready for an authorized, documentation-only direct integration into `origin/main`.
+- **Status:** Documentation-policy commit is complete locally; authorized direct integration into `origin/main` is pending.
+- **Commit:** `e944d3d5` (`docs: add repository workflow policies`)
 
 ## Objective
 
@@ -30,4 +31,4 @@ Add the repository workflow and engineering policy to the Development Repository
 
 ## Remaining action
 
-An authorized maintainer may commit and fast-forward this isolated, documentation-only change to `origin/main`. The future PR workflow remains documented as deferred until its prerequisites are reliable.
+An authorized maintainer may fast-forward these isolated, documentation-only commits to `origin/main`. The future PR workflow remains documented as deferred until its prerequisites are reliable.
