@@ -512,8 +512,12 @@ export function collectFields(template: LetterTemplate): FieldSpec[] {
  */
 export function initialValues(template: LetterTemplate): Record<string, string> {
   const values: Record<string, string> = {};
+  const bodyDateFieldId = documentBodyDateFieldId(template);
   for (const spec of collectFields(template)) {
-    values[spec.id] = spec.todayDefault ? formatDateHr(new Date()) : (spec.defaultValue ?? "");
+    values[spec.id] =
+      spec.todayDefault || spec.id === bodyDateFieldId
+        ? formatDateHr(new Date())
+        : (spec.defaultValue ?? "");
   }
   return values;
 }
@@ -566,6 +570,23 @@ export function signatoryOf(template: LetterTemplate): LetterSignatory {
  * so both the editor and the PDF renderer suppress the top-right stamp here and
  * let the editable field be the single source of the letter's date.
  */
+function documentBodyDateFieldId(template: LetterTemplate): string | null {
+  for (const block of template.blocks) {
+    if (block.kind !== "paragraph") continue;
+    for (let i = 0; i < block.spans.length; i++) {
+      const span = block.spans[i];
+      if (span?.t !== "field") continue;
+      const prefix = block.spans
+        .slice(0, i)
+        .filter((part): part is TextSpan => part.t === "text")
+        .map((part) => part.text)
+        .join("");
+      if (/(?:^|\s)date\s*:\s*$/i.test(prefix)) return span.id;
+    }
+  }
+  return null;
+}
+
 export function hasBodyDateField(template: LetterTemplate): boolean {
-  return collectFields(template).some((spec) => spec.id === "date");
+  return documentBodyDateFieldId(template) !== null;
 }

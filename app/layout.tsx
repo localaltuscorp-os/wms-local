@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import localFont from "next/font/local";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { AppToaster } from "@/components/ui/sonner-toaster";
 import { TableViewportSizer } from "@/components/layout/table-viewport-sizer";
@@ -198,10 +197,6 @@ export default async function RootLayout({
             one mount rather than an edit to ~129 tables. */}
         <TableViewportSizer />
         <RegisterSW />
-        {/* Phase 0.3 — Vercel Speed Insights. Auto-no-ops outside Vercel
-            (no env vars needed); on Vercel it records real-user Core Web
-            Vitals per route, accessible from the project dashboard. */}
-        <SpeedInsights />
       </body>
     </html>
   );
