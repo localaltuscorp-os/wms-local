@@ -5,9 +5,27 @@ import { useRouter } from "next/navigation";
 import { Pencil, X, Ban, CheckCircle2, Loader2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { SessionForm, type SessionFormValues } from "@/components/training/calendar/session-form";
-import { cancelSession, completeSession } from "@/app/(app)/training/calendar/actions";
+import { cancelSession, transitionSession } from "@/app/(app)/training/calendar/actions";
+import type { SessionStatus } from "@/lib/queries/training-calendar";
 
 const ACCENT = "#E10600";
+
+/** The next legal lifecycle steps from each status (spec §7). */
+const NEXT: Record<string, { to: SessionStatus; label: string }[]> = {
+  draft: [{ to: "scheduled", label: "Schedule" }, { to: "cancelled", label: "Cancel" }],
+  scheduled: [
+    { to: "live", label: "Go Live" },
+    { to: "rescheduled", label: "Reschedule" },
+    { to: "done", label: "Complete" },
+    { to: "cancelled", label: "Cancel" },
+  ],
+  live: [{ to: "done", label: "Complete" }, { to: "cancelled", label: "Cancel" }],
+  done: [{ to: "completed", label: "Mark Completed" }, { to: "test_pending", label: "Test Pending" }, { to: "feedback_pending", label: "Feedback Pending" }],
+  completed: [{ to: "test_pending", label: "Test Pending" }, { to: "feedback_pending", label: "Feedback Pending" }, { to: "closed", label: "Close" }],
+  test_pending: [{ to: "feedback_pending", label: "Feedback Pending" }, { to: "closed", label: "Close" }],
+  feedback_pending: [{ to: "closed", label: "Close" }],
+  rescheduled: [{ to: "scheduled", label: "Schedule" }],
+};
 
 type AddSubject = (name: string) => Promise<{ ok: true; option: { id: string; name: string } } | { ok: false; error: string }>;
 
@@ -22,7 +40,7 @@ export function SessionEdit({
   onAddSubject,
 }: {
   initial: SessionFormValues;
-  status: "scheduled" | "done" | "cancelled";
+  status: SessionStatus;
   subjectOptions: { id: string; name: string }[];
   employeeOptions: { id: string; name: string }[];
   maxSessionMinutes: number;
@@ -32,14 +50,6 @@ export function SessionEdit({
   const [editing, setEditing] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
 
-  async function onComplete() {
-    setBusy("done");
-    const res = await completeSession(initial.id!);
-    setBusy(null);
-    if (!res.ok) return fireToast({ message: res.error, type: "error" });
-    fireToast({ message: "Marked done.", type: "success" });
-    router.refresh();
-  }
   async function onCancel() {
     if (!confirm("Cancel this session? Attendees keep their records but it's marked cancelled.")) return;
     setBusy("cancel");
@@ -47,6 +57,14 @@ export function SessionEdit({
     setBusy(null);
     if (!res.ok) return fireToast({ message: res.error, type: "error" });
     fireToast({ message: "Session cancelled.", type: "success" });
+    router.refresh();
+  }
+  async function onTransition(to: SessionStatus) {
+    setBusy(`to:${to}`);
+    const res = await transitionSession(initial.id!, to);
+    setBusy(null);
+    if (!res.ok) return fireToast({ message: res.error, type: "error" });
+    fireToast({ message: `Moved to ${to}.`, type: "success" });
     router.refresh();
   }
 
@@ -82,17 +100,18 @@ export function SessionEdit({
       >
         <Pencil size={15} /> Edit Session
       </button>
-      {status === "scheduled" && (
+      {(NEXT[status] ?? []).map((step) => (
         <button
+          key={step.to}
           type="button"
-          onClick={onComplete}
+          onClick={() => onTransition(step.to)}
           disabled={busy !== null}
           className="inline-flex items-center gap-2 rounded-xl border border-hairline-strong bg-white px-4 py-2.5 text-[14px] font-bold text-ink-soft hover:border-ink-subtle disabled:opacity-50"
         >
-          {busy === "done" ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />} Mark Done
+          {busy === `to:${step.to}` ? <Loader2 size={15} className="animate-spin" /> : step.to === "cancelled" ? <Ban size={15} /> : <CheckCircle2 size={15} />} {step.label}
         </button>
-      )}
-      {status !== "cancelled" && (
+      ))}
+      {status !== "cancelled" && !(NEXT[status] ?? []).some((s) => s.to === "cancelled") && (
         <button
           type="button"
           onClick={onCancel}

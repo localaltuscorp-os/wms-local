@@ -188,8 +188,15 @@ export interface AnalyticsRequest {
 export interface AnalyticsTarget {
   empName: string;
   employeeId: string | null;
-  /** "YYYY-MM-DD", first of month. */
+  /** "YYYY-MM-DD", first of month. For a quarter, its FIRST month (migration 0250). */
   periodMonth: string;
+  /**
+   * `month` for every row that has ever existed — including a whole-YEAR
+   * target, which is stored as the January row. `quarter` for a quarterly
+   * target, which anchors on its first month but must NOT be read as that
+   * month's monthly target.
+   */
+  periodType: "month" | "quarter";
   amount: number;
 }
 
@@ -229,12 +236,41 @@ export interface AnalyticsScope {
    * "Team" button that shows them their own figures under another name.
    */
   canSeeTeam?: boolean;
+  /**
+   * May this viewer read CTC figures for people who are NOT themselves?
+   *
+   * The rule the CTC restriction exists for is "a team lead must not read their
+   * reports' pay". A viewer who was handed a company-wide scope was never that
+   * person — they could already read every CTC on the page — and narrowing
+   * their view to ONE employee must not take that away (see `narrowToEmployee`
+   * in ./viewer.ts).
+   *
+   * Set ONLY by that narrowing, so every existing caller leaves it undefined and
+   * the restriction behaves exactly as it always has.
+   */
+  ctcUnrestricted?: boolean;
 }
 
 export interface BuildInput {
   period: ResolvedPeriod;
   /** The current month in IST, for the target warning. */
   currentMonth: string;
+  /**
+   * WHOSE DASHBOARD THIS IS, when it is not the signed-in person's.
+   *
+   * `me` in the result is the row the dashboard is ABOUT — the figure the KPI
+   * band's Grade and % of CTC cards print. It used to be "the signed-in
+   * employee", which is the same thing until somebody opens somebody else's
+   * dashboard (`?emp=`): at that point the two disagree, and the band would
+   * print the READER's grade under the viewed person's name.
+   *
+   * `viewer` stays the signed-in identity and is deliberately not reused for
+   * this. The CTC restriction is computed from `viewer` — a manager must not
+   * read a report's pay — so swapping it for the subject would hand them the
+   * very figure the rule withholds. Defaults to the viewer, so every existing
+   * caller is unchanged.
+   */
+  subjectId?: string;
   employees: readonly AnalyticsEmployee[];
   /** Name keys of people who must not be counted — left, inactive or excluded. */
   inactiveNameKeys: ReadonlySet<string>;
@@ -335,8 +371,37 @@ export interface IncentiveAnalytics {
     target: number | null;
     grades: Record<IncentiveGrade | "none", number>;
   };
+  /**
+   * THE PERIOD, MONTH BY MONTH — one entry per month it spans, ascending.
+   *
+   * What the dashboard's "earned over time" bar strip draws, and the only
+   * series on the page that shows SHAPE (a quarter that started badly) rather
+   * than a single total. Every figure is a real sum of the rows in that month:
+   * a month with nothing in it is a genuine zero, never a gap filled in.
+   *
+   * `target` is null when no monthly target was set for that month, so the
+   * strip can tell "no target" from "a target of zero" — the same distinction
+   * the target warning makes. A QUARTERLY target is deliberately absent here:
+   * it is a commitment for the period as a whole, and spreading it across its
+   * months would invent three monthly targets nobody set.
+   */
+  monthly: { month: string; earned: number; target: number | null }[];
   me: EmployeePerformance | null;
   targetWarning: TargetWarning | null;
+  /**
+   * EVERYONE THIS VIEWER MAY LOOK AT — the employee picker's rows.
+   *
+   * A property of the VIEWER's entitlement, not of the period, and deliberately
+   * NOT narrowed when the dashboard is: the picker must keep offering everybody
+   * while you are viewing one of them, or selecting somebody would leave you
+   * unable to select anybody else.
+   *
+   * Set by the loader (lib/queries/incentive-analytics.ts), which is the layer
+   * that holds both the un-narrowed scope and the eligible roster. ABSENT means
+   * the caller did not resolve it, which reads as "no picker" — the safe
+   * direction, and what every existing caller gets.
+   */
+  viewablePeople?: readonly { id: string; name: string }[];
 }
 
 // ── Ledger folding ───────────────────────────────────────────────────────────
@@ -406,9 +471,13 @@ export function targetWarningFor(
 ): TargetWarning {
   const nextMonth = addMonths(currentMonth, 1);
   const key = ledgerNameKey(viewer.name);
+  // MONTHLY rows only. The warning asks for a MONTHLY target; a quarterly row
+  // anchored on the same month is a different commitment and must not satisfy
+  // it (migration 0250).
   const has = (month: string) =>
     targets.some(
       (t) =>
+        t.periodType === "month" &&
         monthKeyOf(t.periodMonth) === month &&
         finite(t.amount) > 0 &&
         (t.employeeId === viewer.id || (key !== "" && ledgerNameKey(t.empName) === key)),
@@ -450,6 +519,8 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
   // ── Ledger: earnings (now + previous) and Paid / Unpaid records ──
   const earnedNow = new Map<string, number>();
   const earnedPrev = new Map<string, number>();
+  /** The same earnings, bucketed by month — the "earned over time" series. */
+  const earnedByMonth = new Map<string, number>();
   let prevTotal = 0;
   const records: StatusRecord[] = [];
 
@@ -460,6 +531,12 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
 
     if (nowMonths.has(line.month)) {
       if (emp) earnedNow.set(emp.id, (earnedNow.get(emp.id) ?? 0) + line.approved);
+      // Same test `summary.earned` sums through (`visible` = the employees this
+      // viewer may see), so the monthly strip and the Total Actual KPI above it
+      // are the same money counted two ways — never two different answers.
+      if (emp && canSee(emp.id)) {
+        earnedByMonth.set(line.month, (earnedByMonth.get(line.month) ?? 0) + line.approved);
+      }
       const paid = round2(Math.max(0, line.paid));
       const unpaid = round2(Math.max(0, line.approved - line.paid));
       if ((paid > 0 || unpaid > 0) && (emp ? canSee(emp.id) : scope.all)) {
@@ -557,13 +634,31 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
   });
 
   // ── Targets for the period ──
+  //
+  // PERIOD-TYPE AWARE (migration 0250). A MONTHLY row counts when its month is
+  // one of the period's months — which is what every existing row is, so every
+  // existing figure is unchanged. A QUARTERLY row counts only when the selected
+  // period IS that quarter, and is added ON TOP of the months it spans: the
+  // quarter's own target is a separate commitment, not a substitute for the
+  // monthly ones inside it. Without this a Q3 target stored at 2026-07-01 would
+  // be read as July's monthly target and inflate YTD.
   const targetByEmp = new Map<string, number>();
+  /** Monthly targets, bucketed by month — the strip's target line. */
+  const targetByMonth = new Map<string, number>();
   for (const t of input.targets) {
     const m = monthKeyOf(t.periodMonth);
-    if (!m || !nowMonths.has(m)) continue;
+    if (!m) continue;
+    const isQuarterly = t.periodType === "quarter";
+    if (isQuarterly ? t.periodMonth !== period.quarterStart : !nowMonths.has(m)) continue;
     const emp = (t.employeeId ? empById.get(t.employeeId) : undefined) ?? activeByName.get(ledgerNameKey(t.empName));
     if (!emp) continue;
     targetByEmp.set(emp.id, (targetByEmp.get(emp.id) ?? 0) + finite(t.amount));
+    // A QUARTERLY target is NOT spread across its months — see `monthly` in the
+    // result type. Only a monthly row lands in a monthly bucket, so the strip
+    // never shows three monthly targets nobody set.
+    if (!isQuarterly && canSee(emp.id)) {
+      targetByMonth.set(m, (targetByMonth.get(m) ?? 0) + finite(t.amount));
+    }
   }
 
   // ── Performance, ranks (company-wide), movement ──
@@ -593,7 +688,9 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
     const isSelf = e.id === input.viewer.id;
     const hasCtc = typeof e.monthlyCtc === "number" && Number.isFinite(e.monthlyCtc) && e.monthlyCtc > 0;
     let ctcState: CtcState = !hasCtc ? "missing" : pc ? "ok" : "not_employed";
-    if (ctcState === "ok" && !scope.all && !isSelf) ctcState = "restricted";
+    // Narrowing a company-wide view to one employee keeps the CTC that viewer
+    // was already entitled to — see `ctcUnrestricted` on AnalyticsScope.
+    if (ctcState === "ok" && !scope.all && !scope.ctcUnrestricted && !isSelf) ctcState = "restricted";
     const rank = ranks.get(e.id) ?? null;
     const previousRank = prevRanks.get(e.id) ?? null;
     const target = targetByEmp.has(e.id) ? round2(targetByEmp.get(e.id)!) : null;
@@ -637,7 +734,15 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
     }
   }
 
-  const me = all.find((p) => p.isSelf) ?? null;
+  // ── THE ROW THIS DASHBOARD IS ABOUT ──────────────────────────────────────
+  //
+  // The SUBJECT, not the reader. They are the same person until somebody opens
+  // somebody else's dashboard, and at that point the KPI band's Grade and
+  // % of CTC cards must follow the person whose name is in the title — not the
+  // person looking at it. `isSelf` stays the READER's identity, because the CTC
+  // restriction is computed from it.
+  const subjectId = input.subjectId ?? input.viewer.id;
+  const me = all.find((p) => p.employeeId === subjectId) ?? null;
   const viewerEligible = empById.has(input.viewer.id);
 
   return {
@@ -668,6 +773,14 @@ export function buildIncentiveAnalytics(input: BuildInput): IncentiveAnalytics {
       target: anyTarget ? round2(targetSum) : null,
       grades,
     },
+    // One entry per month in the period, ascending, so the strip's shape is the
+    // period's shape. `targetByMonth` is consulted by month, and a month with no
+    // target row reads null rather than zero.
+    monthly: period.months.map((month) => ({
+      month,
+      earned: round2(earnedByMonth.get(month) ?? 0),
+      target: targetByMonth.has(month) ? round2(targetByMonth.get(month)!) : null,
+    })),
     me,
     targetWarning:
       viewerEligible && isMonthKey(input.currentMonth)

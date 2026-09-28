@@ -146,8 +146,50 @@ const Input = z.object({
   kind: z.enum(ARCHIVE_RECORD_KINDS),
   id: z.string().uuid(),
 });
+const ReassignInput = Input.extend({ employeeId: z.string().uuid() });
 
 export type ArchiveActionResult = { ok: true; message: string } | { ok: false; error: string };
+
+/** Move an archived work item to an active employee and restore it in one step. */
+export async function reassignAndUnarchiveRecord(kind: string, id: string, employeeId: string): Promise<ArchiveActionResult> {
+  const me = await requireUser();
+  if (!me.isAdmin) return { ok: false, error: "Only an admin can reassign Archive records." };
+  const parsed = ReassignInput.safeParse({ kind, id, employeeId });
+  if (!parsed.success) return { ok: false, error: "Choose a valid active employee." };
+  const targetEmployee = await db.query.employees.findFirst({ where: eq(employees.id, parsed.data.employeeId) });
+  if (!targetEmployee?.isActive) return { ok: false, error: "Choose an active employee." };
+  try {
+    switch (parsed.data.kind) {
+      case "task":
+        // Set the new recipient, then restore through the Tasks module's own
+        // writer. That path updates the live-list and sidebar-count cache,
+        // emits the restore event, and puts scheduled work back on the new
+        // doer's calendar.
+        await db.update(tasks).set({ doerId: parsed.data.employeeId, updatedAt: new Date() }).where(eq(tasks.id, parsed.data.id));
+        {
+          const restored = await unarchiveTask(parsed.data.id);
+          if (!restored.ok) return { ok: false, error: restored.error };
+        }
+        break;
+      case "weekly-goal":
+        await db.update(weeklyGoals).set({ employeeId: parsed.data.employeeId, archivedAt: null }).where(eq(weeklyGoals.id, parsed.data.id));
+        break;
+      case "goal":
+        await db.update(goals).set({ employeeId: parsed.data.employeeId, archivedAt: null }).where(eq(goals.id, parsed.data.id));
+        break;
+      case "project-node":
+        await db.update(projectNodes).set({ ownerId: parsed.data.employeeId, isArchived: false, updatedAt: new Date() }).where(eq(projectNodes.id, parsed.data.id));
+        break;
+      default:
+        return { ok: false, error: "Only tasks, goals and plan items can be reassigned from Archive." };
+    }
+  } catch {
+    return { ok: false, error: "Could not reassign and restore that record." };
+  }
+  refresh();
+  refreshRecordReaders(parsed.data.kind);
+  return { ok: true, message: `Reassigned to ${targetEmployee.name} and restored to their live module.` };
+}
 
 /** The Archive's own pages, after either action. */
 function refresh(): void {

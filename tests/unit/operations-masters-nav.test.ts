@@ -5,7 +5,8 @@ import { nodeKeyForPath } from "@/lib/permissions/catalog";
 
 /**
  * OPERATIONS → MASTERS (account holder, 2026-09-15): every master in a rail
- * section of its own, each topic — Checklist, Events, Job Description — separate.
+ * section of its own, each topic — Checklist, Events, Job Description,
+ * Dropdowns — separate.
  */
 describe("Operations Masters section", () => {
   it("lists the overview, then each master under its own topic", () => {
@@ -16,6 +17,7 @@ describe("Operations Masters section", () => {
       ["Job Description", "/operations/masters/jd"],
       ["Job Description", "/operations/masters/person-jd"],
       ["Job Description", "/operations/masters/recruitment-jd"],
+      ["Dropdowns", "/operations/masters/dd"],
     ]);
   });
 

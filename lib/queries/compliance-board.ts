@@ -67,6 +67,8 @@ export interface PickerOption {
 
 export interface ComplianceBoard {
   rows: ComplianceRow[];
+  /** All visible, active compliance definitions — including ones not due in the current window. */
+  itemIds: string[];
   groups: BoardGroup[];
   /** Resolved `who`. */
   who: string;
@@ -230,6 +232,7 @@ export async function loadComplianceBoard(args: {
 
   return {
     rows,
+    itemIds: items.map((item) => item.id),
     groups: boardGroups,
     who,
     multiPerson: who === "team",

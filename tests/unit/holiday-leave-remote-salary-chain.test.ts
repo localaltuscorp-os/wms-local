@@ -79,7 +79,19 @@ const SCHED = toAttendanceSchedule(CFG);
  * tests exercise the firm's own list rather than invented dates.
  */
 const MONTH = "2026-09";
+/**
+ * THREE WORKING-DAY HOLIDAYS, as a PAYROLL FIXTURE — not a claim about what
+ * HR published. The grader takes its holidays as an argument, so what matters
+ * here is only that these are three non-Sundays: the month-wide case below
+ * asserts they buy back exactly 27 hours (3 x 9).
+ */
 const SEPT_HOLIDAYS = ["2026-09-04", "2026-09-14", "2026-09-23"];
+/**
+ * What the HR list ACTUALLY publishes for September 2026. Ganpati Day 10 on
+ * the 23rd was withdrawn on 2026-09-24, so the published set and the payroll
+ * fixture above are no longer the same three dates and cannot share a list.
+ */
+const PUBLISHED_SEPT = ["2026-09-04", "2026-09-14"];
 /** Sundays in September 2026. */
 const SUNDAYS = ["2026-09-06", "2026-09-13", "2026-09-20", "2026-09-27"];
 
@@ -194,7 +206,7 @@ describe("the published HR holiday calendar reaches attendance", () => {
     const dates = publishedHolidayDates(2026);
     expect(dates).toContain("2026-01-26"); // Republic Day
     expect(dates).toContain("2026-08-15"); // Independence Day
-    for (const d of SEPT_HOLIDAYS) expect(dates).toContain(d);
+    for (const d of PUBLISHED_SEPT) expect(dates).toContain(d);
     for (const d of dates) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 

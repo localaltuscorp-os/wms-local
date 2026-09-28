@@ -184,6 +184,11 @@ const UNOWNED_BY_DESIGN: readonly Exemption[] = [
       "DELIBERATELY always-200 and says so: it is polled every few seconds on every authed page, so a refusal would make every open tab log a 403 forever. Its scope is the signed-in employee, fixed inside the handler rather than by a module switch.",
   },
   {
+    prefix: "app/api/hr/declaration/pdf/",
+    reason:
+      "Renders ONE PERSON's own declaration — the caller's own name, from the caller's own employees row, no input taken at all. No catalogue node claims it yet; the route says why in its own file. A 403 here would block someone from printing and signing a document every employee is required to hand in.",
+  },
+  {
     prefix: "app/api/meet/events/",
     reason:
       "Inbound Google Pub/Sub webhook, verified by its own request auth. The caller is Google's infrastructure, not an employee, so there is nobody for the matrix to deny.",

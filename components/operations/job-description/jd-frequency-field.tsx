@@ -3,7 +3,7 @@
 import * as React from "react";
 import { CustomRecurrenceDialog } from "@/components/recurrence/custom-recurrence-dialog";
 import { dateFromYmd, type PresetKey } from "@/lib/recurrence/google-recurrence";
-import { describeRecurrence, frequencyOptionsFor, type Recurrence } from "@/lib/jd/recurrence";
+import { frequencyOptionsFor, type Recurrence } from "@/lib/jd/recurrence";
 
 /**
  * THE JOB DESCRIPTION'S "How often" CONTROL — Google Calendar's, exactly.
@@ -101,7 +101,6 @@ export function JdFrequencyField({
           aria-label="The date this job starts"
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
         />
-        <p className="mt-1 text-[11px] text-slate-500">The frequency counts from this day.</p>
       </div>
 
       <div className="min-w-0">
@@ -120,21 +119,6 @@ export function JdFrequencyField({
             </option>
           ))}
         </select>
-        <p className="mt-1 text-[11px] text-slate-500">
-          {describeRecurrence(value)}
-          {preset === "custom" && (
-            <>
-              {" · "}
-              <button
-                type="button"
-                onClick={() => setCustomOpen(true)}
-                className="font-semibold text-slate-600 underline underline-offset-2 hover:text-slate-900"
-              >
-                Edit custom
-              </button>
-            </>
-          )}
-        </p>
       </div>
 
       <CustomRecurrenceDialog

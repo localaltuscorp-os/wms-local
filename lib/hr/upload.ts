@@ -23,9 +23,32 @@ export function safeFileName(name: string): string {
 }
 
 export function validateUpload(file: File): { ok: true } | { ok: false; error: string } {
-  if (file.size === 0) return { ok: false, error: "Pick a file to upload." };
-  if (file.size > HR_UPLOAD_MAX_BYTES) return { ok: false, error: "File exceeds 25 MB." };
-  if (DISALLOWED_EXTENSIONS.test(file.name)) return { ok: false, error: "This file type is not allowed." };
-  if (file.type && DISALLOWED_MIME_TYPES.has(file.type)) return { ok: false, error: "This file type is not allowed." };
+  return validateUploadMeta({ fileName: file.name, mime: file.type || null, size: file.size });
+}
+
+/**
+ * The same rules, stated over METADATA rather than a `File`.
+ *
+ * The direct-to-Supabase upload flow mints its signed URL on the SERVER, which
+ * never sees the bytes — only the name, type and size the browser claims. It
+ * still has to apply the deny-list, because the browser's own check is advice
+ * and the request can be replayed without it.
+ *
+ * `validateUpload` now delegates here so the two cannot diverge: the deny-list
+ * had already been copy-pasted into three other modules, and a fourth copy is
+ * how one of them ends up allowing `.svg` after everyone else stops.
+ */
+export function validateUploadMeta(meta: {
+  fileName: string;
+  mime?: string | null;
+  size?: number | null;
+}): { ok: true } | { ok: false; error: string } {
+  const size = Number(meta.size ?? 0);
+  if (!Number.isFinite(size) || size <= 0) return { ok: false, error: "Pick a file to upload." };
+  if (size > HR_UPLOAD_MAX_BYTES) return { ok: false, error: "File exceeds 25 MB." };
+  if (DISALLOWED_EXTENSIONS.test(meta.fileName)) return { ok: false, error: "This file type is not allowed." };
+  if (meta.mime && DISALLOWED_MIME_TYPES.has(meta.mime)) {
+    return { ok: false, error: "This file type is not allowed." };
+  }
   return { ok: true };
 }

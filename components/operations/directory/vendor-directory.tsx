@@ -209,10 +209,19 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                       {[v.city, v.state].filter(Boolean).join(", ") || "-"}
                       {v.pincode ? <span className="block tabular-nums text-ink-muted">{v.pincode}</span> : null}
                     </td>
-                    <td className={TD}>
+                    <td className={`${TD} max-w-[220px]`}>
                       {v.website ? (
-                        <a href={v.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 break-all font-semibold hover:underline">
-                          {v.website.replace(/^https?:\/\//i, "").replace(/\/$/, "")} <ExternalLink size={12} className="shrink-0" />
+                        <a
+                          href={v.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={v.website}
+                          className="inline-flex max-w-full items-center gap-1 font-semibold hover:underline"
+                        >
+                          <span className="min-w-0 truncate">
+                            {v.website.replace(/^https?:\/\//i, "").replace(/\/$/, "")}
+                          </span>
+                          <ExternalLink size={12} className="shrink-0" />
                         </a>
                       ) : (
                         "-"

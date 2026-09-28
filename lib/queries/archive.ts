@@ -419,8 +419,8 @@ async function archiveTasks(ids: string[], scope: ArchiveScope): Promise<Archive
       columns: [
         { key: "no", label: "Task" },
         { key: "title", label: "Title" },
-        { key: "raised", label: "Raised by" },
         { key: "doer", label: "Doer" },
+        { key: "raised", label: "Raised by" },
         { key: "status", label: "Status" },
         { key: "due", label: "Due" },
         { key: "done", label: "Completed" },
@@ -428,8 +428,8 @@ async function archiveTasks(ids: string[], scope: ArchiveScope): Promise<Archive
       rows: raised.map((r) => [
         r.taskNo != null ? `#${r.taskNo}` : null,
         r.title,
-        r.raisedBy,
         r.doerName,
+        r.raisedBy,
         taskStatus(r.status),
         day(r.dueAt),
         day(r.completedAt),

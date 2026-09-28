@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   incentiveCatalog,
@@ -610,6 +610,10 @@ export async function getIncentiveTargetVsActual(
         and(
           gte(incentiveTargets.periodMonth, start),
           lt(incentiveTargets.periodMonth, end),
+          // MONTHLY rows only: a quarterly target anchors on its first month
+          // and would otherwise be summed here as that month's target
+          // (migration 0250).
+          ne(incentiveTargets.periodType, "quarter"),
         ),
       ),
     removedNameKeys(),
@@ -689,6 +693,7 @@ export interface IncentiveEntryAdminRow {
   amount: number;
   approved: boolean;
   approvedAmt: number;
+  approvedDate: string | null;
   paid: boolean;
   paidAmt: number;
   paidDate: string | null;
@@ -710,6 +715,7 @@ function toAdminRow(e: IncentiveEntry): IncentiveEntryAdminRow {
     amount: num(e.amount),
     approved: e.approved,
     approvedAmt: num(e.approvedAmt),
+    approvedDate: e.approvedDate,
     paid: e.paid,
     paidAmt: num(e.paidAmt),
     paidDate: e.paidDate,

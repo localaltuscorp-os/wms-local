@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { Inbox as InboxIcon } from "lucide-react";
-import { UserMenuServer } from "@/components/header/user-menu-server";
 import { requireUser } from "@/lib/auth/current";
 import { countInboxByKind, listInboxNotifications } from "@/lib/queries/notifications";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
@@ -89,9 +88,6 @@ export default async function InboxPage({ searchParams }: PageProps) {
           <img src="/logo.png" alt="Altus Corp" className="h-8 w-auto" />
         </a>
         <CategoryBar active={category} counts={categoryCounts} />
-        <div className="shrink-0">
-          <UserMenuServer />
-        </div>
       </div>
 
       {/* FULL-BLEED. Was `mx-auto max-w-[1500px] px-12`, which left a wide empty

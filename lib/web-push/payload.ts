@@ -81,6 +81,18 @@ const TITLES: Record<NotificationKind, (actor: string) => string> = {
   incentive_request_reversed: () => `Incentive adjusted — negative payable adjustment`,
   incentive_request_resubmitted: () => `Incentive request resubmitted`,
   incentive_paid: () => `Incentive paid`,
+  // Training & Learning (LMS) — in-app + push.
+  training_scheduled: () => `Training scheduled`,
+  training_rescheduled: () => `Training rescheduled`,
+  training_cancelled: () => `Training cancelled`,
+  training_recording_ready: () => `Recording ready`,
+  training_recording_incomplete: () => `Recording incomplete`,
+  training_test_pending: () => `Training test pending`,
+  training_feedback_pending: () => `Training feedback pending`,
+  learning_share_scheduled: () => `Learning share scheduled`,
+  learning_share_reminder: () => `Learning share reminder`,
+  learning_target_approaching: () => `Learning target approaching`,
+  learning_target_incomplete: () => `Learning target incomplete`,
 };
 
 export interface PushCtx {

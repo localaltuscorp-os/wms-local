@@ -7,6 +7,7 @@ import {
   loadMasterOptions,
 } from "@/lib/employees/master-query";
 import { EmployeeMasterTable } from "@/components/admin/employee-master/master-table";
+import { SalaryProfileImportDialog } from "@/components/admin/salary-profile-import-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export default async function EmployeeMasterPage() {
           tone: withoutCode ? "amber" : undefined,
         },
       ]}
+      actions={<SalaryProfileImportDialog />}
     >
       <EmployeeMasterTable
         rows={visible}

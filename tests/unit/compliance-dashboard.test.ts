@@ -169,14 +169,11 @@ describe("computeComplianceDashboard — both checklists", () => {
 
 
 describe("statusBreakdown — the Doer Status column, counted", () => {
-  it("keeps Not Filled apart from Not Read", () => {
-    // An untouched row and one somebody opened and marked Not Read are
-    // different facts; only the first is what the 10 pm reminder chases.
+  it("presents untouched rows as Not Read", () => {
+    // Reminder logic still distinguishes a null database value, but the board
+    // intentionally has no separate Not Filled status or dashboard slice.
     const out = statusBreakdown([row({ doerStatus: null }), row({ doerStatus: "dont_know" })]);
-    const labels = out.map((s) => s.label);
-    expect(labels).toContain("Not Filled");
-    expect(labels).toContain("Not Read");
-    expect(out.find((s) => s.status === "unfilled")?.count).toBe(1);
+    expect(out).toEqual([{ status: "dont_know", label: "Not Read", count: 2 }]);
   });
 
   it("drops statuses nobody is in, rather than plotting empty bars", () => {

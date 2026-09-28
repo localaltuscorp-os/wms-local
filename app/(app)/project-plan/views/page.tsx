@@ -3,7 +3,6 @@ import { DashboardHeader } from "@/components/layout/header";
 import { BufferingState } from "@/components/ui/spinner";
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { listPlanTree, attachmentCounts } from "@/lib/queries/project-plan";
 import { TaskDetailDrawer } from "@/components/tasks/task-detail-drawer";
 import { TaskDetailLoader } from "@/components/tasks/task-detail-loader";
@@ -47,9 +46,8 @@ export default async function Page({
   };
 
   const me = await requireUser();
-  const [tree, downline, counts] = await Promise.all([
+  const [tree, counts] = await Promise.all([
     listPlanTree(),
-    getDownlineIds(me.id),
     attachmentCounts(),
   ]);
 
@@ -63,8 +61,6 @@ export default async function Page({
           tree={tree.map(toRow)}
           initialSelection={selectionFromQuery(one)}
           attachmentCounts={Object.fromEntries(counts)}
-          me={{ id: me.id, isAdmin: me.isAdmin }}
-          downline={downline}
         />
       </main>
 

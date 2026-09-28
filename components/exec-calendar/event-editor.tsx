@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2, X } from "lucide-react";
 import { Chevroned } from "@/components/ui/chevroned-select";
 import { fireToast } from "@/lib/toast";
-import { EXEC_CATEGORIES, categoryColors, execCategory, guessCategory } from "@/lib/exec-calendar/taxonomy";
+import { EXEC_CATEGORIES, categoryColors, execCategory, guessCategory, type ExecCategoryKey } from "@/lib/exec-calendar/taxonomy";
 import { EXEC_CLIENTS } from "@/lib/exec-calendar/clients";
 import { SwatchSelect } from "./swatch-select";
 import { DayMarkerForm } from "./day-marker-form";
 import { MARKER_BG, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import { durationLabel, minToLabel } from "@/lib/exec-calendar/grid";
-import { saveExecEvent, deleteExecEvent, type ExecEventInput } from "@/app/(app)/events/actions";
+import { saveExecEvent, deleteExecEvent, stampRecurringEvent, type ExecEventInput } from "@/app/(app)/events/actions";
+import { RecurrenceControl } from "@/components/tasks/recurrence-control";
+import { dateFromYmd } from "@/lib/recurrence/google-recurrence";
 
 /**
  * The edit drawer (§6: "click opens an edit drawer").
@@ -84,6 +86,10 @@ export function ExecEventEditor({
   const [v, setV] = React.useState<EditorEvent>(initial);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // "Repeat" (2026-09-24) — only offered when creating a NEW timed block. An
+  // existing block stays a single occurrence (editing the SERIES is "Manage
+  // routines"); all-day has no time-of-day for the routines table to key off.
+  const [recurrenceRule, setRecurrenceRule] = React.useState<string | null>(null);
 
   const cat = execCategory(v.categoryKey);
   const col = categoryColors(v.categoryKey);
@@ -137,6 +143,34 @@ export function ExecEventEditor({
     if (busy) return;
     setBusy(true);
     setError(null);
+
+    if (!v.id && recurrenceRule) {
+      const res = await stampRecurringEvent({
+        title: v.title,
+        categoryKey: v.categoryKey as ExecCategoryKey,
+        day: v.day,
+        startMin: v.startMin!,
+        endMin: v.endMin!,
+        location: v.location,
+        notes: v.notes,
+        clientKey: v.clientKey,
+        batchLabel: v.batchLabel,
+        recurrenceRule,
+      });
+      setBusy(false);
+      if (!res.ok) { setError(res.error); return; }
+      fireToast({
+        message:
+          res.skipped > 0
+            ? `Added to the calendar · ${res.created} blocks · skipped ${res.skipped}`
+            : `Added to the calendar · ${res.created} blocks`,
+        type: "success",
+      });
+      onClose();
+      router.refresh();
+      return;
+    }
+
     const res = await saveExecEvent(v as ExecEventInput);
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
@@ -157,7 +191,15 @@ export function ExecEventEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-label="Edit block">
+    /* z-[70], ABOVE the global top bar. The top bar is `position: sticky;
+       z-index: 60` (.aura-topbar, app/aura.css), so at the old z-50 this
+       drawer's own header — the "NEW BLOCK" eyebrow and the date — was painted
+       underneath it, and what showed between the bar and the Block|Day Marker
+       toggle was a tinted sliver of half-covered header that read as unexplained
+       empty space. The backdrop was under the top bar too, leaving the bar live
+       and clickable while a modal was open. Raising the whole drawer fixes both:
+       the header is visible and the backdrop covers what it is supposed to. */
+    <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-label="Edit block">
       <button className="flex-1 bg-black/25" aria-label="Close" onClick={onClose} />
       <div className="flex h-full w-[380px] max-w-full flex-col overflow-y-auto bg-surface-card shadow-2xl">
         <header
@@ -312,6 +354,15 @@ export function ExecEventEditor({
               </p>
             )}
             </div>
+          )}
+
+          {!v.id && !v.allDay && (
+            <RecurrenceControl
+              anchor={dateFromYmd(v.day)}
+              recurrence={recurrenceRule ? "weekly" : null}
+              recurrenceRule={recurrenceRule}
+              onChange={({ recurrenceRule: next }) => setRecurrenceRule(next)}
+            />
           )}
 
           {cat.linksClient && (

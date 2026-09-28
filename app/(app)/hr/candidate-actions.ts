@@ -138,7 +138,9 @@ export async function saveCandidateDraft(input: z.input<typeof DraftSchema>): Pr
 
   const payload = {
     fullName: (values["personal.fullName"] ?? "").slice(0, 200),
-    positionApplied: values["personal.position"] || null,
+    // Position moved from "personal" to "jobDetails" (2026-09-23); fall back to
+    // the old key for a draft that was filled before the move.
+    positionApplied: values["jobDetails.position"] || values["personal.position"] || null,
     mobile: values["personal.mobile"] || null,
     email: values["personal.email"] || null,
     data: values as Record<string, unknown>,
@@ -284,7 +286,7 @@ export async function submitCandidateDraft(id: string): Promise<{ ok: true } | {
         to,
         recruiterName: values["declaration.name"] || undefined,
         candidateName: row?.fullName || values["personal.fullName"] || "A candidate",
-        position: row?.positionApplied || values["personal.position"] || undefined,
+        position: row?.positionApplied || values["jobDetails.position"] || values["personal.position"] || undefined,
       });
     }
   } catch {
@@ -709,9 +711,9 @@ export async function listCandidateIntakes(): Promise<CandidateRow[]> {
       submitted: r.submittedAt != null,
       pct: intakeProgress(values, instances),
       createdAt: r.createdAt,
-      department: values["personal.department"] ?? null,
+      department: values["jobDetails.department"] ?? values["personal.department"] ?? null,
       gender: values["personal.gender"] ?? null,
-      position: values["personal.position"] ?? null,
+      position: values["jobDetails.position"] ?? values["personal.position"] ?? null,
       recruiterName: values["declaration.name"] ?? null,
       avatarUrl: r.photoPath ? (signedPhotos.get(r.photoPath) ?? null) : null,
     };

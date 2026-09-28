@@ -1,5 +1,29 @@
 # 15 — Admin Panel → Control Panel + Salary Breakup
 
+> **PARTLY SUPERSEDED on 2026-09-24 by [`17-control-panel-module.md`](./17-control-panel-module.md).**
+>
+> This document placed the Control Panel **inside** the Admin Panel. It is no
+> longer there: it left the Admin Panel and became a module of its own at
+> `/control-panel`, shown only to the people the permission matrix lets in.
+>
+> What that changes here, and what it does not:
+>
+> - **The Admin Panel → Control Panel group** this document created is gone.
+>   `components/admin/admin-nav-config.ts` no longer has it, and no Control Panel
+>   route exists under `app/(admin)/admin/`.
+> - **The five screens are the same five**, unchanged in behaviour, at
+>   `/control-panel/*`. Their files moved from `app/(admin)/admin/control-panel/`.
+> - **The permission keys named below are stale.** `admin.control-panel`,
+>   `admin.control-panel.*` and `admin.temporary-access` are now
+>   `control-panel`, `control-panel.*` and `control-panel.temporary-access`.
+>   Existing grants moved with them, by migration `0251`. Where this document
+>   says "the KEY is unchanged so existing grants keep working", read it as "was
+>   true on 22 September; the keys changed on 24 September, and 17 records why".
+> - **The old paths still resolve** — `/admin/control-panel/*` and
+>   `/admin/temporary-access` forward to the new ones from `next.config.ts`,
+>   rather than from a redirect page as described below.
+> - **Salary Breakup (§4 below) is untouched** and is still current.
+
 **Date:** 22 September 2026
 **Migration:** `db/migrations/0246_control_panel.sql` — **applied 2026-09-22**
 **SQL for another database:** [`SQL/13-apply-control-panel.sql`](./SQL/13-apply-control-panel.sql),

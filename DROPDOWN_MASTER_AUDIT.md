@@ -1824,8 +1824,8 @@ Legend for **Source**: hardcoded | constant | enum | API | database | other. **C
 
 ### Position Applied For (Candidate Interview Form)
 - **Module:** HR · Candidate Intake
-- **Screen:** Candidate Interview Form (`/hr/intake`) — Personal Details
-- **Field/Key:** `personal.position`
+- **Screen:** Candidate Interview Form (`/hr/intake`) — Job Details
+- **Field/Key:** `jobDetails.position`
 - **Source:** database (Interview Positions master, add/delete live)
 - **Component:** LookupSelect (via `IntakePositionSelect`)
 - **Type:** Single
@@ -1844,8 +1844,8 @@ Legend for **Source**: hardcoded | constant | enum | API | database | other. **C
 
 ### Function / Department (Candidate Interview Form)
 - **Module:** HR · Candidate Intake
-- **Screen:** Candidate Interview Form — Personal Details
-- **Field/Key:** `personal.department`
+- **Screen:** Candidate Interview Form — Job Details
+- **Field/Key:** `jobDetails.department`
 - **Source:** database (admin Departments master via `departments` prop)
 - **Component:** LookupSelect (via `IntakeField` select branch)
 - **Type:** Single
@@ -1924,8 +1924,8 @@ Legend for **Source**: hardcoded | constant | enum | API | database | other. **C
 
 ### How did you learn about the opening? (Candidate Interview Form)
 - **Module:** HR · Candidate Intake
-- **Screen:** Candidate Interview Form — Personal Details
-- **Field/Key:** `personal.source`
+- **Screen:** Candidate Interview Form — Job Details
+- **Field/Key:** `jobDetails.source`
 - **Source:** hardcoded
 - **Component:** LookupSelect (via `IntakeField`)
 - **Type:** Single

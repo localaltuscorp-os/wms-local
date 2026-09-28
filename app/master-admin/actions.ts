@@ -5,8 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees, modulePermissionEvents, modulePermissions } from "@/db/schema";
-import { requireUser, getSignedInEmployee, forbiddenError } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capability-grants";
+import { requireAdmin } from "@/lib/auth/current";
 import { isPermissionNodeKey } from "@/lib/permissions/catalog";
 import { isMeaningfulOverride } from "@/lib/permissions/effective";
 import { rateLimitOrError } from "@/lib/rate-limit";
@@ -34,7 +33,7 @@ import { auditAction } from "@/lib/logs/audit";
  * this is defence in depth rather than the only guard.)
  */
 
-const PATH = "/master-admin";
+const PATH = "/control-panel/permissions";
 
 const ToggleSchema = z
   .object({
@@ -52,11 +51,8 @@ export type MatrixResult = { ok: true } | { ok: false; error: string };
 /** The one authorization gate for this module. Throws 403 rather than
  *  redirecting: these are actions, and a redirect out of an action body
  *  silently discards the caller's error handling. */
-async function requireMasterAdmin() {
-  await requireUser();
-  const me = await getSignedInEmployee();
-  if (!me || !(await isMasterAdmin(me.email))) throw forbiddenError();
-  return me;
+async function requireAdminAccess() {
+  return requireAdmin();
 }
 
 /**
@@ -74,7 +70,7 @@ async function requireMasterAdmin() {
  * different fact from `prev_* = false`.
  */
 export async function setModulePermission(input: ToggleInput): Promise<MatrixResult> {
-  const me = await requireMasterAdmin();
+  const me = await requireAdminAccess();
 
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -98,17 +94,6 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
     .where(eq(employees.id, employeeId))
     .limit(1);
   if (!target) return { ok: false, error: "Employee not found." };
-
-  // A master admin is exempt from the matrix when it is ENFORCED
-  // (see `governedByMatrix`), so a row against them would be stored and then
-  // ignored — which is worse than refusing, because the screen would show a
-  // restriction that does nothing. Refuse it, and say why.
-  if (await isMasterAdmin(target.email)) {
-    return {
-      ok: false,
-      error: `${target.name} is a master administrator, so module permissions do not apply to them. Remove their master_admin.manage capability first if that should change.`,
-    };
-  }
 
   const next = {
     canShow: parsed.data.show,
@@ -172,14 +157,19 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
 
   revalidatePath(PATH);
 
-  // Mirror into the immutable global Logs feed (Control Panel → Logs). Additive:
-  // the domain audit above still runs; this is the human-readable copy.
+  // Mirror into the immutable global Logs feed. Additive: the domain audit
+  // above still runs; this is the human-readable copy.
+  //
+  // THE ROUTE IS THE SCREEN THAT CAN WRITE THIS, not the screen the writer is
+  // standing on — the Master Admin matrix edits the same rows the Control
+  // Panel's Permissions screen does, and this stays pointed at that screen so
+  // one filter in the Logs feed finds every permission change.
   auditAction({
     eventType: "CONFIG_CHANGE",
     employeeId: me.id,
-    route: "/admin/control-panel/permissions",
-    module: "Admin Panel",
-    page: "Control Panel",
+    route: "/control-panel/permissions",
+    module: "Control Panel",
+    page: "Permissions",
     resourceType: "module_permission",
     resourceId: `${employeeId}:${nodeKey}`,
     action: stored ? "permission_grant" : "permission_revoke",
@@ -199,7 +189,7 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
  * people reach for is a hand-written DELETE against production.
  */
 export async function resetEmployeePermissions(employeeId: string): Promise<MatrixResult> {
-  const me = await requireMasterAdmin();
+  const me = await requireAdminAccess();
 
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -251,7 +241,7 @@ export async function fetchEmployeeMatrix(employeeId: string): Promise<
   | { ok: true; overrides: Record<string, { show: boolean; view: boolean; edit: boolean }> }
   | { ok: false; error: string }
 > {
-  await requireMasterAdmin();
+  await requireAdminAccess();
   if (!z.string().uuid().safeParse(employeeId).success) {
     return { ok: false, error: "Invalid id" };
   }

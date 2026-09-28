@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, policyCompliance, policyDocuments } from "@/db/schema";
-import { POLICY_CARDS, getPolicy, isPolicyKey } from "@/lib/hr/policies/registry";
+import { readyPolicies } from "@/lib/hr/policies/registry";
 import { sendPlainEmail } from "@/lib/email/resend";
 import { siteUrl } from "@/lib/site-url";
 import { formatDateHr } from "@/lib/format";
@@ -28,9 +28,11 @@ import { policiesSignedRecipients } from "@/lib/hr/notify-recipients";
 
 /** The policies everyone is asked to sign: every published, authored one. */
 export function requiredPolicyKeys(): string[] {
-  return POLICY_CARDS.filter((c) => c.status === "ready" && isPolicyKey(c.key) && getPolicy(c.key)).map(
-    (c) => c.key,
-  );
+  // Delegated to the registry's pure selector so this list and the one the
+  // Declaration Letter prints in its body are the same list. They were the same
+  // expression written twice, which is how a seventh policy would have ended up
+  // required-but-undeclared.
+  return readyPolicies().map((p) => p.key);
 }
 
 /** Has this person signed the CURRENT version of every required policy? */

@@ -51,8 +51,6 @@ export default function Page() {
         tree={SAMPLE_PLAN}
         initialSelection={EMPTY_SELECTION}
         attachmentCounts={SAMPLE_ATTACHMENT_COUNTS}
-        me={{ id: "preview-viewer", isAdmin: true }}
-        downline={[]}
       />
     </main>
   );

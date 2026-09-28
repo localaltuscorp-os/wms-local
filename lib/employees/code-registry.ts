@@ -38,6 +38,18 @@ export type CodeResult =
   | { ok: true; code: string; prefix: string; seq: number }
   | { ok: false; error: string };
 
+/** Allocate the canonical code for a newly-created employee from current master data. */
+export async function issueSuggestedEmployeeCode(input: {
+  employeeId: string;
+  actorId: string;
+}): Promise<CodeResult> {
+  const prefix = await suggestPrefixFor(input.employeeId);
+  if (!prefix) {
+    return { ok: false, error: "Employee Code could not be generated: assign a paying entity with a code prefix first." };
+  }
+  return issueEmployeeCode({ ...input, prefix, reason: "Generated on employee creation" });
+}
+
 /** The advisory-lock key for one series. Same string ⇒ same lock. */
 function prefixLock(prefix: string): string {
   return `employee_code:${prefix.toUpperCase()}`;

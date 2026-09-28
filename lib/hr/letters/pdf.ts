@@ -15,6 +15,7 @@ import {
   resolveSpans,
   signatoryOf,
   tableRowVisible,
+  bulletItemSpans,
 } from "./types";
 import { FIT_COMPACT_SPACING, FIT_PLAN } from "./fit";
 
@@ -185,10 +186,11 @@ async function renderOnce(
     if (doc.y + need > bottom()) doc.addPage();
   };
 
-  /* No automatic top-of-body date stamp. A letter dates itself only where its
-     template explicitly authors a date field or a signature `showDate` line. */
-
-  /* ---- Body blocks ---- */
+  /* ---- Body blocks ----
+     No top-of-body date stamp (removed app-wide, 2026-09-22): a letter now
+     dates itself only where a template says so — its own body `date` field,
+     or a signature block's `showDate` line, both of which still read
+     `letterDate` below. Body blocks start right at `doc.y = TOP`. */
   // An explicit pick from the editor wins; otherwise the template's own rule.
   const signatory = input.signatory ?? signatoryOf(input.template);
   for (const block of input.template.blocks) {
@@ -314,8 +316,10 @@ function renderBlock(doc: PDFKit.PDFDocument, block: Block, ctx: Ctx): void {
       return;
     }
     case "bullets": {
-      for (const item of block.items) {
-        const text = resolve(item);
+      for (let i = 0; i < block.items.length; i++) {
+        const spans = bulletItemSpans(block, i, values);
+        if (!spans) continue;
+        const text = resolve(spans);
         const bw = width - 16;
         const h = doc.fontSize(11 * k).heightOfString(text, { width: bw, lineGap: 2 * sp });
         ctx.ensure(h + 5 * sp);

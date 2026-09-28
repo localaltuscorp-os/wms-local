@@ -34,11 +34,17 @@ function applicabilityLabelOf(r: CatalogRow): string {
 
 export function IncentiveCatalogDialog({
   rows,
-  isAdmin,
+  canEdit,
   defaultOpen = false,
 }: {
   rows: CatalogRow[];
-  isAdmin: boolean;
+  /**
+   * WHETHER THIS VIEWER MAY CHANGE THE TABLE — Manan Vasa, and nobody else.
+   * Resolved on the server (`canEditIncentiveTable`) and passed in; the same
+   * rule is re-checked in `catalog-actions.ts` on every write, so this decides
+   * what is SHOWN, never what is ALLOWED.
+   */
+  canEdit: boolean;
   /** Opened from an Incentive Table notification (`/incentive?view=table`). */
   defaultOpen?: boolean;
 }) {
@@ -105,7 +111,7 @@ export function IncentiveCatalogDialog({
                 Incentive Table
               </Dialog.Title>
               <Dialog.Description className="text-ink-subtle font-medium" style={{ fontSize: 13.5 }}>
-                What each incentive earns · who&apos;s eligible{isAdmin ? " · click a row to edit" : ""}.
+                What each incentive earns · who&apos;s eligible{canEdit ? " · click a row to edit" : ""}.
               </Dialog.Description>
             </div>
             <div className="flex items-center gap-2">
@@ -128,7 +134,7 @@ export function IncentiveCatalogDialog({
                 label="Excel"
                 title="Download the full incentive table as an Excel workbook"
               />
-              {isAdmin && (
+              {canEdit && (
                 <button
                   type="button"
                   onClick={() => setEditing(blank())}
@@ -157,16 +163,25 @@ export function IncentiveCatalogDialog({
             )}
             {rows.length === 0 && !editing ? (
               <p className="text-ink-subtle font-medium py-10 text-center" style={{ fontSize: 15 }}>
-                No incentives in the table yet.{isAdmin ? " Click “Add incentive” to create one." : ""}
+                No incentives in the table yet.{canEdit ? " Click “Add incentive” to create one." : ""}
               </p>
             ) : (
-              <table className="w-full border-collapse">
+              /* THE HEADER MUST STAY OVER ITS COLUMN. Every header but the
+                 flexible first one is `whitespace-nowrap`, so a narrow dialog
+                 cannot break "Amount" or "Eligible" onto a second line and
+                 leave the heading reading as part of the row below it. The
+                 table keeps a MINIMUM width and the wrapper scrolls sideways
+                 when the dialog is narrower than that — which is the honest
+                 answer, rather than shrinking every column until the figures
+                 are unreadable. */
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse">
                 <thead>
                   <tr className="text-left">
-                    <th className="pb-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-subtle">Incentive</th>
+                    <th className="pb-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-subtle whitespace-nowrap">Incentive</th>
                     <th className="pb-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-subtle text-right whitespace-nowrap">Amount</th>
-                    <th className="pb-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-subtle">Eligible</th>
-                    {isAdmin && <th className="pb-2 w-px" />}
+                    <th className="pb-2 text-[11px] font-black uppercase tracking-[0.08em] text-ink-subtle whitespace-nowrap">Eligible</th>
+                    {canEdit && <th className="pb-2 w-px" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -180,14 +195,14 @@ export function IncentiveCatalogDialog({
                       <td className="py-3 pr-3 text-right tabular-nums font-black text-ink-strong whitespace-nowrap" style={{ fontSize: 16 }}>
                         {formatInr(r.amount)}
                       </td>
-                      <td className="py-3 pr-3">
+                      <td className="py-3 pr-3 whitespace-nowrap">
                         {/* WHO it applies to (0244). The two legacy group flags
                             used to be shown here as tags; they no longer decide
                             anything, so the tag says the rule that does. Exact
                             scoping is set in Admin Panel → Incentive Master. */}
                         <Tag tone="blue">{applicabilityLabelOf(r)}</Tag>
                       </td>
-                      {isAdmin && (
+                      {canEdit && (
                         <td className="py-3">
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button type="button" onClick={() => setEditing(toDraft(r))} aria-label="Edit" className="rounded-md p-1.5 text-ink-subtle hover:text-altus-red hover:bg-black/[0.04] cursor-pointer"><Pencil size={15} /></button>
@@ -199,6 +214,7 @@ export function IncentiveCatalogDialog({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </Dialog.Content>

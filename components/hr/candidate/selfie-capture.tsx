@@ -86,7 +86,11 @@ export function SelfieCapture({ onCapture }: { onCapture: (f: File) => void }) {
       <button
         type="button"
         onClick={start}
-        className="mt-3 inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red"
+        // Shape is deliberately IDENTICAL to the "Upload photo" button beside it
+        // (h-10, rounded-lg, px-3.5, 13.5px) — the two are stacked in one column
+        // now, and a pill next to a rounded rectangle read as two unrelated
+        // controls. Spacing comes from the parent column's gap, not a mt-3 here.
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red"
       >
         <Camera size={15} strokeWidth={2.3} /> Take selfie
       </button>
@@ -94,7 +98,10 @@ export function SelfieCapture({ onCapture }: { onCapture: (f: File) => void }) {
   }
 
   return (
-    <div className="mt-3 overflow-hidden rounded-2xl border-2 border-hairline-strong bg-black">
+    // w-[320px] max-w-full: the parent is a flex COLUMN sized by its widest
+    // child, so without an explicit width the preview would collapse to the
+    // width of the buttons above it.
+    <div className="w-[320px] max-w-full overflow-hidden rounded-2xl border-2 border-hairline-strong bg-black">
       <div className="relative">
         {/* Mirror the preview so the selfie reads naturally. */}
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}

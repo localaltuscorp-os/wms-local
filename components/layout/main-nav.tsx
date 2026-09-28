@@ -65,6 +65,12 @@ import {
   BarChart3,
   CheckCircle2,
   Users2,
+  // The Control Panel's rail icons (2026-09-24). The room is new to this file;
+  // its five entries are the five the Admin Panel group listed before it moved.
+  UserCog,
+  KeyRound,
+  Eye,
+  Clock,
 } from "lucide-react";
 import type { Route } from "next";
 import type { LucideIcon } from "lucide-react";
@@ -170,6 +176,12 @@ interface NavItem {
    * nobody can scan. Folded away they cost one line until you want them.
    */
   children?: NavItem[];
+  /**
+   * Keep a disclosure closed until the reader explicitly opens it, even when
+   * they arrive directly on one of its child routes. Accounts' MIS uses this:
+   * the register list is intentionally hidden until MIS is clicked.
+   */
+  closedUntilClicked?: boolean;
 }
 
 /**
@@ -539,6 +551,34 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     ],
     groups: [],
   },
+  /**
+   * CONTROL PANEL — its own room (2026-09-24), lifted out of the Admin Panel.
+   *
+   * The five entries are the five the Admin Panel's "Control Panel" group
+   * listed, in the same order, with the same icons and the same labels, plus
+   * Temporary Access which already hung off that group. Nothing was rebuilt:
+   * the screens are the same files, moved to `/control-panel/*`, and the rail
+   * is a second view of the permission nodes that govern them.
+   *
+   * ── NOTHING HERE GATES THE ROOM ──────────────────────────────────────────
+   * A person the matrix excludes never reaches this rail — the room is not in
+   * their module list at all and `(app)/layout.tsx` refuses the path — so the
+   * entries carry no `adminOnly` flag. Adding one would be a second, weaker copy
+   * of a decision already made in one place (`canControlPanel` in
+   * lib/auth/workspace-access.ts), and the two could disagree.
+   *
+   * `hiddenByMatrix` still filters individual entries: switching off one screen
+   * — Roles, say — removes that pill while leaving the rest of the room intact.
+   */
+  "control-panel": {
+    top: [
+      { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
+      { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
+      { href: "/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
+      { href: "/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
+    ],
+    groups: [],
+  },
   // Unreachable since 2026-09-12 — see the note above HANDHOLDING_ITEMS. The
   // "More" group that used to hold Induction, Feedback and Dashboard is gone
   // with it: the quick-access row is one flat strip, so all eight pages now sit
@@ -562,7 +602,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * appended to every rail in the app. See IMPORTANT_LINKS_ITEM.
      */
     top: [
-      { href: "/accounts" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/accounts" as Route, label: "Index", Icon: LayoutDashboard, exact: true },
       { href: "/accounts/weekly-checklist" as Route, label: "Weekly CC", Icon: CalendarCheck },
       { href: "/accounts/monthly-quarterly-annual" as Route, label: "Monthly CC", Icon: CalendarRange },
       { href: "/accounts/due-dates" as Route, label: "Due Dates Master", Icon: CalendarClock },
@@ -586,6 +626,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         href: "/accounts/mis" as Route,
         label: "MIS",
         Icon: BarChart3,
+        closedUntilClicked: true,
         children: [
           { href: "/accounts/bank-balance" as Route, label: "Bank Balance Master", Icon: Landmark },
           {
@@ -671,7 +712,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
        * destination as "Outstanding", which is the collections chase rather
        * than the master view — two doors to one ledger, deliberately, the same
        * way Overtime is reachable from both HR and Accounts. */
-      { href: "/billing/outstanding" as Route, label: "Outstanding", Icon: IndianRupee, exact: false },
+      { href: "/billing/outstanding" as Route, label: "Collection Master", Icon: IndianRupee, exact: false },
       { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
     ],
     groups: [],
@@ -701,7 +742,8 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // Projects because it is the only item that answers "what is in this
       // plan?" without a click. The five level items below it slice the same
       // rows by level once you know which branch you want.
-      { href: "/project-plan/views" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/project-plan/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+      { href: "/project-plan/views" as Route, label: "Project Views", Icon: FolderTree, exact: true },
       { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
       { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
       { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
@@ -1021,16 +1063,18 @@ export function MainNav({
   /**
    * Which disclosures are open.
    *
-   * A key is only present once the user has actually clicked that parent. Until
-   * then the fallback is `isActiveDeep`, so arriving on /accounts/shares-register
-   * from a link or a refresh shows MIS already open with the current page lit,
-   * rather than a collapsed rail that gives no clue where you are.
+   * A key is only present once the user has actually clicked that parent. Most
+   * disclosures open when they contain the current route, but an item may opt
+   * into `closedUntilClicked` when its children must remain out of sight until
+   * the reader explicitly asks for them (Accounts' MIS).
    */
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const defaultExpanded = (item: NavItem): boolean =>
+    item.closedUntilClicked ? false : isActiveDeep(item);
   const isExpanded = (item: NavItem): boolean =>
-    openKeys[navKey(item)] ?? isActiveDeep(item);
+    openKeys[navKey(item)] ?? defaultExpanded(item);
   const toggleExpanded = (item: NavItem) =>
-    setOpenKeys((m) => ({ ...m, [navKey(item)]: !(m[navKey(item)] ?? isActiveDeep(item)) }));
+    setOpenKeys((m) => ({ ...m, [navKey(item)]: !(m[navKey(item)] ?? defaultExpanded(item)) }));
 
   function renderPill(item: NavItem) {
     return (

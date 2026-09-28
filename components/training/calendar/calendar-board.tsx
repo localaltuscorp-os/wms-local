@@ -171,7 +171,13 @@ export function CalendarBoard({
   }, [creating]);
 
   return (
-    <div className="flex flex-col gap-8">
+    /* ONE CONTENT WIDTH for the whole board. The schedule form and the Upcoming
+       grid used to each run the full width of the page, which on a wide screen
+       stretched a Duration input across a metre of glass and left the form
+       reading as a dashboard. Both now sit on the same 920px measure the Leave
+       form uses, centred, so the form, the button above it and the cards below
+       it share one edge. */
+    <div className="mx-auto flex w-full max-w-[920px] flex-col gap-8">
       {canManage && (
         <div className="flex justify-end">
           {!creating ? (
@@ -188,9 +194,9 @@ export function CalendarBoard({
       )}
 
       {creating && (
-        <section ref={panelRef} className="rounded-2xl border border-hairline bg-surface-card p-6 shadow-sm max-md:p-4">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-[19px] font-bold text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>Schedule a Training Session</h2>
+        <section ref={panelRef} className="rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm max-md:p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[18px] font-bold text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>Schedule a Training Session</h2>
             <button type="button" onClick={() => setCreating(false)} aria-label="Close" className="rounded-lg p-1.5 text-ink-subtle hover:bg-surface-soft">
               <X size={18} />
             </button>

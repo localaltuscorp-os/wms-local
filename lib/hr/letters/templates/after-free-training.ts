@@ -21,7 +21,7 @@
  * in the firm's register and "Edit freely" on the letter page can correct it.
  */
 
-import { type LetterTemplate, t, f, para, heading, bullets, spacer, signature } from "../types";
+import { type LetterTemplate, t, f, para, heading, bulletsConditional, spacer, signature } from "../types";
 import { personSignOff } from "../sign-off";
 
 const template: LetterTemplate = {
@@ -61,26 +61,66 @@ const template: LetterTemplate = {
     para(t("Remarks: "), f("remarks", "Remarks", { placeholder: "Brief remarks", multiline: true })),
 
     heading("What follows", 2),
-    bullets(
+    // Before a verdict is picked, all three read as an overview ("If you have
+    // been accepted...", etc). Once the Training Verdict bar sets Outcome, this
+    // narrows to just the matching line (reworded without the leading "If" -
+    // it is no longer conditional) - the withdrawn line always stays, since it
+    // is not one of the three verdict buttons.
+    bulletsConditional(
       [
-        t(
-          "If you have been accepted, your employment will be confirmed through an official Appointment Letter, and the firm will pay you for the entire training period along with the applicable salary/payroll process.",
-        ),
+        [
+          t(
+            "If you have been accepted, your employment will be confirmed through an official Appointment Letter, and the firm will pay you for the entire training period along with the applicable salary/payroll process.",
+          ),
+        ],
+        [
+          t(
+            "If your training period has been extended, it continues on the same terms for the further period stated in the Remarks above, and a fresh evaluation follows at its end.",
+          ),
+        ],
+        [
+          t(
+            "If we regret that you have not been selected after evaluation, no payment or remuneration is payable for the training period, in line with the policy you signed.",
+          ),
+        ],
+        [
+          t(
+            "If you chose to withdraw or discontinue before the evaluation was completed, no payment or remuneration is payable for the training period.",
+          ),
+        ],
       ],
       [
-        t(
-          "If your training period has been extended, it continues on the same terms for the further period stated in the Remarks above, and a fresh evaluation follows at its end.",
-        ),
-      ],
-      [
-        t(
-          "If we regret that you have not been selected after evaluation, no payment or remuneration is payable for the training period, in line with the policy you signed.",
-        ),
-      ],
-      [
-        t(
-          "If you chose to withdraw or discontinue before the evaluation was completed, no payment or remuneration is payable for the training period.",
-        ),
+        {
+          fieldId: "outcome",
+          showWhen: {
+            Accepted: [
+              t(
+                "You have been accepted, your employment will be confirmed through an official Appointment Letter, and the firm will pay you for the entire training period along with the applicable salary/payroll process.",
+              ),
+            ],
+          },
+        },
+        {
+          fieldId: "outcome",
+          showWhen: {
+            Extended: [
+              t(
+                "Your training period has been extended, it continues on the same terms for the further period stated in the Remarks above, and a fresh evaluation follows at its end.",
+              ),
+            ],
+          },
+        },
+        {
+          fieldId: "outcome",
+          showWhen: {
+            Regret: [
+              t(
+                "We regret that you have not been selected after evaluation, no payment or remuneration is payable for the training period, in line with the policy you signed.",
+              ),
+            ],
+          },
+        },
+        undefined,
       ],
     ),
 

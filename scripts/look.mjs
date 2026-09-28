@@ -8,9 +8,11 @@
  * the PNG, fix what looks wrong — instead of asking a human to paste a screenshot.
  *
  * ── TWO RULES, BOTH DELIBERATE ─────────────────────────────────────────────
- * 1. PORT 3002 ONLY. Port 3000 runs against PRODUCTION data (HANDOFF.md) and a
- *    stray click there is a real edit to real records. The target is hard-coded;
- *    a full URL argument is refused.
+ * 1. A PATH, NEVER A URL. The target is hard-coded to localhost; a full URL
+ *    argument is refused. `--live` switches the port to 3000, which is
+ *    PRODUCTION data (HANDOFF.md) — and since 2026-09-21 it accepts --click and
+ *    --fill too, so a run with steps really is a real edit to real records. See
+ *    the PORT docblock below for the rule that used to be here, and why it went.
  * 2. NEVER STARTS OR STOPS THE SERVER. The dummy server holds a PGlite data
  *    directory and an abrupt stop corrupts it. If nothing is listening this
  *    exits and asks a human to run `pnpm dev:dummy` themselves.
@@ -47,18 +49,23 @@ import path from "node:path";
 
 const HOST = "127.0.0.1";
 /**
- * PORT 3002 is the default and stays the only port that may be CLICKED.
+ * PORT 3002 is the default; `--live` opens port 3000 — the REAL database.
  *
- * `--live` opens port 3000 instead — the REAL database — and is accepted only
- * when the run has no --click and no --fill, i.e. when the browser will do
- * nothing but load a page and photograph it. The original rule existed because
- * a stray click on 3000 is a real edit to a real record; a navigate-only run
- * cannot make one, and 3002 is being retired (2026-09-17), so refusing to look
- * at the app at all would leave nobody able to see it.
+ * ── THE CLICK GUARD IS GONE (2026-09-21, account holder) ──────────────────
+ * `--live` used to refuse --click and --fill, so a stray click could not edit a
+ * real record. That restriction was REMOVED on an explicit instruction: 3002 is
+ * retired (2026-09-17), so 3000 is the only running app, and work that has to be
+ * driven — scrolling a sticky header, opening a drawer, testing a permission by
+ * actually using it — cannot be done by looking alone.
  *
- * GETs are not perfectly side-effect-free in a Next app (a page load can sweep
- * or revalidate), so this is "read-mostly", not "read-only". It is for looking,
- * never for driving.
+ * WHAT THAT COSTS, stated plainly: every --click and --fill on --live is a real
+ * interaction with production. A button that deletes, deletes. Whoever passes
+ * --live with steps is responsible for what those steps do, and for cleaning up
+ * anything they create.
+ *
+ * GETs were never perfectly side-effect-free either (a page load can sweep or
+ * revalidate), so a navigate-only --live run was already "read-mostly", not
+ * read-only. The difference now is one of degree, not of kind.
  */
 const DUMMY_PORT = 3002;
 const LIVE_PORT = 3000;
@@ -77,6 +84,12 @@ for (let i = 0; i < argv.length; i++) {
     case "--click": steps.push({ kind: "click", value: next() }); break;
     case "--fill": steps.push({ kind: "fill", value: next() }); break;
     case "--wait": steps.push({ kind: "wait", value: Number(next()) }); break;
+    // --scroll <px|selector>: scroll the page (or the nearest scrollable box) so
+    // sticky headers can actually be photographed mid-scroll. A number scrolls
+    // the window by that many pixels; anything else is a selector to bring into
+    // view. Read-only by construction — it moves the viewport, never the data,
+    // which is why it is safe on --live where a --click is not.
+    case "--scroll": steps.push({ kind: "scroll", value: next() }); break;
     case "--clip": opts.clip = next(); break;
     case "--full": opts.full = true; break;
     case "--width": opts.width = Number(next()); break;
@@ -97,6 +110,7 @@ for (let i = 0; i < argv.length; i++) {
 function help(code) {
   console.log(String(import.meta.url) && `
 look.mjs <path> [--click "<text|css>"] [--fill "<css>=<value>"] [--wait <ms>]
+         [--scroll <px|css>]
          [--clip "<css>"] [--full] [--width <px>] [--height <px>] [--mobile]
          [--out <file.png>] [--quiet]
 
@@ -111,9 +125,13 @@ function fail(message, code = 1) {
 
 if (!target) help(3);
 
-// --live: port 3000, and only with nothing to click.
+// --live drives production. The refusal that used to sit here was removed on an
+// explicit instruction (see the PORT docblock); a loud warning replaces it, so
+// the run still says out loud what it is about to do.
 if (opts.live && steps.some((s) => s.kind === "click" || s.kind === "fill")) {
-  fail("--live opens the REAL database, so it takes no --click and no --fill. Look, do not drive.", 3);
+  console.error(
+    "look: WARNING — driving PRODUCTION on :3000. Every click and fill is a real edit to a real record.",
+  );
 }
 const PORT = opts.live ? LIVE_PORT : DUMMY_PORT;
 const BASE = `http://localhost:${PORT}`;
@@ -201,6 +219,33 @@ try {
 for (const step of steps) {
     if (step.kind === "wait") {
       await page.waitForTimeout(step.value);
+      continue;
+    }
+    if (step.kind === "scroll") {
+      const px = Number(step.value);
+      try {
+        // "<css>=<px>" scrolls THAT box; a bare number scrolls the window.
+        // Naming the box matters on this app: picking "the first scrollable
+        // element" walks the DOM in document order and finds the sidebar's nav
+        // scroller long before it reaches the content, so an unqualified scroll
+        // silently moved the wrong thing.
+        const eq = step.value.lastIndexOf("=");
+        const sel = eq > 0 ? step.value.slice(0, eq) : null;
+        const selPx = eq > 0 ? Number(step.value.slice(eq + 1)) : NaN;
+        if (sel && Number.isFinite(selPx)) {
+          await page.locator(sel).first().evaluate((el, dy) => { el.scrollTop += dy; }, selPx);
+          notes.push(`scrolled ${sel} by ${selPx}px`);
+        } else if (Number.isFinite(px)) {
+          await page.evaluate((dy) => window.scrollBy(0, dy), px);
+          notes.push(`scrolled window ${px}px`);
+        } else {
+          await page.locator(step.value).first().scrollIntoViewIfNeeded({ timeout: 8000 });
+          notes.push(`scrolled to ${step.value}`);
+        }
+      } catch (e) {
+        notes.push(`scroll ${step.value} FAILED - ${short(e)}`);
+      }
+      await settle(page);
       continue;
     }
     if (step.kind === "fill") {

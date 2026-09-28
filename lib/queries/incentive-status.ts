@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   incentiveEntries,
@@ -223,7 +223,15 @@ async function targetsByMonth(
   const rows = await db
     .select()
     .from(incentiveTargets)
-    .where(and(gte(incentiveTargets.periodMonth, start), lt(incentiveTargets.periodMonth, end)));
+    .where(
+      and(
+        gte(incentiveTargets.periodMonth, start),
+        lt(incentiveTargets.periodMonth, end),
+        // MONTHLY rows only (migration 0250) — a quarterly target is read by the
+        // dashboard's quarter period, never as a month.
+        ne(incentiveTargets.periodType, "quarter"),
+      ),
+    );
 
   const byMonth = new Map<string, Map<string, number>>();
   const names = new Map<string, string>();

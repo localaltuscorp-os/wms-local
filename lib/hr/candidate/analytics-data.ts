@@ -303,9 +303,10 @@ export async function loadHiringAnalytics(): Promise<HiringAnalytics> {
     else if (status === "hired") f.hired += 1;
     funnelMap.set(position, f);
 
-    // ── Source (data jsonb → personal.source) ──
+    // ── Source (data jsonb → jobDetails.source, was personal.source before the
+    //    2026-09-23 Job Details section move — old rows still carry the old key) ──
     const dataObj = (row.data ?? {}) as Record<string, unknown>;
-    const rawSource = (dataObj["personal.source"] ?? dataObj["source"]) as string | undefined;
+    const rawSource = (dataObj["jobDetails.source"] ?? dataObj["personal.source"] ?? dataObj["source"]) as string | undefined;
     const source = (rawSource ?? "").trim();
     if (source) {
       const s = sourceMap.get(source) ?? { total: 0, hired: 0 };

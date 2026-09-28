@@ -29,13 +29,12 @@ import { ModuleFooter } from "@/components/layout/module-footer";
 import { ModuleShortcuts } from "@/components/layout/module-shortcuts";
 import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 import { FocusMode } from "@/components/layout/focus-mode";
-import { MODULE_ORDER } from "@/lib/module-theme";
+import { listedModules } from "@/lib/module-theme";
 import { IdleTimerClient } from "@/components/auth/idle-timer-client";
 import { ActivityTracker } from "@/components/logs/activity-tracker";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
 import { managerDailyTaskGate, isManagerWithReports } from "@/lib/manager-gates";
 import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-task-gate";
-import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
 import { BroadcastLockGate } from "@/components/communications/broadcast-lock-gate";
@@ -250,11 +249,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           opens the third module. Placed after the gate chain's early returns, so
           a digit can never be used to walk out of a daily ritual. The allow-list
           reuses the layout's single `accessFor` result — no extra query. */}
-      {/* `adminAllowed` carries the standalone ADMIN PANEL entry (Alt+A). It is
+      {/* `allowed` is `listedModules`, not MODULE_ORDER: the Control Panel is in
+          it only for somebody who may enter the room, and it carries no letter,
+          so `moduleForShortcut` cannot reach it either way.
+          `adminAllowed` carries the standalone ADMIN PANEL entry (Alt+A). It is
           not a workspace, so it cannot travel in `allowed`; `access.isAdmin` is
           the same test the hub card and `/admin`'s own layout guard read. */}
       <ModuleShortcuts
-        allowed={MODULE_ORDER.filter((id) => canAccessWorkspace(id, access))}
+        allowed={listedModules(access)}
         adminAllowed={access.isAdmin}
       />
       {/* DEV_AUTH_BYPASS=true (.env.local, non-production only) — the idle
@@ -264,11 +266,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           screen anyway. Skipped alongside the rest of auth so the bypass is
           complete. See lib/auth/dev-bypass.ts. */}
       {devAuthBypassEnabled() ? null : <IdleTimerClient timeoutMinutes={15} />}
+      {/* The "Please complete your Onboarding Form" nudge was mounted here and
+          was REMOVED on the account holder's instruction (2026-09-22): it
+          floated over every page in the app. The component still exists at
+          components/onboarding/onboarding-nudge.tsx — mount it here again to
+          bring it back. The onboarding form itself is untouched, and the Portal
+          and HR record still prompt for it where they always did. */}
       {/* Global Logs activity tracker — buffers page visits / record views /
           searches in IndexedDB and flushes them in batches to /api/logs/ingest.
           Renders nothing; keeps the single-session/tab behaviour unchanged. */}
       <ActivityTracker />
-      <OnboardingNudge />
       {/* Broadcasts (0215) — a published broadcast flashes as a centre-screen
           popup within ~5s of being sent, on whatever page the recipient is on.
           Mounted here, AFTER the gate chain's early returns, so it can never
@@ -298,7 +305,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
              the route gate and the module footer already used, so adding the bar
              cost no extra query. */
           <AuraTopBar
-            rooms={roomsFor(MODULE_ORDER.filter((id) => canAccessWorkspace(id, access)))}
+            rooms={roomsFor(listedModules(access))}
             bell={<NotificationBell />}
             userMenu={<UserMenuServer />}
           />

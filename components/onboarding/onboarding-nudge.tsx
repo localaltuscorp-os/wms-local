@@ -8,6 +8,12 @@ import { ClipboardList, ArrowRight, X } from "lucide-react";
 import { getMyOnboardingStatusAction } from "@/app/(app)/dossier/onboarding/actions";
 
 /**
+ * NOT MOUNTED ANYWHERE (2026-09-22). The account holder asked for this banner
+ * to be removed from every page, so the one `<OnboardingNudge />` in
+ * `app/(app)/layout.tsx` was taken out. The component is kept intact: mount it
+ * there again to bring it back. Nothing else changed — the onboarding form, and
+ * the Portal / HR record prompts for it, are untouched.
+ *
  * Onboarding nudge — a SOFT, dismissible banner shown to a signed-in employee
  * who hasn't submitted their Onboarding Form. Not a gate: it floats over the app
  * (fixed, bottom-right), never shifts layout, and an X dismisses it for the

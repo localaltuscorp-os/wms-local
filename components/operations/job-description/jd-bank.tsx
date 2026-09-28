@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowDown,
   ArrowUp,
@@ -231,41 +232,38 @@ export function JdBank({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* Hidden while the form is open: it switches how the Bank below is
-              laid out, which does nothing for somebody writing a new JD. */}
-          {!showForm && <ViewMenu view={view} onChange={setView} withPeople={mode === "all"} />}
+          <ViewMenu view={view} onChange={setView} withPeople={mode === "all"} />
 
           {/* All tasks in one go, from Excel — Master JDs and personal JDs alike. */}
-          {!showForm && (
-            <button
-              type="button"
-              onClick={() => setBulkOpen(true)}
-              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <FileSpreadsheet className="h-4 w-4" /> Bulk upload
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setBulkOpen(true)}
+            className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Bulk upload
+          </button>
 
           <button
             type="button"
-            onClick={() => setShowForm((s) => !s)}
+            onClick={() => setShowForm(true)}
             disabled={positions.length === 0}
-            title={showForm ? undefined : "New Job Description"}
+            title="New Job Description"
             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-[13px] font-semibold text-white disabled:opacity-45"
             style={{ background: ACCENT }}
           >
-            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            {showForm ? "Close" : "New JD"}
+            <Plus className="h-4 w-4" />
+            New JD
           </button>
         </div>
       </div>
 
       {showForm && positions.length > 0 && (
-        <JdForm
+        <NewJdDialog
+          open={showForm}
+          onOpenChange={setShowForm}
           positions={positions}
           people={people}
           events={events}
-          onDone={() => setShowForm(false)}
         />
       )}
 
@@ -783,16 +781,94 @@ function LinkChip({ href, label }: { href: string; label: string }) {
 
 /* ── The form ─────────────────────────────────────────────────────────────── */
 
+function NewJdDialog({
+  open,
+  onOpenChange,
+  positions,
+  people,
+  events,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  positions: JdPositionRow[];
+  people: { id: string; name: string }[];
+  events: JdEventOption[];
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 z-[60]"
+          style={{ background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(4px)" }}
+        />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-[70] w-[min(1240px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-section bg-surface-card shadow-xl"
+          style={{ maxHeight: "calc(100vh - 32px)" }}
+        >
+          <div
+            className="relative px-8 py-5 max-md:px-5 max-md:py-4"
+            style={{
+              borderBottom: "1px solid var(--color-hairline)",
+              background: "linear-gradient(135deg, #ffffff 0%, #FFF6F5 100%)",
+            }}
+          >
+            <span
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-1"
+              style={{ background: "linear-gradient(90deg, rgb(185, 28, 28), rgb(127, 29, 29))" }}
+            />
+            <Dialog.Title
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-display), system-ui, sans-serif",
+                fontWeight: 900,
+                fontSize: "clamp(26px, 2.6vw, 34px)",
+                letterSpacing: "-0.022em",
+                lineHeight: 1.02,
+              }}
+            >
+              New Job Description
+            </Dialog.Title>
+            <Dialog.Description className="mt-1 text-[15px] font-semibold text-ink-muted">
+              Define repeatable work for a position and choose where it should run.
+            </Dialog.Description>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                aria-label="Close"
+                className="absolute right-5 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-hairline bg-white text-ink-muted transition-all hover:bg-surface-soft"
+              >
+                <X className="h-5 w-5" strokeWidth={2.4} />
+              </button>
+            </Dialog.Close>
+          </div>
+          <div className="overflow-y-auto px-8 py-5 max-md:px-5 max-md:py-4" style={{ maxHeight: "calc(100vh - 180px)" }}>
+            <JdForm
+              positions={positions}
+              people={people}
+              events={events}
+              modal
+              onDone={() => onOpenChange(false)}
+            />
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function JdForm({
   positions,
   people,
   events,
   person = null,
+  modal = false,
   onDone,
 }: {
   positions: JdPositionRow[];
   people: { id: string; name: string }[];
   events: JdEventOption[];
+  modal?: boolean;
   /** Set → a PERSONAL task for this employee: no position, a function picked instead. */
   person?: { id: string; name: string } | null;
   onDone: () => void;
@@ -889,10 +965,12 @@ function JdForm({
      then Notes and Add to. Equal columns from md up; one below, where they
      would be too narrow to type in. */
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="mb-4 text-[15px] font-bold text-slate-900">
-        {person ? `New personal task — ${person.name}` : "New Job Description"}
-      </h2>
+    <div className={modal ? undefined : "rounded-2xl border border-slate-200 bg-white p-5"}>
+      {!modal && (
+        <h2 className="mb-4 text-[15px] font-bold text-slate-900">
+          {person ? `New personal task — ${person.name}` : "New Job Description"}
+        </h2>
+      )}
 
       {/* 1 ─ who owns it, and how it is filed */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -903,7 +981,7 @@ function JdForm({
             </div>
           </Field>
         ) : (
-          <Field label="Position" hint="A job description belongs to a seat, not a person.">
+          <Field label="Position">
             <select
               value={positionId}
               onChange={(e) => setPositionId(e.target.value)}
@@ -934,7 +1012,7 @@ function JdForm({
             </select>
           </Field>
         ) : (
-          <Field label="Function" hint="Comes from the position.">
+          <Field label="Function">
             <div className="truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-600">
               {chosen
                 ? (FUNCTION_LABELS[chosen.functionKey as BusinessFunction] ?? chosen.functionKey)
@@ -943,7 +1021,7 @@ function JdForm({
           </Field>
         )}
 
-        <Field label="Client" hint="From Admin Panel → Clients, as on a WMS task.">
+        <Field label="Client">
           <ClientSelect
             value={client}
             onChange={setClient}
@@ -954,7 +1032,7 @@ function JdForm({
           />
         </Field>
 
-        <Field label="Subject" hint="From Admin Panel → Subjects, as on a WMS task.">
+        <Field label="Subject">
           <SubjectSelect
             value={category}
             onChange={setCategory}
@@ -1001,11 +1079,6 @@ function JdForm({
             inputMode="numeric"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px]"
           />
-          <p className="mt-1 text-[11px] text-slate-500">
-            {Number(minutes) > 60
-              ? `= ${Math.floor(Number(minutes) / 60)} h ${Number(minutes) % 60} m`
-              : "1–960 minutes"}
-          </p>
         </Field>
       </div>
 
@@ -1038,10 +1111,6 @@ function JdForm({
       <div className="mt-5">
         <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
           Add to
-        </p>
-        <p className="mb-3 text-[12.5px] text-slate-500">
-          Pick where this job is pushed, and who does it in each place. Leave a
-          roster empty to let the position decide.
         </p>
         <ModuleAssignBoxes
           people={people}

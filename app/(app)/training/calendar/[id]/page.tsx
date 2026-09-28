@@ -10,6 +10,7 @@ import { isManager, listTcSubjects } from "@/lib/queries/training";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { getScoreConfig } from "@/lib/queries/pms";
 import { getSession } from "@/lib/queries/training-calendar";
+import { surveyAggregate } from "@/lib/queries/surveys";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { AttendanceEditor } from "@/components/training/calendar/attendance-editor";
 import { SessionFeedbackForm } from "@/components/training/calendar/session-feedback-form";
@@ -17,6 +18,7 @@ import { AssessmentPanel } from "@/components/training/calendar/assessment-panel
 import { SessionEdit } from "@/components/training/calendar/session-edit";
 import { requestRecording, addSessionSubject } from "../actions";
 import { RecordingButton } from "@/components/training/calendar/recording-button";
+import { JoinSessionButton } from "@/components/training/calendar/join-session-button";
 import type { SessionFormValues } from "@/components/training/calendar/session-form";
 
 export const dynamic = "force-dynamic";
@@ -75,12 +77,13 @@ function Card({ title, icon, children }: { title: string; icon: React.ReactNode;
 export default async function SessionDetailPage({ params }: PageProps) {
   const { id } = await params;
   const me = await requireWorkspace("training");
-  const [session, manager, subjects, employeeOptions, cfg] = await Promise.all([
+  const [session, manager, subjects, employeeOptions, cfg, survey] = await Promise.all([
     getSession(id),
     isManager(me.id),
     listTcSubjects(),
     listEmployeeOptions(),
     getScoreConfig(),
+    surveyAggregate(id),
   ]);
   if (!session) notFound();
 
@@ -89,6 +92,13 @@ export default async function SessionDetailPage({ params }: PageProps) {
   const canManage = me.isAdmin || isSuper || manager || session.trainerId === me.id;
   const maxSessionMinutes = cfg.thresholds.maxSessionMinutes || 90;
   const passPct = cfg.thresholds.assessmentPassPct || 80;
+
+  // Quality indicators (kept separate, never combined into one score).
+  const attended = session.attendees.filter((a) => ["attended", "present", "late", "partial", "left_halfway", "completed_via_recording"].includes(a.status)).length;
+  const attendanceRate = session.attendees.length > 0 ? Math.round((attended / session.attendees.length) * 100) : null;
+  const scored = session.assessments.filter((a) => a.score != null);
+  const avgAssessment = scored.length ? Math.round(scored.reduce((s, a) => s + (a.score ?? 0), 0) / scored.length) : null;
+  const avgSurvey = survey && survey.questions.length ? (survey.questions.reduce((s, q) => s + (q.average ?? 0), 0) / survey.questions.length) : null;
 
   const status = STATUS_META[session.status] ?? STATUS_META.scheduled!;
   const myAttendance = session.attendees.find((a) => a.employeeId === me.id) ?? null;
@@ -197,6 +207,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
               )}
 
               <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
+                {isAttendee && <JoinSessionButton sessionId={session.id} status={myAttendance?.status ?? "invited"} />}
                 <RecordingButton sessionId={session.id} requested={session.recordingRequested} action={requestRecording} />
                 {canManage && (
                   <SessionEdit
@@ -262,6 +273,26 @@ export default async function SessionDetailPage({ params }: PageProps) {
                     })}
                   </ul>
                 )}
+              </Card>
+            )}
+
+            {/* Training quality — three separate indicators, never one blended score */}
+            {(canManage || session.status === "closed" || session.status === "completed") && (
+              <Card title="Training Quality" icon={<Star size={16} />}>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-surface-soft p-3 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Attendance</p>
+                    <p className="mt-1 text-lg font-black text-ink-strong">{attendanceRate != null ? `${attendanceRate}%` : "—"}</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-soft p-3 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Test score</p>
+                    <p className="mt-1 text-lg font-black text-ink-strong">{avgAssessment != null ? `${avgAssessment}%` : "—"}</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-soft p-3 text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Feedback</p>
+                    <p className="mt-1 text-lg font-black text-ink-strong">{avgSurvey != null ? `${avgSurvey.toFixed(1)} / 5` : "—"}</p>
+                  </div>
+                </div>
               </Card>
             )}
 

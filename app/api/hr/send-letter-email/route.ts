@@ -11,6 +11,7 @@ import { getLetter } from "@/lib/hr/letters/registry";
 import { normalizeGender } from "@/lib/hr/pronouns";
 import { letterDate } from "@/lib/hr/letters/roster";
 import { sendLetterPdfEmail } from "@/lib/email/hr-letter-email";
+import { archiveLetterInstance } from "@/lib/hr/letters/issue-core";
 import { apiViewDenial } from "@/lib/permissions/api-guard";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,14 @@ export const dynamic = "force-dynamic";
  * that the composer supplies `to`, `subject` and `message`. Both share the same
  * renderers and the same sendLetterPdfEmail transport, so the PDF that lands in
  * the inbox is byte-for-byte the export PDF.
+ *
+ * ALSO ARCHIVES (2026-09-24): the editor's separate "Issue letter" button was
+ * removed for doing the same work — Issue already emailed as a side effect, so
+ * two buttons both ended a letter in the recipient's inbox. This route now
+ * does Issue's other job too: `archiveLetterInstance` uploads the PDF and
+ * writes the `document_instances` row (+ a pending e-sign row when the
+ * template calls for one), so "Send Email" is the one button that both
+ * delivers and files the letter.
  */
 
 const Schema = z.object({
@@ -132,6 +141,23 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ ok: false, error: "Could not render the PDF." });
   }
 
+  // ── Archive it (same job "Issue letter" used to do) before delivery, so the
+  //    letter is on file even if the send below fails. ──
+  const archived = await archiveLetterInstance({
+    key: b.key,
+    entity: entity.id,
+    template,
+    values: b.values,
+    employeeId: b.employeeId ?? null,
+    candidateName: recipientName || null,
+    candidateEmail: b.employeeId ? null : to,
+    pdfBuffer: pdf,
+    issuedById: me.id,
+  });
+  if (!archived.ok) {
+    return NextResponse.json({ ok: false, error: archived.error });
+  }
+
   // ── Email it (typed TO, office CC when attached, company archive BCC) ──
   const res = await sendLetterPdfEmail({
     to,
@@ -153,5 +179,5 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  return NextResponse.json({ ok: true, to });
+  return NextResponse.json({ ok: true, to, instanceId: archived.instanceId });
 }

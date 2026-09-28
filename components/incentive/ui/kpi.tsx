@@ -94,17 +94,30 @@ export function IncentiveKpi({
   );
 }
 
-/** The KPI band. `cols` is the widest arrangement; it steps down on its own. */
+/**
+ * The KPI band. `cols` is the widest arrangement; it steps down on its own.
+ *
+ * `8` exists for the Incentive dashboard, which shows six status buckets plus
+ * the viewer's own Grade and % of CTC in ONE band — the brief forbids a second
+ * band, so the two extra cards join the existing one and the grid widens.
+ */
 export function IncentiveKpiRow({
   children,
   cols = 4,
   className = "",
 }: {
   children: ReactNode;
-  cols?: 3 | 4 | 6;
+  cols?: 3 | 4 | 6 | 8;
   className?: string;
 }) {
-  const wide = cols === 6 ? "xl:grid-cols-6" : cols === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3";
+  const wide =
+    cols === 8
+      ? "lg:grid-cols-4 xl:grid-cols-8"
+      : cols === 6
+        ? "xl:grid-cols-6"
+        : cols === 4
+          ? "lg:grid-cols-4"
+          : "lg:grid-cols-3";
   return (
     <div className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 ${wide} ${className}`}>{children}</div>
   );

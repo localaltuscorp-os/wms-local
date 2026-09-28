@@ -198,8 +198,9 @@ function AmbassadorList({
               />
             </label>
 
-            {/* Multi-select as toggles rather than a <select multiple>: four
-                options, and ctrl-click is not a thing anyone should need. */}
+            {/* Multi-select as toggles rather than a <select multiple>: a
+                handful of options, and ctrl-click is not a thing anyone
+                should need. */}
             <div className="min-w-[300px] flex-1">
               <span className="mb-1 flex items-center gap-2.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-subtle">
                 Product Name

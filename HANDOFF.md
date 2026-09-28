@@ -1451,6 +1451,42 @@ suites pass (80 tests), including 12 new cases for the rrule shape —
 interval-counted-in-weeks, UNTIL, COUNT across a partial first week, the
 200-occurrence cap, and an unreadable rule firing never.
 
+### 2026-09-22 — Client Engagement: drag-to-assign finished, onboarding nudge removed
+
+**Drag and drop on the Overview board (finished from a half-done 2026-09-21
+working tree).** A card can be dragged onto another person's lane; the drop
+calls the SAME `ceAssignAccount` as the Assign / Transfer button, so it is
+manager-gated on the server, moves the account's calls, reports clashes and
+writes the audit row. The button stays as the keyboard/touch path and the only
+way back to Unassigned. While a drag is in progress every active member gets a
+lane, so somebody's FIRST account has somewhere to land. The capacity bar now
+leads with Unassigned, five cards to a row.
+
+**Bug in that work, fixed: a hydration mismatch on Overview.** dnd-kit numbers
+its accessibility ids from a module counter that runs independently on the
+server and in the browser, so the page hydrated with
+`aria-describedby="DndDescribedBy-0"` against `-4` and React threw the subtree
+away (visible as the dev error overlay; the board still worked by luck). The
+fix is a stated `id="ce-accounts-board"` on `<DndContext>`. Console is clean
+now. Verified in the browser: handles present, a plain click still opens the
+account, a drag assigns, the button returns it to Unassigned — 5/5.
+
+**The onboarding nudge is gone.** "Please complete your Onboarding Form" floated
+over every page; the account holder asked for it to be removed everywhere. The
+single `<OnboardingNudge />` in `app/(app)/layout.tsx` was removed (import too);
+the component is kept and says how to remount it. Checked on /hub,
+/people-allocation and Client Engagement. The onboarding form itself, and the
+Portal / HR record prompts for it, are untouched.
+
+**CORRECTION to the 2026-09-19 entry below.** Turning the dev slow-query logger
+off (`SLOW_QUERY_MS="off"`) did NOT fix the :3000 hangs — they recurred on
+2026-09-22 with it still off (4 header queries stuck `active/ClientRead`, dev
+server at 0 CPU). Three clean runs on the 19th were luck, not proof. The cause
+is still open; the logger is only a suspect. Restarting the dev server is still
+the only known cure, and `.next/dev/types/validator.ts` can also be left
+half-written by a killed server, which makes `tsc` fail in generated code —
+delete it and reload a page to regenerate.
+
 ### 2026-09-19 — Client Engagement: review fixes, full UI test pass, and why :3000 kept hanging
 
 **Asked for, and done.** Every change below was checked on :3000 with scripted

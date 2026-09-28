@@ -47,8 +47,6 @@ function useHref() {
 export function ScopePicker({ picker, who, meId }: { picker: PickerOption[]; who: string; meId: string }) {
   const router = useRouter();
   const href = useHref();
-  if (picker.length === 0) return null;
-
   const groups: { label: string; people: PickerOption[] }[] = [];
   for (const p of picker) {
     if (p.id === meId) continue;
@@ -69,7 +67,7 @@ export function ScopePicker({ picker, who, meId }: { picker: PickerOption[]; who
         aria-label="Whose checklist"
       >
         <option value="me">Only me</option>
-        <option value="team">Full team · me +{others}</option>
+        {others > 0 && <option value="team">Full team · me +{others}</option>}
         {groups.map((g) => (
           <optgroup key={g.label} label={g.label}>
             {g.people.map((p) => (

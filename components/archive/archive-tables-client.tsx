@@ -7,7 +7,8 @@ import { ArchiveRestore, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { ArchiveRecordKind } from "@/lib/archive/sections";
 import type { ArchiveTable } from "@/lib/queries/archive";
-import { deleteRecord, unarchiveRecord } from "@/app/(app)/archive/actions";
+import { deleteRecord, reassignAndUnarchiveRecord, unarchiveRecord } from "@/app/(app)/archive/actions";
+import type { ArchivePerson } from "@/lib/queries/archive";
 import { formatCount } from "@/lib/format";
 
 /**
@@ -56,13 +57,18 @@ function homeFor(table: ArchiveTable): { href: string; label: string } | null {
   return HOME[table.record];
 }
 
-export function ArchiveTablesClient({ tables }: { tables: ArchiveTable[] }) {
+export function ArchiveTablesClient({ tables, activePeople = [] }: { tables: ArchiveTable[]; activePeople?: ArchivePerson[] }) {
   const [q, setQ] = React.useState("");
+  React.useEffect(() => {
+    const update = (event: Event) => setQ(String((event as CustomEvent<string>).detail ?? ""));
+    window.addEventListener("archive-record-search", update);
+    return () => window.removeEventListener("archive-record-search", update);
+  }, []);
   const needle = q.trim().toLowerCase();
 
   return (
     <div className="flex flex-col gap-7">
-      <label className="flex items-center gap-2 self-start rounded-chip border border-hairline bg-surface-card px-3 py-2">
+      {false && <label className="flex items-center gap-2 self-start rounded-chip border border-hairline bg-surface-card px-3 py-2">
         <Search size={15} strokeWidth={2.2} className="text-ink-soft" />
         <input
           type="search"
@@ -82,16 +88,16 @@ export function ArchiveTablesClient({ tables }: { tables: ArchiveTable[] }) {
             <X size={14} strokeWidth={2.4} />
           </button>
         )}
-      </label>
+      </label>}
 
       {tables.map((t) => (
-        <TableBlock key={t.key} table={t} needle={needle} />
+        <TableBlock key={t.key} table={t} needle={needle} activePeople={activePeople} />
       ))}
     </div>
   );
 }
 
-function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) {
+function TableBlock({ table, needle, activePeople }: { table: ArchiveTable; needle: string; activePeople: ArchivePerson[] }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
   /** Which row is one click away from being destroyed. */
@@ -99,6 +105,7 @@ function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) 
   /** Rows already acted on — hidden immediately so the list matches the truth
    *  before the server round trip lands. */
   const [gone, setGone] = React.useState<Set<string>>(new Set());
+  const [recipient, setRecipient] = React.useState<Record<string, string>>({});
 
   const actionable = !!table.record && !!table.rowIds;
   /**
@@ -108,6 +115,7 @@ function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) 
    * drawn.
    */
   const deletable = actionable && !table.restoreOnly;
+  const reassignable = table.record === "task" || table.record === "weekly-goal" || table.record === "goal" || table.record === "project-node";
 
   const visible = table.rows
     .map((cells, i) => ({ cells, id: table.rowIds?.[i] }))
@@ -140,6 +148,14 @@ function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) 
         toast.error(res.error);
       }
       setArmed(null);
+    });
+  }
+  function reassign(id: string, employeeId = recipient[id]) {
+    if (!employeeId) return toast.error("Choose the employee who will receive this work.");
+    start(async () => {
+      const res = await reassignAndUnarchiveRecord(table.record!, id, employeeId);
+      if (res.ok) { setGone((g) => new Set(g).add(id)); toast.success(res.message); router.refresh(); }
+      else toast.error(res.error);
     });
   }
 
@@ -175,7 +191,7 @@ function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) 
           <div className="overflow-x-auto">
             <table
               className="w-full border-collapse text-left"
-              style={{ minWidth: Math.max(720, (table.columns.length + (actionable ? 1 : 0)) * 132) }}
+              style={{ minWidth: Math.max(640, (table.columns.length + (actionable ? 1 : 0)) * 88) }}
             >
               <thead>
                 <tr style={{ background: "var(--color-surface-soft)" }}>
@@ -211,14 +227,14 @@ function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) 
                         <td
                           key={c.key}
                           className={
-                            "px-4 py-2.5 align-top text-[13.5px] text-ink-strong" +
+                        "whitespace-nowrap px-1.5 py-2.5 align-top text-[13.5px] text-ink-strong" +
                             (c.align === "right" ? " text-right text-mono whitespace-nowrap" : "")
                           }
                         >
                           {v == null || v === "" ? (
                             <span className="text-ink-subtle">—</span>
                           ) : (
-                            <span className="line-clamp-3">{v}</span>
+                            <span>{v}</span>
                           )}
                         </td>
                       );
@@ -236,6 +252,14 @@ function TableBlock({ table, needle }: { table: ArchiveTable; needle: string }) 
                       >
                         {row.id && (
                           <span className="inline-flex items-center gap-1.5">
+                            {reassignable && (
+                              <>
+                                <select value={recipient[row.id] ?? ""} onChange={(e) => { const employeeId = e.target.value; setRecipient((v) => ({ ...v, [row.id!]: employeeId })); if (employeeId) reassign(row.id!, employeeId); }} disabled={pending} className="max-w-36 rounded-chip border border-hairline bg-white px-2 py-1 text-[12px] text-ink-strong">
+                                  <option value="">Reassign to…</option>
+                                  {activePeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                              </>
+                            )}
                             <button
                               type="button"
                               disabled={pending}

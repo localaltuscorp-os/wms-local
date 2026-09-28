@@ -1,53 +1,32 @@
-// Targeted, SAFE single-migration applier — applies exactly ONE named
-// db/migrations/*.sql file and records it in the __schema_applied ledger.
-//
-// Why this exists (do NOT use apply-all-migrations.ts against a live DB):
-// that bulk applier's ledger backfill only stamps up to 0028, so on a
-// populated prod DB it re-attempts migrations 0029-0104. This script touches
-// ONLY the file you name — nothing else — so applying a new additive migration
-// to production can never disturb any earlier migration.
+// Apply ONE db/migrations file, by filename, and stamp it in the same
+// `__schema_applied` ledger scripts/apply-all-migrations.ts uses. Exists because
+// that script has no `--only` flag: it applies every pending file in order, and
+// this database currently has ~26 unrelated pending migrations that must not be
+// run as a side effect of adding one table.
 //
 // Usage:
-//   pnpm tsx --env-file=.env.local scripts/apply-one-migration.ts db/migrations/0105_incentive_config.sql          # DRY RUN (prints SQL)
-//   pnpm tsx --env-file=.env.local scripts/apply-one-migration.ts db/migrations/0105_incentive_config.sql --apply  # APPLY
+//   pnpm tsx --env-file=.env.local scripts/apply-one-migration.ts 0249_incentive_target_plans.sql
+//   ... --dry
 import { readFileSync } from "node:fs";
 import postgres from "postgres";
 
-const args = process.argv.slice(2);
-const APPLY = args.includes("--apply");
-// --force: apply even though the ledger already names this file.
-//
-// THE LEDGER CAN BE WRONG. A database restored from a backup imports
-// __schema_applied as DATA, so it inherits the SOURCE database's history and
-// claims files that were never run against this one. Not hypothetical: this
-// project's `employees` table had no `performance_criteria` and no `kra`
-// while the ledger listed both their migrations as applied, so every page
-// died on the missing column and there was no way to apply the fix.
-//
-// Only use it on a file you have checked is RE-RUNNABLE (add column if not
-// exists / create table if not exists). With --force you are asserting the
-// ledger is lying, not that the SQL has never run.
-const FORCE = args.includes("--force");
-const file = args.find((a) => a.endsWith(".sql"));
-if (!file) throw new Error("Pass a migration file path, e.g. db/migrations/0105_incentive_config.sql");
+const arg = process.argv[2];
+const DRY = process.argv.includes("--dry");
 
-const filename = file.replace(/^.*[\\/]/, ""); // basename only — the ledger key
-const contents = readFileSync(file, "utf8");
+if (!arg || !arg.endsWith(".sql")) {
+  throw new Error("Pass a migration filename, e.g. 0249_incentive_target_plans.sql");
+}
+// Narrowed once here, so the value stays `string` inside `main()` too (the
+// original `string | undefined` fails the `sql.unsafe` parameter type).
+const filename: string = arg;
 
-async function main() {
-  console.log(`\n=== apply-one-migration · ${filename} · ${APPLY ? "APPLY" : "DRY RUN"} ===\n`);
-  console.log("---- SQL ----\n" + contents + "\n-------------\n");
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("DATABASE_URL not set");
+const sql = postgres(url, { max: 1, prepare: false });
 
-  // DRY RUN is fully offline — no DB connection, no writes. Only --apply touches prod.
-  if (!APPLY) {
-    console.log(`▶ ${filename} — DRY RUN only (offline). Re-run with --apply to execute the SQL above against DATABASE_URL.`);
-    return;
-  }
+const contents = readFileSync(`db/migrations/${filename}`, "utf8");
 
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL not set");
-  const sql = postgres(url, { max: 1, prepare: false });
-
+async function main(): Promise<void> {
   await sql.unsafe(`
     create table if not exists __schema_applied (
       filename text primary key,
@@ -55,30 +34,41 @@ async function main() {
     );
   `);
 
-  try {
-    const already = (await sql.unsafe(
-      `select 1 from __schema_applied where filename = $1`,
-      [filename],
-    )) as unknown as unknown[];
-    if (already.length > 0 && !FORCE) {
-      console.log(`⊘ ${filename} is already recorded as applied — no-op.`);
-      return;
-    }
-    if (already.length > 0) {
-      console.log(`⚠ ${filename} is recorded as applied, but --force was given — re-running it.`);
-    }
-    await sql.unsafe(contents);
-    await sql.unsafe(
-      `insert into __schema_applied (filename) values ($1) on conflict do nothing`,
-      [filename],
-    );
-    console.log(`✓ applied ${filename} and recorded in __schema_applied.`);
-  } finally {
-    await sql.end();
+  const already = (await sql.unsafe(
+    `select 1 from __schema_applied where filename = $1`,
+    [filename],
+  )) as unknown as unknown[];
+  if (already.length > 0) {
+    console.log(`already applied: ${filename}`);
+    return;
   }
+
+  if (DRY) {
+    console.log(`--- would apply ${filename} ---\n${contents}`);
+    return;
+  }
+
+  // One transaction: the DDL is additive (CREATE TABLE / INDEX), so a failure
+  // anywhere means nothing was written.
+  await sql.begin(async (tx) => {
+    await tx.unsafe(contents);
+    await tx.unsafe(`insert into __schema_applied (filename) values ($1)`, [filename]);
+  });
+
+  console.log(`applied: ${filename}`);
+
+  const tables = (await sql.unsafe(
+    `select table_name from information_schema.tables
+      where table_name in ('incentive_target_plans', 'incentive_target_plan_products')
+      order by table_name`,
+  )) as unknown as Array<{ table_name: string }>;
+  console.log(`present now: ${tables.map((t) => t.table_name).join(", ") || "(none)"}`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main()
+  .then(() => sql.end())
+  .catch(async (err: unknown) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    await sql.end();
+    process.exitCode = 1;
+  });

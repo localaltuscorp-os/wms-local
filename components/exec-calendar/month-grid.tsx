@@ -72,7 +72,7 @@ export function ExecMonthGrid({
         {monthName(anchor, true)}
       </button>
 
-      <div className="overflow-hidden rounded-xl border border-hairline">
+      <div className="overflow-hidden border border-hairline">
         <div className="grid bg-surface-soft" style={{ gridTemplateColumns: "30px repeat(7, 1fr)" }}>
           <div className="px-1 py-1 text-center text-[9.5px] font-bold uppercase text-ink-subtle">Wk</div>
           {WEEKDAYS.map((d, i) => (
@@ -114,6 +114,38 @@ export function ExecMonthGrid({
                     opacity: d.inMonth ? 1 : 0.5,
                   }}
                 >
+                  {/* Day markers sit FLUSH AT THE TOP of the cell, above the date
+                      number — a dark underline at year size, a labelled chip in the
+                      month. The negative margins cancel the cell's p-[3px] so the
+                      marker touches the cell's own borders instead of floating in a
+                      3px gutter; that edge-to-edge band is what makes a marked day
+                      readable at a glance across a whole year. Year view is this same
+                      component with `compact`, so both sizes move together. */}
+                  {dayMarkers.length > 0 && (
+                    <div className="-mx-[3px] -mt-[3px] mb-[2px]">
+                      {compact ? (
+                        <span
+                          className="block h-[3px]"
+                          style={{ background: MARKER_BG }}
+                          title={dayMarkers.map((m) => m.label).join(" · ")}
+                        />
+                      ) : (
+                        dayMarkers.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => onPickMarker?.(m)}
+                            className="block w-full truncate px-[3px] text-left text-[10px] font-bold leading-[1.4]"
+                            style={{ background: MARKER_BG, color: MARKER_FG }}
+                            title={m.label}
+                          >
+                            {m.label}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => onPickDay?.(d.ymd)}
@@ -123,28 +155,6 @@ export function ExecMonthGrid({
                   >
                     {parseDay(d.ymd).getUTCDate()}
                   </button>
-
-                  {/* Day markers: a dark underline at year size, a labelled chip in the month. */}
-                  {compact && dayMarkers.length > 0 && (
-                    <span
-                      className="mt-[2px] block h-[3px] w-full rounded-full"
-                      style={{ background: MARKER_BG }}
-                      title={dayMarkers.map((m) => m.label).join(" · ")}
-                    />
-                  )}
-                  {!compact &&
-                    dayMarkers.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => onPickMarker?.(m)}
-                        className="mt-[2px] block w-full truncate rounded-[3px] px-[3px] text-left text-[10px] font-bold leading-[1.4]"
-                        style={{ background: MARKER_BG, color: MARKER_FG }}
-                        title={m.label}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
 
                   {compact ? (
                     <div className="mt-[3px] flex flex-wrap gap-[2px]">

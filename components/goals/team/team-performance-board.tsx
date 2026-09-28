@@ -20,6 +20,7 @@ import {
 import { archiveFromTeamPerformance } from "@/app/(app)/productivity/team/actions";
 import { fireToast } from "@/lib/toast";
 import { Select } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { Donut, type DonutSlice } from "@/components/charts/donut";
 import { GradeBadge, GradeLegend } from "@/components/productivity/grade-badge";
@@ -280,9 +281,9 @@ export function TeamPerformanceBoard({
    */
   canArchive?: boolean;
 }) {
-  const [dept, setDept] = React.useState<string>(ALL);
-  const [team, setTeam] = React.useState<string>(ALL);
-  const [status, setStatus] = React.useState<StatusFilter>("all");
+  const [dept, setDept] = React.useState<string[]>([]);
+  const [team, setTeam] = React.useState<string[]>([]);
+  const [status, setStatus] = React.useState<StatusFilter[]>([]);
   const [grade, setGrade] = React.useState<string>(ALL);
   const [sort, setSort] = React.useState<SortKey>("attention");
   const [query, setQuery] = React.useState("");
@@ -315,9 +316,9 @@ export function TeamPerformanceBoard({
     const q = query.trim().toLowerCase();
     const filtered = rows.filter((r) => {
       if (archived.has(r.id)) return false;
-      if (dept !== ALL && r.department !== dept) return false;
-      if (team !== ALL && r.managerName !== team) return false;
-      if (!matchesStatus(r, status)) return false;
+      if (dept.length > 0 && (!r.department || !dept.includes(r.department))) return false;
+      if (team.length > 0 && (!r.managerName || !team.includes(r.managerName))) return false;
+      if (status.length > 0 && !status.some((filter) => matchesStatus(r, filter))) return false;
       // "Ungraded" is its own choice rather than a hidden bucket, so the people
       // with no goals set are findable instead of quietly absent from every
       // grade filter.
@@ -380,16 +381,16 @@ export function TeamPerformanceBoard({
   const overdue = rows.filter((r) => r.overdueTasks > 0).length;
 
   const filtersActive =
-    dept !== ALL ||
-    team !== ALL ||
-    status !== "all" ||
+    dept.length > 0 ||
+    team.length > 0 ||
+    status.length > 0 ||
     (showGrades && grade !== ALL) ||
     query.trim() !== "";
 
   function clearFilters() {
-    setDept(ALL);
-    setTeam(ALL);
-    setStatus("all");
+    setDept([]);
+    setTeam([]);
+    setStatus([]);
     setGrade(ALL);
     setQuery("");
   }
@@ -409,32 +410,32 @@ export function TeamPerformanceBoard({
           label="Working"
           value={working}
           tone={working > 0 ? "green" : undefined}
-          active={status === "working"}
-          onClick={() => setStatus(status === "working" ? "all" : "working")}
+          active={status.includes("working")}
+          onClick={() => setStatus(status.length === 1 && status[0] === "working" ? [] : ["working"])}
         />
         <Divider />
         <SummaryStat
           label="No plan"
           value={noPlan}
           tone={noPlan > 0 ? "red" : undefined}
-          active={status === "no_plan"}
-          onClick={() => setStatus(status === "no_plan" ? "all" : "no_plan")}
+          active={status.includes("no_plan")}
+          onClick={() => setStatus(status.length === 1 && status[0] === "no_plan" ? [] : ["no_plan"])}
         />
         <Divider />
         <SummaryStat
           label="Need help"
           value={needHelp}
           tone={needHelp > 0 ? "amber" : undefined}
-          active={status === "needs_help"}
-          onClick={() => setStatus(status === "needs_help" ? "all" : "needs_help")}
+          active={status.includes("needs_help")}
+          onClick={() => setStatus(status.length === 1 && status[0] === "needs_help" ? [] : ["needs_help"])}
         />
         <Divider />
         <SummaryStat
           label="Overdue"
           value={overdue}
           tone={overdue > 0 ? "red" : undefined}
-          active={status === "overdue"}
-          onClick={() => setStatus(status === "overdue" ? "all" : "overdue")}
+          active={status.includes("overdue")}
+          onClick={() => setStatus(status.length === 1 && status[0] === "overdue" ? [] : ["overdue"])}
         />
       </section>
 
@@ -485,39 +486,30 @@ export function TeamPerformanceBoard({
 
       {/* ── 2 · filter + sort toolbar ── */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Select
-          value={dept}
-          onValueChange={setDept}
-          ariaLabel="Filter by Function"
-          searchable={departments.length > 8}
-          searchPlaceholder="Search Functions…"
-          unstyled
+        <MultiSelect
+          selected={dept}
+          onChange={setDept}
+          placeholder="All Functions"
           className={FIELD}
           options={[
-            { value: ALL, label: "All Functions" },
             ...departments.map((d) => ({ value: d, label: d })),
           ]}
         />
-        <Select
-          value={team}
-          onValueChange={setTeam}
-          ariaLabel="Filter by team (reporting line)"
-          searchable={teams.length > 8}
-          searchPlaceholder="Search managers…"
-          unstyled
+        <MultiSelect
+          selected={team}
+          onChange={setTeam}
+          placeholder="All teams"
           className={FIELD}
           options={[
-            { value: ALL, label: "All teams" },
             ...teams.map((m) => ({ value: m, label: `Reports to ${m}` })),
           ]}
         />
-        <Select
-          value={status}
-          onValueChange={(v) => setStatus(v as StatusFilter)}
-          ariaLabel="Filter by status"
-          unstyled
+        <MultiSelect
+          selected={status}
+          onChange={(values) => setStatus(values as StatusFilter[])}
+          placeholder="All statuses"
           className={FIELD}
-          options={STATUS_FILTERS}
+          options={STATUS_FILTERS.filter((option) => option.value !== "all")}
         />
         {showGrades && (
           <Select

@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  ddOptions,
   eventBatchTypes,
   eventCategories,
   jdEntries,
@@ -27,6 +28,9 @@ export interface MastersCounts {
   peopleWithPersonalJd: number | null;
   /** Null until migration 0236 is applied — `count` swallows the missing table. */
   recruitmentJds: number | null;
+  /** Null until migration 0245 is applied — `count` swallows the missing table. */
+  ddCategories: number | null;
+  ddOptions: number | null;
 }
 
 async function count(q: PromiseLike<{ n: number }[]>): Promise<number | null> {
@@ -51,6 +55,8 @@ export async function loadMastersCounts(): Promise<MastersCounts> {
     personalJds,
     peopleWithPersonalJd,
     recruitment,
+    ddCategoryCount,
+    ddOptionCount,
   ] = await Promise.all([
     count(db.select({ n }).from(opsChecklistTemplates).where(eq(opsChecklistTemplates.isActive, true))),
     count(
@@ -72,6 +78,13 @@ export async function loadMastersCounts(): Promise<MastersCounts> {
         .where(and(isNotNull(jdEntries.ownerEmployeeId), eq(jdEntries.isActive, true))),
     ),
     count(db.select({ n }).from(recruitmentJds).where(eq(recruitmentJds.isActive, true))),
+    count(
+      db
+        .select({ n: sql<number>`count(distinct ${ddOptions.listKey})::int` })
+        .from(ddOptions)
+        .where(eq(ddOptions.isActive, true)),
+    ),
+    count(db.select({ n }).from(ddOptions).where(eq(ddOptions.isActive, true))),
   ]);
 
   return {
@@ -84,5 +97,7 @@ export async function loadMastersCounts(): Promise<MastersCounts> {
     personalJds,
     peopleWithPersonalJd,
     recruitmentJds: recruitment,
+    ddCategories: ddCategoryCount,
+    ddOptions: ddOptionCount,
   };
 }

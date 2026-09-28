@@ -10,10 +10,14 @@ export function StatusFilter({
   options,
   selected,
   onChange,
+  name = "Doer Status",
+  allLabel = "All Statuses",
 }: {
   options: { value: string; label: string }[];
   selected: string[];
   onChange: (v: string[]) => void;
+  name?: string;
+  allLabel?: string;
 }) {
   return (
     <MultiSelect
@@ -23,8 +27,8 @@ export function StatusFilter({
       renderTrigger={({ selectedLabels }) => (
         <FilterPill
           icon={<CircleDot size={16} strokeWidth={2} />}
-          name="Doer Status"
-          value={summarizeSelection(selectedLabels, "All Statuses")}
+          name={name}
+          value={summarizeSelection(selectedLabels, allLabel)}
           tint="#16a34a"
           active={selected.length > 0}
         />

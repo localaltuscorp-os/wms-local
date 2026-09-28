@@ -48,8 +48,8 @@ export function candidateLinkCookieOptions(expiresAt: Date) {
     sameSite: "lax" as const,
     // `ALLOW_INSECURE_COOKIES` is the repo-wide escape hatch for the TLS-less
     // local-server deploy (`pnpm start:lan`), and this cookie MUST honour it
-    // like every other one does — the session cookie, proxy.ts, device-access,
-    // the DigiLocker PKCE cookie and intake-kyc-cookies all pair the two.
+    // like every other one does — the session cookie, proxy.ts, device-access
+    // and the DigiLocker PKCE cookie all pair the two.
     // Without it, a Secure cookie over plain HTTP is dropped by the browser in
     // silence: the candidate opens their link, is redirected to /c/form, lands
     // there with no cookie, and is bounced to /c/resume — which mails them

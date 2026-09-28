@@ -87,7 +87,9 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
       .update(candidateIntake)
       .set({
         fullName: (values["personal.fullName"] ?? "").slice(0, 200),
-        positionApplied: values["personal.position"] || null,
+        // Position moved from "personal" to "jobDetails" (2026-09-23); fall back
+        // to the old key for a draft that was filled before the move.
+        positionApplied: values["jobDetails.position"] || values["personal.position"] || null,
         mobile: values["personal.mobile"] || null,
         email: values["personal.email"] || null,
         data: values,

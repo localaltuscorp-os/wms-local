@@ -18,7 +18,11 @@ import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-tabl
 import { formatDMonY, formatInr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { fireToast } from "@/lib/toast";
-import { fetchIncentiveAnalytics, setMyIncentiveTarget } from "@/app/(app)/incentive/analytics-actions";
+import {
+  fetchIncentiveAnalytics,
+  setMyIncentivePeriodTarget,
+  setMyIncentiveTarget,
+} from "@/app/(app)/incentive/analytics-actions";
 import {
   INCENTIVE_GRADE_BANDS,
   type RankMovement,
@@ -26,7 +30,12 @@ import {
 import {
   PERIOD_KINDS,
   PERIOD_LABELS,
+  addMonths,
+  addQuarters,
+  currentMonthKey,
+  currentQuarterKey,
   formatMonthKey,
+  formatQuarterKey,
   type PeriodKind,
 } from "@/lib/incentive/analytics/periods";
 import type {
@@ -41,7 +50,8 @@ import { GradeBadge, IncentiveBadge } from "../ui/badges";
 import { IncentiveSection, Segmented } from "../ui/chrome";
 import { IncentiveKpi, IncentiveKpiRow } from "../ui/kpi";
 import { IncentiveEmptyState } from "../ui/states";
-import { SUMMARY_TONE, toneBase, toneFill, toneInk, type Tone } from "../ui/tone";
+import { GRADE_TONE, SUMMARY_TONE, toneBase, toneFill, toneInk, type Tone } from "../ui/tone";
+import { PeriodProgress } from "./period-progress";
 
 /**
  * INCENTIVE DASHBOARD — the view.
@@ -51,17 +61,26 @@ import { SUMMARY_TONE, toneBase, toneFill, toneInk, type Tone } from "../ui/tone
  * result (`fetchIncentiveAnalytics`), which re-applies the viewer's scope — the
  * browser never holds data it was not allowed.
  *
- * ── THE 2026-09-16 RESTRUCTURE ─────────────────────────────────────────────
+ * ── THE 2026-09-24 RESTRUCTURE ─────────────────────────────────────────────
  * The reading order is now one question per band, all measured over the SAME
  * window:
  *
  *   [Target warning]                the only thing here that is an action
- *   [Team/User · Period]            whose figures, over what span
- *   [six status chips]              filters, not decoration — click to drill
- *   [Your performance]              only when the figures really are yours
+ *   [Team/User · Period · Target]   whose figures, over what span, and the
+ *                                   period-aware target control
+ *   [EIGHT KPI cards]               Grade · % of CTC · six status buckets —
+ *                                   ONE band, click a bucket to drill
  *   [Team summary]                  headcount, earnings, target, grade spread
  *   [Grade report ⇄ the drilled status]
  *   [Trends]                        passed in, and deliberately last
+ *
+ * THE "YOUR PERFORMANCE" BAND IS GONE. It was a full-width strip running
+ * Grade / Incentive / % of CTC / Rank / Target-vs-actual across the page, and
+ * the two figures people actually scan for — grade and % of CTC — now sit in
+ * the KPI band as cards. Rank and target-vs-actual are columns of the grade
+ * report directly below, so nothing was lost, only un-duplicated. The one thing
+ * it uniquely held, the incentive breakup letter link, moved into the control
+ * row rather than rebuilding the band around it.
  */
 
 const VIEW_OPTIONS = [
@@ -78,11 +97,28 @@ function pct(v: number | null): string {
 export function IncentiveAnalyticsDashboard({
   initial,
   months,
+  quarters,
+  years,
+  viewEmployeeId,
   trends,
 }: {
   initial: IncentiveAnalytics;
   /** Months the "Specific Month" picker offers, newest first (server-built). */
   months: string[];
+  /** Quarters the "Specific Quarter" picker offers, newest first (server-built). */
+  quarters: string[];
+  /** Years the "Specific Year" picker offers, newest first (server-built). */
+  years: string[];
+  /**
+   * The employee being VIEWED, "" when that is the viewer themselves.
+   *
+   * Carried on every period fetch below. Without it, changing the period would
+   * quietly drop back to the viewer's own figures — the fetch re-resolves the
+   * scope from the session, and the session does not know about `?emp=`. Sent
+   * down already validated, so the browser cannot ask for anybody the server
+   * refused.
+   */
+  viewEmployeeId: string;
   /** The company year overview, for viewers entitled to it. Rendered last. */
   trends?: React.ReactNode;
 }) {
@@ -91,6 +127,23 @@ export function IncentiveAnalyticsDashboard({
   const [month, setMonth] = React.useState<string>(
     initial.period.kind === "month" ? initial.period.months[0]! : (months[1] ?? months[0] ?? ""),
   );
+  const [quarter, setQuarter] = React.useState<string>(() => {
+    // A quarter's months are its own three, so the picker opens on the quarter
+    // the dashboard is actually showing rather than on "now".
+    if (initial.period.kind === "quarter" && initial.period.months[0]) {
+      const [y, m] = initial.period.months[0].split("-").map(Number) as [number, number];
+      return `${y}-Q${Math.floor((m - 1) / 3) + 1}`;
+    }
+    return quarters[1] ?? quarters[0] ?? currentQuarterKey();
+  });
+  const [year, setYear] = React.useState<string>(() => {
+    // Same rule as the quarter picker: open on the year actually being shown,
+    // so the control never disagrees with the figures beside it.
+    if (initial.period.kind === "year" && initial.period.months[0]) {
+      return initial.period.months[0].slice(0, 4);
+    }
+    return years[0] ?? currentMonthKey().slice(0, 4);
+  });
   const [view, setView] = React.useState<AnalyticsView>(initial.scope.view);
   const [active, setActive] = React.useState<StatusKey | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -105,12 +158,21 @@ export function IncentiveAnalyticsDashboard({
    */
   const canSwitchView = data.scope.canSeeTeam;
 
-  function load(nextKind: PeriodKind, nextMonth?: string, nextView?: AnalyticsView) {
+  function load(next: {
+    kind: PeriodKind;
+    month?: string;
+    quarter?: string;
+    year?: string;
+    view?: AnalyticsView;
+  }) {
+    const nextKind = next.kind;
     const shownKind = data.period.kind;
     const shownView = data.scope.view;
     setKind(nextKind);
-    if (nextMonth) setMonth(nextMonth);
-    if (nextView) setView(nextView);
+    if (next.month) setMonth(next.month);
+    if (next.quarter) setQuarter(next.quarter);
+    if (next.year) setYear(next.year);
+    if (next.view) setView(next.view);
     startTransition(async () => {
       // On any failure the selector snaps back to the period actually on screen,
       // so the buttons never claim a period whose numbers are not shown.
@@ -122,8 +184,12 @@ export function IncentiveAnalyticsDashboard({
       try {
         const res = await fetchIncentiveAnalytics({
           kind: nextKind,
-          month: nextKind === "month" ? (nextMonth ?? month) : null,
-          view: nextView ?? view,
+          month: nextKind === "month" ? (next.month ?? month) : null,
+          quarter: nextKind === "quarter" ? (next.quarter ?? quarter) : null,
+          year: nextKind === "year" ? (next.year ?? year) : null,
+          view: next.view ?? view,
+          // Whose figures, for every period change as well as the first paint.
+          emp: viewEmployeeId || null,
         });
         if (!res.ok) return fail(res.error);
         setData(res.data);
@@ -136,75 +202,158 @@ export function IncentiveAnalyticsDashboard({
   const activeCard = active ? data.statuses.find((s) => s.key === active) ?? null : null;
 
   /**
-   * IS "YOUR PERFORMANCE" ACTUALLY YOURS?
+   * IS THE TEAM SUMMARY SHOWING ANYBODY BESIDES THE VIEWER?
    *
-   * A company-wide viewer looking at the Team view is reading the whole
-   * company, and a personal grade card parked above those figures reads as if
-   * the company earned it. So the personal block is shown when the viewer has
-   * narrowed to themselves, or when their entitlement is their own line and
-   * their downline — where their own figures belong in the frame. An admin who
-   * wants their own standing switches to User, which is one click and says so.
+   * NOTE: the "Your performance" strip that used to be gated on the same
+   * question is GONE — Grade and % of CTC are two cards in the KPI band above,
+   * which is where the brief puts them and where they no longer read as a
+   * separate band claiming the whole company earned one person's figures.
    */
-  const showMine = data.me !== null && (data.scope.view === "user" || !data.scope.all);
   const teamCount = data.employees.length > (data.me ? 1 : 0);
 
   return (
     <div className="space-y-3" data-incentive-analytics aria-busy={pending}>
       {data.targetWarning && (data.targetWarning.missingCurrent || data.targetWarning.missingNext) && (
-        <TargetWarningBar warning={data.targetWarning} onSaved={() => load(kind, month)} />
+        <TargetWarningBar warning={data.targetWarning} onSaved={() => load({ kind, month })} />
       )}
 
       {/* ── Control row: whose figures, then over what span ── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-hairline bg-surface-card px-3 py-2">
-        {canSwitchView && (
+      <div className="space-y-2 rounded-2xl border border-hairline bg-surface-card px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {canSwitchView && (
+            <Segmented
+              ariaLabel="Whose incentive data"
+              options={VIEW_OPTIONS}
+              value={view}
+              disabled={pending}
+              onChange={(v) =>
+                load({ kind, month: kind === "month" ? month : undefined, quarter, year, view: v })
+              }
+            />
+          )}
           <Segmented
-            ariaLabel="Whose incentive data"
-            options={VIEW_OPTIONS}
-            value={view}
+            ariaLabel="Period"
+            options={PERIOD_OPTIONS}
+            value={kind}
             disabled={pending}
-            onChange={(v) => load(kind, kind === "month" ? month : undefined, v)}
+            onChange={(k) =>
+              load({ kind: k, month: k === "month" ? month : undefined, quarter, year })
+            }
           />
-        )}
-        <Segmented
-          ariaLabel="Period"
-          options={PERIOD_OPTIONS}
-          value={kind}
-          disabled={pending}
-          onChange={(k) => load(k, k === "month" ? month : undefined)}
-        />
-        {kind === "month" && (
-          <select
-            aria-label="Month"
-            value={month}
-            disabled={pending}
-            onChange={(e) => load("month", e.target.value)}
-            className="h-9 rounded-pill border border-hairline bg-surface-card px-2.5 text-[12.5px] font-bold text-ink-soft outline-none transition-colors hover:border-hairline-strong focus:border-altus-red"
+          {/* The month / quarter pickers are the two controls people actually
+              click on this row, so they are a size up from the segments beside
+              them: taller, wider padding, larger text. */}
+          {kind === "month" && (
+            <select
+              aria-label="Month"
+              value={month}
+              disabled={pending}
+              onChange={(e) => load({ kind: "month", month: e.target.value })}
+              className="h-11 min-w-[168px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
+            >
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {formatMonthKey(m)}
+                </option>
+              ))}
+            </select>
+          )}
+          {kind === "quarter" && (
+            <select
+              aria-label="Quarter"
+              value={quarter}
+              disabled={pending}
+              onChange={(e) => load({ kind: "quarter", quarter: e.target.value })}
+              className="h-11 min-w-[168px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
+            >
+              {quarters.map((q) => (
+                <option key={q} value={q}>
+                  {formatQuarterKey(q)}
+                </option>
+              ))}
+            </select>
+          )}
+          {/* THE WHOLE CALENDAR YEAR, twelve months — not the same control as
+              "YTD", which runs January to today. Both are kept: YTD answers
+              "how is this year going", this answers "what did that year do". */}
+          {kind === "year" && (
+            <select
+              aria-label="Year"
+              value={year}
+              disabled={pending}
+              onChange={(e) => load({ kind: "year", year: e.target.value })}
+              className="h-11 min-w-[168px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold tabular-nums text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          )}
+          <span
+            className="ml-auto flex items-center gap-2 text-[12.5px] font-semibold text-ink-subtle"
+            data-period-label
           >
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {formatMonthKey(m)}
-              </option>
-            ))}
-          </select>
-        )}
-        <span
-          className="ml-auto flex items-center gap-2 text-[12.5px] font-semibold text-ink-subtle"
-          data-period-label
-        >
-          {pending && <Loader2 size={14} className="animate-spin" aria-hidden />}
-          {data.period.label}
-          <span aria-hidden>·</span>
-          <Users size={13} aria-hidden />
-          {data.scope.label}
-        </span>
+            {pending && <Loader2 size={14} className="animate-spin" aria-hidden />}
+            {data.period.label}
+            <span aria-hidden>·</span>
+            <Users size={13} aria-hidden />
+            {data.scope.label}
+            {/* The employee's own document. It used to live in the "Your
+                performance" band, which is gone — this keeps it reachable
+                without rebuilding that band. Same href as before; the route
+                re-checks ownership itself, so this is a door, not the lock. */}
+            {data.scope.viewerId && (
+              <a
+                href={`/salary/incentive-breakup/${data.scope.viewerId}?view=1`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[12.5px] font-bold text-ink-muted transition-colors hover:text-ink-strong"
+              >
+                <FileText size={13} strokeWidth={2.4} aria-hidden />
+                Breakup letter
+              </a>
+            )}
+          </span>
+        </div>
+
+        {/* ── Set Incentive Target — period-aware (migration 0250) ──
+            In the SAME card as the period controls rather than a band of its
+            own: it is a control, not a summary, and the brief rules out a
+            second information band under the KPIs. */}
+        <SetTargetControl disabled={pending} onSaved={() => load({ kind, month, quarter, year })} />
       </div>
 
-      {/* ── Status summary — six filters over the same window ── */}
+      {/* ── KPI band: six status buckets + the viewer's own Grade and % of CTC.
+             ONE band, per the brief — the personal figures that used to sit in
+             a separate "Your performance" strip are now two cards in it. ── */}
       <section
         aria-label="Incentive status summary"
         className={cn("transition-opacity", pending && "opacity-60")}
       >
-        <IncentiveKpiRow cols={6}>
+        <IncentiveKpiRow cols={8}>
+          <div className="contents" data-kpi-card="grade">
+            <IncentiveKpi
+              label="Grade"
+              value={data.me?.grade ?? "—"}
+              caption={
+                data.me?.grade
+                  ? (GRADE_BAND_LABEL[data.me.grade] ?? "Your grade")
+                  : (data.me ? ctcReason(data.me) : "") || "Not graded"
+              }
+              tone={data.me?.grade ? GRADE_TONE[data.me.grade] : "slate"}
+            />
+          </div>
+          <div className="contents" data-kpi-card="pct-of-ctc">
+            <IncentiveKpi
+              label="% of CTC"
+              value={pct(data.me?.pctOfCtc ?? null)}
+              caption="Your incentive, as a share of CTC"
+              tone="blue"
+              progress={data.me?.pctOfCtc != null ? data.me.pctOfCtc / 100 : null}
+            />
+          </div>
           {data.statuses.map((s) => (
             <div key={s.key} data-status-card={s.key} className="contents">
               <StatusKpi
@@ -221,10 +370,24 @@ export function IncentiveAnalyticsDashboard({
         </IncentiveKpiRow>
       </section>
 
+      {/* ── Target vs Actual, and the shape of the period ──
+          Directly under the KPI band. A company or team viewer already has the
+          totals in the Team summary below; somebody viewing their OWN dashboard
+          has no team, so that summary is not drawn for them and Target, Actual
+          and Attainment would not appear as figures anywhere on the page. This
+          is where they live, with the bar that relates them and the months that
+          did the work. Collapses to one line when the period holds nothing —
+          see PeriodProgress. */}
+      <PeriodProgress
+        label={data.period.label}
+        scopeLabel={data.scope.label}
+        earned={data.summary.earned}
+        target={data.summary.target}
+        difference={data.summary.target === null ? null : data.summary.earned - data.summary.target}
+        monthly={data.monthly}
+      />
+
       {/* ── Performance ── */}
-      {showMine && data.me && (
-        <MyPerformance me={data.me} rankedCount={data.rankedCount} viewerId={data.scope.viewerId} />
-      )}
       {teamCount && <TeamSummary data={data} />}
 
       {/* ── Detail ── */}
@@ -315,34 +478,37 @@ function StatusKpi({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className="flex min-h-[116px] cursor-pointer flex-col justify-between rounded-2xl border bg-surface-card px-4 py-3 text-left transition-colors hover:bg-surface-soft"
+      /* Compact: this band now carries EIGHT cards (six buckets + Grade +
+         % of CTC), so each is shorter and slightly tighter than the six that
+         used to have the row to themselves. Same parts, less air. */
+      className="flex min-h-[92px] cursor-pointer flex-col justify-between rounded-2xl border bg-surface-card px-3.5 py-2 text-left transition-colors hover:bg-surface-soft"
       style={{
         borderColor: selected ? toneBase(tone) : "var(--color-hairline)",
         borderWidth: selected ? 1.5 : 1,
       }}
     >
       <span className="flex items-center gap-1.5">
-        <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: toneBase(tone) }} />
-        <span className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-subtle">{label}</span>
+        <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: toneBase(tone) }} />
+        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</span>
       </span>
       <span
         className="tabular-nums text-ink-strong"
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 800,
-          fontSize: "clamp(24px, 1.9vw, 31px)",
+          fontSize: "clamp(17px, 1.25vw, 21px)",
           letterSpacing: "-0.02em",
-          lineHeight: 1,
+          lineHeight: 1.1,
         }}
       >
         {value}
       </span>
       <span className="flex flex-col gap-0.5">
-        <span className="text-[12.5px] font-bold text-ink-soft tabular-nums">
+        <span className="text-[11.5px] font-bold text-ink-soft tabular-nums">
           {count} {count === 1 ? "entry" : "entries"}
         </span>
         {unvaluedCount > 0 && (
-          <span className="text-[11.5px] font-medium text-ink-subtle">{unvaluedCount} amount not set</span>
+          <span className="text-[11px] font-medium text-ink-subtle">{unvaluedCount} amount not set</span>
         )}
       </span>
     </button>
@@ -508,108 +674,171 @@ function ctcReason(p: EmployeePerformance): string {
   return "";
 }
 
-function TargetVsActual({ p }: { p: EmployeePerformance }) {
-  if (p.target === null) return <span className="text-[13px] font-semibold text-ink-subtle">No target set</span>;
-  const diff = p.difference ?? 0;
-  return (
-    <span className="text-[13px] font-semibold text-ink-soft">
-      {formatInr(p.target)} target · {formatInr(p.earned)} actual ·{" "}
-      <b style={{ color: toneInk(diff < 0 ? "red" : "green") }}>
-        {diff < 0 ? `Deficit ${formatInr(-diff)}` : diff > 0 ? `Ahead ${formatInr(diff)}` : "On target"}
-      </b>
-    </span>
-  );
+/**
+ * SET INCENTIVE TARGET — period-aware (migration 0250).
+ *
+ * One dropdown picks the KIND of period (this month / a named month / a named
+ * quarter / a named year); the control beside it offers the values for that
+ * kind and nothing else. The year option writes the January row, which is the
+ * convention `setIncentiveYearTarget` has always used, so a year target keeps
+ * summing into YTD exactly as before.
+ *
+ * The server refuses anything it should not accept — a period that has already
+ * ended, or a second target for a period that already has one — and the error
+ * comes back as a toast. This control does not decide any of that; it only
+ * narrows what is easy to ask for.
+ */
+const TARGET_KIND_OPTIONS = [
+  { value: "this_month" as const, label: "This Month" },
+  { value: "month" as const, label: "Specific Month" },
+  { value: "quarter" as const, label: "Specific Quarter" },
+  { value: "year" as const, label: "Specific Year" },
+];
+
+type TargetKind = (typeof TARGET_KIND_OPTIONS)[number]["value"];
+
+/** The next `count` months, current first — target planning looks FORWARD. */
+function forwardMonths(count = 13): string[] {
+  const cur = currentMonthKey();
+  return Array.from({ length: count }, (_, i) => addMonths(cur, i));
 }
 
-function Metric({
-  label,
-  children,
-  size = "md",
-}: {
-  label: string;
-  children: React.ReactNode;
-  /** `lg` is the team summary's scanning size; the default is the inline one. */
-  size?: "md" | "lg";
-}) {
-  return (
-    <div className="min-w-0">
-      <div
-        className={
-          size === "lg"
-            ? "text-[11.5px] font-bold uppercase tracking-[0.12em] text-ink-subtle"
-            : "text-[10.5px] font-bold uppercase tracking-[0.1em] text-ink-subtle"
-        }
-      >
-        {label}
-      </div>
-      <div
-        className={
-          size === "lg"
-            ? "mt-1.5 flex min-h-9 flex-wrap items-baseline gap-x-3 gap-y-1"
-            : "mt-0.5 flex min-h-6 flex-wrap items-center gap-x-2 gap-y-0.5"
-        }
-      >
-        {children}
-      </div>
-    </div>
-  );
+/** The next `count` quarters, current first. */
+function forwardQuarters(count = 5): string[] {
+  const cur = currentQuarterKey();
+  return Array.from({ length: count }, (_, i) => addQuarters(cur, i));
 }
 
-/** The signed-in person's own standing. Only rendered when it IS theirs. */
-function MyPerformance({
-  me,
-  rankedCount,
-  viewerId,
+/** The current year and the next two. */
+function forwardYears(count = 3): string[] {
+  const y = Number(currentMonthKey().slice(0, 4));
+  return Array.from({ length: count }, (_, i) => String(y + i));
+}
+
+function SetTargetControl({
+  disabled,
+  onSaved,
 }: {
-  me: EmployeePerformance;
-  rankedCount: number;
-  /** The signed-in employee's id — their own breakup letter lives under it. */
-  viewerId?: string;
+  disabled: boolean;
+  onSaved: () => void;
 }) {
+  const [kind, setKind] = React.useState<TargetKind>("this_month");
+  const [month, setMonth] = React.useState(currentMonthKey());
+  const [quarter, setQuarter] = React.useState(currentQuarterKey());
+  const [year, setYear] = React.useState(currentMonthKey().slice(0, 4));
+  const [amount, setAmount] = React.useState("");
+  const [saving, startSaving] = React.useTransition();
+
+  const value =
+    kind === "month" ? month : kind === "quarter" ? quarter : kind === "year" ? year : null;
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    const n = Number(amount.replace(/[₹,\s]/g, ""));
+    if (!Number.isFinite(n) || n <= 0) {
+      fireToast({ message: "Enter a target amount first.", type: "error" });
+      return;
+    }
+    startSaving(async () => {
+      const res = await setMyIncentivePeriodTarget({ kind, value, amount: n });
+      if (!res.ok) {
+        fireToast({ message: res.error, type: "error" });
+        return;
+      }
+      fireToast({ message: "Target saved.", type: "success" });
+      setAmount("");
+      onSaved();
+    });
+  }
+
+  const selectClass =
+    "h-11 rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red";
+
   return (
-    <section
-      aria-label="Your performance"
-      data-performance
-      data-my-performance
-      className="rounded-2xl border border-hairline bg-surface-card px-4 py-2.5"
+    <form
+      onSubmit={save}
+      data-set-incentive-target
+      className="flex flex-wrap items-center gap-2 border-t pt-2.5"
+      style={{ borderColor: "var(--color-hairline)" }}
     >
-      <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr]">
-        <Metric label="Your grade">
-          <GradeBadge grade={me.grade} />
-          {!me.grade && <span className="text-[12.5px] text-ink-subtle">{ctcReason(me) || "—"}</span>}
-        </Metric>
-        <Metric label="Incentive">
-          <span className="text-[16px] font-black tabular-nums text-ink-strong">{formatInr(me.earned)}</span>
-        </Metric>
-        <Metric label="% of CTC">
-          <span className="text-[16px] font-black tabular-nums text-ink-strong">{pct(me.pctOfCtc)}</span>
-        </Metric>
-        <Metric label="Rank">
-          <span className="text-[16px] font-black tabular-nums text-ink-strong">
-            {me.rank === null ? "—" : `#${me.rank}`}
-          </span>
-          {me.rank !== null && <span className="text-[12px] text-ink-subtle">of {rankedCount}</span>}
-          <Movement movement={me.movement} previous={me.previousRank} rank={me.rank} />
-        </Metric>
-        <Metric label="Target vs actual">
-          <TargetVsActual p={me} />
-        </Metric>
-      </div>
-      {/* The employee's own document. Rendered ONLY on the viewer's own block,
-          and it links to the same route the payment-time email attaches — the
-          route re-checks ownership itself, so this is a door, not the lock. */}
-      {viewerId && (
-        <a
-          href={`/salary/incentive-breakup/${viewerId}?view=1`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-bold text-ink-muted transition-colors hover:text-ink-strong"
+      <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-subtle">
+        Set Incentive Target
+      </span>
+      <select
+        aria-label="Target period kind"
+        value={kind}
+        disabled={disabled || saving}
+        onChange={(e) => setKind(e.target.value as TargetKind)}
+        className={selectClass}
+      >
+        {TARGET_KIND_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {kind === "month" && (
+        <select
+          aria-label="Target month"
+          value={month}
+          disabled={disabled || saving}
+          onChange={(e) => setMonth(e.target.value)}
+          className={selectClass}
         >
-          <FileText size={13} strokeWidth={2.4} aria-hidden />
-          Incentive breakup letter
-        </a>
+          {forwardMonths().map((m) => (
+            <option key={m} value={m}>
+              {formatMonthKey(m)}
+            </option>
+          ))}
+        </select>
       )}
-    </section>
+      {kind === "quarter" && (
+        <select
+          aria-label="Target quarter"
+          value={quarter}
+          disabled={disabled || saving}
+          onChange={(e) => setQuarter(e.target.value)}
+          className={selectClass}
+        >
+          {forwardQuarters().map((q) => (
+            <option key={q} value={q}>
+              {formatQuarterKey(q)}
+            </option>
+          ))}
+        </select>
+      )}
+      {kind === "year" && (
+        <select
+          aria-label="Target year"
+          value={year}
+          disabled={disabled || saving}
+          onChange={(e) => setYear(e.target.value)}
+          className={selectClass}
+        >
+          {forwardYears().map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      )}
+      <input
+        inputMode="numeric"
+        value={amount}
+        disabled={disabled || saving}
+        onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
+        aria-label="Target amount"
+        placeholder="Target amount"
+        className="h-11 w-[160px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold tabular-nums text-ink-strong outline-none focus:border-altus-red"
+      />
+      <button
+        type="submit"
+        disabled={disabled || saving}
+        className="pastel-cta h-11 rounded-pill px-4 text-[13.5px] font-bold disabled:opacity-60"
+      >
+        {saving ? "Saving…" : "Save Target"}
+      </button>
+    </form>
   );
 }
 
@@ -699,11 +928,32 @@ function TeamSummary({ data }: { data: IncentiveAnalytics }) {
 
 // ── Tables ────────────────────────────────────────────────────────────────────
 
+/**
+ * THE GRADE REPORT — eight columns, each with a floor width.
+ *
+ * Every column carries a `min-w-*` and `whitespace-nowrap`, and the table's own
+ * `min-w-[640px]` sits on the scroll container, so a narrow window scrolls the
+ * table sideways instead of squeezing "Incentive Earned" into two lines and
+ * "Rank" into three characters. Header and value share the one `className`, so
+ * a column can never be wider in the head than in the body.
+ */
+const G = {
+  employee: "min-w-[190px]",
+  ctc: "min-w-[128px] whitespace-nowrap",
+  earned: "min-w-[140px] whitespace-nowrap",
+  pct: "min-w-[108px] whitespace-nowrap",
+  grade: "min-w-[92px] whitespace-nowrap",
+  rank: "min-w-[132px] whitespace-nowrap",
+  target: "min-w-[128px] whitespace-nowrap",
+  difference: "min-w-[148px] whitespace-nowrap",
+} as const;
+
 function GradeReport({ data }: { data: IncentiveAnalytics }) {
   const columns: DataTableColumn<EmployeePerformance>[] = [
     {
       key: "employee",
       label: "Employee",
+      className: G.employee,
       sortValue: (p) => p.name.toLowerCase(),
       render: (p) => (
         <span className="flex min-w-0 flex-col">
@@ -718,6 +968,7 @@ function GradeReport({ data }: { data: IncentiveAnalytics }) {
     {
       key: "ctc",
       label: "CTC (period)",
+      className: G.ctc,
       align: "right",
       sortValue: (p) => p.ctc ?? -1,
       render: (p) =>
@@ -739,6 +990,7 @@ function GradeReport({ data }: { data: IncentiveAnalytics }) {
     {
       key: "earned",
       label: "Incentive Earned",
+      className: G.earned,
       align: "right",
       sortValue: (p) => p.earned,
       render: (p) => (
@@ -748,6 +1000,7 @@ function GradeReport({ data }: { data: IncentiveAnalytics }) {
     {
       key: "pct",
       label: "% of CTC",
+      className: G.pct,
       align: "right",
       sortValue: (p) => p.pctOfCtc ?? -1,
       render: (p) => <span className="text-[13px] tabular-nums">{pct(p.pctOfCtc)}</span>,
@@ -755,12 +1008,14 @@ function GradeReport({ data }: { data: IncentiveAnalytics }) {
     {
       key: "grade",
       label: "Grade",
+      className: G.grade,
       sortValue: (p) => (p.grade ? GRADE_SORT[p.grade] : 0),
       render: (p) => <GradeBadge grade={p.grade} />,
     },
     {
       key: "rank",
       label: "Rank",
+      className: G.rank,
       sortValue: (p) => p.rank ?? Number.MAX_SAFE_INTEGER,
       render: (p) => (
         <span className="flex flex-col">
@@ -774,6 +1029,7 @@ function GradeReport({ data }: { data: IncentiveAnalytics }) {
     {
       key: "target",
       label: "Target",
+      className: G.target,
       align: "right",
       sortValue: (p) => p.target ?? -1,
       render: (p) =>
@@ -786,6 +1042,7 @@ function GradeReport({ data }: { data: IncentiveAnalytics }) {
     {
       key: "difference",
       label: "Difference",
+      className: G.difference,
       align: "right",
       sortValue: (p) => p.difference ?? Number.NEGATIVE_INFINITY,
       render: (p) =>

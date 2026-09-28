@@ -4,10 +4,14 @@ import { describe, expect, it } from "vitest";
 import type { IncentiveEntry, IncentiveParticipant, IncentiveProject } from "@/db/schema";
 import {
   addMonths,
+  addQuarters,
   formatMonthSpan,
+  formatQuarterKey,
   monthRange,
+  quarterMonths,
   resolvePeriod,
   selectableMonths,
+  selectableQuarters,
 } from "@/lib/incentive/analytics/periods";
 import {
   INCENTIVE_GRADE_BANDS,
@@ -282,9 +286,9 @@ const CATALOG = [
 ];
 
 const TARGETS: AnalyticsTarget[] = [
-  { empName: "Asha Rao", employeeId: null, periodMonth: "2026-09-01", amount: 10_000 },
-  { empName: "Ravi K.", employeeId: E.ravi.id, periodMonth: "2026-09-01", amount: 5_000 },
-  { empName: "Asha Rao", employeeId: E.asha.id, periodMonth: "2026-10-01", amount: 8_000 },
+  { empName: "Asha Rao", employeeId: null, periodMonth: "2026-09-01", periodType: "month", amount: 10_000 },
+  { empName: "Ravi K.", employeeId: E.ravi.id, periodMonth: "2026-09-01", periodType: "month", amount: 5_000 },
+  { empName: "Asha Rao", employeeId: E.asha.id, periodMonth: "2026-10-01", periodType: "month", amount: 8_000 },
 ];
 
 const ALL: AnalyticsScope = { all: true, employeeIds: new Set(), viewerId: "admin", label: "Everyone" };
@@ -496,7 +500,7 @@ describe("who a ledger line belongs to", () => {
   });
 
   it("a target entered under an annotated name counts for the person", () => {
-    const a = build({ targets: [{ empName: "Meera Shah ( Intern - Z )", employeeId: null, periodMonth: "2026-09-01", amount: 25_000 }] });
+    const a = build({ targets: [{ empName: "Meera Shah ( Intern - Z )", employeeId: null, periodMonth: "2026-09-01", periodType: "month", amount: 25_000 }] });
     expect(row(a, E.meera.id)).toMatchObject({ target: 25_000, difference: -5_000 });
   });
 });
@@ -561,8 +565,8 @@ describe("target warning", () => {
     const w = targetWarningFor(
       { id: "x", name: "Zero Earner" },
       [
-        { empName: "zero earner", employeeId: null, periodMonth: "2026-09-01", amount: 1 },
-        { empName: "Someone", employeeId: "x", periodMonth: "2026-10-01", amount: 0 },
+        { empName: "zero earner", employeeId: null, periodMonth: "2026-09-01", periodType: "month", amount: 1 },
+        { empName: "Someone", employeeId: "x", periodMonth: "2026-10-01", periodType: "month", amount: 0 },
       ],
       "2026-09",
     );
@@ -658,14 +662,39 @@ describe("server-side access", () => {
   it("every analytics call re-resolves the signed-in user, the module permission and the scope", () => {
     expect(actions).toMatch(/export async function fetchIncentiveAnalytics[\s\S]*?requireUser\(\)[\s\S]*?canViewModule\(/);
     expect(loader).toMatch(/incentiveAnalyticsScopeFor\(viewer\)/);
-    // The browser sends a period and a view, never an employee id or a scope:
-    // the input schema is strict and holds only kind + month + view.
+    // The browser sends a period, a view and AT MOST an employee to narrow to.
+    // It never sends a SCOPE: there is no `all`, no id set and no viewer field
+    // in the schema, so a crafted request cannot hand itself an entitlement.
     const schema = actions.match(/const PeriodInput = z[\s\S]*?\.strict\(\);/)?.[0] ?? "";
     expect(schema).toMatch(/kind: z\.enum\(PERIOD_KINDS\)/);
-    expect(schema).not.toMatch(/employee|scope|viewer|name/i);
+    expect(schema).not.toMatch(/scope|viewer|employeeIds|all:/i);
     const fetchSig = actions.match(/export async function fetchIncentiveAnalytics\(input: \{[\s\S]*?\}\)/)?.[0] ?? "";
-    expect(fetchSig).not.toMatch(/employee|scope/i);
-    expect(actions).toMatch(/loadIncentiveAnalytics\(me, parsed\.data, \{ view: parsed\.data\.view \}\)/);
+    expect(fetchSig).not.toMatch(/scope/i);
+    expect(actions).toMatch(/loadIncentiveAnalytics\(me, parsed\.data, \{[\s\S]*?emp: parsed\.data\.emp/);
+  });
+
+  /**
+   * THE ONE EMPLOYEE ID THE BROWSER MAY NAME (2026-09-24) — the "Viewing:
+   * <name>" picker, and the reason adding it did not widen anything.
+   *
+   * It is a NARROWING and not a scope: `narrowToEmployee` refuses anybody
+   * outside the scope `incentiveAnalyticsScopeFor` already resolved for the
+   * caller, and returns null rather than a scope, so an id typed into the URL
+   * the caller has no line to degrades to their own dashboard. Proven directly
+   * in incentive-employee-viewer.test.ts; what is pinned here is that the id
+   * reaches the figures ONLY through that check.
+   */
+  it("lets the browser name an employee, but only through the permission-checked narrowing", () => {
+    // It travels as the loader's `emp`, which narrows — not as a `scope`, which
+    // would be accepted as-is.
+    expect(loader).toMatch(/narrowToEmployee\(scope, viewed\.id, viewed\.name\)/);
+    // Null from that call means "not permitted", and the fallback is the scope
+    // the caller already had — never the requested id.
+    expect(loader).toMatch(/viewed \? \(narrowToEmployee\(/);
+    expect(loader).toMatch(/\) \?\? scope\) : scope/);
+    // And the page validates it BEFORE the first query, so the title cannot be
+    // made to print a colleague's name either.
+    expect(page).toMatch(/canViewEmployee\(scope, requestedEmp\)/);
   });
 
   /**
@@ -699,6 +728,109 @@ describe("server-side access", () => {
 
   it("company-wide incentive data is only loaded for company-wide viewers", () => {
     expect(page).toMatch(/scope\.all\s*\?\s*r\("incentive:dashboard"/);
-    expect(page).toMatch(/restrictTargetVsActual\(/);
+    // The Targets tab's data is no longer the year roll-up narrowed by
+    // `restrictTargetVsActual` — that tab was replaced by the granular target
+    // planning board, which takes the SAME ceiling as an id list. `null` means
+    // organisation-wide and can only come from a company-wide scope; everyone
+    // else is narrowed to the ids the server resolved for them. The invariant
+    // is unchanged, only the parameter that carries it.
+    expect(page).toMatch(/allowedIds:\s*scope\.all\s*\?\s*null\s*:\s*\[\.\.\.scope\.employeeIds\]/);
+  });
+});
+
+// ── Specific Quarter, and the quarterly target (migration 0250) ──────────────
+//
+// A quarterly target is stored ONCE, anchored on its first month, and tagged
+// `quarter`. Two things must hold and are pinned below: that it is read by the
+// quarter it belongs to, and that it is NOT read as the monthly target of the
+// month it happens to sit on — which is what would silently inflate YTD.
+
+describe("specific quarter", () => {
+  it("resolves to its own three months, labelled as a quarter", () => {
+    const p = resolvePeriod({ kind: "quarter", quarter: "2026-Q3" }, NOW)!;
+    expect(p.months).toEqual(["2026-07", "2026-08", "2026-09"]);
+    expect(p.label).toBe("Q3 2026");
+    expect(p.months.length).toBe(3);
+    // The anchor a quarterly TARGET row is written on.
+    expect(p.quarterStart).toBe("2026-07-01");
+  });
+
+  it("compares against the quarter before", () => {
+    const p = resolvePeriod({ kind: "quarter", quarter: "2026-Q3" }, NOW)!;
+    expect(p.previous!.months).toEqual(["2026-04", "2026-05", "2026-06"]);
+  });
+
+  it("crosses the year boundary on Q1", () => {
+    const p = resolvePeriod({ kind: "quarter", quarter: "2026-Q1" }, new Date("2026-03-10T06:30:00Z"))!;
+    expect(p.months).toEqual(["2026-01", "2026-02", "2026-03"]);
+    expect(p.previous!.months).toEqual(["2025-10", "2025-11", "2025-12"]);
+  });
+
+  it("refuses a future quarter, and anything that is not one", () => {
+    // NOW is September 2026, so Q3 is current and Q4 has not happened.
+    expect(resolvePeriod({ kind: "quarter", quarter: "2026-Q4" }, NOW)).toBeNull();
+    for (const bad of ["2026-Q5", "2026-Q0", "2026-07", "", "Q3-2026", "1999-Q1"]) {
+      expect(resolvePeriod({ kind: "quarter", quarter: bad }, NOW), bad).toBeNull();
+    }
+  });
+
+  it("offers quarters newest first, back to the floor", () => {
+    const qs = selectableQuarters(NOW, 4);
+    expect(qs).toEqual(["2026-Q3", "2026-Q2", "2026-Q1", "2025-Q4"]);
+    expect(selectableQuarters(NOW).every((q) => /^\d{4}-Q[1-4]$/.test(q))).toBe(true);
+  });
+});
+
+describe("quarterly targets are not monthly ones", () => {
+  // Asha: a September monthly target of 10,000 (from TARGETS) plus a Q3 target
+  // of 60,000 anchored on 2026-07-01.
+  const Q3: AnalyticsTarget = {
+    empName: "Asha Rao",
+    employeeId: null,
+    periodMonth: "2026-07-01",
+    periodType: "quarter",
+    amount: 60_000,
+  };
+
+  it("counts the quarter target for the quarter it belongs to", () => {
+    const a = build({
+      period: resolvePeriod({ kind: "quarter", quarter: "2026-Q3" }, NOW)!,
+      targets: [
+        { empName: "Asha Rao", employeeId: null, periodMonth: "2026-09-01", periodType: "month", amount: 10_000 },
+        Q3,
+      ],
+    });
+    // The quarter's own target PLUS the monthly one inside it.
+    expect(row(a, E.asha.id)).toMatchObject({ target: 70_000 });
+  });
+
+  it("does NOT count it as July's monthly target", () => {
+    const a = build({
+      period: resolvePeriod({ kind: "month", month: "2026-07" }, NOW)!,
+      targets: [Q3],
+    });
+    // July has no monthly target; the Q3 row anchored on the same month is a
+    // different commitment and must not appear here.
+    expect(row(a, E.asha.id)).toMatchObject({ target: null, difference: null });
+  });
+
+  it("does NOT let it satisfy the monthly target warning", () => {
+    const w = targetWarningFor(
+      { id: E.asha.id, name: "Asha Rao" },
+      [Q3],
+      "2026-07",
+    );
+    expect(w.missingCurrent).toBe(true);
+  });
+
+  it("leaves a MONTHLY row's period untouched by the quarter kind", () => {
+    const a = build({
+      period: resolvePeriod({ kind: "quarter", quarter: "2026-Q3" }, NOW)!,
+      targets: [
+        { empName: "Asha Rao", employeeId: null, periodMonth: "2026-08-01", periodType: "month", amount: 4_000 },
+      ],
+    });
+    // Only the August monthly row is inside Q3 — and no Q3 row exists.
+    expect(row(a, E.asha.id)).toMatchObject({ target: 4_000 });
   });
 });

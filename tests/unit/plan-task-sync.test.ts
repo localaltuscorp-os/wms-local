@@ -231,7 +231,11 @@ describe("the plan table can set and show the client", () => {
 
   it("is editable on a project and a read-only echo below it", () => {
     expect(board).toContain('if (node.kind !== "project")');
-    expect(board).toContain("patch({ clientName: v || null })");
+    // Matched as a shape, not as a literal: the edit handler names its own
+    // argument, and renaming it (v -> value, 2026-09-24) changes nothing
+    // about whether the Client column writes back. What this pins is that
+    // the write still happens and still clears to null on an empty string.
+    expect(board).toMatch(/patch({ clientName: w+ || null })/);
   });
 
   it("resolves the inherited client by the same nearest-ancestor rule", () => {

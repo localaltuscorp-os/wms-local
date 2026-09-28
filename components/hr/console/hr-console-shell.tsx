@@ -146,11 +146,19 @@ export function HrConsoleShell({
       <div
         className={cn(
           "shrink-0 overflow-hidden transition-all duration-300 ease-in-out max-lg:hidden",
-          // Collapsed → a 64px ICON STRIP, not a full hide. The rail's own
+          // Collapsed → a 74px ICON STRIP, not a full hide. The rail's own
           // collapse/expand toggle lives inside HrModuleRail, so hiding this
           // column entirely (w-0) would hide the only control that could bring
           // it back — a self-trapping toggle. The icon strip keeps it reachable,
           // matching how the app's global left sidebar collapses.
+          //
+          // 74px, not the 64px it was until 2026-09-21: that is the width
+          // components/layout/sidebar-rail.tsx uses for every OTHER module, and
+          // 64px did not fit /logo.png. The logo is a wide wordmark drawn at
+          // h-12 (48px); at 64px minus the brand block's padding there were 32px
+          // of room for it, and `overflow-hidden` on this column squashed it.
+          // Matching the global rail's width fixes the logo and makes the two
+          // rails the same object, which is the point of this whole file.
           //
           // 256px, not the original 236px: the longest label ("Enterprise
           // Communications") renders ~161px, and the row's fixed chrome — nav
@@ -159,7 +167,7 @@ export function HrConsoleShell({
           // 236px truncated it to "Enterprise Communicati…". This leaves ~11px
           // of slack — enough to absorb font-rendering variance without
           // stranding visibly empty rail beside the longest row.
-          railCollapsed ? "w-16" : "w-[256px]",
+          railCollapsed ? "w-[74px]" : "w-[256px]",
         )}
       >
         <HrModuleRail

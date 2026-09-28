@@ -66,7 +66,6 @@ export function PersonJdWorkbench({
         Icon={UserRound}
         topic="Job Description"
         title="JD-Specific Person"
-        description="One person's whole Job Description — their seat's tasks, tasks given to them by name, and tasks written for them alone."
         actions={
           people.length > 0 ? (
             <JdPersonPicker

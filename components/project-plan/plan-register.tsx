@@ -44,6 +44,7 @@ import { NewNodeDialog } from "./new-node-dialog";
 import { NewItemButtons, usePlanCreateShortcuts } from "./new-item-buttons";
 import { PlanBulkUpload } from "./plan-bulk-upload";
 import { useRememberPlanNode } from "./use-recent-plan";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 /**
  * Project Plan — the Milestones and Results REGISTERS.
@@ -135,7 +136,7 @@ export function PlanRegister({
   const router = useRouter();
   const pathname = usePathname();
   const [search, setSearch] = React.useState("");
-  const [projectId, setProjectId] = React.useState<string>("all");
+  const [projectIds, setProjectIds] = React.useState<string[]>([]);
   const [sortKey, setSortKey] = React.useState<SortKey>("plan");
   const [asc, setAsc] = React.useState(true);
   /** Which level the create dialog is opening on, or null when it is closed. */
@@ -182,14 +183,13 @@ export function PlanRegister({
     const q = search.trim().toLowerCase();
     let r = allRows;
 
-    if (projectId !== "all") {
-      const project = tree.find((p) => p.id === projectId);
+    if (projectIds.length > 0) {
       const ids = new Set<string>();
       const walk = (n: PlanRow) => {
         ids.add(n.id);
         n.children.forEach(walk);
       };
-      if (project) walk(project);
+      tree.filter((p) => projectIds.includes(p.id)).forEach(walk);
       r = r.filter((row) => ids.has(row.node.id));
     }
 
@@ -242,7 +242,7 @@ export function PlanRegister({
           return 0;
       }
     });
-  }, [allRows, tree, projectId, search, sortKey, asc]);
+  }, [allRows, tree, projectIds, search, sortKey, asc]);
 
   /**
    * Open the linked WMS record. `?task=` is the SAME contract /tasks uses, and
@@ -591,22 +591,19 @@ export function PlanRegister({
 
         {/* Redundant on the Projects register — the rows ARE the projects, and
             the search box already narrows that same column. */}
-        <select
-          value={projectId}
-          // Narrowing the register to one project says which project you are
-          // in, so the create dialogs open pointing at it.
-          onChange={(e) => { setProjectId(e.target.value); if (e.target.value !== "all") remember(e.target.value); }}
-          aria-label="Filter by project"
-          hidden={level === "projects"}
-          className="rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13px] font-semibold text-ink-strong outline-none"
-        >
-          <option value="all">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        {level !== "projects" && (
+          <MultiSelect
+            selected={projectIds}
+            // Narrowing the register to one project says which project you are
+            // in, so the create dialogs open pointing at it.
+            onChange={(values) => { setProjectIds(values); if (values.length === 1) remember(values[0]!); }}
+            placeholder="All projects"
+            options={[
+              ...projects.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            className="min-w-[200px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13px] font-semibold text-ink-strong outline-none"
+          />
+        )}
 
         {/* The create boxes and Bulk Upload — shared with the hierarchy board,
             so both surfaces offer the same levels under the same rule. */}
@@ -791,12 +788,12 @@ export function PlanRegister({
                     <FolderPlus size={22} strokeWidth={2.2} />
                   </span>
                   <p className="text-[15px] font-bold text-ink-strong">
-                    {search || projectId !== "all"
+                    {search || projectIds.length > 0
                       ? `No ${levelLabel.toLowerCase()}s match that.`
                       : `No ${levelLabel.toLowerCase()}s yet.`}
                   </p>
                   <p className="mt-1 text-[13.5px] font-medium text-ink-muted">
-                    {search || projectId !== "all"
+                    {search || projectIds.length > 0
                       ? "Try a different word, or clear the filters to see them all."
                       : `Add a ${levelLabel.toLowerCase()} from the hierarchy view to see it here.`}
                   </p>

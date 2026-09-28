@@ -20,7 +20,7 @@
 
 import { addDays, addMonths, monthStart, parseDay, weekStart } from "./grid";
 
-export type CalendarView = "day" | "grid" | "week" | "month" | "year";
+export type CalendarView = "day" | "grid" | "week" | "month" | "monthgrid" | "year";
 
 /** Weeks the Weekly Grid shows: the chosen one and the three after it. */
 export const GRID_WEEKS = 4;
@@ -31,11 +31,15 @@ export const CALENDAR_VIEWS: { key: CalendarView; label: string }[] = [
   { key: "grid", label: "Weekly Grid" },
   { key: "week", label: "Week" },
   { key: "month", label: "Month" },
+  // The Excel-sheet-shaped month view (2026-09-24): day boxes with compact
+  // event pills, no fixed time-slot Y-axis — distinct from "Month" above,
+  // which caps at 3 chips per day and is tuned for the Year view's 12-up size.
+  { key: "monthgrid", label: "Monthly Grid" },
   { key: "year", label: "Year" },
 ];
 
 export function isCalendarView(v: string | null | undefined): v is CalendarView {
-  return v === "day" || v === "grid" || v === "week" || v === "month" || v === "year";
+  return v === "day" || v === "grid" || v === "week" || v === "month" || v === "monthgrid" || v === "year";
 }
 
 /** The inclusive range a view loads — one query serves the grid and the stats. */
@@ -51,7 +55,8 @@ export function periodRange(view: CalendarView, day: string): { from: string; to
       const monday = weekStart(day);
       return { from: monday, to: addDays(monday, 7 * GRID_WEEKS - 1) };
     }
-    case "month": {
+    case "month":
+    case "monthgrid": {
       const first = monthStart(day);
       return { from: first, to: addDays(addMonths(first, 1), -1) };
     }
@@ -69,6 +74,7 @@ export function stepPeriod(view: CalendarView, day: string, dir: -1 | 1): string
     case "grid": // same week-by-week navigation as Week
       return addDays(day, 7 * dir);
     case "month":
+    case "monthgrid":
       return addMonths(day, dir);
     case "year":
       return `${Number(day.slice(0, 4)) + dir}${day.slice(4)}`;
@@ -116,7 +122,8 @@ export function periodLabel(view: CalendarView, day: string, today: string): str
       const sameYear = monday.slice(0, 4) === today.slice(0, 4);
       return `${DMY(monday)} – ${DMY(sunday, !sameYear)}`;
     }
-    case "month": {
+    case "month":
+    case "monthgrid": {
       const sameYear = day.slice(0, 4) === today.slice(0, 4);
       const d = parseDay(monthStart(day));
       const name = MONTHS_LONG[d.getUTCMonth()]!;
@@ -136,6 +143,7 @@ export function isNow(view: CalendarView, day: string, today: string): boolean {
     case "grid":
       return weekStart(day) === weekStart(today);
     case "month":
+    case "monthgrid":
       return day.slice(0, 7) === today.slice(0, 7);
     case "year":
       return day.slice(0, 4) === today.slice(0, 4);

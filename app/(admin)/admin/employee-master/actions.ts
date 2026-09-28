@@ -176,6 +176,9 @@ export async function savePayrollScalars(input: {
   employeeId: string;
   tdsMonthly?: number;
   ptExempt?: boolean;
+  monthlyPayAtTarget?: number | null;
+  weeklyTargetHours?: number | null;
+  monthlyFee?: number | null;
 }): Promise<Result> {
   const me = await requireAdmin();
   if (!isSuperAdmin(me.email)) {
@@ -194,6 +197,17 @@ export async function savePayrollScalars(input: {
     set.tdsMonthly = String(v);
   }
   if (input.ptExempt !== undefined) set.ptExempt = !!input.ptExempt;
+  for (const [key, value, label] of [
+    ["monthlyPayAtTarget", input.monthlyPayAtTarget, "monthly pay at target"],
+    ["weeklyTargetHours", input.weeklyTargetHours, "weekly target hours"],
+    ["monthlyFee", input.monthlyFee, "monthly fee"],
+  ] as const) {
+    if (value === undefined) continue;
+    if (value !== null && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
+      return { ok: false, error: `Enter a valid ${label}.` };
+    }
+    set[key] = value === null ? null : String(Number(value));
+  }
   if (Object.keys(set).length === 1) return { ok: true };
 
   try {
@@ -203,6 +217,9 @@ export async function savePayrollScalars(input: {
         employeeId: input.employeeId,
         tdsMonthly: String(input.tdsMonthly ?? 0),
         ptExempt: !!input.ptExempt,
+        monthlyPayAtTarget: input.monthlyPayAtTarget == null ? null : String(input.monthlyPayAtTarget),
+        weeklyTargetHours: input.weeklyTargetHours == null ? null : String(input.weeklyTargetHours),
+        monthlyFee: input.monthlyFee == null ? null : String(input.monthlyFee),
       })
       .onConflictDoUpdate({ target: salaryProfiles.employeeId, set });
   } catch (err) {

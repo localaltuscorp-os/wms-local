@@ -180,6 +180,14 @@
     {
       "path": "/api/cron/module-backup",
       "schedule": "35 21 * * *"
+    },
+    {
+      "path": "/api/cron/training-recurrence",
+      "schedule": "7 2 * * *"
+    },
+    {
+      "path": "/api/cron/training-reminders",
+      "schedule": "17 3 * * *"
     }
   ]
 }

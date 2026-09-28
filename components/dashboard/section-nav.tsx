@@ -101,9 +101,15 @@ export function DashboardSectionNav({
       // `--app-topbar-h` is 0 on desktop and 56px under `md`, which is exactly
       // where the filter bar itself pins (`.sticky-below-topbar`). Adding its
       // height gives the y this bar must sit at to land flush underneath.
+      // `--app-topbar-h` is applied to body when the desktop AppTopBar is
+      // present. Reading it from :root silently returned 0, so quick-access
+      // jumps stopped beneath the filter/nav band but still underneath the
+      // 56px app header. The section title was therefore hidden while its
+      // table was visible. Reading body gives both WMS and Goals the complete
+      // fixed-chrome height.
       const topbar =
         parseFloat(
-          getComputedStyle(document.documentElement).getPropertyValue("--app-topbar-h"),
+          getComputedStyle(document.body).getPropertyValue("--app-topbar-h"),
         ) || 0;
       setBandHeight(topbar + band.offsetHeight);
     };

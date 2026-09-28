@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { Check, Loader2, Download, ExternalLink, GraduationCap, Archive, Trash2, RotateCcw } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { markWatched, archiveMaterial, deleteMaterial } from "@/app/(app)/training/actions";
+import { recordWatchProgress } from "@/app/(app)/training/calendar/actions";
 import type { TcMaterialDetail } from "@/lib/queries/training";
 
 function embedUrl(url: string): string | null {
@@ -44,6 +45,40 @@ export function MaterialViewer({
   const [watched, setWatched] = React.useState(material.watchedByMe);
   const [marking, setMarking] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [duration, setDuration] = React.useState(0);
+  const [watchedSec, setWatchedSec] = React.useState(0);
+  const durationRef = React.useRef(0);
+  const lastReportedRef = React.useRef(0);
+
+  function onMeta(e: React.SyntheticEvent<HTMLVideoElement>) {
+    durationRef.current = e.currentTarget.duration || 0;
+    setDuration(durationRef.current);
+  }
+  function onTime(e: React.SyntheticEvent<HTMLVideoElement>) {
+    const cur = e.currentTarget.currentTime || 0;
+    setWatchedSec(Math.floor(cur));
+    const d = durationRef.current;
+    if (Math.abs(cur - lastReportedRef.current) >= 10 || (d > 0 && cur >= d - 1)) {
+      lastReportedRef.current = cur;
+      void recordWatchProgress({
+        materialId: material.id,
+        videoDurationSec: Math.floor(d),
+        watchedSec: Math.floor(cur),
+        lastPositionSec: Math.floor(cur),
+      });
+    }
+  }
+  function onEnded() {
+    const d = durationRef.current;
+    void recordWatchProgress({
+      materialId: material.id,
+      videoDurationSec: Math.floor(d),
+      watchedSec: Math.floor(d),
+      lastPositionSec: Math.floor(d),
+    });
+    setWatched(true);
+    fireToast({ message: "Recording completed (100%).", type: "success" });
+  }
 
   async function onArchive() {
     setBusy("arch");
@@ -89,7 +124,23 @@ export function MaterialViewer({
         <div className="overflow-hidden rounded-xl border border-hairline bg-black/[0.02]">
           {/* Uploaded video */}
           {material.fileType === "video" && material.fileUrl ? (
-            <video controls className="w-full" style={{ maxHeight: 520 }} src={material.fileUrl} />
+            <div>
+              <video controls className="w-full" style={{ maxHeight: 520 }} src={material.fileUrl} onLoadedMetadata={onMeta} onTimeUpdate={onTime} onEnded={onEnded} />
+              {duration > 0 && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[12px] font-semibold text-ink-subtle">
+                    <span>Watch progress</span>
+                    <span>{Math.round((watchedSec / duration) * 100)}%</span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-surface-track">
+                    <div className="h-2 rounded-full" style={{ width: `${Math.min(100, Math.round((watchedSec / duration) * 100))}%`, background: "linear-gradient(90deg, var(--color-altus-red), var(--color-altus-red-deep))" }} />
+                  </div>
+                  {watchedSec >= duration && duration > 0 && (
+                    <p className="mt-1 text-[12px] font-bold text-[var(--color-green-deep)]">Recording completed — counts toward your training.</p>
+                  )}
+                </div>
+              )}
+            </div>
           ) : material.fileType === "pdf" && material.fileUrl ? (
             <iframe title="Material PDF" src={material.fileUrl} className="w-full" style={{ height: 600, border: 0 }} />
           ) : embed ? (

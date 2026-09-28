@@ -347,7 +347,7 @@ export function EmployeeWorkspace({
   return createPortal(
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center p-[3vh_3vw]"
-      style={{ background: "rgba(8, 11, 26, 0.46)", backdropFilter: "blur(3px)" }}
+      style={{ background: "rgba(15, 23, 42, 0.28)" }}
       role="dialog"
       aria-modal="true"
       aria-label="Employee Master"
@@ -357,17 +357,13 @@ export function EmployeeWorkspace({
         // so a small laptop gets the whole screen instead of an overlay taller
         // than its window.
         className="aura flex h-[94vh] w-[94vw] max-w-[1800px] flex-col overflow-hidden rounded-[20px]"
-        style={{ boxShadow: "0 60px 140px -40px rgba(8,11,26,0.7), 0 0 0 1px rgba(255,255,255,0.4)" }}
+        style={{ boxShadow: "0 12px 30px rgba(15, 23, 42, 0.16)", background: "#fff" }}
         onClick={(e) => e.stopPropagation()}
         onPointerMove={trackSheen}
       >
         {/* Layer 1 + 2 — the field the glass refracts, and the grain that makes
             it read as material rather than white plastic (§1). */}
-        <div className="aura-field" aria-hidden>
-          <div className="aura-blob b1" />
-          <div className="aura-blob b2" />
-          <div className="aura-blob b3" />
-        </div>
+        <div className="aura-field" aria-hidden />
         <div className="aura-grain" aria-hidden />
 
         {/* Layer 3 — everything below is glass over that. */}
@@ -925,6 +921,9 @@ function PayrollSection({ detail, onRefresh }: { detail: EmployeeMasterDetail; o
   const [total, setTotal] = React.useState(String(detail.ctc.annualTotal || ""));
   const [tds, setTds] = React.useState(String(detail.row.tdsMonthly ?? ""));
   const [ptExempt, setPtExempt] = React.useState(!!detail.row.ptExempt);
+  const [monthlyPayAtTarget, setMonthlyPayAtTarget] = React.useState(String(detail.row.monthlyPayAtTarget ?? ""));
+  const [weeklyTargetHours, setWeeklyTargetHours] = React.useState(String(detail.row.weeklyTargetHours ?? ""));
+  const [monthlyFee, setMonthlyFee] = React.useState(String(detail.row.monthlyFee ?? ""));
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
 
@@ -943,6 +942,9 @@ function PayrollSection({ detail, onRefresh }: { detail: EmployeeMasterDetail; o
       employeeId: detail.row.id,
       tdsMonthly: tds === "" ? undefined : Number(tds),
       ptExempt,
+      monthlyPayAtTarget: monthlyPayAtTarget === "" ? null : Number(monthlyPayAtTarget),
+      weeklyTargetHours: weeklyTargetHours === "" ? null : Number(weeklyTargetHours),
+      monthlyFee: monthlyFee === "" ? null : Number(monthlyFee),
     });
     setBusy(false);
     setMsg(!a.ok ? a.error : !b.ok ? b.error : "Saved.");
@@ -1025,6 +1027,7 @@ function PayrollSection({ detail, onRefresh }: { detail: EmployeeMasterDetail; o
       <Panes>
         <Pane title="Tax & basis">
           <Rows>
+            <Field label="Pay basis"><Readout className="capitalize">{(detail.row.payType ?? "—").replace(/_/g, " ")}</Readout></Field>
             <Field label="Annual CTC (when no split)">
               <input inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))}
                 disabled={summed > 0} className="ctl num" />
@@ -1032,8 +1035,22 @@ function PayrollSection({ detail, onRefresh }: { detail: EmployeeMasterDetail; o
             <Field label="Monthly TDS">
               <input inputMode="numeric" value={tds} onChange={(e) => setTds(e.target.value.replace(/[^\d.]/g, ""))} className="ctl num" />
             </Field>
+            {detail.row.payType === "hourly" && (
+              <>
+                <Field label="Monthly pay at target">
+                  <input inputMode="numeric" value={monthlyPayAtTarget} onChange={(e) => setMonthlyPayAtTarget(e.target.value.replace(/[^\d.]/g, ""))} className="ctl num" />
+                </Field>
+                <Field label="Weekly target hours">
+                  <input inputMode="decimal" value={weeklyTargetHours} onChange={(e) => setWeeklyTargetHours(e.target.value.replace(/[^\d.]/g, ""))} className="ctl num" />
+                </Field>
+              </>
+            )}
+            {detail.row.payType === "fixed_fee" && (
+              <Field label="Monthly fee">
+                <input inputMode="numeric" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value.replace(/[^\d.]/g, ""))} className="ctl num" />
+              </Field>
+            )}
             <Toggle label="PT Exempt" value={ptExempt} onChange={setPtExempt} />
-            <Field label="Pay basis"><Readout className="capitalize">{(detail.row.payType ?? "—").replace(/_/g, " ")}</Readout></Field>
           </Rows>
 
           <div className="mt-4 flex items-center gap-3">

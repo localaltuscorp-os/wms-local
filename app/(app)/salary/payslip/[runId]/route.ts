@@ -254,9 +254,9 @@ async function renderPayslip(
   doc.y = titleY + 30 + 16;
 
   // ── Employee details block ──
-  const idShort = run.employeeId.slice(0, 8).toUpperCase();
+  const employeeCode = run.employeeCode ?? "—";
   const detailRows: Array<[string, string, string, string]> = [
-    ["Employee Name", run.employeeName, "Employee ID", idShort],
+    ["Employee Name", run.employeeName, "Employee ID", employeeCode],
     [
       "Designation",
       run.designationName || "—",

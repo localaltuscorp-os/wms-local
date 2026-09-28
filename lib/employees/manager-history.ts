@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employeeManagerHistory, employees } from "@/db/schema";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 
 /**
  * REPORTING-MANAGER HISTORY.
@@ -173,13 +174,22 @@ export async function setReportingManager(input: {
   }
 
   const [current] = await db
-    .select({ managerId: employees.managerId })
+    .select({ managerId: employees.managerId, email: employees.email })
     .from(employees)
     .where(eq(employees.id, input.employeeId))
     .limit(1);
   if (!current) return { ok: false, error: "Employee not found." };
 
   const next = input.managerId ?? null;
+
+  // A super-admin can't be made someone's report — Team Reporting's "Manan
+  // Vasa is super admin so he cannot be unassigned to any team" (2026-09-24).
+  // Their own manager_id must stay null; they can still be `null`'d to no
+  // manager freely (that's already true today, not what this refuses).
+  if (next !== null && isSuperAdmin(current.email)) {
+    return { ok: false, error: "A super-admin can't be assigned to report to anyone." };
+  }
+
   if ((current.managerId ?? null) === next) {
     // Still reconcile the history: an employee whose column was set before this
     // table existed, or by a path that predates it, gets their open period

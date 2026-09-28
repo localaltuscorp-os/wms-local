@@ -118,9 +118,11 @@ export function ChromeShell({
   // scrollable purely to reach a strip of chrome. A stray Space keypress
   // scrolled into that dead band and there was nothing above to scroll back to.
   const dock = isHub || isHrFullBleed ? null : footer;
-  // The dock sits IN FLOW at the end of the page and reserves its own height
-  // (it used to be fixed, then sticky — both of which rode over whatever a page
-  // ended with). So this padding only has to supply the gap BELOW it.
+  // The dock is `sticky bottom-0` — pinned to the foot of the viewport at any
+  // scroll position, but still in flow, so it reserves its own height at the END
+  // of the page (see module-footer.tsx). That reserved band is what lets the last
+  // thing a page renders clear the pinned strip instead of hiding under it, so
+  // this padding only has to supply the gap BELOW it.
   // The HR console already fills the viewport exactly; trailing padding would
   // re-introduce the same overflow the dock did.
   //

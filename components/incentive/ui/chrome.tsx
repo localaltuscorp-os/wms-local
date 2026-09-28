@@ -93,9 +93,13 @@ export function Segmented<T extends string>({
   onChange: (next: T) => void;
   ariaLabel: string;
   disabled?: boolean;
-  size?: "sm" | "md";
+  /** `sm` inside a dense toolbar, `md` the default, `lg` where the control is
+   *  the main thing on the row and needs a comfortable click target. */
+  size?: "sm" | "md" | "lg";
 }) {
-  const h = size === "sm" ? "h-8" : "h-9";
+  const h = size === "sm" ? "h-8" : size === "lg" ? "h-11" : "h-9";
+  const pad = size === "sm" ? "px-2.5" : size === "lg" ? "px-4" : "px-3";
+  const text = size === "lg" ? "text-[13.5px]" : "text-[12.5px]";
   return (
     <div
       role="group"
@@ -116,7 +120,9 @@ export function Segmented<T extends string>({
             disabled={disabled}
             onClick={() => onChange(o.value)}
             className={cn(
-              "h-full whitespace-nowrap px-3 text-[12.5px] font-bold transition-colors disabled:cursor-wait",
+              "h-full whitespace-nowrap font-bold transition-colors disabled:cursor-wait",
+              pad,
+              text,
               active ? "text-white" : "text-ink-subtle hover:text-ink-strong",
             )}
             style={

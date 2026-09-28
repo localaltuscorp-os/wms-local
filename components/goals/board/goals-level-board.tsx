@@ -36,6 +36,12 @@ import { fireToast } from "@/lib/toast";
 
 /** Progress-band quick filter shown next to the level heading. */
 type ProgressFilter = "all" | "done" | "p75" | "p50" | "p25" | "below25" | "unstarted";
+const DOER_STATUS_OPTIONS = ["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"];
+const INITIATOR_STATUS_OPTIONS = ["not_applicable", "pending", "approved", "not_approved", "on_hold", "archived", "cancelled"];
+const STATUS_LABEL: Record<string, string> = {
+  not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned",
+  not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled",
+};
 import { goalPolicy } from "@/lib/goals/policy";
 import {
   quartersOfFy,
@@ -501,6 +507,8 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   // Area / Type filters - empty set = no restriction (matches every goal).
   const [areaFilter, setAreaFilter] = React.useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = React.useState<Set<string>>(new Set());
+  const [doerStatusFilter, setDoerStatusFilter] = React.useState<Set<string>>(new Set());
+  const [initiatorStatusFilter, setInitiatorStatusFilter] = React.useState<Set<string>>(new Set());
   const [visibleCols, setVisibleCols] = React.useState<Set<string>>(() => new Set(ALL_VISIBLE_COLS));
   const [colOrder, setColOrder] = useColOrder();
   const [rowsPerPage, setRowsPerPage] = React.useState<number | "all">(25);
@@ -542,6 +550,9 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       }
       if (areaFilter.size > 0 && !areaFilter.has(g.area ?? "")) return false;
       if (typeFilter.size > 0 && !typeFilter.has(goalTypeLabel(g))) return false;
+      if (doerStatusFilter.size > 0 && !doerStatusFilter.has(g.status ?? "not_started")) return false;
+      const initiatorStatus = g.isPutAway ? "archived" : (g.approverStatus ?? g.approvalStatus ?? "pending");
+      if (initiatorStatusFilter.size > 0 && !initiatorStatusFilter.has(initiatorStatus)) return false;
       const q = deferredSearch.trim().toLowerCase();
       if (q) {
         const hay = `${g.title} ${g.area ?? ""} ${g.notes ?? ""}`.toLowerCase();
@@ -549,7 +560,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       }
       return true;
     },
-    [deferredSearch, completion, areaFilter, typeFilter, goalTypeLabel],
+    [deferredSearch, completion, areaFilter, typeFilter, doerStatusFilter, initiatorStatusFilter, goalTypeLabel],
   );
 
   // Sort comparator - Sr. No. keeps the position order (drag stays live); every
@@ -1366,6 +1377,27 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 myEmployeeId={props.myEmployeeId}
               />
             )}
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={displayed.length === 0}
+              aria-label="Export visible goals to CSV"
+              className={`inline-flex shrink-0 items-center gap-1.5 h-9 px-3.5 rounded-pill text-[13px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
+            >
+              <Download size={14} strokeWidth={2.4} /> Export
+            </button>
+            {canWrite && (
+              <GoalsBulkUpload
+                employeeId={props.viewedEmployeeId}
+                level={props.level}
+                periodKey={props.periodKey}
+                areaOptions={areaOptions}
+                measureOptions={measureOptions}
+                typeOptions={typeOptions}
+                roster={props.roster}
+                existingTitles={levelGoals.filter((g) => g.periodKey === props.periodKey).map((g) => g.title)}
+              />
+            )}
             </div>
           </div>
 
@@ -1502,6 +1534,8 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 selected={typeFilter}
                 onChange={setTypeFilter}
               />
+              <MultiPickFilter label="Doer Status" options={DOER_STATUS_OPTIONS.map((value) => STATUS_LABEL[value]!)} selected={new Set([...doerStatusFilter].map((value) => STATUS_LABEL[value]!))} onChange={(labels) => setDoerStatusFilter(new Set(DOER_STATUS_OPTIONS.filter((value) => labels.has(STATUS_LABEL[value]!))))} />
+              <MultiPickFilter label="Initiator Status" options={INITIATOR_STATUS_OPTIONS.map((value) => STATUS_LABEL[value]!)} selected={new Set([...initiatorStatusFilter].map((value) => STATUS_LABEL[value]!))} onChange={(labels) => setInitiatorStatusFilter(new Set(INITIATOR_STATUS_OPTIONS.filter((value) => labels.has(STATUS_LABEL[value]!))))} />
 
               {/* Rows per page */}
               <div className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
@@ -1532,32 +1566,6 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             </>
           )}
 
-          {/* Export */}
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={displayed.length === 0}
-            aria-label="Export visible goals to CSV"
-            className={`inline-flex shrink-0 items-center gap-1.5 h-9 px-3.5 rounded-pill text-[13px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
-          >
-            <Download size={14} strokeWidth={2.4} /> Export
-          </button>
-
-          {/* Bulk upload */}
-          {canWrite && (
-            <GoalsBulkUpload
-              employeeId={props.viewedEmployeeId}
-              level={props.level}
-              periodKey={props.periodKey}
-              areaOptions={areaOptions}
-              measureOptions={measureOptions}
-              typeOptions={typeOptions}
-              roster={props.roster}
-              existingTitles={levelGoals
-                .filter((g) => g.periodKey === props.periodKey)
-                .map((g) => g.title)}
-            />
-          )}
         </div>
 
         {/* Sort pauses drag-reorder - tell the user how to get it back. */}
@@ -1952,7 +1960,7 @@ export function MultiPickFilter({
           <ChevronDown size={compact ? 11 : 14} strokeWidth={2.4} className={`opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[220px] p-1.5">
+      <PopoverContent align="start" className="max-h-[320px] w-[220px] overflow-y-auto p-1.5">
         {/* Select all / Clear — tick the lot, then untick the one or two you
             don't want, instead of ticking fifteen one at a time. */}
         <SelectAllBar
@@ -2081,7 +2089,7 @@ export function ColumnsPicker({
           <ChevronDown size={compact ? 11 : 14} strokeWidth={2.4} className={`opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[220px] p-1.5">
+      <PopoverContent align="start" className="max-h-[320px] w-[220px] overflow-y-auto p-1.5">
         {/* Show all / Hide all. Only the PICKABLE columns are counted or
             touched — Target and % Done are structural: they can be dragged to a
             new position but never hidden, so a "Show all" that claimed them

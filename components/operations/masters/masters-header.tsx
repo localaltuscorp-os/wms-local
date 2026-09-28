@@ -10,7 +10,6 @@ export function MastersHeader({
   Icon,
   topic,
   title,
-  description,
   beside,
   actions,
 }: {
@@ -18,8 +17,6 @@ export function MastersHeader({
   /** The topic this master sits under — omitted on the overview. */
   topic?: string;
   title: string;
-  /** Optional — JD-For Recruitment was asked to go without one (2026-09-18). */
-  description?: string;
   /** Right beside the title — Checklist Masters puts its master picker here. */
   beside?: ReactNode;
   actions?: ReactNode;
@@ -49,7 +46,6 @@ export function MastersHeader({
               <h1 className="text-[22px] font-black tracking-tight text-slate-900">{title}</h1>
               {beside}
             </div>
-            {description && <p className="text-[13px] text-slate-500">{description}</p>}
           </div>
           {actions}
         </div>

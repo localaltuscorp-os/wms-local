@@ -20,7 +20,6 @@ export default async function GeneralJdMasterPage() {
         Icon={Briefcase}
         topic="Job Description"
         title="JD-Master"
-        description="Job descriptions owned by a position — the work stays with the seat when people change. Add one at a time or bulk upload from Excel."
       />
       <JdBank
         entries={entries.filter((e) => !e.ownerEmployeeId)}

@@ -6,7 +6,6 @@ import { canDeleteParticipant, canEditParticipant } from "@/lib/hh/access";
 import { withRetry } from "@/lib/db/with-timeout";
 import { ParticipantsTable } from "@/components/people-allocation/participants-table";
 import { HidePageScrollbar } from "@/components/people-allocation/hide-page-scrollbar";
-import { AllocationHero } from "../hero";
 
 /**
  * HAND-HOLDING › ALL PARTICIPANTS — every participant in the module in one
@@ -52,7 +51,10 @@ export default async function AllParticipantsPage() {
     <PageShell width="wide">
       {/* No scrollbar on this page — it scrolls by touchpad, wheel and keys. */}
       <HidePageScrollbar />
-      <AllocationHero title="All Participants" blurb="Every participant across the module, PS and BSS included." />
+      {/* The "Hand-holding · All Participants" hero band was removed (2026-09-21), for the
+          same reason it went from the Hand-holding page on 2026-09-18: the top
+          bar already names the room, and the band pushed the content below the
+          fold for no new information. */}
 
       <section
         className="mb-5 grid grid-cols-6 gap-3 max-lg:grid-cols-3 max-md:grid-cols-2"

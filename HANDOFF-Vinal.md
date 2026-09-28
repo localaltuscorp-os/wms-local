@@ -1,8 +1,51 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-19
+**Updated:** 2026-09-23
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
+
+---
+
+## 0. Latest delivery — 22–23 September 2026
+
+### Branch state
+
+- **Branch:** `Vinal`
+- **Current delivery commit:** `0f42bc9b` — `feat: refine operations, goals, and employee dashboards`
+- **Main baseline:** `5da93849` — current `origin/main` is already included; `git merge origin/main` reported *Already up to date*.
+- **Push target:** `origin/Vinal` — push attempted on 23 September and blocked with HTTP 403 for GitHub account `vinalpatil1901`; use an account with write access to complete the push.
+- **Management-ready summary:** [`docs/handoffs/vinal-2026-09-23-summary.md`](./docs/handoffs/vinal-2026-09-23-summary.md)
+- **Merged-main handoff:** [`HANDOFF-MAIN-2026-09-23.md`](./HANDOFF-MAIN-2026-09-23.md)
+
+### What changed in this delivery
+
+| Area | Delivered |
+|---|---|
+| **Goals Dashboard** | Compact page heading; WMS-style light KPI cards; Day/Range/Month/FY filter; annual pace target; full-width quarterly cards; goal tables with **Progress**, Period, Area, Attainment, Pace and Status; Transpose; table-only size control; scrollbars; 10-row Load more; weekly per-goal progress; a full-height Daily Commitments graph and matching KPI cards. |
+| **Operations** | New Operations Command Center; New JD opens in a dialog; JD form cleanup; redundant descriptions removed from Job Description, Checklist, Masters, Checklist Masters, Event Masters, JD Master, and person-specific JD surfaces. |
+| **Accounts / navigation** | Accounts sidebar reordered, MIS opens only when clicked, Collection Master moved to Billing, and Important Links added to Accounts. |
+| **Employee compliance** | Dashboard colours aligned to the WMS status palette, including meaningful completion and workload colours. |
+| **Merged work carried on Vinal** | Incentive, salary slips/statements, global logs, Control Panel, Access Control, employee administration, templates, task visibility, Goals Review/Approve, and other main work are inherited from the current main baseline. See the main handoff for the full inventory. |
+
+### Database work
+
+**No SQL was executed during this delivery.** Before production verification, review and apply these repository migrations in order against the confirmed target database:
+
+1. `db/migrations/0242_visibility_grants.sql`
+2. `db/migrations/0243_incentive_product_master_rows.sql`
+3. `db/migrations/0244_incentive_applicability_and_intern_type.sql`
+4. `db/migrations/0245_global_logs.sql`
+5. `db/migrations/0246_control_panel.sql`
+6. `db/migrations/0247_activity_logs_allow_fk_null.sql`
+
+Migration `0244` is especially important: it repairs the old `incentive_eligibility` column mismatch, makes incentive applicability explicit (All Employees / Function / Selected Employees), creates function scope mapping, and adds designation/employee type and internship fields. Use the migration files in `db/migrations/` directly; do not use the superseded scripts in `Change-made/SQL/`.
+
+### Validation
+
+- `npm run typecheck` — passed.
+- `npm run lint` — passed with 0 errors and 409 existing warnings in unrelated modules.
+- Goals browser smoke test — passed for the dashboard layout, date selection, transpose, table sizing, progress column, and daily chart.
+- `npm test` — 5,130 passed, 34 skipped, 24 failures in unrelated auth, permissions, backup, WCC/MCC, incentive, salary, and filter tests. No failed test names a Goals or Operations file changed in this delivery.
 
 ---
 
@@ -233,7 +276,29 @@ Items 1–7 landed on 16 September in `f7c7bc42` and the merge before it; items 
 
 ---
 
-## 6. Two things to decide
+## 7. Work delivered (24 September)
+
+Today's work updated the WMS, Goals, Project, Performance and Operations dashboard surfaces while preserving the existing routes and data sources. No SQL, Supabase query, migration, seed, or database write was run for this work. These are application-code changes only and will be included when the Vinal branch is pushed.
+
+`components/attendance/month-calendar.tsx` now raises the complete attendance calendar stacking context on hover and keyboard focus. The check-in and check-out detail popup consequently stays above both Upcoming Holidays and the Daily Salary Report instead of being clipped by those following containers.
+
+`app/(app)/tasks/page.tsx` and `components/layout/filter-bar.tsx` make the signed-in employee's work the implicit Tasks default. The redundant My Tasks/All Tasks toggle is hidden because the assignee multi-select already supports it; selecting another employee or All employees remains available and only an explicit selection appears as an active filter.
+
+The WCC and MCC work is in `components/compliance/compliance-board.tsx`, `components/compliance/compliance-controls.tsx`, `components/compliance/dashboard/compliance-dashboard-view.tsx`, `lib/compliance/columns.ts`, `lib/compliance/dashboard.ts`, and `tests/unit/compliance-dashboard.test.ts`. Not filled was removed from both checklist and dashboard UI. Null stored statuses still work for reminders but are presented as Not Read. The Showing selector now always renders in WCC and MCC, even when production has no additional team data, and always offers Only me; Full team and individuals are displayed when available. WCC shows Mins instead of Deadline and MCC shows Deadline instead of Mins. The compliance dashboard unit test now covers the Not Read behaviour.
+
+`components/goals/dashboard/goals-dashboard-filters.tsx`, `components/goals/dashboard/goals-overview-dashboard.tsx`, and `components/dashboard/section-nav.tsx` improve the Goals dashboard with a proper start/end range picker, a full-width Needs Attention table matching the other goal tables, and quick-access scrolling that lands at each section heading rather than at a heading-hidden table.
+
+`app/(app)/project-plan/views/page.tsx` and `components/project-plan/project-views.tsx` reshape Project into one continuous dashboard with compact expandable search, a single Expand all/Collapse control, read-only sortable project-tree rows, quick section navigation, folding, deep links, and larger wide comparison/timeline visuals instead of small donut charts.
+
+`app/(app)/productivity/page.tsx` and `components/productivity/dashboard-view.tsx` rebuild Performance as a WMS-style continuous dashboard. It has coloured KPI cards and separate overview, goals, tasks, training, manager and performance-detail sections, with visualisations, section search, WhatsApp/email controls, deep links and collapse controls. Redundant period and full-report controls were removed, the search action sits beside Download, and report-only data was brought into the dashboard.
+
+`app/(app)/operations/dashboard/page.tsx` and `components/operations/operations-command-center.tsx` rebuild Operations as a command centre. It has an operational-health view and individual full-width Hand-holding, Monthly Events Master, Checklist and Job Description sections. Their visuals are intentionally separate: support cadence lanes, a seven-day event runway, execution-state bars with a checklist table, and JD position coverage. Each section has its own heading, quick navigation, search, WhatsApp/email dispatch, direct link and collapse control. Optional Operations data is fail-soft and malformed dummy rows are normalised so one unavailable source cannot replace the full page with the generic database error.
+
+Verification completed today: 142 focused compliance tests passed; `/dcc/wcc`, `/dcc/mcc`, and `/operations/dashboard` each returned HTTP 200; ESLint and `git diff --check` passed for the touched surfaces. A full repository typecheck was not rerun because it previously exceeded the command time window. No SQL validation is required because no SQL was changed or run.
+
+---
+
+## 8. Two things to decide
 
 1. 🟡 **Jeevan's reference sheet has drifted from the calendar.** It labels `13-Sep-2026` as "Monday"; that date is a **Sunday**. The whole Day row is one step off, so the sheet's six-day blocks are really Sun–Fri while claiming Mon–Sat. This app derives the weekday from the date, so its columns will not line up with the sheet's labels. The structure was copied (six working days, weekly total, Sunday omitted); the typo was not.
 

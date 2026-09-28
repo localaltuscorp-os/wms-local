@@ -74,8 +74,10 @@ function revalidatePlanSurfaces() {
 // Approved / Approved / On Hold / Cancelled / Archived) only by the project
 // owner or an admin.
 //
-// Every other action in this file — create, update, move, duplicate, delete —
-// is open to any signed-in employee by explicit product decision. The former
+// Every other action in this file — create, update, move and duplicate — is
+// open to any signed-in employee by explicit product decision. Archiving or
+// deleting a top-level Project is the exception: only administrators may do
+// that, because it removes an entire project branch from the working plan. The former
 // "structure owner" test (admin or ≥1 report) and the "you can only change rows
 // you created" test have both been removed; do not reintroduce one here without
 // that decision changing.
@@ -88,8 +90,9 @@ function revalidatePlanSurfaces() {
  * action in this module (see `canSetPlanStatus` — the working six may be set by
  * the doer, their supervisor or the project owner; the five approval verdicts
  * only by the project owner or an admin). Everything else — creating,
- * renaming, re-dating, moving, duplicating, deleting, attaching files — is open
- * to any signed-in employee, by explicit product decision.
+ * renaming, re-dating, moving, duplicating and attaching files — is open to
+ * any signed-in employee, by explicit product decision. Project deletion is
+ * checked by the destructive actions themselves below.
  */
 async function loadNode(
   id: string,
@@ -1168,6 +1171,13 @@ export async function deletePlanNode(id: string): Promise<Result<{ nodes: number
 
   const auth = await loadNode(id);
   if (!auth.ok) return auth;
+  // A Project is the root of a complete branch. Its archive cascades to every
+  // milestone, result and task below it, so it has the same administrator-only
+  // protection as a permanent deletion. Keep this on the server action: hiding
+  // a button alone would leave a direct server-action request able to bypass it.
+  if (auth.node.kind === "project" && !me.isAdmin) {
+    return fail("Only an administrator can archive a project.");
+  }
 
   try {
     const ids = await descendantIds(id);

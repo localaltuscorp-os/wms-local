@@ -1,5 +1,5 @@
 import "server-only";
-import { and, gte, lt } from "drizzle-orm";
+import { and, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { incentiveTargets } from "@/db/schema";
 import { getIncentivePaidByPerson, nameKey } from "@/lib/queries/incentives";
@@ -124,6 +124,9 @@ export async function getIncentiveTargetVsPaidForPerson(
       and(
         gte(incentiveTargets.periodMonth, monthStartDate(ytdStart)),
         lt(incentiveTargets.periodMonth, monthEndExclusive(month)),
+        // MONTHLY rows only — a quarterly target is not a monthly one
+        // (migration 0250).
+        ne(incentiveTargets.periodType, "quarter"),
       ),
     );
   const targetByMonth = new Map<string, number>();

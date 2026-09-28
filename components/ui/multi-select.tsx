@@ -39,6 +39,8 @@ interface MultiSelectProps {
    * Purely additive: the popover still owns its own open state.
    */
   onOpenChange?: (open: boolean) => void;
+  /** Hide bulk selection where a multi-picker must only stage deliberate picks. */
+  showSelectAll?: boolean;
 }
 
 export function MultiSelect({
@@ -49,6 +51,7 @@ export function MultiSelect({
   className,
   renderTrigger,
   onOpenChange,
+  showSelectAll = true,
 }: MultiSelectProps) {
   const [open, setOpenState] = React.useState(false);
   // One setter, so every path that closes the popover — Escape, Tab-commit,
@@ -221,12 +224,12 @@ export function MultiSelect({
 
           {/* Count + SELECT ALL + clear — the shared bar, so this reads and
               behaves exactly like every other multi-select in the app. */}
-          <SelectAllBar
+          {showSelectAll && <SelectAllBar
             count={selected.length}
             total={options.length}
             onSelectAll={() => onChange(options.map((o) => o.value))}
             onClear={() => onChange([])}
-          />
+          />}
 
           <CommandList className="max-h-72 overflow-auto p-1.5">
             <CommandEmpty className="px-3 py-6 text-center text-[14px] text-ink-subtle">

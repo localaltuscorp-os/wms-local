@@ -1,5 +1,5 @@
 import "server-only";
-import { and, gte, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   employees,
@@ -115,7 +115,13 @@ export async function loadIncentiveWeeklyReport(
       db
         .select()
         .from(incentiveTargets)
-        .where(inArray(incentiveTargets.periodMonth, targetMonthStarts)),
+        .where(
+          and(
+            inArray(incentiveTargets.periodMonth, targetMonthStarts),
+            // MONTHLY rows only (migration 0250).
+            ne(incentiveTargets.periodType, "quarter"),
+          ),
+        ),
       db.select({ excludedNames: incentiveConfig.excludedNames }).from(incentiveConfig).limit(1),
     ]);
 
@@ -160,6 +166,7 @@ export async function loadIncentiveWeeklyReport(
         empName: t.empName,
         employeeId: t.employeeId,
         periodMonth: String(t.periodMonth),
+        periodType: t.periodType,
         amount: Number(t.targetAmount),
       })),
       scope: COMPANY_SCOPE,

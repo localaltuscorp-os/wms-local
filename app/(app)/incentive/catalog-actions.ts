@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { incentiveCatalog } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireUser } from "@/lib/auth/current";
+import { canEditIncentiveTable, INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { afterResponse } from "@/lib/after";
 import {
@@ -51,6 +52,35 @@ function notifyCatalogChange(eventId: string | null) {
 }
 
 /**
+ * THE WRITE BOUNDARY FOR THE INCENTIVE TABLE.
+ *
+ * Manan Vasa only. This is checked HERE, on the server, for every write — the
+ * dialog also hides the controls, but a hidden button is presentation and a
+ * crafted server-action call would sail straight past it. `requireUser` comes
+ * first so an anonymous caller is refused as unauthenticated rather than as
+ * unauthorised.
+ *
+ * Deliberately NOT `requireAdmin`: the brief is that no admin, manager, HR user
+ * or role may add, edit or delete an incentive record.
+ *
+ * Returns a result rather than throwing, so a refusal reaches the caller as the
+ * same `{ ok: false, error }` every other action failure does — an exception
+ * here would surface to the browser as an unhandled server error, not a message.
+ */
+async function tableEditorOrError(): Promise<
+  { ok: true; me: { id: string; name: string } } | { ok: false; error: string }
+> {
+  const me = await requireUser();
+  if (!canEditIncentiveTable(me.email)) {
+    return {
+      ok: false,
+      error: `Only ${INCENTIVE_REVIEWER_NAME} can add, edit or delete Incentive Table records.`,
+    };
+  }
+  return { ok: true, me: { id: me.id, name: me.name } };
+}
+
+/**
  * Create or update one incentive-catalog entry. Admin-only.
  *
  * The change and its change record (`incentive_catalog_events`) are written in
@@ -60,7 +90,9 @@ function notifyCatalogChange(eventId: string | null) {
 export async function upsertCatalogEntry(
   input: z.input<typeof EntrySchema>,
 ): Promise<ActionResult<{ id: string }>> {
-  const me = await requireAdmin();
+  const guard = await tableEditorOrError();
+  if (!guard.ok) return guard;
+  const me = guard.me;
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -132,7 +164,9 @@ export async function upsertCatalogEntry(
  * reference it and stay on record; the change record keeps what was deleted.
  */
 export async function deleteCatalogEntry(id: string): Promise<ActionResult> {
-  const me = await requireAdmin();
+  const guard = await tableEditorOrError();
+  if (!guard.ok) return guard;
+  const me = guard.me;
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   if (!UUID.safeParse(id).success) return { ok: false, error: "Invalid entry." };

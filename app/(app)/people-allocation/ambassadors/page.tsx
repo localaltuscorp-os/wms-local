@@ -2,7 +2,6 @@ import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
 import { listAmbassadors, listAmbassadorCalls } from "@/lib/queries/people-allocation";
 import { AmbassadorsScreen } from "@/components/people-allocation/ambassadors-screen";
-import { AllocationHero } from "../hero";
 
 /**
  * PEOPLE ALLOCATION › AMBASSADORS — its own rail entry and its own route.
@@ -16,7 +15,10 @@ export default async function AmbassadorsPage() {
 
   return (
     <PageShell width="wide">
-      <AllocationHero title="Ambassadors" blurb="Kept separate from the client allocation categories." />
+      {/* The "Hand-holding · Ambassadors" hero band was removed (2026-09-21), for the
+          same reason it went from the Hand-holding page on 2026-09-18: the top
+          bar already names the room, and the band pushed the content below the
+          fold for no new information. */}
       <AmbassadorsScreen rows={rows} calls={calls} />
     </PageShell>
   );
