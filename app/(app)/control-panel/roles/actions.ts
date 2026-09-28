@@ -3,8 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employeeRoles, rolePermissions, roles } from "@/db/schema";
-import { requireAdmin, getSignedInEmployee } from "@/lib/auth/current";
-import { isMasterAdmin } from "@/lib/security/capability-grants";
+import { requireAdmin } from "@/lib/auth/current";
 import { auditAction } from "@/lib/logs/audit";
 import { isPermissionNodeKey } from "@/lib/permissions/catalog";
 import { isDataScope, isPermissionAction } from "@/lib/permissions/vocabulary";
@@ -12,10 +11,8 @@ import { isDataScope, isPermissionAction } from "@/lib/permissions/vocabulary";
 /**
  * CONTROL PANEL → ROLES — the server actions.
  *
- * Every write re-authorises against the EXISTING `master_admin.manage`
- * capability (the same one the Master Admin matrix uses): being an admin is not
- * enough to edit roles. The signed-in person is read with `getSignedInEmployee`
- * so a borrowed (delegated) session cannot widen the borrowed account.
+ * Every write re-authorises the signed-in administrator. The Control Panel is
+ * the single admin-facing place for role and module access management.
  *
  * Every change writes the immutable Logs (`auditAction`), and each action
  * returns `{ ok, error? }` so the UI can surface the refusal.
@@ -23,18 +20,13 @@ import { isDataScope, isPermissionAction } from "@/lib/permissions/vocabulary";
 
 type Result = { ok: boolean; error?: string };
 
-async function masterAdmin(): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  await requireAdmin();
-  const me = await getSignedInEmployee();
-  if (!me) return { ok: false, error: "Sign in again to change access." };
-  if (!(await isMasterAdmin(me.email))) {
-    return { ok: false, error: "Only a master admin can edit roles and permissions." };
-  }
+async function adminActor(): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const me = await requireAdmin();
   return { ok: true, id: me.id };
 }
 
 export async function createRole(input: { name: string; description?: string }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   const name = input.name.trim().slice(0, 120);
@@ -68,7 +60,7 @@ export async function updateRole(input: {
   name: string;
   description?: string;
 }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   const name = input.name.trim().slice(0, 120);
@@ -98,7 +90,7 @@ export async function updateRole(input: {
 }
 
 export async function deleteRole(input: { roleId: string }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   const existing = await db.query.roles.findFirst({ where: eq(roles.id, input.roleId) });
@@ -122,7 +114,7 @@ export async function deleteRole(input: { roleId: string }): Promise<Result> {
 }
 
 export async function assignRole(input: { employeeId: string; roleId: string }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   await db
@@ -144,7 +136,7 @@ export async function assignRole(input: { employeeId: string; roleId: string }):
 }
 
 export async function removeRole(input: { employeeId: string; roleId: string }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   await db
@@ -170,7 +162,7 @@ export async function grantRolePermission(input: {
   action: string;
   scope?: string | null;
 }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   if (!isPermissionNodeKey(input.nodeKey)) return { ok: false, error: "Unknown module." };
@@ -202,7 +194,7 @@ export async function grantRolePermission(input: {
 }
 
 export async function revokeRolePermission(input: { permissionId: string }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   await db.delete(rolePermissions).where(eq(rolePermissions.id, input.permissionId));
@@ -224,7 +216,7 @@ export async function setRoleScope(input: {
   permissionId: string;
   scope: string | null;
 }): Promise<Result> {
-  const actor = await masterAdmin();
+  const actor = await adminActor();
   if (!actor.ok) return actor;
 
   if (input.scope != null && !isDataScope(input.scope)) return { ok: false, error: "Unknown scope." };

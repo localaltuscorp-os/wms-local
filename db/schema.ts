@@ -5023,6 +5023,32 @@ export const dccEntries = pgTable(
   ],
 );
 
+/**
+ * Accounts-style period cells shown alongside WCC/MCC.  These are deliberately
+ * separate from `dcc_entries`: an entry is a dated work occurrence, whereas a
+ * week/month cell is the checklist's editable period summary.
+ */
+export const dccCompliancePeriodChecks = pgTable(
+  "dcc_compliance_period_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    itemId: uuid("item_id").notNull().references(() => dccKpiItems.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull().$type<"wcc" | "mcc">(),
+    /** WCC: calendar year. MCC: financial-year start. */
+    periodYear: integer("period_year").notNull(),
+    periodMonth: integer("period_month").notNull(),
+    /** WCC 1–5; MCC uses 0 because it has one cell per month. */
+    weekNo: integer("week_no").notNull().default(0),
+    status: text("status").notNull(),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("dcc_compliance_period_checks_uq").on(t.itemId, t.kind, t.periodYear, t.periodMonth, t.weekNo),
+    index("dcc_compliance_period_checks_period_idx").on(t.kind, t.periodYear, t.periodMonth),
+  ],
+);
+
 // DCC v2 — which subjects a participant-list KPI tracks, with optional per-subject
 // schedule overrides (e.g. Rutvisha's Prashant = Wed & Sat).
 export const dccItemSubjects = pgTable(
@@ -5208,6 +5234,7 @@ export const weeklyGoalApproverStatuses = pgTable("weekly_goal_approver_statuses
 
 export type DccKpiItem = typeof dccKpiItems.$inferSelect;
 export type DccEntry = typeof dccEntries.$inferSelect;
+export type DccCompliancePeriodCheck = typeof dccCompliancePeriodChecks.$inferSelect;
 export type DccReview = typeof dccReviews.$inferSelect;
 export type DccClient = typeof dccClients.$inferSelect;
 export type DccSubject = typeof dccSubjects.$inferSelect;

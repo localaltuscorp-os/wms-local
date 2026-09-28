@@ -61,28 +61,33 @@ const row = (key: string, over: Partial<ComplianceRow>): ComplianceRow => ({
 });
 
 describe("column order", () => {
-  it("moves a column to where it is dropped, either way", () => {
-    const right = moveColumn(DEFAULT_ORDER, "compliance", "deadline");
-    expect(right.indexOf("compliance")).toBe(right.indexOf("deadline") + 1);
-    const left = moveColumn(DEFAULT_ORDER, "approverNotes", "compliance");
-    expect(left.indexOf("approverNotes")).toBe(left.indexOf("compliance") - 1);
+  it("moves an ordinary column to where it is dropped, either way", () => {
+    const right = moveColumn(DEFAULT_ORDER, "frequency", "deadline");
+    expect(right.indexOf("frequency")).toBe(right.indexOf("deadline") + 1);
+    const left = moveColumn(DEFAULT_ORDER, "approverNotes", "frequency");
+    expect(left.indexOf("approverNotes")).toBe(left.indexOf("frequency") - 1);
     expect(left).toHaveLength(DEFAULT_ORDER.length);
   });
 
-  it("never moves the actions column, and keeps it last", () => {
-    expect(moveColumn(DEFAULT_ORDER, "actions", "sr")).toEqual(DEFAULT_ORDER);
-    expect(moveColumn(DEFAULT_ORDER, "sr", "actions")).toEqual(DEFAULT_ORDER);
+  it("keeps selection, identity and delete rails fixed", () => {
+    expect(moveColumn(DEFAULT_ORDER, "select", "frequency")).toEqual(DEFAULT_ORDER);
+    expect(moveColumn(DEFAULT_ORDER, "sr", "frequency")).toEqual(DEFAULT_ORDER);
+    expect(moveColumn(DEFAULT_ORDER, "frequency", "compliance")).toEqual(DEFAULT_ORDER);
+    expect(moveColumn(DEFAULT_ORDER, "section", "frequency")).toEqual(DEFAULT_ORDER);
+    expect(moveColumn(DEFAULT_ORDER, "delete", "sr")).toEqual(DEFAULT_ORDER);
+    expect(moveColumn(DEFAULT_ORDER, "sr", "delete")).toEqual(DEFAULT_ORDER);
   });
 
   it("reconciles a stored order: unknown and repeats dropped, a missing column after the one it follows", () => {
-    const saved = ["deadline", "sr", "gone-column", "compliance", "sr"];
+    const saved = ["deadline", "sr", "gone-column", "edit", "compliance", "sr"];
     const out = reconcileOrder(saved);
-    expect(out.slice(0, 3)).toEqual(["deadline", "mins", "doerStatus"]);
-    expect(out.indexOf("employee")).toBe(out.indexOf("sr") + 1);
-    expect(out.indexOf("frequency")).toBe(out.indexOf("compliance") + 1);
+    expect(out.slice(0, 4)).toEqual(["select", "sr", "compliance", "section"]);
+    expect(out.indexOf("mins")).toBe(out.indexOf("deadline") + 1);
+    expect(out.indexOf("frequency")).toBe(out.indexOf("employee") + 1);
     expect(out).not.toContain("gone-column");
+    expect(out).not.toContain("edit");
     expect(new Set(out).size).toBe(DEFAULT_ORDER.length);
-    expect(out[out.length - 1]).toBe("actions");
+    expect(out[out.length - 1]).toBe("delete");
     expect(reconcileOrder(null)).toEqual(DEFAULT_ORDER);
   });
 
@@ -94,6 +99,7 @@ describe("column order", () => {
   it("writes every heading out in full", () => {
     expect(columnLabel("compliance", "wcc")).toBe("Weekly Compliance");
     expect(columnLabel("compliance", "mcc")).toBe("Monthly Compliance");
+    expect(columnLabel("section", "wcc")).toBe("Section");
     expect(columnLabel("var", "wcc")).toBe("+/- Days");
     expect(columnLabel("approverNotes", "mcc")).toBe("Approver Notes");
   });
@@ -171,10 +177,10 @@ describe("WCC's Mins, where Deadline was (account holder, 2026-09-19)", () => {
     const before = ["sr", "compliance", "deadline", "frequency", "doerStatus", "qty", "actual", "var", "approver", "doerNotes", "approverNotes", "employee"];
     const out = reconcileOrder(before);
     expect(out.indexOf("mins")).toBe(out.indexOf("deadline") + 1);
-    expect(out.filter((k) => k !== "mins" && k !== "actions")).toEqual(before);
+    expect(out.filter((k) => !["select", "section", "mins", "edit", "delete"].includes(k))).toEqual(before);
     // …so on WCC, Mins stands exactly where Deadline stood.
     const shown = visibleColumns(out, false, "wcc");
-    expect(shown.slice(0, 4)).toEqual(["sr", "compliance", "mins", "frequency"]);
+    expect(shown.slice(0, 6)).toEqual(["select", "sr", "compliance", "section", "mins", "frequency"]);
   });
 
   it("sorts by Mins, blanks last both ways", () => {

@@ -18,7 +18,6 @@ import {
   Keyboard,
   FileText,
   Archive,
-  ShieldCheck,
   LockKeyholeOpen,
   ChevronUp,
 } from "lucide-react";
@@ -30,7 +29,6 @@ type Props = {
   isSuperAdmin: boolean;
   /** Holds the `master_admin.manage` capability. Resolved server-side in
    *  UserMenuServer; this only decides whether the link is drawn. */
-  isMasterAdmin: boolean;
   /** Holds the `account_unlock` role, so the lockout screen is worth offering.
    *  Resolved server-side (the role lives in the database, not in the session),
    *  and deliberately NOT tied to `isAdmin` — a holder need not be an admin. */
@@ -48,7 +46,6 @@ export function UserMenu({
   email,
   isAdmin,
   isSuperAdmin,
-  isMasterAdmin,
   canUnlockAccounts,
   avatarUrl,
   inboxUnread,
@@ -252,24 +249,7 @@ export function UserMenu({
             one of its server actions re-checks the capability, so typing the URL
             or POSTing to an action gets the same refusal as not seeing the link.
           */}
-          {isMasterAdmin && (
-            <DropdownMenu.Item asChild>
-              <Link
-                href={"/master-admin" as Route}
-                className="mt-1 flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none"
-                style={{
-                  background: "linear-gradient(135deg, rgba(67,56,202,0.07), rgba(99,102,241,0.04))",
-                  color: "#0F172A",
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <ShieldCheck size={14} strokeWidth={2.2} style={{ color: "#4338CA" }} />
-                  <span className="font-medium">Master Admin</span>
-                </span>
-                <ChevronRight size={14} strokeWidth={2.2} style={{ color: "#64748B" }} />
-              </Link>
-            </DropdownMenu.Item>
-          )}
+
 
           {/*
             ACCOUNT LOCKS — release someone locked out by five wrong passwords,

@@ -330,7 +330,7 @@ export const MODULE_THEME: Record<WorkspaceId, ModuleTheme> = {
     id: "control-panel",
     label: "Control Panel",
     shortcut: "",
-    tagline: "Users, roles, permissions & temporary access - who can reach what.",
+    tagline: "Roles, permissions & temporary access - who can reach what.",
     href: "/ws/control-panel" as Route,
     Icon: SlidersHorizontal,
     accent: "#334155",
@@ -581,7 +581,7 @@ export interface AdminPanelEntry {
  * with confusingly adjacent names is precisely why they must not share a colour.
  */
 export const ADMIN_PANEL_ENTRY: AdminPanelEntry = {
-  label: "Admin",
+  label: "Admin Panel",
   tagline: "The control room — employees, masters, settings & activity.",
   href: "/admin" as Route,
   Icon: ShieldAlert,

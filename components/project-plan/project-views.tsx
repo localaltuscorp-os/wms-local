@@ -204,6 +204,7 @@ export function ProjectViews({
   tree,
   initialSelection,
   attachmentCounts,
+  mode = "tree",
 }: {
   /** The whole plan — the same tree the board and registers receive. */
   tree: PlanRow[];
@@ -212,6 +213,7 @@ export function ProjectViews({
   initialSelection: ViewSelection;
   /** nodeId → attached file count, batched by the server in one query. */
   attachmentCounts: Record<string, number>;
+  mode?: "dashboard" | "tree";
 }) {
   const router = useRouter();
 
@@ -228,6 +230,10 @@ export function ProjectViews({
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PlanStatus | "all">("all");
   const [sort, setSort] = React.useState<TreeSort>(null);
+  // A tree can be wider than its viewport, but Project Views must always open
+  // from the first column.  In particular, restoring a page from browser
+  // history must not leave Name hidden while Status is still visible.
+  const treeScrollRef = React.useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = React.useState<Set<string>>(() =>
     // Nothing named in the URL? Open the projects themselves, so the screen
     // never opens on a wall of collapsed one-liners with the work hidden.
@@ -299,6 +305,10 @@ export function ProjectViews({
    * what the Total projects card does.
    */
   function pickOneProject(id: string) {
+    if (mode === "dashboard") {
+      router.push(`/project-plan/views?project=${id}` as Route);
+      return;
+    }
     pickProject(id ? [id] : []);
   }
 
@@ -345,10 +355,15 @@ export function ProjectViews({
     [project, orderedTree],
   );
   const scopeExpandable = React.useMemo(() => expandableIds(scope), [scope]);
-  const allExpanded = scopeExpandable.length > 0 && scopeExpandable.every((id) => expanded.has(id));
+
+  React.useEffect(() => {
+    treeScrollRef.current?.scrollTo({ left: 0 });
+  }, [mode]);
 
   return (
     <div className="flex flex-col gap-5">
+      {mode === "dashboard" && (
+        <>
       {/* ── Title + controls ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -431,7 +446,7 @@ export function ProjectViews({
 
       <nav className="sticky sticky-below-topbar z-30 -mx-8 border-y border-hairline bg-white/95 px-8 py-2.5 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4" aria-label="Project dashboard quick access">
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-          {[{ id: "project-overview", label: "Overview" }, { id: "project-status", label: "Status Distribution" }, { id: "project-breakdown", label: "Milestone Breakdown" }, { id: "project-delivery", label: "Delivery Timeline" }, { id: "project-execution", label: "Execution" }, { id: "project-tree", label: "Project Tree" }].map((item) => (
+          {[{ id: "project-overview", label: "Overview" }, { id: "project-status", label: "Status Distribution" }, { id: "project-breakdown", label: "Milestone Breakdown" }, { id: "project-delivery", label: "Delivery Timeline" }, { id: "project-execution", label: "Execution" }].map((item) => (
             <button key={item.id} type="button" onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-altus-red">{item.label}</button>
           ))}
         </div>
@@ -462,6 +477,74 @@ export function ProjectViews({
 
       {project && <ProjectSummary project={project} />}
 
+        </>
+      )}
+
+      {mode === "tree" && (
+        <>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">Project Views</h1>
+          <p className="mt-0.5 text-[13px] font-medium text-ink-muted">
+            The whole plan as one tree — open a row to see what sits under it.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative flex items-center">
+            <Search
+              size={14}
+              strokeWidth={2.4}
+              aria-hidden
+              className="pointer-events-none absolute left-2.5 text-ink-subtle"
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a row…"
+              aria-label="Search the plan"
+              className="w-[200px] rounded-xl border border-hairline-strong bg-white py-2 pl-8 pr-7 text-[13px] font-semibold text-ink-strong outline-none placeholder:font-medium placeholder:text-ink-subtle focus-visible:ring-2 focus-visible:ring-altus-red/30"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 text-ink-subtle transition-colors hover:text-ink-strong"
+              >
+                <X size={13} strokeWidth={2.6} />
+              </button>
+            )}
+          </label>
+
+          <MultiSelect
+            selected={rootIds}
+            onChange={pickProject}
+            placeholder="All projects"
+            options={projects.map((p, i) => ({ value: p.id, label: `P${i + 1} · ${p.name}` }))}
+            className="min-w-[200px] rounded-xl border border-hairline-strong bg-white px-3 py-2 text-[13.5px] font-bold text-ink-strong outline-none focus-visible:ring-2 focus-visible:ring-altus-red/30"
+          />
+          <button
+            type="button"
+            onClick={() => setExpanded(new Set(expandableIds(scope)))}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            title="Open every level"
+          >
+            <ChevronsUpDown size={13} strokeWidth={2.4} aria-hidden />
+            Expand all
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded(new Set())}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            title="Close every level"
+          >
+            <ChevronsDownUp size={13} strokeWidth={2.4} aria-hidden />
+            Collapse
+          </button>
+        </div>
+      </div>
+
       {projects.length === 0 ? (
         <EmptyState
           title="No projects yet."
@@ -485,14 +568,12 @@ export function ProjectViews({
         // already `sticky top-0`, which needs a scrolling ancestor to stick to —
         // it now has one, so it pins to the top of this box while the rows move
         // under it.
-        <DashboardWidget
+        <div
           id="project-tree"
-          title="Project tree"
-          icon={<ListTree size={17} />}
-          subtitle="Read-only portfolio structure, milestones, results, progress, and files"
-          actions={<button type="button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(scopeExpandable))} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red" title={allExpanded ? "Collapse every project level" : "Expand every project level"}>{allExpanded ? <ChevronsDownUp size={13} strokeWidth={2.4} /> : <ChevronsUpDown size={13} strokeWidth={2.4} />}{allExpanded ? "Collapse all" : "Expand all"}</button>}
+          ref={treeScrollRef}
+          className="overflow-auto rounded-xl border border-hairline-strong bg-white"
+          style={{ maxHeight: "calc(100vh - 220px)", minHeight: 220 }}
         >
-        <div className="overflow-auto rounded-xl border border-hairline-strong bg-white" style={{ maxHeight: "calc(100vh - 300px)", minHeight: 220 }}>
           {/* `w-max min-w-full`: as wide as the columns need, never narrower
               than the card — so the header and the rows always agree on their
               width, and the scrollbar appears only when the columns earn it. */}
@@ -542,7 +623,8 @@ export function ProjectViews({
             </ul>
           </div>
         </div>
-        </DashboardWidget>
+      )}
+        </>
       )}
     </div>
   );

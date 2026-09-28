@@ -7,11 +7,11 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Check,
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
   Clock,
-  FileSpreadsheet,
   GripVertical,
   Loader2,
   Lock,
@@ -19,6 +19,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
@@ -28,6 +29,7 @@ import { COMPLIANCE_APPROVER_LABEL, DOER_STATUSES, doerLabel, doerStyle, isDoerS
 import { addDays, formatDeadline, shortDay, type ComplianceKind } from "@/lib/compliance/schedule";
 import { MAX_QUANTITY, checkQuantity, quantityText, targetFromTitle, type QuantityTarget } from "@/lib/compliance/quantity";
 import { MINUTES_WORDS, hoursText, minutesText, parseMinutes, totalMinutes } from "@/lib/compliance/minutes";
+import { COMPLIANCE_PERIOD_STATUSES, compliancePeriodKey, compliancePeriodTone, type CompliancePeriodColumn } from "@/lib/compliance/period-checks";
 import {
   DEADLINES_PER_MONTH,
   MCC_FREQUENCIES,
@@ -57,14 +59,18 @@ import {
 } from "@/lib/compliance/columns";
 import { ariaSort, directionWords, nextSort, type SortState } from "@/lib/ui/column-sort";
 import type { BoardGroup, ManageablePerson } from "@/lib/queries/compliance-board";
+import type { CompliancePeriodCheck } from "@/lib/queries/compliance-period-checks";
 import {
   archiveComplianceItem,
+  archiveComplianceItems,
   saveComplianceItem,
   setComplianceApprover,
   setComplianceDoer,
   setComplianceMinutes,
+  setCompliancePeriodCheck,
 } from "@/app/(app)/dcc/compliance-actions";
 import { useAutoHeight } from "@/components/ui/use-auto-height";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * THE WCC / MCC TABLE — the Accounts checklist's shape with the WMS columns
@@ -132,6 +138,9 @@ export interface ComplianceBoardProps {
    */
   initialStatuses?: readonly string[];
   initialQuery?: string;
+  /** Accounts-style Wk1–Wk5 / Apr–Mar period columns. */
+  periodColumns?: readonly CompliancePeriodColumn[];
+  periodChecks?: readonly CompliancePeriodCheck[];
 }
 
 /** A heading pinned to the top of the scroll box, as the Tasks table's read:
@@ -140,6 +149,38 @@ export interface ComplianceBoardProps {
  *  stays behind in a collapsed table. */
 const HEAD =
   "group/head sticky top-0 z-20 bg-surface-soft px-3 py-2.5 text-left text-[13px] font-bold tracking-[0.02em] normal-case text-ink-soft whitespace-nowrap";
+
+/** The compliance table's identity rail. Selection is frozen with the two
+ * requested columns so checking a row remains possible after horizontal scroll. */
+const FROZEN_LEFT: readonly ColKey[] = ["select", "sr", "compliance", "section"];
+
+function reconcilePeriodOrder(saved: unknown, periods: readonly CompliancePeriodColumn[]) {
+  const keys = periods.map((period) => period.key);
+  if (!Array.isArray(saved)) return keys;
+  const known = saved.filter((key): key is string => typeof key === "string" && keys.includes(key));
+  return [...known, ...keys.filter((key) => !known.includes(key))];
+}
+
+function movePeriodColumn(order: readonly string[], dragged: string, target: string) {
+  const from = order.indexOf(dragged);
+  const to = order.indexOf(target);
+  if (from < 0 || to < 0 || from === to) return [...order];
+  const next = [...order];
+  next.splice(from, 1);
+  next.splice(to, 0, dragged);
+  return next;
+}
+
+function frozenLeftOffsets(cols: readonly ColKey[], kind: ComplianceKind): Partial<Record<ColKey, number>> {
+  const offsets: Partial<Record<ColKey, number>> = {};
+  let left = 0;
+  for (const col of cols) {
+    if (!FROZEN_LEFT.includes(col)) continue;
+    offsets[col] = left;
+    left += columnDef(col, kind).width;
+  }
+  return offsets;
+}
 
 export function ComplianceBoard({
   kind,
@@ -152,6 +193,8 @@ export function ComplianceBoard({
   viewerId,
   initialStatuses,
   initialQuery,
+  periodColumns = [],
+  periodChecks = [],
 }: ComplianceBoardProps) {
   const router = useRouter();
   const [q, setQ] = React.useState(initialQuery ?? "");
@@ -195,7 +238,45 @@ export function ComplianceBoard({
   };
   const [dragCol, setDragCol] = React.useState<ColKey | null>(null);
   const [dropCol, setDropCol] = React.useState<ColKey | null>(null);
+  const periodOrderKey = `altus.compliance.periodColumnOrder.v1:${kind}:${viewerId}`;
+  const periodKeyList = periodColumns.map((period) => period.key).join("|");
+  const [periodOrder, setPeriodOrder] = React.useState<string[]>(() => periodColumns.map((period) => period.key));
+  const [dragPeriod, setDragPeriod] = React.useState<string | null>(null);
+  const [dropPeriod, setDropPeriod] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(periodOrderKey);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only preference restore.
+      setPeriodOrder(reconcilePeriodOrder(saved ? JSON.parse(saved) : null, periodColumns));
+    } catch {
+      setPeriodOrder(periodColumns.map((period) => period.key));
+    }
+  }, [periodOrderKey, periodKeyList]);
+  const savePeriodOrder = (next: string[]) => {
+    setPeriodOrder(next);
+    try {
+      window.localStorage.setItem(periodOrderKey, JSON.stringify(next));
+    } catch {
+      /* preference remains for this visit */
+    }
+  };
   const cols = visibleColumns(order, multiPerson, kind);
+  const bodyCols = cols.filter((col) => col !== "delete");
+  const hasDelete = cols.includes("delete");
+  const orderedPeriodColumns = React.useMemo(() => {
+    const byKey = new Map(periodColumns.map((period) => [period.key, period]));
+    return reconcilePeriodOrder(periodOrder, periodColumns).map((key) => byKey.get(key)).filter((period): period is CompliancePeriodColumn => Boolean(period));
+  }, [periodColumns, periodOrder]);
+  const tableColumnCount = cols.length + orderedPeriodColumns.length;
+  const tableWidth = cols.reduce((n, k) => n + columnDef(k, kind).width, 0) + orderedPeriodColumns.length * (kind === "wcc" ? 108 : 92);
+  const frozenLeft = frozenLeftOffsets(cols, kind);
+  const [periodOverrides, setPeriodOverrides] = React.useState<Map<string, string>>(() => new Map());
+  const periodStatus = React.useMemo(() => {
+    const values = new Map(periodChecks.map((check) => [compliancePeriodKey(check.itemId, check), check.status]));
+    periodOverrides.forEach((status, key) => values.set(key, status));
+    return values;
+  }, [periodChecks, periodOverrides]);
+  const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
 
   const byKey = React.useMemo(() => new Map(rows.map((r) => [r.key, r])), [rows]);
   const rowsOf = (keys: readonly string[]) => keys.map((k) => byKey.get(k)).filter((r): r is ComplianceRow => Boolean(r));
@@ -213,6 +294,37 @@ export function ComplianceBoard({
     (statuses.size === 0 || filterKeysOf(r).some((k) => statuses.has(k))) &&
     (!needle ||
       [r.title, r.section, r.ownerName, r.doerNotes, r.approverNotes].filter(Boolean).join(" ").toLowerCase().includes(needle));
+  const selectableKeys = rows.filter(matches).map((r) => r.key);
+  const selectedVisible = selectableKeys.filter((key) => selected.has(key));
+  const selectedRows = rows.filter((row) => selected.has(row.key));
+  // A WCC item can appear once per due day, so removing selected occurrences
+  // must still archive the underlying compliance exactly once.
+  const selectedRemovableIds = [...new Set(selectedRows.filter((row) => row.canManage).map((row) => row.itemId))];
+  const allVisibleSelected = selectableKeys.length > 0 && selectedVisible.length === selectableKeys.length;
+  const someVisibleSelected = selectedVisible.length > 0 && !allVisibleSelected;
+  const toggleSelected = (key: string, next: boolean) =>
+    setSelected((current) => {
+      const updated = new Set(current);
+      if (next) updated.add(key);
+      else updated.delete(key);
+      return updated;
+    });
+  const toggleAllVisible = (next: boolean) =>
+    setSelected((current) => {
+      const updated = new Set(current);
+      for (const key of selectableKeys) {
+        if (next) updated.add(key);
+        else updated.delete(key);
+      }
+      return updated;
+    });
+  const removeSelected = async () => {
+    if (selectedRemovableIds.length === 0) return;
+    const noun = selectedRemovableIds.length === 1 ? "compliance" : "compliances";
+    if (!window.confirm(`Remove ${selectedRemovableIds.length} selected ${noun}? What was filled stays on record.`)) return;
+    const ok = await run("bulk-delete", () => archiveComplianceItems(selectedRemovableIds));
+    if (ok) setSelected(new Set());
+  };
   const statusCounts = React.useMemo(() => {
     const m = new Map<StatusFilter, number>();
     for (const r of rows) for (const k of filterKeysOf(r)) m.set(k, (m.get(k) ?? 0) + 1);
@@ -231,6 +343,16 @@ export function ComplianceBoard({
       setBusy(null);
     }
   }
+
+  const savePeriodStatus = async (itemId: string, period: CompliancePeriodColumn, status: string) => {
+    const key = compliancePeriodKey(itemId, period);
+    const before = periodStatus.get(key) ?? "";
+    setPeriodOverrides((current) => new Map(current).set(key, status));
+    const ok = await run(`period:${key}`, () => setCompliancePeriodCheck({
+      itemId, kind, periodYear: period.periodYear, periodMonth: period.periodMonth, weekNo: period.weekNo, status,
+    }));
+    if (!ok) setPeriodOverrides((current) => new Map(current).set(key, before));
+  };
 
   return (
     <section className="flex flex-col gap-4">
@@ -288,15 +410,6 @@ export function ComplianceBoard({
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setBulkOpen(true)}
-              title="Bulk upload from Excel"
-              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2.5 text-[13px] font-bold text-ink-soft hover:bg-surface-soft hover:text-ink-strong min-[1680px]:px-3"
-            >
-              <FileSpreadsheet size={15} strokeWidth={2.4} aria-hidden />
-              <span className="max-[1680px]:sr-only">Bulk upload</span>
-            </button>
-            <button
-              type="button"
               onClick={() => setEditing("new")}
               aria-label="Add compliance"
               title="Add compliance"
@@ -311,6 +424,34 @@ export function ComplianceBoard({
         )}
       </div>
 
+      {selectedVisible.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 rounded-2xl border border-altus-red/25 bg-surface-card px-3 py-2 shadow-sm"
+          aria-label={`${selectedVisible.length} compliance${selectedVisible.length === 1 ? "" : "s"} selected`}
+        >
+          <span className="grid size-6 place-items-center rounded-full bg-altus-red text-[12px] font-black tabular-nums text-white">
+            {selectedVisible.length}
+          </span>
+          <span className="mr-1 text-[13px] font-bold text-ink-strong">selected</span>
+          <button
+            type="button"
+            disabled={busy !== null || selectedRemovableIds.length === 0}
+            onClick={() => void removeSelected()}
+            title={selectedRemovableIds.length > 0 ? "Delete selected compliances" : "Master compliances can only be removed from DCC Masters."}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-altus-red/35 bg-altus-red/5 px-3 text-[12.5px] font-bold text-altus-red hover:bg-altus-red/10 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 size={13} aria-hidden /> Delete{selectedRemovableIds.length > 0 ? ` ${selectedRemovableIds.length}` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12.5px] font-bold text-ink-soft hover:bg-surface-soft hover:text-ink-strong"
+          >
+            <X size={13} aria-hidden /> Clear
+          </button>
+        </div>
+      )}
+
       {manageable.length > 0 && <ComplianceBulkUpload open={bulkOpen} onOpenChange={setBulkOpen} kind={kind} people={manageable} />}
 
       <ItemDialog
@@ -320,6 +461,10 @@ export function ComplianceBoard({
         row={editing === "new" ? null : editing}
         manageable={manageable}
         defaultOwnerId={defaultOwnerId}
+        onImport={() => {
+          setEditing(null);
+          setBulkOpen(true);
+        }}
       />
 
       {/* What a sort is doing, and how to undo it. A person's column order needs
@@ -344,17 +489,19 @@ export function ComplianceBoard({
         style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)", maxHeight: "max(420px, calc(100vh - 260px))" }}
       >
         <table
-          className="border-collapse text-left"
-          style={{ tableLayout: "fixed", width: cols.reduce((n, k) => n + columnDef(k, kind).width, 0) }}
+          className="border-separate border-spacing-0 text-left"
+          style={{ tableLayout: "fixed", width: tableWidth }}
         >
           <colgroup>
-            {cols.map((k) => (
+            {bodyCols.map((k) => (
               <col key={k} style={{ width: columnDef(k, kind).width }} />
             ))}
+            {orderedPeriodColumns.map((period) => <col key={period.key} style={{ width: kind === "wcc" ? 108 : 92 }} />)}
+            {hasDelete && <col style={{ width: columnDef("delete", kind).width }} />}
           </colgroup>
           <thead>
             <tr>
-              {cols.map((k) => (
+              {bodyCols.map((k) => (
                 <HeadCell
                   key={k}
                   col={k}
@@ -377,14 +524,44 @@ export function ComplianceBoard({
                     setDragCol(null);
                     setDropCol(null);
                   }}
+                  frozenLeft={frozenLeft[k]}
+                  selected={k === "select" ? allVisibleSelected : undefined}
+                  indeterminate={k === "select" ? someVisibleSelected : undefined}
+                  onSelectAll={k === "select" ? toggleAllVisible : undefined}
                 />
               ))}
+              {orderedPeriodColumns.map((period) => (
+                <PeriodHead
+                  key={period.key}
+                  period={period}
+                  dragging={dragPeriod === period.key}
+                  dropTarget={dropPeriod === period.key && dragPeriod !== period.key}
+                  fromLeft={dragPeriod !== null && periodOrder.indexOf(dragPeriod) < periodOrder.indexOf(period.key)}
+                  onDragStart={() => setDragPeriod(period.key)}
+                  onDragEnd={() => { setDragPeriod(null); setDropPeriod(null); }}
+                  onDragOver={() => setDropPeriod(period.key)}
+                  onDragLeave={() => setDropPeriod((current) => current === period.key ? null : current)}
+                  onDrop={() => {
+                    if (dragPeriod) savePeriodOrder(movePeriodColumn(reconcilePeriodOrder(periodOrder, periodColumns), dragPeriod, period.key));
+                    setDragPeriod(null);
+                    setDropPeriod(null);
+                  }}
+                />
+              ))}
+              {hasDelete && (
+                <HeadCell
+                  col="delete" def={columnDef("delete", kind)} label={columnLabel("delete", kind)} sort={sort}
+                  onSort={() => setSort((cur) => nextSort(cur, "delete"))} dragging={dragCol} dropTarget={false} fromLeft={false}
+                  onDragStart={() => setDragCol("delete")} onDragEnd={() => { setDragCol(null); setDropCol(null); }} onDragOver={() => undefined}
+                  onDragLeave={() => undefined} onDrop={() => undefined} frozenRight
+                />
+              )}
             </tr>
           </thead>
           <tbody>
             {groups.length === 0 && (
               <tr>
-                <td colSpan={cols.length} className="px-5 py-14 text-[14px] font-semibold text-ink-muted">
+                <td colSpan={tableColumnCount} className="px-5 py-14 text-[14px] font-semibold text-ink-muted">
                   <span className="sticky left-5">
                     {kind === "wcc"
                       ? "Nothing on the Weekly Compliance Checklist for these days."
@@ -395,7 +572,7 @@ export function ComplianceBoard({
             )}
             {filtering && groups.length > 0 && !rows.some(matches) && (
               <tr>
-                <td colSpan={cols.length} className="px-5 py-10 text-[14px] font-semibold text-ink-muted">
+                <td colSpan={tableColumnCount} className="px-5 py-10 text-[14px] font-semibold text-ink-muted">
                   <span className="sticky left-5">Nothing matches the search and status filters.</span>
                 </td>
               </tr>
@@ -418,6 +595,12 @@ export function ComplianceBoard({
                     busy={busy}
                     onRun={run}
                     onEdit={() => setEditing(r)}
+                    selected={selected.has(r.key)}
+                    onToggleSelected={(next) => toggleSelected(r.key, next)}
+                    frozenLeft={frozenLeft}
+                    periodColumns={orderedPeriodColumns}
+                    periodStatus={periodStatus}
+                    onSavePeriodStatus={savePeriodStatus}
                   />
                 ));
               const toggle = () =>
@@ -451,6 +634,7 @@ export function ComplianceBoard({
                       </button>
                     }
                     total={<MinsSum rows={shown(groupRows)} filtering={filtering} />}
+                    columnCount={tableColumnCount}
                   />
                   {isOpen &&
                     (g.sections
@@ -466,6 +650,7 @@ export function ComplianceBoard({
                                 cellStyle={SECTION_CELL}
                                 label={<span className="pl-5">{sec.label}</span>}
                                 total={<MinsSum rows={shown(sectionRows)} filtering={filtering} />}
+                                columnCount={tableColumnCount}
                               />
                               {rowsFor(sectionRows)}
                             </React.Fragment>
@@ -481,7 +666,7 @@ export function ComplianceBoard({
               to the bottom of the box. */}
           {kind === "wcc" && rows.length > 0 && (
             <tfoot>
-              <TotalRow cols={cols} rows={filtering ? rows.filter(matches) : rows} filtering={filtering} />
+              <TotalRow cols={cols} rows={filtering ? rows.filter(matches) : rows} filtering={filtering} columnCount={tableColumnCount} />
             </tfoot>
           )}
         </table>
@@ -511,6 +696,11 @@ function HeadCell({
   onDragOver,
   onDragLeave,
   onDrop,
+  frozenLeft,
+  frozenRight,
+  selected,
+  indeterminate,
+  onSelectAll,
 }: {
   col: ColKey;
   def: ColumnDef;
@@ -525,14 +715,21 @@ function HeadCell({
   onDragOver: () => void;
   onDragLeave: () => void;
   onDrop: () => void;
+  frozenLeft?: number;
+  frozenRight?: boolean;
+  selected?: boolean;
+  indeterminate?: boolean;
+  onSelectAll?: (next: boolean) => void;
 }) {
   const dir = sort?.key === col ? sort.dir : null;
   const movable = def.movable;
+  const frozen = frozenLeft !== undefined || frozenRight;
+  const isLeftEdge = col === "section";
   return (
     <th
       scope="col"
       aria-sort={def.sortable ? ariaSort(sort, col) : undefined}
-      className={HEAD}
+      className={`${HEAD} ${frozen ? "z-40 bg-surface-card" : ""} ${frozenRight ? "right-0" : ""}`}
       onDragOver={
         movable
           ? (e) => {
@@ -552,8 +749,17 @@ function HeadCell({
           : undefined
       }
       style={{
+        left: frozenLeft,
+        right: frozenRight ? 0 : undefined,
+        // The ordinary sticky headers are z-20. This must be inline rather
+        // than a second Tailwind z utility: `HEAD` already carries z-20 and
+        // utility-rule ordering can otherwise let it win over z-40.
+        zIndex: frozen ? 40 : 20,
+        background: "var(--color-surface-card)",
         boxShadow: [
           "inset 0 -1px 0 var(--color-hairline-strong)",
+          isLeftEdge ? "10px 0 14px -10px rgba(15,23,42,0.24)" : "",
+          frozenRight ? "-10px 0 14px -10px rgba(15,23,42,0.24)" : "",
           // Where the column will land — the edge it would arrive on.
           dropTarget ? `inset ${fromLeft ? "-3px" : "3px"} 0 0 var(--color-altus-red)` : "",
         ]
@@ -563,7 +769,15 @@ function HeadCell({
       }}
     >
       <span className={`flex items-center gap-1 ${def.align === "right" ? "justify-end" : ""}`}>
-        {movable && (
+        {onSelectAll ? (
+          <Checkbox
+            checked={Boolean(selected)}
+            indeterminate={Boolean(indeterminate)}
+            onChange={onSelectAll}
+            ariaLabel="Select all visible compliances"
+            className="mx-auto"
+          />
+        ) : movable && (
           <span
             draggable
             onDragStart={(e) => {
@@ -775,6 +989,7 @@ function HeadingRow({
   onClick,
   cellClassName,
   cellStyle,
+  columnCount,
 }: {
   cols: ColKey[];
   kind: ComplianceKind;
@@ -783,11 +998,12 @@ function HeadingRow({
   onClick?: () => void;
   cellClassName: string;
   cellStyle: React.CSSProperties;
+  columnCount: number;
 }) {
   const spot = minsSpot(cols, kind);
   return (
     <tr onClick={onClick}>
-      <td colSpan={cols.length} className={`relative ${cellClassName}`} style={cellStyle}>
+      <td colSpan={columnCount} className={`relative ${cellClassName}`} style={cellStyle}>
         <PinnedName spot={spot} room={340} background={cellStyle.background}>
           {label}
         </PinnedName>
@@ -869,13 +1085,13 @@ function MinsSum({ rows, filtering = false }: { rows: readonly ComplianceRow[]; 
 }
 
 /** The foot of the WCC table: the Total Compliance Mins of the rows in view. */
-function TotalRow({ cols, rows, filtering }: { cols: ColKey[]; rows: readonly ComplianceRow[]; filtering: boolean }) {
+function TotalRow({ cols, rows, filtering, columnCount }: { cols: ColKey[]; rows: readonly ComplianceRow[]; filtering: boolean; columnCount: number }) {
   const t = totalMinutes(rows);
   const note = [t.timed && t.total >= 60 ? hoursText(t.total) : "", t.untimed > 0 ? `${t.untimed} without Mins` : ""].filter(Boolean).join(" · ");
   const spot = minsSpot(cols, "wcc");
   return (
     <tr>
-      <td colSpan={cols.length} className="sticky bottom-0 z-10 px-3 py-2.5 text-[13.5px] font-bold text-ink-strong" style={TOTAL_CELL}>
+      <td colSpan={columnCount} className="sticky bottom-0 z-10 px-3 py-2.5 text-[13.5px] font-bold text-ink-strong" style={TOTAL_CELL}>
         <PinnedName spot={spot} room={480} background={TOTAL_CELL.background} className="gap-2">
           <Clock size={14} strokeWidth={2.4} aria-hidden style={{ color: "var(--color-altus-red-deep)" }} />
           {filtering ? "Total Compliance Mins — rows shown" : "Total Compliance Mins"}
@@ -912,6 +1128,12 @@ function Row({
   busy,
   onRun,
   onEdit,
+  selected,
+  onToggleSelected,
+  frozenLeft,
+  periodColumns,
+  periodStatus,
+  onSavePeriodStatus,
 }: {
   row: ComplianceRow;
   cols: ColKey[];
@@ -920,6 +1142,12 @@ function Row({
   busy: string | null;
   onRun: (key: string, fn: () => Promise<{ ok: boolean; error?: string }>) => Promise<boolean>;
   onEdit: () => void;
+  selected: boolean;
+  onToggleSelected: (next: boolean) => void;
+  frozenLeft: Partial<Record<ColKey, number>>;
+  periodColumns: readonly CompliancePeriodColumn[];
+  periodStatus: ReadonlyMap<string, string>;
+  onSavePeriodStatus: (itemId: string, period: CompliancePeriodColumn, status: string) => Promise<void>;
 }) {
   const router = useRouter();
   const saving = busy === r.key;
@@ -929,25 +1157,57 @@ function Row({
   /* The count pop-up: on the way into Done, or correcting a Done row's count. */
   const [asking, setAsking] = React.useState<"done" | "edit" | null>(null);
   const canCount = r.quantity !== null && r.doerStatus === "done" && r.canFill && busy === null;
+  const pinnedClass = (key: ColKey) => {
+    if (frozenLeft[key] !== undefined) {
+      return `sticky z-10 bg-surface-card group-hover/row:bg-surface-soft ${key === "section" ? "shadow-[10px_0_14px_-10px_rgba(15,23,42,0.18)]" : ""}`;
+    }
+    return key === "delete"
+      ? "sticky right-0 z-10 bg-surface-card shadow-[-10px_0_14px_-10px_rgba(15,23,42,0.18)] group-hover/row:bg-surface-soft"
+      : "";
+  };
+  const pinnedStyle = (key: ColKey): React.CSSProperties => ({
+    left: frozenLeft[key],
+    right: key === "delete" ? 0 : undefined,
+    // Keep both frozen rails above scrolling cells. Header cells use 40; body
+    // cells use 30, so the Delete column stays visible at the right edge.
+    zIndex: frozenLeft[key] !== undefined || key === "delete" ? 30 : undefined,
+  });
 
   const cell = (k: ColKey): React.ReactNode => {
     switch (k) {
+      case "select":
+        return (
+          <td key={k} className={`px-3 py-2.5 text-center ${pinnedClass(k)}`} style={pinnedStyle(k)}>
+            <Checkbox checked={selected} onChange={onToggleSelected} ariaLabel={`Select ${r.title}`} />
+          </td>
+        );
       case "sr":
-        return <td key={k} className="px-3 py-2.5 text-[13px] font-semibold tabular-nums text-ink-subtle">{serial}</td>;
+        return <td key={k} className={`px-3 py-2.5 text-[13px] font-semibold tabular-nums text-ink-subtle ${pinnedClass(k)}`} style={pinnedStyle(k)}>{serial}</td>;
       case "employee":
         return <td key={k} className="px-3 py-2.5 text-[13.5px] font-semibold text-ink-strong">{r.ownerName}</td>;
       case "compliance":
         return (
-          <td key={k} className="px-3 py-2.5">
+          <td key={k} className={`px-3 py-2.5 ${pinnedClass(k)}`} style={pinnedStyle(k)}>
             <div className="text-[14px] font-semibold text-ink-strong">{r.title}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1">
-              {r.section && <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10.5px] font-bold text-ink-soft">{r.section}</span>}
+            <div className={r.fromMaster ? "mt-0.5 flex flex-wrap items-center gap-1" : "hidden"}>
               {r.fromMaster && (
                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold text-ink-subtle" style={{ background: "var(--color-surface-track, #eef2f7)" }} title="Given by the position's DCC Master — change it there.">
                   <Lock size={9} /> {r.fromMaster} master
                 </span>
               )}
             </div>
+          </td>
+        );
+      case "section":
+        return (
+          <td key={k} className={`px-3 py-2.5 ${pinnedClass(k)}`} style={pinnedStyle(k)}>
+            {r.section ? (
+              <span className="inline-flex max-w-full truncate rounded-full bg-surface-soft px-2 py-0.5 text-[10.5px] font-bold text-ink-soft" title={r.section}>
+                {r.section}
+              </span>
+            ) : (
+              <span className="text-[13px] text-ink-subtle">—</span>
+            )}
           </td>
         );
       case "frequency":
@@ -1075,7 +1335,7 @@ function Row({
       case "doerNotes":
         return (
           <td key={k} className="px-3 py-2">
-            <NoteCell
+            <ConfirmedNoteCell
               value={r.doerNotes}
               editable={r.canFill && busy === null}
               onCommit={(v) => onRun(r.key, () => setComplianceDoer({ itemId: r.itemId, deadline: r.deadline, notes: v }))}
@@ -1085,46 +1345,74 @@ function Row({
       case "approverNotes":
         return (
           <td key={k} className="px-3 py-2">
-            <NoteCell
+            <ConfirmedNoteCell
               value={r.approverNotes}
               editable={r.canApproverNotes && busy === null}
               onCommit={(v) => onRun(r.key, () => setComplianceApprover({ itemId: r.itemId, deadline: r.deadline, notes: v }))}
             />
           </td>
         );
-      case "actions":
+      case "edit":
         return (
           <td key={k} className="px-2 py-2 text-right whitespace-nowrap">
             {r.canManage && (
-              <>
-                <button type="button" onClick={onEdit} aria-label="Edit compliance" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-surface-soft hover:text-ink-strong">
-                  <Pencil size={14} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Remove compliance"
-                  disabled={busy !== null}
-                  onClick={() => {
-                    if (!window.confirm(`Remove "${r.title}" from ${r.ownerName}'s checklist? What was filled stays on record.`)) return;
-                    void onRun(r.key, () => archiveComplianceItem(r.itemId));
-                  }}
-                  className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] hover:text-altus-red"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </>
+              <button type="button" onClick={onEdit} aria-label="Edit compliance" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-surface-soft hover:text-ink-strong">
+                <Pencil size={14} />
+              </button>
             )}
+          </td>
+        );
+      case "delete":
+        return (
+          <td key={k} className={`px-2 py-2 text-center whitespace-nowrap ${pinnedClass(k)}`} style={pinnedStyle(k)}>
+            <button
+              type="button"
+              aria-label="Remove compliance"
+              title={r.canManage ? "Remove compliance" : r.fromMaster ? "This is managed by DCC Masters." : "You cannot remove this compliance."}
+              disabled={busy !== null || !r.canManage}
+              onClick={() => {
+                if (!window.confirm(`Remove "${r.title}" from ${r.ownerName}'s checklist? What was filled stays on record.`)) return;
+                void onRun(r.key, () => archiveComplianceItem(r.itemId));
+              }}
+              className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] hover:text-altus-red disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Trash2 size={14} />
+            </button>
           </td>
         );
     }
   };
 
+  const periodCell = (period: CompliancePeriodColumn) => {
+    const status = periodStatus.get(compliancePeriodKey(r.itemId, period)) ?? "";
+    const editable = (r.canFill || r.canManage) && busy === null;
+    const tone = compliancePeriodTone(status);
+    return (
+      <td key={period.key} className="px-2 py-2 text-center" style={{ background: period.current ? "color-mix(in srgb, var(--color-altus-red) 5%, transparent)" : undefined }}>
+        <select
+          value={status}
+          disabled={!editable}
+          aria-label={`${period.label} status for ${r.title}`}
+          title={editable ? `${period.detail}: choose the period status` : "You can update period checks for your own compliances and your team's only."}
+          onChange={(event) => void onSavePeriodStatus(r.itemId, period, event.target.value)}
+          className="w-full cursor-pointer appearance-none rounded-lg px-1.5 py-1.5 text-center text-[12px] font-bold outline-none transition-colors focus:ring-2 focus:ring-[color:var(--color-altus-red)] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: tone.bg, color: tone.fg, border: period.current ? "1.5px solid var(--color-altus-red)" : `1px solid ${status ? "transparent" : "var(--color-hairline)"}` }}
+        >
+          <option value="">-</option>
+          {COMPLIANCE_PERIOD_STATUSES.map((option) => <option key={option} value={option}>{option === "Not Applicable" ? "N/A" : option}</option>)}
+        </select>
+      </td>
+    );
+  };
+
   return (
     <tr
-      className={`align-top transition-colors hover:bg-surface-soft ${ruledOut ? "opacity-60" : ""}`}
+      className={`group/row align-top transition-colors hover:bg-surface-soft ${ruledOut ? "opacity-60" : ""}`}
       style={{ borderBottom: "1px solid var(--color-hairline)" }}
     >
-      {cols.map(cell)}
+      {cols.filter((col) => col !== "delete").map(cell)}
+      {periodColumns.map(periodCell)}
+      {cols.includes("delete") && cell("delete")}
     </tr>
   );
 }
@@ -1327,14 +1615,27 @@ function VarianceChip({ days, running, lapsed }: { days: number | null; running:
  */
 function QuantityCell({ row: r, editable, onEdit }: { row: ComplianceRow; editable: boolean; onEdit: () => void }) {
   const q = r.quantity;
+  const emptyBox = (title: string) => (
+    <input
+      readOnly
+      value=""
+      placeholder="—"
+      aria-label="Quantity done"
+      title={title}
+      className="h-8 w-10 rounded-md border border-hairline-strong bg-white text-center text-[13px] font-semibold text-ink-subtle outline-none placeholder:text-ink-subtle"
+    />
+  );
+  if (!q) return emptyBox("This compliance has no quantity target.");
   if (!q) return <span className="text-ink-subtle">—</span>;
   const from = q.source === "title" ? "Target read from the compliance's title" : "The compliance's Target";
   if (r.doerStatus !== "done") {
     return (
-      <span className="text-[12.5px] tabular-nums text-ink-subtle" title={`${from}. Asked for when it is marked Done.`}>
-        Target {q.target}
-        {q.unit ? ` ${q.unit}` : ""}
-      </span>
+      <div className="flex items-center gap-1.5">
+        {emptyBox(`${from}. Entered when this compliance is marked Done.`)}
+        <span className="text-[12.5px] tabular-nums text-ink-subtle" title={`${from}. Asked for when it is marked Done.`}>
+          / {q.target}{q.unit ? ` ${q.unit}` : ""}
+        </span>
+      </div>
     );
   }
   const n = r.completedQuantity;
@@ -1574,6 +1875,183 @@ function NoteCell({ value, editable, onCommit }: { value: string | null; editabl
 
 /* ── Adding or changing a compliance — a pop-up, like New Task ─────────── */
 
+function ConfirmedNoteCell({
+  value,
+  editable,
+  onCommit,
+}: {
+  value: string | null;
+  editable: boolean;
+  onCommit: (v: string | null) => Promise<boolean>;
+}) {
+  const current = value ?? "";
+  const [draft, setDraft] = React.useState(current);
+  const [editing, setEditing] = React.useState(!current);
+  const [saving, setSaving] = React.useState(false);
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+  useAutoHeight(ref, draft);
+
+  React.useEffect(() => {
+    setDraft(current);
+    setEditing(!current);
+  }, [current]);
+
+  if (!editable) {
+    return <span className={`block max-w-[240px] whitespace-pre-wrap text-[13px] ${value ? "text-ink-soft" : "text-ink-subtle"}`}>{value || "—"}</span>;
+  }
+
+  const save = async () => {
+    const next = draft.trim();
+    if (!next) return;
+    setSaving(true);
+    try {
+      if (await onCommit(next)) setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex min-w-[200px] items-start gap-1">
+        <span className="min-w-0 flex-1 whitespace-pre-wrap px-2 py-1 text-[13px] text-ink-strong">{current}</span>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label="Edit note"
+          title="Edit note"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
+        >
+          <Pencil size={13} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-[200px] items-end gap-1">
+      <textarea
+        ref={ref}
+        autoFocus={Boolean(current)}
+        rows={1}
+        style={{ overflow: "hidden" }}
+        value={draft}
+        maxLength={2000}
+        placeholder="Add a note"
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setDraft(current);
+            setEditing(!current);
+          }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            void save();
+          }
+        }}
+        className="min-h-8 min-w-0 flex-1 resize-none rounded-lg border border-hairline-strong bg-white px-2 py-1 text-[13px] text-ink-strong outline-none placeholder:text-ink-subtle focus-visible:ring-2 focus-visible:ring-altus-red/30"
+      />
+      {draft.trim() && (
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          aria-label="Done editing note"
+          title="Done"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={15} strokeWidth={2.8} />}
+        </button>
+      )}
+      {current && (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(current);
+            setEditing(false);
+          }}
+          aria-label="Cancel editing note"
+          title="Cancel"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Accounts-style period heading with the same drag-and-drop behavior in WCC
+ * and MCC.  Period columns move only within their timeline, never into the
+ * normal checklist/action columns. */
+function PeriodHead({
+  period,
+  dragging,
+  dropTarget,
+  fromLeft,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  period: CompliancePeriodColumn;
+  dragging: boolean;
+  dropTarget: boolean;
+  fromLeft: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+}) {
+  return (
+    <th
+      scope="col"
+      onDragOver={(event) => {
+        event.preventDefault();
+        onDragOver();
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop();
+      }}
+      className={`${HEAD} text-center transition-opacity ${dragging ? "opacity-45" : ""}`}
+      style={{
+        background: period.current ? "color-mix(in srgb, var(--color-altus-red) 10%, var(--color-surface-card))" : "var(--color-surface-card)",
+        boxShadow: [
+          "inset 0 -1px 0 var(--color-hairline-strong)",
+          dropTarget ? `inset ${fromLeft ? "-3px" : "3px"} 0 0 var(--color-altus-red)` : "",
+        ].filter(Boolean).join(", "),
+      }}
+    >
+      <div className="flex items-center justify-center gap-1 text-center leading-tight">
+        <span
+          draggable
+          role="button"
+          tabIndex={-1}
+          aria-label={`Move ${period.label} column`}
+          title="Drag to move this period column"
+          onDragStart={(event) => {
+            onDragStart();
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", period.key);
+          }}
+          onDragEnd={onDragEnd}
+          className="inline-flex cursor-grab text-ink-subtle opacity-40 transition-opacity hover:text-ink-strong active:cursor-grabbing group-hover/head:opacity-100"
+        >
+          <GripVertical size={12} strokeWidth={2.4} aria-hidden />
+        </span>
+        <div>
+        <div>{period.label}</div>
+        <div className="mt-0.5 text-[10px] font-semibold normal-case tracking-normal text-ink-subtle">{period.detail}</div>
+        </div>
+      </div>
+    </th>
+  );
+}
+
 const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /**
@@ -1656,6 +2134,7 @@ function ItemDialog({
   row,
   manageable,
   defaultOwnerId,
+  onImport,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1663,6 +2142,7 @@ function ItemDialog({
   row: ComplianceRow | null;
   manageable: ManageablePerson[];
   defaultOwnerId: string;
+  onImport: () => void;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -1688,6 +2168,7 @@ function ItemDialog({
               manageable={manageable}
               defaultOwnerId={defaultOwnerId}
               onDone={() => onOpenChange(false)}
+              onImport={onImport}
             />
           )}
         </Dialog.Content>
@@ -1702,12 +2183,14 @@ function ItemFormBody({
   manageable,
   defaultOwnerId,
   onDone,
+  onImport,
 }: {
   kind: ComplianceKind;
   row: ComplianceRow | null;
   manageable: ManageablePerson[];
   defaultOwnerId: string;
   onDone: () => void;
+  onImport: () => void;
 }) {
   const router = useRouter();
   const [ownerId, setOwnerId] = React.useState(
@@ -1839,15 +2322,28 @@ function ItemFormBody({
         <Dialog.Description className="mt-1 text-[14.5px] font-semibold text-ink-muted">
           {row ? `On ${row.ownerName}'s ${checklist}.` : `Goes on the ${checklist} of the person you pick.`}
         </Dialog.Description>
-        <Dialog.Close asChild>
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute right-5 top-4 inline-flex size-10 items-center justify-center rounded-full border border-hairline bg-white text-ink-muted transition-all hover:bg-surface-soft"
-          >
-            <X size={20} strokeWidth={2.4} />
-          </button>
-        </Dialog.Close>
+        <div className="absolute right-5 top-4 flex items-center gap-2.5">
+          {!row && (
+            <button
+              type="button"
+              onClick={onImport}
+              title={`Bulk-import ${kind.toUpperCase()} compliances from CSV or Excel`}
+              className="inline-flex h-10 items-center gap-2 rounded-pill border border-hairline bg-white px-4 text-[14px] font-semibold text-ink-strong transition-colors hover:bg-surface-soft max-md:px-3"
+            >
+              <Upload size={17} strokeWidth={2.2} className="text-altus-red" />
+              <span className="max-md:hidden">Import</span>
+            </button>
+          )}
+          <Dialog.Close asChild>
+            <button
+              type="button"
+              aria-label="Close"
+              className="inline-flex size-10 items-center justify-center rounded-full border border-hairline bg-white text-ink-muted transition-all hover:bg-surface-soft"
+            >
+              <X size={20} strokeWidth={2.4} />
+            </button>
+          </Dialog.Close>
+        </div>
       </div>
 
       {/* Body — two equal columns; the compliance itself takes the full width. */}

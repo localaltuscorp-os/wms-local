@@ -572,7 +572,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
    */
   "control-panel": {
     top: [
-      { href: "/control-panel/users" as Route, label: "Users", Icon: Users },
       { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
       { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
       { href: "/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },

@@ -51,7 +51,7 @@ export default async function TemporaryAccessPage() {
   await requireModuleView("control-panel.temporary-access");
 
   const canGrant = await canOpenDelegatedAccess(me);
-  if (!canGrant) redirect("/control-panel/users" as Route);
+  if (!canGrant) redirect("/control-panel/roles" as Route);
 
   const [{ targets, delegates }, grants, events] = await Promise.all([
     delegationCandidates(me),

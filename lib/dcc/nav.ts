@@ -45,13 +45,13 @@ export const DCC_DOORS: DccDoor[] = [
   },
   {
     href: "/dcc/wcc",
-    label: "WCC",
+    label: "Weekly CC",
     Icon: CalendarCheck2,
     blurb: "Weekly Compliance Checklist — today, the last 3 days or the last 6.",
   },
   {
     href: "/dcc/mcc",
-    label: "MCC",
+    label: "Monthly CC",
     Icon: CalendarRange,
     blurb: "Monthly Compliance Checklist — by month or by quarter.",
   },
