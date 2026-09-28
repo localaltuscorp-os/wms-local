@@ -135,7 +135,7 @@ const nextConfig: NextConfig = {
      * other half of the fix and not something to turn back on here.
      *
      * ── THE HEAP SIZE IS PART OF THIS FIX, AND IT WENT DOWN ───────────────
-     * package.json's `build` script now passes `--max-old-space-size=4096`,
+     * package.json's `build` script now passes `--max-old-space-size=3072`,
      * lowered from 6144, and it also no longer starts with `rm -rf .next`.
      * Both are deliberate, and the second is the one that reads as wrong:
      *
@@ -155,6 +155,12 @@ const nextConfig: NextConfig = {
      *     above records that a build following `rm -rf .next` traced ZERO
      *     node_modules, so the flag produces worse output as well as a slower
      *     build.)
+     *
+     * The first production build after the 23 September merge still reached
+     * the container's 8 GB limit with a 4096 MB heap during compilation. The
+     * cap is therefore 3072 MB: one more gigabyte of headroom for webpack's
+     * native allocations and the container, while preserving the same build
+     * pipeline and cache.
      *
      * ── TURBOPACK WAS TRIED AND REJECTED (2026-09-24) ─────────────────────
      * DO NOT "just drop --webpack". It is half the build time and it will
