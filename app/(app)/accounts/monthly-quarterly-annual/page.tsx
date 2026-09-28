@@ -87,7 +87,7 @@ export default async function MonthlyChecklistPage({ searchParams }: PageProps) 
         />
 
         {/* Status legend — a quiet key, not a headline row. */}
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {MONTHLY_CHECK_STATUSES.map((s) => {
             const t = monthlyStatusTone(s);
             return (

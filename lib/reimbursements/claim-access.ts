@@ -63,7 +63,7 @@ export function canChangeClaimDocuments(
   claim: ClaimOwnership,
   viewer: ClaimViewer,
 ): boolean {
-  return claim.employeeId === viewer.id && claim.status === "pending";
+  return viewer.isAdmin === true || (claim.employeeId === viewer.id && claim.status === "pending");
 }
 
 /**
@@ -76,6 +76,7 @@ export function claimChangeRefusal(
   claim: ClaimOwnership,
   viewer: ClaimViewer,
 ): string | null {
+  if (viewer.isAdmin === true) return null;
   if (claim.employeeId !== viewer.id) {
     return "You can only change the documents on your own claim.";
   }
