@@ -62,6 +62,16 @@ const nextConfig: NextConfig = {
    */
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
+  // TypeScript is still mandatory in CI (`pnpm typecheck`). Do not run the
+  // same whole-program check again inside `next build`: on Vercel's 8 GB
+  // builder webpack needs a 3 GB heap cap to leave native-memory headroom,
+  // while the duplicate Next typecheck needs more than that and aborts after
+  // compilation. Keeping the checks separate makes both fit and preserves the
+  // fail-closed GitHub check on every pushed commit.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // LAN ACCESS IN DEV — let a phone (or a second machine) open the dev server.
   //
   // `next dev` already listens on 0.0.0.0, so http://<lan-ip>:3002 CONNECTS and
