@@ -31,7 +31,6 @@ import {
   type LetterSignature,
   type LetterSignatory,
   collectFields,
-  hasBodyDateField,
   initialValues,
   resolveSpans,
   signatoryOf,
@@ -579,12 +578,6 @@ export function LetterEditor({
 
   const today = useMemo(() => formatDateHr(new Date()), []);
 
-  // Letters that carry their own editable `Date:` row in the body (Intern
-  // Appointment, Confirmation, F&F…) must NOT also get the chrome's top-right
-  // date stamp — it rendered the date twice. The body field stays the single,
-  // editable source of the letter's date.
-  const showHeaderDate = useMemo(() => !hasBodyDateField(template), [template]);
-
   const recipientName = (values.candidateName ?? values.name ?? "").trim();
   const recipientEmail = (values.candidateEmail ?? values.email ?? "").trim();
 
@@ -1075,7 +1068,6 @@ export function LetterEditor({
           </div>
           <div className="alw-stage">
             <Letterhead entity={entity}>
-              {showHeaderDate && <div className="alw-date">{today}</div>}
               <div className="alw-rich-preview" dangerouslySetInnerHTML={{ __html: savedRichHtml }} />
             </Letterhead>
           </div>
@@ -1083,7 +1075,6 @@ export function LetterEditor({
       ) : (
         <div className="alw-stage">
           <Letterhead entity={entity}>
-            {showHeaderDate && <div className="alw-date">{today}</div>}
             {renderBlocks(template.blocks, ctx)}
           </Letterhead>
         </div>
@@ -1111,7 +1102,6 @@ export function LetterEditor({
           attachedEmployee={Boolean(employeeId)}
         >
           <Letterhead entity={entity}>
-            {showHeaderDate && <div className="alw-date">{today}</div>}
             {usingRich ? (
               <div
                 className="alw-rich-preview"
@@ -2101,10 +2091,6 @@ const EDITOR_CSS = `
 .alw-stage .alh-page{max-width:none;}
 
 /* Body typography inside the letterhead */
-.alw-date{
-  text-align:right;font-size:13px;font-weight:600;
-  color:var(--color-ink-muted, #475569);margin-bottom:18px;
-}
 .alw-p{margin:0 0 14px;font-size:15px;line-height:1.95;color:var(--color-ink-strong, #0f172a);}
 .alw-heading{
   margin:16px 0 8px;font-weight:800;letter-spacing:-.01em;

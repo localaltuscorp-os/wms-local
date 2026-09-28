@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { HR_STAGES } from "@/lib/hr/lifecycle";
-import { getLetter, LETTER_LIST } from "@/lib/hr/letters/registry";
-import { hasBodyDateField, initialValues } from "@/lib/hr/letters/types";
+import { LETTER_LIST } from "@/lib/hr/letters/registry";
 
 function stageSlugs(key: string): string[] {
   return HR_STAGES.find((s) => s.key === key)?.items.map((i) => i.slug) ?? [];
@@ -54,25 +53,5 @@ describe("letters index order (registry insertion order)", () => {
       "experience-letter",
       "letter-of-recommendation",
     ]);
-  });
-});
-
-describe("editable document dates", () => {
-  it("shows a genuine body Date row, prefilled with today and still editable", () => {
-    const increment = getLetter("increment")!;
-    expect(hasBodyDateField(increment)).toBe(true);
-    expect(initialValues(increment).date).toMatch(/^\d{2}-[A-Z][a-z]{2}-\d{4}$/);
-  });
-
-  it("recognises document-date fields whose id is not literally date", () => {
-    const undertaking = getLetter("minor-internship-undertaking")!;
-    expect(hasBodyDateField(undertaking)).toBe(true);
-    expect(initialValues(undertaking).letterDate).toMatch(/^\d{2}-[A-Z][a-z]{2}-\d{4}$/);
-  });
-
-  it("does not mistake an interview date for the letter's document date", () => {
-    const nextRound = getLetter("next-round")!;
-    expect(hasBodyDateField(nextRound)).toBe(false);
-    expect(initialValues(nextRound).date).toBe("");
   });
 });

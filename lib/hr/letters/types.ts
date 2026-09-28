@@ -512,12 +512,8 @@ export function collectFields(template: LetterTemplate): FieldSpec[] {
  */
 export function initialValues(template: LetterTemplate): Record<string, string> {
   const values: Record<string, string> = {};
-  const bodyDateFieldId = documentBodyDateFieldId(template);
   for (const spec of collectFields(template)) {
-    values[spec.id] =
-      spec.todayDefault || spec.id === bodyDateFieldId
-        ? formatDateHr(new Date())
-        : (spec.defaultValue ?? "");
+    values[spec.id] = spec.todayDefault ? formatDateHr(new Date()) : (spec.defaultValue ?? "");
   }
   return values;
 }
@@ -559,34 +555,4 @@ export function signatoryOf(template: LetterTemplate): LetterSignatory {
   if (template.signatory) return template.signatory;
   if (template.key === "ctc-breakup" || template.key === "appointment") return "director";
   return "hr";
-}
-
-/**
- * True when the template prints its OWN date inside the body (an editable
- * `date` field, e.g. the Intern Appointment Letter's `Date: [ … ]` row).
- *
- * The letter chrome stamps a formatted date at the top-right of every letter;
- * for these templates that duplicated the body's date on screen and in the PDF,
- * so both the editor and the PDF renderer suppress the top-right stamp here and
- * let the editable field be the single source of the letter's date.
- */
-function documentBodyDateFieldId(template: LetterTemplate): string | null {
-  for (const block of template.blocks) {
-    if (block.kind !== "paragraph") continue;
-    for (let i = 0; i < block.spans.length; i++) {
-      const span = block.spans[i];
-      if (span?.t !== "field") continue;
-      const prefix = block.spans
-        .slice(0, i)
-        .filter((part): part is TextSpan => part.t === "text")
-        .map((part) => part.text)
-        .join("");
-      if (/(?:^|\s)date\s*:\s*$/i.test(prefix)) return span.id;
-    }
-  }
-  return null;
-}
-
-export function hasBodyDateField(template: LetterTemplate): boolean {
-  return documentBodyDateFieldId(template) !== null;
 }

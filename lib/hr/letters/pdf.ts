@@ -12,7 +12,6 @@ import {
   type Block,
   type LetterSignatory,
   type Span,
-  hasBodyDateField,
   resolveSpans,
   signatoryOf,
   tableRowVisible,
@@ -186,18 +185,8 @@ async function renderOnce(
     if (doc.y + need > bottom()) doc.addPage();
   };
 
-  /* ---- Letter date, right-aligned at the top of the body ----
-     Skipped for templates that print their own editable `Date:` row in the
-     body (Intern Appointment, Confirmation, F&F…) — stamping it here too
-     printed the date twice. Matches the on-screen editor. */
-  if (!hasBodyDateField(input.template)) {
-    doc
-      .font("Helvetica")
-      .fontSize(10 * k)
-      .fillColor(INK_MUTED)
-      .text(letterDate, left, doc.y, { width, align: "right", lineBreak: false });
-    doc.y += 22 * sp;
-  }
+  /* No automatic top-of-body date stamp. A letter dates itself only where its
+     template explicitly authors a date field or a signature `showDate` line. */
 
   /* ---- Body blocks ---- */
   // An explicit pick from the editor wins; otherwise the template's own rule.
