@@ -7,14 +7,14 @@
 
 ## Objective
 
-Add the repository workflow and engineering policy to the Development Repository while the pull-request workflow is temporarily deferred until the CI baseline and repository protections are reliable.
+Add the repository workflow and engineering policy to the Development Repository.
 
 ## Changes
 
 - Adds the tracked `AGENTS.md` repository policy.
 - Adds the `.gitignore` exception required to track `AGENTS.md`.
 - Adds `docs/README.md` documenting the approved documentation and handoff locations.
-- Records that PR enforcement is deferred temporarily; developers and interns still use feature or bugfix branches, while only an explicitly authorized maintainer may directly integrate a reviewed and tested isolated change into `origin/main`.
+- Records that developers and interns use feature or bugfix branches, while only an explicitly authorized maintainer may directly integrate a reviewed and tested isolated change into `origin/main`.
 
 ## Scope and safety
 
@@ -31,4 +31,4 @@ Add the repository workflow and engineering policy to the Development Repository
 
 ## Remaining action
 
-An authorized maintainer may fast-forward these isolated, documentation-only commits to `origin/main`. The future PR workflow remains documented as deferred until its prerequisites are reliable.
+The policy commit was directly integrated into `origin/main` by an authorized maintainer. The policy is now the Development Repository baseline.

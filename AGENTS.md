@@ -6,7 +6,7 @@
 - `origin/main` is the protected development and integration branch. It is not the production repository.
 - Use `feature/<short-description>` for feature work and `bugfix/<short-description>` for bug fixes.
 - Developers and interns work only on their own feature or bugfix branches.
-- **Temporary integration rule:** pull-request enforcement is deferred until the test baseline, CI, and branch-protection workflow are stable. Until then, only an explicitly authorized maintainer may directly push a reviewed, tested, isolated change to `origin/main`.
+- Only an explicitly authorized maintainer may directly push a reviewed, tested, isolated change to `origin/main`.
 - Direct pushes to `origin/main` remain prohibited for developers and interns.
 
 ## Production workflow
@@ -26,16 +26,6 @@
 - Do not assume those branches have identical histories.
 - Never force-push production.
 - Record release evidence, required migrations, rollback information, and approval before production promotion.
-
-## Pull request rules — deferred
-
-The pull-request workflow below is intentionally deferred until the CI baseline and repository protections are reliable. It is retained as the future workflow; it is not an active merge gate today.
-
-- Future pull requests should be small and focused.
-- Future pull requests should run applicable checks before review.
-- Future review comments must be addressed before merge.
-- Do not bypass failing checks when the PR workflow is enabled.
-- Do not force-push unless explicitly authorized for a specific development-branch situation.
 
 ## Security and PII rules
 
@@ -202,7 +192,7 @@ Authentication and authorization changes are high risk. Before changing them ins
 
 Never add real personal information to application code, tests, fixtures, seeds, SQL, documentation, screenshots, comments, sample requests, or logs. Use synthetic examples such as `Test User` and `test@example.com`.
 
-Before a commit or any future review request, inspect the diff for PII, secrets, API keys, tokens, passwords, credentials, production identifiers, and real customer or employee data. If anything sensitive is found, stop; report the file/location and safe remediation without printing the value.
+Before a commit, inspect the diff for PII, secrets, API keys, tokens, passwords, credentials, production identifiers, and real customer or employee data. If anything sensitive is found, stop; report the file/location and safe remediation without printing the value.
 
 ## Testing and diff review
 
