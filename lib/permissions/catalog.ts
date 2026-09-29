@@ -603,11 +603,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/operations/client-engagement/pca"],
           },
           {
-            key: "operations.client-engagement.references",
-            label: "References",
-            routes: ["/operations/client-engagement/references"],
-          },
-          {
             key: "operations.client-engagement.team",
             label: "Team & Log",
             routes: ["/operations/client-engagement/team"],

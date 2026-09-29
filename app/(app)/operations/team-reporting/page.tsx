@@ -6,6 +6,7 @@ import { getHierarchy, type HierarchySnapshot } from "@/lib/queries/hierarchy";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { HierarchyBoard } from "@/components/admin/hierarchy-board";
 import { TeamTransferPanel } from "@/components/operations/team-transfer-panel";
+import { ManagerDesignationPanel } from "@/components/operations/manager-designation-panel";
 
 /**
  * The fixture people the local dummy database seeds for every OTHER module
@@ -107,7 +108,7 @@ export const dynamic = "force-dynamic";
  * gets the board read-only rather than controls that fail at the action.
  */
 export default async function TeamReportingPage() {
-  await requireWorkspaceAdmin("operations");
+  const me = await requireWorkspaceAdmin("operations");
 
   const [rawSnapshot, canEdit] = await Promise.all([
     getHierarchy({ layout: "tree" }),
@@ -122,41 +123,56 @@ export default async function TeamReportingPage() {
   // reachable there and reappears the moment someone is transferred to them.
   const visibleColumns = snapshot.columns.filter((c) => c.managerId === null || c.reports.length > 0);
 
+  // "Remove Manan Vasa from transfer employee button's list" (2026-09-26) —
+  // he's still a valid TARGET (a manager to transfer someone TO), so only the
+  // "who's being moved" list drops him, via a separate `people` array rather
+  // than filtering the one `snapshot.people` everything else reads.
+  const transferablePeople = snapshot.people.filter((p) => p.id !== me.id);
+
   return (
     <PageShell width="wide">
       {/* NO body <h1> (the top bar already says "Team Reporting"). The KPI
           row replaces the old standing note + a since-removed counts strip:
-          who has how many people below them, at a glance, above the board. */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-hairline bg-surface-card px-3.5 py-2.5">
-          <Users2 size={15} className="text-ink-subtle" />
-          <span className="text-[13px] font-semibold text-ink-strong">
+          who has how many people below them, at a glance, above the board.
+          Taller (2026-09-26) so it holds its own next to the two full-height
+          action buttons, and the manager pills WRAP instead of scrolling
+          sideways — a manager's own downline count is what "who has how many
+          people below them" actually asks for, not just direct reports. */}
+      <div className="mb-4 flex flex-wrap items-start gap-3">
+        <div className="flex h-14 shrink-0 items-center gap-2 rounded-xl border border-hairline bg-surface-card px-4">
+          <Users2 size={16} className="text-ink-subtle" />
+          <span className="text-[13.5px] font-semibold text-ink-strong">
             {snapshot.people.length} {snapshot.people.length === 1 ? "employee" : "employees"} total
           </span>
         </div>
 
-        <div className="scroll-x-only flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {snapshot.columns
             .filter((c) => c.managerId !== null)
-            .map((c) => (
-              <span
-                key={c.managerId}
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border border-hairline bg-surface-card px-3 py-1.5 text-[12px] font-semibold text-ink-strong"
-                title={`${c.reports.length} ${c.reports.length === 1 ? "person" : "people"} report to ${c.managerName}`}
-              >
-                {c.managerName}
-                <span className="rounded-pill bg-surface-soft px-1.5 py-0.5 text-[11px] font-bold text-ink-subtle">
-                  {c.reports.length}
+            .map((c) => {
+              const downline = snapshot.people.find((p) => p.id === c.managerId)?.totalDownline ?? c.reports.length;
+              return (
+                <span
+                  key={c.managerId}
+                  className="flex h-14 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-hairline bg-surface-card px-3.5 text-[12.5px] font-semibold text-ink-strong"
+                  title={`${downline} ${downline === 1 ? "person" : "people"} below ${c.managerName}${c.reports.length !== downline ? ` (${c.reports.length} direct)` : ""}`}
+                >
+                  {c.managerName}
+                  <span className="rounded-pill bg-surface-soft px-1.5 py-0.5 text-[11px] font-bold text-ink-subtle">
+                    {downline}
+                  </span>
                 </span>
-              </span>
-            ))}
+              );
+            })}
         </div>
 
-        {/* Transfer is offered only to somebody who may actually write: the
-            action re-checks, so a viewer would get a dialog that refuses. */}
+        {/* Transfer and Add/Delete Manager are offered only to somebody who
+            may actually write: the actions re-check, so a viewer would get a
+            dialog that refuses. */}
         {canEdit ? (
-          <div className="flex shrink-0 items-center">
-            <TeamTransferPanel people={snapshot.people} columns={snapshot.columns} />
+          <div className="flex shrink-0 items-center gap-2">
+            <ManagerDesignationPanel people={snapshot.people} />
+            <TeamTransferPanel people={transferablePeople} columns={snapshot.columns} />
           </div>
         ) : null}
       </div>

@@ -172,23 +172,20 @@ export function TeamTransferPanel({
   }, [people, currentManagers]);
 
   /**
-   * `appearance-none` plus our own caret, because the NATIVE arrow is placed by
-   * the browser hard against the right edge and no amount of padding moves it —
-   * which is why it read as sitting on the border. Drawing it ourselves puts it
-   * 12px in, vertically centred, and `pr-9` reserves the lane so a long name
-   * runs under nothing.
+   * `CompactSelect` is a `<button>` + portalled listbox, not a native
+   * `<select>` — it already draws its own chevron (`compact-select.tsx`).
+   * This used to ALSO paint a CSS background-image caret here, so the
+   * trigger showed two arrows stacked (found 2026-09-26); `appearance-none`
+   * never did anything for the double-arrow either, since that only
+   * suppresses a native `<select>`'s own arrow and this was never one — both
+   * were leftover from before this control was converted to `CompactSelect`.
+   * `pr-9` still reserves the lane CompactSelect's own chevron sits in.
    */
-  const CARET =
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
-
   const SELECT =
-    "h-10 appearance-none rounded-lg border border-hairline-strong bg-white pl-3 pr-9 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red disabled:opacity-60";
+    "h-10 rounded-lg border border-hairline-strong bg-white pl-3 pr-9 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-altus-red disabled:opacity-60";
 
   const selectStyle: React.CSSProperties = {
     width: `${selectWidthCh}ch`,
-    backgroundImage: CARET,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 12px center",
   };
 
   return (
@@ -200,10 +197,12 @@ export function TeamTransferPanel({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-10 items-center gap-2 rounded-lg px-5 text-[13.5px] font-bold text-white"
+        className="flex h-14 w-[104px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[12.5px] font-bold leading-tight text-white"
         style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
       >
-        <Users2 size={15} strokeWidth={2.4} /> Transfer
+        <Users2 size={15} strokeWidth={2.4} />
+        <span>Transfer</span>
+        <span>Employee</span>
       </button>
 
       {/* THE PICKERS, as a dialog. Only ONE overlay is ever mounted: opening

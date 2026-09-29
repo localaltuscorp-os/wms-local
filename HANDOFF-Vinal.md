@@ -1,6 +1,55 @@
 # HANDOFF — `Vinal` branch
 
-**Updated:** 2026-09-23
+**Updated:** 2026-09-28
+**Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
+**Audience:** team, lead, and whoever runs the SQL in Supabase.
+
+## Latest delivery — 26 September 2026
+
+### Branch and deployment state
+
+- **Branch:** `Vinal`
+- **Delivery commit:** `ba501251` — `Improve compliance boards, task tables, and project views`
+- **Pushed:** `origin/Vinal` successfully on 26 September 2026.
+- **Main comparison:** fetched `origin/main` before the push; it was identical to the branch baseline, so **no main commits were pulled or merged**. `Vinal` is now one commit ahead of `origin/main`.
+- **Database:** migration `0253_dcc_compliance_period_checks.sql` was applied successfully to the configured Supabase database.
+
+### Delivered today
+
+| Area | Delivered |
+|---|---|
+| **WCC / MCC table behaviour** | Frozen the selection, S. No., Compliance and Section rail; kept Delete permanently frozen at the right. Fixed horizontal-scroll overlap so scrolled body cells do not show through frozen headings/columns. Added selection and bulk-delete handling, respecting DCC Master restrictions. |
+| **WCC / MCC period timeline** | Added Accounts-style editable period cells: **Wk1–Wk5** in WCC and **Apr–Mar** in MCC. Each cell supports Done, Pending, Need Help, Not Applicable, and clear. Period columns can be dragged and dropped within their own WCC/MCC timeline; order is saved per person and per checklist. Existing Doer/Approver flows and dated compliance entries are unchanged. |
+| **Compliance entry usability** | Added a frozen Section column beside Compliance. Doer Notes and Approver Notes now use an explicit write → tick-to-save → pencil-to-edit flow. Quantity Done uses compact empty boxes. Fixed the WCC six-day range to include all six upcoming dates, including days crossing into the next week. |
+| **Compliance create/import** | WCC/MCC bulk upload now follows the Tasks bulk-upload flow, including in-dialog import, editable rows, template/download support, drag/drop file area, and correct WCC day selection. The redundant outside bulk-upload button was removed. |
+| **Compliance navigation** | Employees navigation labels now read **Weekly CC** and **Monthly CC**. The DCC quick-access strip (Dashboard, WCC, MCC, Sample data) was completely removed; DCC uses shared application navigation only. |
+| **Tasks table** | Fixed frozen-column/header overlap during horizontal scroll, narrowed Client/Subject/Task columns, and kept full truncated values available on hover. |
+| **Project module** | Moved dashboard analytics into the Project Dashboard and retained the Project Tree in Project View. Updated Project View controls/table presentation to match the supplied reference layout. |
+
+### Database migration applied
+
+`db/migrations/0253_dcc_compliance_period_checks.sql` creates `dcc_compliance_period_checks`. It stores only the new Accounts-style WCC/MCC period summaries; it does **not** replace or modify `dcc_entries`, so dated compliance records, Doer Status, Approver Status, notes, and quantity data stay intact.
+
+The migration is additive and idempotent:
+
+```sql
+CREATE TABLE IF NOT EXISTS dcc_compliance_period_checks (...);
+CREATE UNIQUE INDEX IF NOT EXISTS dcc_compliance_period_checks_uq
+  ON dcc_compliance_period_checks (item_id, kind, period_year, period_month, week_no);
+CREATE INDEX IF NOT EXISTS dcc_compliance_period_checks_period_idx
+  ON dcc_compliance_period_checks (kind, period_year, period_month);
+```
+
+See the migration file for the complete table definition and constraints.
+
+### Verification
+
+- `tsc --noEmit --pretty false` — passed.
+- `vitest run tests/unit/compliance-wcc-mcc.test.ts tests/unit/compliance-columns.test.ts` — **44 passed**.
+- `git diff --check` — passed before commit.
+- Commit `ba501251` pushed successfully to `origin/Vinal`.
+
+---
 **Repo:** `https://github.com/localaltuscorp-os/wms-local` · branch `Vinal`
 **Audience:** team, lead, and whoever runs the SQL in Supabase.
 
@@ -298,7 +347,58 @@ Verification completed today: 142 focused compliance tests passed; `/dcc/wcc`, `
 
 ---
 
-## 8. Two things to decide
+## 9. Work delivered (28 September 2026)
+
+This session focused on the Accounts, Compliance, Salary and Reimbursements surfaces. No migration, seed, SQL, or database write was run. `.env.local` remains local-only; dummy mode is disabled so the application uses its configured Supabase data.
+
+| Area | Delivered |
+|---|---|
+| **Weekly / Monthly Compliance** | Group headings now use normal text rather than a highlight-like field treatment. Selection exposes bulk Doer Status and Approver Status controls. The add/edit flow is clearer, form descriptions were removed, and Quantity Done is available when an item is in an applicable status. |
+| **Weekly / Monthly Accounts Checklists** | Add and edit use separate dialogs rather than table-expanding forms, with visible Cancel actions. Links can be opened, replaced, or removed from the table. Weekly and Monthly gained a reusable table toolbar with list/kanban/dashboard views, search, filters, grouping, sorting, column control, CSV export/import and fullscreen. |
+| **Due Dates Checklist** | Add/edit is a dialog and a new item receives the next numeric S.No. automatically. The former combined Payment display is split into separate Tally Entry, Balance Tally, Paid Date and Paid Amount columns. Its table uses the same toolbar capabilities as Weekly and Monthly. |
+| **Salary** | Payroll month choices are ordered January through December within the selected year. Entity filtering supports multiple entities. Table headers and values were aligned, and the Salary Slip list now exposes only Download PDF and Open in new tab instead of an empty preview area. |
+| **Reimbursements** | Archived claims have a Back to active claims action. Attachments expose readable View/Download actions, eligible users can delete documents, rejected claims can be returned to Pending with Unreject, the Other payment option accepts free text, and date fields use DD-MMM-YYYY. |
+| **Credit Cards Master** | The page header, FY selector, month picker and table controls are compacted into the command-bar/toolbar layout. Add Card continues the next numeric S.No. |
+| **SIP Tracker â€” Loans** | Add Loan and Edit Loan now open in a modal with a persistent footer containing Cancel and Save. New loans are assigned the next numeric S.No.; the grid no longer gains an inline editor row. |
+| **SIP Tracker â€” Mutual Funds** | Add Fund and Edit Fund now open in a modal with the existing Entity, Type, location, SIP date and installment amount fields retained. Cancel/Save are visible in the footer, and new funds receive the next numeric S.No. The table no longer gains an inline editor row. |
+| **Bank Balance / Credit Cards serials** | New Account and Add Card actions calculate their next numeric S.No. from the highest existing serial. |
+
+### SQL queries in this delivery
+
+**None.** The 28 September changes are client/server application changes that use the existing Supabase schema and existing query/action paths. No SQL query, migration, seed, or manual Supabase write was used or is required to deploy this delivery.
+
+The earlier `0253_dcc_compliance_period_checks.sql` migration documented above belongs to the 26 September Compliance delivery; it was not created or executed as part of this delivery.
+
+### Main implementation files
+
+- `components/accounts/weekly-checklist/weekly-client.tsx`
+- `components/accounts/monthly-checklist/monthly-client.tsx`
+- `components/accounts/due-dates/due-dates-client.tsx`
+- `components/accounts/checklist-table-toolbar.tsx`
+- `components/accounts/cc-master/cc-client.tsx`
+- `app/(app)/accounts/cc-tracker/page.tsx`
+- `components/accounts/sip-tracker/loans-panel.tsx`
+- `components/accounts/sip-tracker/sip-client.tsx`
+- `components/salary/salary-breakup-table.tsx`
+- `components/salary/salary-entity-select.tsx`
+- `components/salary/salary-period-select.tsx`
+- `components/salary/salary-slip-list.tsx`
+- `components/reimbursements/rb-claims-list.tsx`
+- `components/reimbursements/rb-claim-attachments.tsx`
+
+### Verification on 28 September
+
+- Focused ESLint over all changed TypeScript/TSX files: **0 errors**; 17 existing React-hook/purity warnings remain.
+- `git diff --check`: **passed**.
+- Full `vitest run`: exceeded the 60-second command limit and reported existing failures before timeout in account-lockout, module-backup, permission/route catalog, API guard, incentive, operations, salary-statement and control-panel tests. It did not complete.
+- Full repository ESLint and `tsc --noEmit`: each exceeded the 60-second command limit without printing diagnostics.
+- Targeted TypeScript transpilation completed for the current Credit Cards, Loans and Mutual Fund popup changes.
+
+No claim of a full green repository test suite should be made until the existing unit-test failures and the long-running full static checks are resolved or run in CI without the 60-second local command limit.
+
+---
+
+## 10. Earlier outstanding decisions
 
 1. 🟡 **Jeevan's reference sheet has drifted from the calendar.** It labels `13-Sep-2026` as "Monday"; that date is a **Sunday**. The whole Day row is one step off, so the sheet's six-day blocks are really Sun–Fri while claiming Mon–Sat. This app derives the weekday from the date, so its columns will not line up with the sheet's labels. The structure was copied (six working days, weekly total, Sunday omitted); the typo was not.
 

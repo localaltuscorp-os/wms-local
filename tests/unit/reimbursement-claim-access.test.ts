@@ -69,11 +69,13 @@ describe("canChangeClaimDocuments", () => {
     expect(canChangeClaimDocuments(claim({ status: "rejected" }), ME)).toBe(false);
   });
 
-  it("REFUSES AN ADMIN, even on a pending claim — narrower than viewing", () => {
-    // The person who approves the claim must not also be able to swap the
-    // receipt: that removes the only independent evidence behind their own
-    // decision. An admin reopens the claim instead.
-    expect(canChangeClaimDocuments(claim(), ADMIN)).toBe(false);
+  it("lets an admin add or remove while the claim is pending", () => {
+    expect(canChangeClaimDocuments(claim(), ADMIN)).toBe(true);
+  });
+
+  it("REFUSES an admin once the claim has been decided", () => {
+    expect(canChangeClaimDocuments(claim({ status: "approved" }), ADMIN)).toBe(false);
+    expect(canChangeClaimDocuments(claim({ status: "rejected" }), ADMIN)).toBe(false);
   });
 
   it("REFUSES a colleague outright", () => {

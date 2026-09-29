@@ -2,8 +2,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { loadCePage } from "@/lib/client-engagement/page-context";
 import { buildCapacity, weeklyLoadByAccount, type Load } from "@/lib/client-engagement/grids";
 import { CeNotReady } from "@/components/client-engagement/not-ready";
-import { CapacityBar } from "@/components/client-engagement/capacity-bar";
-import { AccountsBoard } from "@/components/client-engagement/accounts-board";
+import { OverviewBoard } from "@/components/client-engagement/overview-board";
 import { ReferencesBoard } from "@/components/client-engagement/references-board";
 
 export const dynamic = "force-dynamic";
@@ -39,8 +38,7 @@ export default async function ClientEngagementOverview({
 
   return (
     <PageShell width="full">
-      <CapacityBar capacity={capacity} unassigned={unassigned} />
-      <AccountsBoard
+      <OverviewBoard
         accounts={accounts}
         members={members}
         capacity={capacity}
@@ -49,6 +47,7 @@ export default async function ClientEngagementOverview({
         canManage={ctx.canManage}
         myMemberId={ctx.myMemberId}
         initialTab={tab}
+        unassigned={unassigned}
         referencesSlot={
           <ReferencesBoard
             references={references}
