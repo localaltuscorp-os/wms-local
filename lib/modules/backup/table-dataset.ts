@@ -3,7 +3,7 @@ import { getTableColumns, gt, or, sql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
-import { isSecretColumn } from "./names";
+import { backupFileName, isSecretColumn } from "./names";
 import type { CellValue, Dataset, DatasetRows, ExportFile } from "./types";
 
 /**
@@ -22,6 +22,12 @@ export interface FileColumn {
   readonly path: string;
   /** Column holding a display name, if any. */
   readonly name?: string;
+  /** Human-readable content type used when the source has no original filename. */
+  readonly label?: string;
+  /** Optional row columns that make the generated filename more specific. */
+  readonly details?: readonly string[];
+  /** Optional row column containing the most relevant document date. */
+  readonly date?: string;
   /** Defaults to the documents bucket. */
   readonly bucket?: string;
 }
@@ -121,11 +127,16 @@ export function tableTab(spec: TableTabSpec): Dataset {
           const path = row[fileColumn.path];
           if (typeof path !== "string" || !path.trim()) continue;
           const named = fileColumn.name ? row[fileColumn.name] : null;
-          const fallback = path.slice(path.lastIndexOf("/") + 1);
           files.push({
             bucket: fileColumn.bucket ?? DOCUMENTS_BUCKET,
             path,
-            name: typeof named === "string" && named.trim() ? named : fallback,
+            name: backupFileName({
+              path,
+              uploadedName: named,
+              label: fileColumn.label ?? spec.tab,
+              details: fileColumn.details?.map((key) => row[key]),
+              date: fileColumn.date ? row[fileColumn.date] : row.createdAt,
+            }),
           });
         }
       }
