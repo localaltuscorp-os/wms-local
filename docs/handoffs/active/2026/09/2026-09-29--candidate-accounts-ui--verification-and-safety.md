@@ -157,3 +157,10 @@ Complete and verify the requested Accounts, Attendance, Overtime, Incentive, Sal
 - Passed: `vitest run tests/unit/candidate-intake-validation.test.ts tests/unit/candidate-search.test.ts tests/unit/candidate-merge.test.ts tests/unit/evaluation-v2-instance.test.ts --no-file-parallelism` — 4 files, 28 tests.
 - Passed: focused ESLint for the Post-Interview list, evaluation route/screen, invite action/dialog, and mailer — no errors. Existing hooks/ref warnings remain in `evaluation-v2-screen.tsx`.
 - Passed: `git diff --check`.
+
+## 2026-09-29 Git integration and delivery
+
+- Committed the reviewed Accounts, HR, policy, onboarding, letter, test, migration, and handoff work as `4c6aaf9a` (`feat: complete accounts and HR workflow improvements`): 86 files, 2,255 additions, and 759 deletions.
+- Fetched and merged the latest protected `origin/main` (`87bbb828`) into branch `Vinal` without conflicts. The resulting integration commit is `b1a16b76`; protected `main` was not modified.
+- Post-merge focused checks: 64 tests passed. Two Module Backup assertions from the newly merged `origin/main` fail because they expect obsolete `isSuperAdmin` access text and an old admin-nav link that are absent from the same upstream main implementation. This unrelated upstream inconsistency was preserved rather than changing access or navigation behavior outside this delivery.
+- The local working tree was clean immediately after the merge and `git diff --check` remains clean. The branch is ready for the requested push to `origin/Vinal`.
