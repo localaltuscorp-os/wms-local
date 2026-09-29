@@ -24,6 +24,7 @@ import {
   FileUp,
   Settings as SettingsIcon,
   ScrollText,
+  ListFilter,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -83,6 +84,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     label: "Masters",
     Icon: Briefcase,
     items: [
+      { href: "/admin/drop-down-master" as Route, label: "Drop Down Master", Icon: ListFilter },
       { href: "/admin/clients" as Route, label: "Clients", Icon: Briefcase },
       { href: "/admin/subjects" as Route, label: "Subjects", Icon: Tag },
       { href: "/admin/products" as Route, label: "Products", Icon: Package },

@@ -1,6 +1,6 @@
 import { DashboardHeader } from "@/components/layout/header";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
-import { MODULE_THEME } from "@/lib/module-theme";
 import { listSelfLearning, selfLearnMinutesThisMonth } from "@/lib/queries/learning";
 import { getScoreConfig } from "@/lib/queries/pms";
 import { monthStart } from "@/lib/weekly-goals/week";
@@ -8,8 +8,8 @@ import { SelfLearningForm, SelfLearningItem } from "@/components/training/learni
 
 export const dynamic = "force-dynamic";
 
-const ACCENT = "#E10600"; // Altus red — in-module chrome is brand red
-const ACCENT_DEEP = "#A80400"; // Altus red deep
+const ACCENT = "#E10600";
+const ACCENT_DEEP = "#A80400";
 
 function nextMonthStart(ms: string): string {
   const [y, m] = ms.split("-").map(Number);
@@ -38,38 +38,22 @@ export default async function SelfLearningPage() {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
-        <header className="mb-6">
-          <span
-            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
-          >
-            Skill Upgrade
-          </span>
-          <h1
-            className="text-ink-strong"
-            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px, 3.4vw, 44px)", letterSpacing: "-0.025em", lineHeight: 1.04, marginTop: 8 }}
-          >
-            Self-Learning
-          </h1>
-          <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Log what you learn from books, videos and YouTube — with evidence. This feeds your PMS Skill-Upgrade score.
-          </p>
-        </header>
+        <PageCommandBar title="Self-Learning" />
 
-        <div className="grid grid-cols-3 gap-5 max-lg:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
           {/* Progress meter */}
-          <aside className="flex flex-col gap-5">
-            <div className="wg-rise rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm" style={{ animationDelay: "0ms" }}>
+          <aside>
+            <div className="wg-rise h-full rounded-xl border border-hairline bg-surface-card p-4 shadow-sm" style={{ animationDelay: "0ms" }}>
               <p className="text-[12px] font-bold uppercase tracking-[0.06em] text-ink-soft">{monthName}</p>
-              <div className="mt-3 flex items-end gap-2">
-                <span className="tabular-nums" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 40, lineHeight: 1, color: ACCENT_DEEP }}>
+              <div className="mt-2 flex items-end gap-2">
+                <span className="tabular-nums" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 32, lineHeight: 1, color: ACCENT_DEEP }}>
                   {hoursDone}
                 </span>
                 <span className="mb-1 text-[15px] font-bold text-ink-muted">
                   / {targetHours || "—"} hrs
                 </span>
               </div>
-              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--color-surface-soft)" }}>
+              <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--color-surface-soft)" }}>
                 <div
                   className="h-full rounded-full transition-[width] duration-500"
                   style={{ width: `${pct}%`, background: met ? "linear-gradient(90deg, #16a34a, #15803d)" : `linear-gradient(90deg, ${ACCENT}, ${ACCENT_DEEP})` }}
@@ -87,22 +71,24 @@ export default async function SelfLearningPage() {
               </p>
             </div>
 
-            <div className="wg-rise rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm" style={{ animationDelay: "35ms" }}>
-              <h2 className="text-[15px] font-bold text-ink-strong">Log an Entry</h2>
-              <p className="mt-0.5 mb-4 text-[13px] font-medium text-ink-subtle">Evidence (a link) is required.</p>
-              <SelfLearningForm />
-            </div>
           </aside>
 
-          {/* This-month list */}
-          <section className="col-span-2 max-lg:col-span-1">
-            <div className="wg-rise rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm" style={{ animationDelay: "70ms" }}>
+          <section>
+            <div className="wg-rise h-full rounded-xl border border-hairline bg-surface-card p-4 shadow-sm" style={{ animationDelay: "35ms" }}>
+              <h2 className="text-[15px] font-bold text-ink-strong">Log an Entry</h2>
+              <p className="mt-0.5 mb-3 text-[12.5px] font-medium text-ink-subtle">Evidence supports score.</p>
+              <SelfLearningForm />
+            </div>
+          </section>
+        </div>
+
+        <section className="mt-4">
+          <div className="wg-rise rounded-xl border border-hairline bg-surface-card p-4 shadow-sm" style={{ animationDelay: "70ms" }}>
               <h2 className="text-[15px] font-bold text-ink-strong">This Month's Learning</h2>
-              <p className="mt-0.5 mb-4 text-[13px] font-medium text-ink-subtle">{monthName}</p>
+              <p className="mt-0.5 mb-3 text-[12.5px] font-medium text-ink-subtle">{monthName}</p>
               {rows.length === 0 ? (
-                <div className="rounded-xl border border-solid border-hairline-strong p-10 text-center">
-                  <p className="text-[15px] font-bold text-ink-strong">Nothing logged yet this month</p>
-                  <p className="mt-1 text-[13.5px] font-medium text-ink-muted">Add your first self-learning entry on the left.</p>
+                <div className="rounded-lg border border-solid border-hairline-strong px-4 py-5 text-center">
+                  <p className="text-[14px] font-bold text-ink-strong">Nothing logged yet this month</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -121,9 +107,8 @@ export default async function SelfLearningPage() {
                   ))}
                 </div>
               )}
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </main>
     </>
   );

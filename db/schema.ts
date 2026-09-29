@@ -11162,6 +11162,8 @@ export const employeeRoles = pgTable(
     assignedById: uuid("assigned_by_id").references(() => employees.id, {
       onDelete: "set null",
     }),
+    /** Null means this employee keeps the role until it is explicitly removed. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

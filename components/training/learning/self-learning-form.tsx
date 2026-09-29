@@ -12,8 +12,8 @@ const ACCENT = "#E10600";
 const ACCENT_DEEP = "#A80400";
 
 const FIELD =
-  "w-full rounded-lg border border-hairline-strong bg-white px-3.5 py-3 text-[15px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle";
-const LABEL = "mb-1.5 block text-[12px] font-bold uppercase tracking-[0.06em] text-ink-soft";
+  "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle";
+const LABEL = "mb-1 block text-[11px] font-bold uppercase tracking-[0.06em] text-ink-soft";
 
 type Kind = "book" | "video" | "youtube" | "other";
 const KINDS: { id: Kind; label: string; Icon: LucideIcon }[] = [
@@ -91,7 +91,7 @@ export function SelfLearningForm() {
           e.currentTarget.querySelector<HTMLElement>("[data-cancel]")?.focus();
         }
       }}
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-3"
     >
       {/* Kind selector */}
       <div>
@@ -105,7 +105,7 @@ export function SelfLearningForm() {
                 type="button"
                 onClick={() => setKind(id)}
                 aria-pressed={active}
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[14.5px] font-bold transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-bold transition-colors"
                 style={
                   active
                     ? { color: "#fff", background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, boxShadow: "0 10px 24px -12px rgba(225,6,0,0.6)" }
@@ -119,7 +119,7 @@ export function SelfLearningForm() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+        <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
         <div>
           <label className={LABEL}>What did you learn from</label>
           <input
@@ -219,7 +219,7 @@ export function SelfLearningForm() {
         <div className="col-span-2 max-md:col-span-1">
           <label className={LABEL}>Notes (optional)</label>
           <textarea
-            className={FIELD + " min-h-[72px] resize-y"}
+            className={FIELD + " min-h-[60px] resize-y"}
             value={notes}
             maxLength={2000}
             onChange={(e) => setNotes(e.target.value)}
@@ -250,11 +250,11 @@ export function SelfLearningForm() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3 border-t border-hairline pt-5">
+      <div className="flex items-center justify-end gap-3 border-t border-hairline pt-3">
         <button
           type="submit"
           disabled={submitting}
-          className="brand-btn inline-flex items-center gap-2 rounded-xl py-3 px-7 text-[15px] font-bold text-white transition-transform active:scale-[0.99] disabled:opacity-60"
+          className="brand-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold text-white transition-transform active:scale-[0.99] disabled:opacity-60"
           style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, boxShadow: "0 12px 30px -12px rgba(225,6,0,0.6)" }}
         >
           {submitting ? <Loader2 size={17} className="animate-spin" /> : <Plus size={17} strokeWidth={2.6} />} Log Learning
@@ -308,7 +308,7 @@ export function SelfLearningItem({
   const dateLabel = formatDate(learnDate);
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-hairline bg-white p-3.5">
+    <div className="flex items-start gap-3 rounded-lg border border-hairline bg-white p-3">
       <span
         className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-lg"
         style={{ background: "color-mix(in srgb, #E10600 12%, transparent)", color: ACCENT_DEEP }}

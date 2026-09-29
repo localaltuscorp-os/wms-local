@@ -69,7 +69,6 @@ import {
   // its five entries are the five the Admin Panel group listed before it moved.
   UserCog,
   KeyRound,
-  Eye,
   Clock,
 } from "lucide-react";
 import type { Route } from "next";
@@ -574,7 +573,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     top: [
       { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
       { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
-      { href: "/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
       { href: "/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
     ],
     groups: [],

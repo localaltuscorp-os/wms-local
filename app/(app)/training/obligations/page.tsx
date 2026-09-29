@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { GraduationCap, Users, BookOpen, Mic, Presentation } from "lucide-react";
+import { Users, BookOpen, Mic } from "lucide-react";
 import { and, asc, eq } from "drizzle-orm";
 import { db, employees } from "@/lib/db";
 import { requireUser } from "@/lib/auth/current";
@@ -8,8 +8,8 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { withRetry } from "@/lib/db/with-timeout";
 import { DashboardHeader } from "@/components/layout/header";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
-import { MODULE_THEME } from "@/lib/module-theme";
 import {
   obligationsForRoster,
   currentObligationPeriod,
@@ -20,7 +20,6 @@ import { ObligationBar, statusFor } from "@/components/training/obligations/obli
 export const dynamic = "force-dynamic";
 
 const ACCENT = "#E10600"; // Altus red — in-module chrome is brand red
-const ACCENT_DEEP = "#A80400"; // Altus red deep
 
 type Person = { id: string; name: string; avatarUrl: string | null; department: string | null };
 
@@ -100,43 +99,26 @@ export default async function TrainingObligationsPage() {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
-        <header className="mb-7 flex items-end justify-between gap-4 flex-wrap wg-rise">
-          <div>
-            <span
-              className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-              style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
+        <PageCommandBar
+          title="Skill-Upgrade Obligations"
+          actions={
+            <Link
+              href={"/pms" as Route}
+              className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
             >
-              <GraduationCap size={13} strokeWidth={2.6} /> Training · Obligations
-            </span>
-            <h1
-              className="mt-3 text-ink-strong"
-              style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px,3.4vw,44px)", letterSpacing: "-0.025em", lineHeight: 1.04 }}
-            >
-              Skill-Upgrade Obligations
-            </h1>
-            <p className="mt-2 font-medium text-ink-muted" style={{ fontSize: 15.5, maxWidth: "70ch" }}>
-              {monthLabel(period.period)} · everyone&rsquo;s give / attend / self-learn / share against monthly
-              targets. {admin ? "All active people." : "You and your team."} This is what feeds the
-              Skill-Upgrade pillar in the performance score.
-            </p>
-          </div>
-          <Link
-            href={"/pms" as Route}
-            className="inline-flex items-center gap-2 rounded-xl border-2 px-4 py-2.5 text-[14px] font-bold transition-colors"
-            style={{ borderColor: `color-mix(in srgb, ${ACCENT} 40%, transparent)`, color: ACCENT_DEEP }}
-          >
-            Performance Scores
-          </Link>
-        </header>
+              Performance Scores
+            </Link>
+          }
+        />
 
         {/* Summary strip */}
-        <section className="mb-7 grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-sm:grid-cols-1 wg-rise" style={{ animationDelay: "40ms" }}>
-          <div className="rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm">
+        <section className="mb-4 grid grid-cols-4 overflow-hidden rounded-xl border border-hairline bg-surface-card max-lg:grid-cols-2 max-sm:grid-cols-1 wg-rise" style={{ animationDelay: "40ms" }}>
+          <div className="border-b border-r border-hairline px-4 py-3 max-lg:even:border-r-0 max-sm:border-r-0">
             <div className="text-[12px] font-semibold uppercase tracking-wide text-ink-subtle">Org on-target</div>
-            <div className="mt-1 tabular-nums font-black leading-none" style={{ fontSize: 38, color: complianceColor }}>
+            <div className="mt-1 tabular-nums font-black leading-none" style={{ fontSize: 28, color: complianceColor }}>
               {compliancePct}<span className="text-[20px] font-bold">%</span>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-pill bg-surface-soft">
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-pill bg-surface-soft">
               <div className="h-full rounded-pill" style={{ width: `${compliancePct}%`, background: complianceColor }} />
             </div>
             <div className="mt-2 text-[12px] text-ink-subtle tabular-nums">{metCount} of {dueCount} obligations</div>
@@ -146,40 +128,40 @@ export default async function TrainingObligationsPage() {
           <SummaryStat icon={<Mic size={18} strokeWidth={2.4} />} label="Weekly share" value={`${expectedShares}`} sub={`expected so far · ${targets.shareMinPerWeek}m each`} />
         </section>
 
-        {/* Roster cards */}
+        {/* Roster list */}
         {people.length === 0 ? (
           <p className="py-12 text-center text-ink-muted">No one to show yet.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 max-xl:grid-cols-1">
+          <div className="overflow-hidden rounded-xl border border-hairline bg-surface-card">
             {people.map((p, i) => {
               const r = byId.get(p.id);
               const person = nameById.get(p.id)!;
               const isManager = r?.isManager ?? false;
+              const metrics = [
+                ...(isManager ? [statusFor(r?.givenHours ?? 0, targets.giveHours, expectedPct)] : []),
+                statusFor(r?.attendedHours ?? 0, targets.attendHours, expectedPct),
+                statusFor(r?.selfLearnHours ?? 0, targets.selfLearnHours, expectedPct),
+                statusFor(r?.sharesDone ?? 0, targets.shareMinPerWeek > 0 ? expectedShares : 0, expectedPct),
+              ];
+              const overallStatus = metrics.includes("behind") ? "Behind" : metrics.every((s) => s === "met" || s === "na") ? "Complete" : "On track";
+              const overallColor = overallStatus === "Behind" ? "#dc2626" : overallStatus === "Complete" ? "#15803d" : "#a16207";
               return (
                 <article
                   key={p.id}
-                  className="wg-rise rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm"
+                  className="wg-rise flex items-center gap-4 border-b border-hairline px-4 py-4 last:border-b-0 max-lg:flex-wrap"
                   style={{ animationDelay: `${i * 35}ms` }}
                 >
                   <div className="flex items-center gap-3.5">
-                    <EmployeeAvatar name={person.name} size="lg" />
+                    <EmployeeAvatar name={person.name} size="md" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[16px] font-bold text-ink-strong">{person.name}</span>
-                        {isManager && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wide text-white"
-                            style={{ background: ACCENT }}
-                          >
-                            <Presentation size={10} strokeWidth={2.8} /> Trainer
-                          </span>
-                        )}
                       </div>
-                      <span className="text-[13px] text-ink-subtle">{person.department || "—"}</span>
+                      <span className="text-[12.5px] text-ink-subtle">{person.department || "—"}{isManager ? " · Trainer" : ""}</span>
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3.5 max-sm:grid-cols-1">
+                  <div className="grid flex-1 grid-cols-4 gap-x-5 gap-y-3 max-lg:min-w-full max-md:grid-cols-2 max-sm:grid-cols-1">
                     {isManager && (
                       <ObligationBar
                         label="Give"
@@ -212,16 +194,16 @@ export default async function TrainingObligationsPage() {
                       fmt={(n) => String(Math.round(n))}
                     />
                   </div>
+                  <span className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: `color-mix(in srgb, ${overallColor} 12%, transparent)`, color: overallColor }}>
+                    {overallStatus}
+                  </span>
                 </article>
               );
             })}
           </div>
         )}
 
-        <p className="mt-6 text-[12.5px] text-ink-subtle">
-          Bars are pro-rated to the {Math.round(expectedPct * 100)}% of {monthLabel(period.period)} elapsed —
-          green is on or ahead of target, amber is on pace, red is behind. Give applies to managers only.
-        </p>
+        <p className="mt-3 text-[12px] text-ink-subtle">{monthLabel(period.period)} · {Math.round(expectedPct * 100)}% elapsed. Give applies to trainers.</p>
       </main>
     </>
   );
@@ -239,7 +221,7 @@ function SummaryStat({
   sub: string;
 }) {
   return (
-    <div className="rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm">
+    <div className="border-b border-r border-hairline px-4 py-3 last:border-r-0 max-lg:even:border-r-0 max-sm:border-r-0">
       <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-ink-subtle">
         <span style={{ color: ACCENT }}>{icon}</span>
         {label}

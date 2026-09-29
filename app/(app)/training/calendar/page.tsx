@@ -1,14 +1,14 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { CalendarDays, AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isManager, listTcSubjects } from "@/lib/queries/training";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { getScoreConfig } from "@/lib/queries/pms";
 import { listSessions, upcomingAlert } from "@/lib/queries/training-calendar";
-import { MODULE_THEME } from "@/lib/module-theme";
 import { CalendarBoard } from "@/components/training/calendar/calendar-board";
 import { CalendarGrid, type GridView } from "@/components/training/calendar/calendar-grid";
 import { addSessionSubject } from "./actions";
@@ -86,23 +86,10 @@ export default async function TrainingCalendarPage({
           <ArrowLeft size={15} strokeWidth={2.4} /> Training Centre
         </Link>
 
-        <header className="mt-3 mb-6">
-          <span
-            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
-          >
-            <CalendarDays size={13} strokeWidth={2.6} /> Training Calendar
-          </span>
-          <h1
-            className="text-ink-strong"
-            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px, 3.4vw, 44px)", letterSpacing: "-0.025em", lineHeight: 1.04, marginTop: 8 }}
-          >
-            Training Calendar
-          </h1>
-          <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Schedule sessions, mark attendance, gather feedback and assess. {canManage ? "Prefer Fridays / Saturdays." : "Your sessions and your team's."}
-          </p>
-          <div className="mt-4 flex gap-2">
+        <PageCommandBar
+          title="Training Calendar"
+          toolbar={
+            <div className="flex gap-2">
             {(["list", "day", "week", "month"] as const).map((v) => (
               <Link
                 key={v}
@@ -113,24 +100,25 @@ export default async function TrainingCalendarPage({
                 {v}
               </Link>
             ))}
-          </div>
-        </header>
+            </div>
+          }
+        />
 
         {showAlert && (
           <div
-            className="wg-rise mb-6 flex items-start gap-3 rounded-2xl border p-4"
+            className="wg-rise mb-4 flex items-center gap-2.5 rounded-xl border px-3 py-2.5"
             style={{ background: "rgba(245,158,11,0.10)", borderColor: "rgba(245,158,11,0.45)" }}
           >
-            <AlertTriangle size={20} className="mt-0.5 shrink-0" style={{ color: "#b45309" }} />
-            <div>
-              <p className="text-[15px] font-bold" style={{ color: "#92400e" }}>
+            <AlertTriangle size={17} className="shrink-0" style={{ color: "#b45309" }} />
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-[13.5px] font-bold" style={{ color: "#92400e" }}>
                 No training scheduled
                 {alert.daysSinceLast != null ? ` — ${alert.daysSinceLast} day${alert.daysSinceLast === 1 ? "" : "s"} since the last session.` : "."}
               </p>
-              <p className="mt-0.5 text-[13.5px] font-semibold" style={{ color: "#a16207" }}>
+              <p className="text-[12.5px] font-medium" style={{ color: "#a16207" }}>
                 {canManage
-                  ? `Aim for a session at least every ${alertDays} days. Schedule one below.`
-                  : `Ask a manager to schedule the next session (target: every ${alertDays} days).`}
+                  ? `Target: every ${alertDays} days.`
+                  : "Ask a manager to schedule next session."}
               </p>
             </div>
           </div>

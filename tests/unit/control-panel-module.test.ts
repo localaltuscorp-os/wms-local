@@ -184,9 +184,6 @@ describe("the permission catalogue moved with it", () => {
     expect(nodeKeyForPath("/control-panel/users")).toBe("control-panel.users");
     expect(nodeKeyForPath("/control-panel/roles")).toBe("control-panel.roles");
     expect(nodeKeyForPath("/control-panel/permissions")).toBe("control-panel.permissions");
-    expect(nodeKeyForPath("/control-panel/effective-access")).toBe(
-      "control-panel.effective-access",
-    );
     expect(nodeKeyForPath("/control-panel/temporary-access")).toBe(
       "control-panel.temporary-access",
     );
@@ -200,7 +197,6 @@ describe("the permission catalogue moved with it", () => {
       "control-panel.users",
       "control-panel.roles",
       "control-panel.permissions",
-      "control-panel.effective-access",
       "control-panel.temporary-access",
     ]) {
       expect(nodeChain(key)[0]).toBe("control-panel");

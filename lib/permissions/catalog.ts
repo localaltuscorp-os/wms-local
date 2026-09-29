@@ -942,11 +942,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/control-panel/permissions"],
       },
       {
-        key: "control-panel.effective-access",
-        label: "Effective Access",
-        routes: ["/control-panel/effective-access"],
-      },
-      {
         key: "control-panel.temporary-access",
         label: "Temporary Access",
         routes: ["/control-panel/temporary-access"],
