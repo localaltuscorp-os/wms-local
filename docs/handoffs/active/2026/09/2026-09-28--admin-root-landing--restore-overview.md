@@ -2,7 +2,7 @@
 
 - **Date:** 2026-09-28
 - **Branch:** `bugfix/admin-root-landing`
-- **Status:** Implemented and committed locally in `4e1e74cf`; pending authorized push to the Development Repository. No deployment occurred.
+- **Status:** Implemented and validated. The Preview deployment for this branch is Ready. Pending authorized integration into `origin/main` and promotion to `fork/main`.
 
 ## Objective
 
@@ -35,7 +35,8 @@ The historical Admin Overview cannot be restored safely because the 24 September
 - `pnpm typecheck` passed.
 - `git diff --check` passed.
 - The final diff contains only the Admin root route and this active handoff; no PII or secrets were introduced.
+- Vercel Preview deployment is Ready after the required Preview client configuration was made available. No production deployment has occurred.
 
 ## Remaining action
 
-Push `bugfix/admin-root-landing` to `origin` for review. Do not merge, deploy, or promote it to production without separate authorization.
+Fast-forward the authorized, validated branch into `origin/main`, then promote that exact Development commit to `fork/main`. Do not deploy production without separate authorization.
