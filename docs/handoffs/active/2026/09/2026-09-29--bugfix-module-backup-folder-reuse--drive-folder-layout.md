@@ -21,9 +21,10 @@ Altus Module Backups/
 
 ## Status
 
-Implemented and verified locally. The folder-reuse baseline is `7273722e` and
-the readable-filename work is included on the same local branch. Nothing has
-been pushed, reviewed, merged, or deployed.
+Implemented and verified locally. The folder-reuse commit is `7273722e`, the
+readable-filename commit is `54dff959`, and current `origin/main` was integrated
+without conflicts in `56421e1c`. Authorized direct development push is ready;
+nothing has been deployed to production.
 
 ## Root cause
 
@@ -89,6 +90,13 @@ lookup can only discover folders visible to the application connection.
   - PARTIAL: filename and folder tests passed; two unrelated legacy assertions
     failed because they still expect `isSuperAdmin` and an admin-nav entry while
     the current branch uses `isMasterAdmin` and no longer has that nav entry.
+- After integrating current `origin/main`:
+  - `pnpm.cmd exec vitest run tests/unit/drive-folder-reuse.test.ts tests/unit/module-backup.test.ts -t "file names in a folder|Drive folder reuse"`
+    - PASS: 2 files, 8 tests; 18 unrelated tests skipped by the filter.
+  - `pnpm.cmd exec eslint lib/hr/records-export/drive-google.ts lib/modules/backup/names.ts lib/modules/backup/table-dataset.ts lib/modules/backup/registry.ts tests/unit/drive-folder-reuse.test.ts tests/unit/module-backup.test.ts`
+    - PASS: no errors or warnings.
+  - `node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit --pretty false`
+    - PASS: zero TypeScript errors.
 
 ## Risks and remaining work
 
