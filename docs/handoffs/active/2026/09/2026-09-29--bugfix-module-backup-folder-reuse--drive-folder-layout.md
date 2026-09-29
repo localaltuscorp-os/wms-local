@@ -1,4 +1,4 @@
-# Module Backup Folder Reuse
+# Module Backup Folder Reuse and Readable Filenames
 
 ## Date
 
@@ -7,8 +7,8 @@
 ## Work item and objective
 
 - Branch: `bugfix/module-backup-folder-reuse`
-- Objective: keep one Drive folder per module and retain one dated subfolder per
-  backup day.
+- Objective: keep one Drive folder per module, retain one dated subfolder per
+  backup day, and give copied PDFs/images readable content-based filenames.
 
 Expected layout:
 
@@ -21,8 +21,9 @@ Altus Module Backups/
 
 ## Status
 
-Implemented and verified locally. Not yet committed, pushed, reviewed, merged,
-or deployed.
+Implemented and verified locally. The folder-reuse baseline is `7273722e` and
+the readable-filename work is included on the same local branch. Nothing has
+been pushed, reviewed, merged, or deployed.
 
 ## Root cause
 
@@ -30,6 +31,11 @@ The backup runner remembers only the root Drive folder ID. Module and dated
 folders call `ensureFolder` without a remembered ID. The Drive client therefore
 created a new same-name module folder on every nightly run instead of finding
 the app-created child already under the correct parent.
+
+For attachments, the table exporter used the object-storage basename whenever
+the row did not include an original filename. Storage basenames are commonly
+UUIDs, so PDFs and images reached Drive with names that did not describe their
+contents.
 
 ## Changes
 
@@ -40,6 +46,20 @@ the app-created child already under the correct parent.
 - `tests/unit/drive-folder-reuse.test.ts`
   - Covers module-folder reuse, dated-folder reuse, parent isolation, and query
     escaping with synthetic data.
+- `lib/modules/backup/names.ts`
+  - Builds readable names from the configured document details, content label,
+    relevant date, and the original extension.
+  - Preserves a real uploaded filename, adding the storage extension only when
+    the recorded filename omitted it.
+- `lib/modules/backup/table-dataset.ts`
+  - Uses the shared readable-name builder instead of falling back to a storage
+    UUID and supports declarative label/detail/date metadata.
+- `lib/modules/backup/registry.ts`
+  - Describes unnamed PDFs, signatures, photos, invoices, recordings,
+    presentations, evidence, and other backup attachments.
+- `tests/unit/module-backup.test.ts`
+  - Covers UUID replacement, descriptive naming, extension preservation, and
+    compatibility with duplicate-name numbering.
 
 ## Database and migrations
 
@@ -61,6 +81,14 @@ lookup can only discover folders visible to the application connection.
     diagnostic was reported before termination.
 - `node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit --pretty false`
   - PASS: zero TypeScript errors.
+- `pnpm.cmd exec vitest run tests/unit/module-backup.test.ts -t "file names in a folder"`
+  - PASS: 4 tests (18 unrelated tests skipped by the filter).
+- `pnpm.cmd exec eslint lib/modules/backup/names.ts lib/modules/backup/table-dataset.ts lib/modules/backup/registry.ts tests/unit/module-backup.test.ts`
+  - PASS: no errors or warnings.
+- `pnpm.cmd exec vitest run tests/unit/module-backup.test.ts tests/unit/drive-folder-reuse.test.ts`
+  - PARTIAL: filename and folder tests passed; two unrelated legacy assertions
+    failed because they still expect `isSuperAdmin` and an admin-nav entry while
+    the current branch uses `isMasterAdmin` and no longer has that nav entry.
 
 ## Risks and remaining work
 
@@ -68,10 +96,13 @@ lookup can only discover folders visible to the application connection.
   separate destructive cleanup requiring explicit review.
 - The lookup chooses the oldest visible matching folder. Existing duplicates
   remain visible, but future runs converge on one folder instead of adding more.
-- Verify the focused unit test, lint, and TypeScript before commit.
+- Readable names apply on new backup copies; this does not rename files already
+  present in Drive.
+- Two stale, unrelated assertions in the full module-backup unit file remain as
+  described under Testing; they were not changed as part of this focused fix.
 
 ## Rollback
 
-Revert the folder lookup in `googleDriveClient.ensureFolder`; no database or
-Drive data rollback is required because this change does not move or delete
-existing content.
+Revert the folder lookup in `googleDriveClient.ensureFolder` and the filename
+metadata/builder changes. No database or Drive data rollback is required
+because this change does not move, delete, or rename existing content.
