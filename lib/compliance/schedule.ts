@@ -126,6 +126,12 @@ export function addDays(ymd: string, n: number): string {
   return fmt(utc(ymd) + n * DAY);
 }
 
+/** The WCC picker always starts on the chosen day and looks ahead. This keeps
+ * a 3- or 6-day view complete when it crosses a Sunday into the next week. */
+export function wccWindow(start: string, days: 1 | 3 | 6): { from: string; to: string } {
+  return { from: start, to: addDays(start, days - 1) };
+}
+
 /** Monday = 0 … Sunday = 6, matching the DCC weekday mask. */
 export function weekdayIndex(ymd: string): number {
   const g = new Date(utc(ymd)).getUTCDay();

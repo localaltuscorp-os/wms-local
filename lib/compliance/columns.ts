@@ -42,9 +42,11 @@ import type { ComplianceRow } from "./rows";
 import type { DoerStatus } from "./status";
 
 export type ColKey =
+  | "select"
   | "sr"
   | "employee"
   | "compliance"
+  | "section"
   | "frequency"
   | "deadline"
   | "mins"
@@ -55,14 +57,15 @@ export type ColKey =
   | "approver"
   | "doerNotes"
   | "approverNotes"
-  | "actions";
+  | "edit"
+  | "delete";
 
 export interface ColumnDef {
   key: ColKey;
   width: number;
   /** Sortable columns get the ⇅ button; S. No. sorts as the checklist's order. */
   sortable: boolean;
-  /** The actions column stays on the right, where the row's buttons belong. */
+  /** Positional columns cannot be dragged out of their frozen rail. */
   movable: boolean;
   /** Only in the team view. */
   teamOnly?: true;
@@ -75,9 +78,13 @@ export interface ColumnDef {
 }
 
 export const COLUMNS: Record<ColKey, ColumnDef> = {
-  sr: { key: "sr", width: 80, sortable: true, movable: true, sortKind: "number" },
+  // Selection, identity and removal are positional table furniture. They stay
+  // reachable while the rest of the checklist scrolls, just like Tasks.
+  select: { key: "select", width: 52, sortable: false, movable: false, sortKind: "text" },
+  sr: { key: "sr", width: 80, sortable: true, movable: false, sortKind: "number" },
   employee: { key: "employee", width: 180, sortable: true, movable: true, teamOnly: true, sortKind: "text" },
-  compliance: { key: "compliance", width: 330, sortable: true, movable: true, sortKind: "text" },
+  compliance: { key: "compliance", width: 330, sortable: true, movable: false, sortKind: "text" },
+  section: { key: "section", width: 150, sortable: true, movable: false, sortKind: "text" },
   // WCC's — "Mon, Tue, Wed, Thu & Fri" on one line. MCC's is narrower: columnDef.
   frequency: { key: "frequency", width: 215, sortable: true, movable: true, sortKind: "text" },
   // WCC is grouped by day and shows Mins in this slot; only MCC needs a
@@ -124,7 +131,10 @@ export const COLUMNS: Record<ColKey, ColumnDef> = {
   approver: { key: "approver", width: 185, sortable: true, movable: true, sortKind: "state" },
   doerNotes: { key: "doerNotes", width: 250, sortable: true, movable: true, sortKind: "text" },
   approverNotes: { key: "approverNotes", width: 250, sortable: true, movable: true, sortKind: "text" },
-  actions: { key: "actions", width: 90, sortable: false, movable: false, sortKind: "text" },
+  // Edit remains a normal scrolling control because it is a detail/notes
+  // helper. Delete is the one destructive action that stays on the right edge.
+  edit: { key: "edit", width: 44, sortable: false, movable: true, sortKind: "text" },
+  delete: { key: "delete", width: 52, sortable: false, movable: false, sortKind: "text" },
 };
 
 /** MCC's Frequency: the day of the month alone ("2nd", "30th"), so narrow and numeric. */
@@ -143,12 +153,16 @@ export function columnDef(key: ColKey, kind: ComplianceKind): ColumnDef {
 /** The headings, written out in full — the table and the sort banner both read them. */
 export function columnLabel(key: ColKey, kind: ComplianceKind): string {
   switch (key) {
+    case "select":
+      return "";
     case "sr":
       return "S. No.";
     case "employee":
       return "Employee";
     case "compliance":
       return kind === "wcc" ? "Weekly Compliance" : "Monthly Compliance";
+    case "section":
+      return "Section";
     case "frequency":
       return "Frequency";
     case "deadline":
@@ -169,16 +183,19 @@ export function columnLabel(key: ColKey, kind: ComplianceKind): string {
       return "Doer Notes";
     case "approverNotes":
       return "Approver Notes";
-    case "actions":
+    case "edit":
+    case "delete":
       return "";
   }
 }
 
 /** The order the table opens in, before anybody drags anything. */
 export const DEFAULT_ORDER: ColKey[] = [
+  "select",
   "sr",
-  "employee",
   "compliance",
+  "section",
+  "employee",
   "frequency",
   "deadline",
   "mins",
@@ -189,26 +206,30 @@ export const DEFAULT_ORDER: ColKey[] = [
   "approver",
   "doerNotes",
   "approverNotes",
-  "actions",
+  "delete",
 ];
 
 /**
  * A stored order made safe: unknown keys and repeats dropped, a column added
  * since placed right after the one it follows by default (Mins after Deadline,
- * wherever this person keeps it), the actions column always last.
+ * wherever this person keeps Deadline). Selection, S. No. and Compliance are
+ * always the fixed identity block on the left; Delete is the fixed right rail.
  */
 export function reconcileOrder(saved: readonly string[] | null | undefined): ColKey[] {
-  if (!saved) return [...DEFAULT_ORDER];
   const known = new Set<string>(DEFAULT_ORDER);
-  const out = saved.filter(
-    (k, i, all): k is ColKey => known.has(k) && all.indexOf(k) === i && k !== "actions",
+  const fixedStart: ColKey[] = ["select", "sr", "compliance", "section"];
+  const fixedEnd: ColKey[] = ["delete"];
+  const fixed = new Set<ColKey>([...fixedStart, ...fixedEnd]);
+  const middleDefault = DEFAULT_ORDER.filter((k) => !fixed.has(k));
+  const out = (saved ?? []).filter(
+    (k, i, all): k is ColKey => known.has(k) && all.indexOf(k) === i && !fixed.has(k as ColKey),
   );
-  DEFAULT_ORDER.forEach((k, i) => {
-    if (k === "actions" || out.includes(k)) return;
+  middleDefault.forEach((k, i) => {
+    if (out.includes(k)) return;
     // After the nearest column before it by default that is already placed.
     let at = 0;
     for (let j = i - 1; j >= 0; j--) {
-      const p = out.indexOf(DEFAULT_ORDER[j]!);
+      const p = out.indexOf(middleDefault[j]!);
       if (p >= 0) {
         at = p + 1;
         break;
@@ -216,10 +237,10 @@ export function reconcileOrder(saved: readonly string[] | null | undefined): Col
     }
     out.splice(at, 0, k);
   });
-  return [...out, "actions"];
+  return [...fixedStart, ...out, ...fixedEnd];
 }
 
-/** Move `from` to where `to` sits now. The actions column never moves. */
+/** Move `from` to where `to` sits now. The fixed rails never move. */
 export function moveColumn(order: readonly ColKey[], from: ColKey, to: ColKey): ColKey[] {
   if (from === to || !COLUMNS[from].movable || !COLUMNS[to].movable) return [...order];
   const next = order.filter((k) => k !== from);
@@ -254,6 +275,8 @@ function valueOf(r: ComplianceRow, key: ColKey): string | number | null {
       return r.ownerName;
     case "compliance":
       return r.title;
+    case "section":
+      return r.section;
     case "frequency":
       // MCC shows the day it is due, so it sorts by that day: 2nd before 10th.
       return r.kind === "mcc" ? +r.deadline.slice(8, 10) : r.schedule;

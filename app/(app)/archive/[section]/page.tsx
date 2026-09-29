@@ -85,12 +85,12 @@ export default async function ArchiveSectionPage({
   const sec = archiveSection(section);
   const siblings = sectionsForWorkspace(sec.workspace);
 
-  const [people, tables, otherCount] = await Promise.all([
+  const [people, tables, otherPeople] = await Promise.all([
     listArchivePeople(scope),
     loadArchiveSection(sec.id, { scope, employeeId }),
     // Only the head-count of the other half, so the switch can say what is
     // behind it without loading that side's records.
-    listArchivePeople(scope === "past" ? "present" : "past").then((p) => p.length),
+    listArchivePeople(scope === "past" ? "present" : "past"),
   ]);
 
   const who = employeeId ? people.find((p) => p.id === employeeId) : undefined;
@@ -117,8 +117,8 @@ export default async function ArchiveSectionPage({
               basePath={`/archive/${sec.id}`}
               counts={
                 scope === "past"
-                  ? { past: people.length, present: otherCount }
-                  : { past: otherCount, present: people.length }
+                  ? { past: people.length, present: otherPeople.length }
+                  : { past: otherPeople.length, present: people.length }
               }
             />
             <ArchiveSectionChips
@@ -171,6 +171,7 @@ export default async function ArchiveSectionPage({
           )}
           <ArchiveTables
             tables={tables}
+            activePeople={scope === "present" ? people : otherPeople}
             // The Present half is empty for a reason worth stating: these
             // records have no archive button of their own.
             emptyTitle={sec.archivable ? "Nothing archived yet" : `Nothing in ${sec.short} can be archived`}

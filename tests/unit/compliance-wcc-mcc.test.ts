@@ -8,6 +8,7 @@ import {
   mccOccurrences,
   periodFor,
   scheduleText,
+  wccWindow,
   wccOccurrences,
   type ComplianceItem,
 } from "@/lib/compliance/schedule";
@@ -64,6 +65,11 @@ describe("which checklist a compliance is on", () => {
 });
 
 describe("WCC rows", () => {
+  it("keeps the full selected window when it crosses into the next week", () => {
+    expect(wccWindow("2026-09-26", 6)).toEqual({ from: "2026-09-26", to: "2026-10-01" });
+    expect(wccWindow("2026-09-26", 3)).toEqual({ from: "2026-09-26", to: "2026-09-28" });
+  });
+
   it("gives a daily compliance one row per working day, the deadline that day", () => {
     const rows = wccOccurrences([item({})], "2026-09-12", "2026-09-14"); // Sat, Sun, Mon
     expect(rows.map((r) => r.deadline)).toEqual(["2026-09-12", "2026-09-14"]); // no Sunday
