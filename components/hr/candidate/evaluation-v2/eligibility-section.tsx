@@ -81,7 +81,7 @@ export function EligibilitySection({ ctrl }: { ctrl: EvalController }) {
           return (
             <div
               key={item.id}
-              className="flex flex-col gap-2.5 border-b border-hairline px-4 py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+              className="grid gap-3 border-b border-hairline px-5 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start"
               style={
                 isNo
                   ? { background: "color-mix(in srgb, var(--color-altus-red) 4%, white)" }
@@ -113,7 +113,7 @@ export function EligibilitySection({ ctrl }: { ctrl: EvalController }) {
                   <RowNotes value={instance.notes[item.id] ?? ""} onChange={(v) => ctrl.setNote(item.id, v)} />
                 </div>
               </div>
-              <div className="shrink-0 sm:pl-4">
+              <div className="shrink-0 lg:pl-4">
                 <SegmentedPassFail value={val} onChange={(v) => ctrl.setPassfail(item.id, v)} label={item.label} />
               </div>
             </div>

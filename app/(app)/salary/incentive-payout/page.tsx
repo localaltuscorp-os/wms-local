@@ -62,9 +62,9 @@ export default async function IncentivePayoutPage({ searchParams }: PageProps) {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[1200px] px-8 max-lg:px-6 max-md:px-4 pt-8 pb-16">
+      <main className="mx-auto max-w-[1200px] px-8 max-lg:px-6 max-md:px-4 pt-5 pb-10">
         <header
-          className="wg-rise relative mb-5 overflow-hidden rounded-[26px] px-7 py-6 max-md:px-4 max-md:py-5"
+          className="wg-rise relative mb-4 overflow-hidden rounded-2xl px-5 py-4 max-md:px-4 max-md:py-3"
           style={{
             background: [
               `radial-gradient(120% 190% at 100% 0%, color-mix(in srgb, ${GREEN} 9%, transparent), transparent 55%)`,
@@ -75,7 +75,7 @@ export default async function IncentivePayoutPage({ searchParams }: PageProps) {
               "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 44px -28px rgba(15,23,42,0.22)",
           }}
         >
-          <div className="flex items-end justify-between gap-6 flex-wrap">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="min-w-0">
               <span
                 className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
@@ -84,25 +84,23 @@ export default async function IncentivePayoutPage({ searchParams }: PageProps) {
                 <Coins size={13} strokeWidth={2.6} /> Salary · Incentive payout
               </span>
               <h1
-                className="mt-3 text-ink-strong"
+                className="mt-1.5 text-ink-strong"
                 style={{
                   fontFamily: "var(--font-display), system-ui, sans-serif",
                   fontWeight: 900,
-                  fontSize: "clamp(28px,3.4vw,42px)",
+                  fontSize: "clamp(25px,3vw,34px)",
                   letterSpacing: "-0.03em",
                   lineHeight: 1.02,
                 }}
               >
                 Pay Incentive with Salary
               </h1>
-              <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
-                {monthLabel(month)} — pay each person&apos;s incentive from the same place as
-                salary. Payable is what the client has fully paid (Accrued); the account nils when
-                Paid catches up. This records the payout only — it does not disburse to a bank.
+              <p className="mt-1 max-w-[70ch] text-[13px] font-medium text-ink-muted">
+                {monthLabel(month)}. Record approved incentive alongside salary; this records the payout but does not disburse to a bank.
               </p>
             </div>
 
-            <nav aria-label="Month" className="flex max-w-[520px] flex-wrap items-center justify-end gap-2 max-md:justify-start">
+            <nav aria-label="Month" className="flex max-w-[520px] flex-wrap items-center justify-end gap-1.5 max-md:justify-start">
               {months.map((m) => {
                 const active = m === month;
                 return (
@@ -110,7 +108,7 @@ export default async function IncentivePayoutPage({ searchParams }: PageProps) {
                     key={m}
                     href={`/salary/incentive-payout?month=${m}` as Route}
                     aria-current={active ? "page" : undefined}
-                    className="wg-btn rounded-pill px-3.5 py-1.5 text-[13px] font-bold whitespace-nowrap"
+                    className="wg-btn rounded-lg px-3 py-1.5 text-[12px] font-bold whitespace-nowrap"
                     style={
                       active
                         ? {
@@ -135,7 +133,7 @@ export default async function IncentivePayoutPage({ searchParams }: PageProps) {
 
         <section
           aria-label="Payout totals"
-          className="mb-5 grid grid-cols-4 gap-3.5 max-md:grid-cols-2 max-sm:grid-cols-1"
+          className="mb-4 grid grid-cols-4 gap-3 max-md:grid-cols-2 max-sm:grid-cols-1"
         >
           <Kpi icon={<HandCoins size={17} strokeWidth={2.4} />} accent="#d97706" label="Booked" value={inr(board.totals.booked)} caption="client paid partial" />
           <Kpi icon={<Wallet size={17} strokeWidth={2.4} />} accent={GREEN} label="Accrued · payable" value={inr(board.totals.payable)} caption="client paid in full" />
@@ -166,8 +164,8 @@ function PaymentLedgerSection({
   const hasLines = ledger.lines.length > 0;
 
   return (
-    <section aria-label="Incentive payments and adjustments" className="mt-8">
-      <div className="mb-3 flex items-center gap-2">
+    <section aria-label="Incentive payments and adjustments" className="mt-5">
+      <div className="mb-2 flex items-center gap-2">
         <Undo2 size={16} strokeWidth={2.4} style={{ color: GREEN }} aria-hidden />
         <h2 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 18 }}>
           Incentive payments &amp; adjustments
@@ -264,7 +262,7 @@ function Kpi({
 }) {
   return (
     <div
-      className="wg-rise wg-btn rounded-2xl bg-surface-card px-4.5 py-4 max-md:px-4"
+      className="wg-rise wg-btn rounded-xl bg-surface-card px-3.5 py-3 max-md:px-3"
       style={{
         boxShadow:
           "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 28px -20px rgba(15,23,42,0.35)",
@@ -272,26 +270,26 @@ function Kpi({
     >
       <div className="flex items-center gap-2">
         <span
-          className="inline-grid size-8 shrink-0 place-items-center rounded-[10px]"
+          className="inline-grid size-7 shrink-0 place-items-center rounded-lg"
           style={{ background: `color-mix(in srgb, ${accent} 10%, transparent)`, color: accent }}
         >
           {icon}
         </span>
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">{label}</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">{label}</span>
       </div>
       <div
-        className="mt-2 tabular-nums text-ink-strong"
+        className="mt-1.5 tabular-nums text-ink-strong"
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 900,
-          fontSize: "clamp(20px, 1.6vw, 25px)",
+          fontSize: "clamp(19px, 1.5vw, 23px)",
           letterSpacing: "-0.02em",
           lineHeight: 1,
         }}
       >
         {value}
       </div>
-      <div className="mt-1 text-[12px] font-medium text-ink-subtle">{caption}</div>
+      <div className="mt-0.5 text-[11px] font-medium text-ink-subtle">{caption}</div>
     </div>
   );
 }

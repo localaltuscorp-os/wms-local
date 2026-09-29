@@ -1,4 +1,6 @@
-import { Clock, CheckCircle2, Hourglass, Timer, BarChart3, XCircle } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
+import { ArrowLeft, Clock, CheckCircle2, Hourglass, Timer, BarChart3, XCircle } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { requireUser, forbiddenError } from "@/lib/auth/current";
@@ -115,6 +117,9 @@ export default async function OvertimeDashboardPage() {
               "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 44px -28px rgba(15,23,42,0.22)",
           }}
         >
+          <Link href={"/overtime" as Route} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-ink-soft transition-colors hover:text-[color:var(--color-green-deep)]">
+            <ArrowLeft size={15} strokeWidth={2.5} /> Back to Overtime
+          </Link>
           <div className="mt-2.5 flex items-end justify-between gap-6 flex-wrap">
             <div className="min-w-0">
               <span

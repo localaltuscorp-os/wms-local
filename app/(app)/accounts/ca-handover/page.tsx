@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { ShieldAlert, Lock } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { requireAccountsAccess } from "@/lib/accounts/access";
@@ -12,7 +11,22 @@ export default async function CaHandoverPage() {
   // The module layout lets admins AND managers in — CA Handover is admin-only,
   // so we re-gate here and bounce managers to the hub.
   const access = await requireAccountsAccess();
-  if (!access.canViewCaHandover) redirect("/hub");
+  if (!access.canViewCaHandover) {
+    return (
+      <>
+        <DashboardHeader generatedAt={new Date()} />
+        <main className="w-full px-8 pt-8 pb-16 max-md:px-4">
+          <section className="mx-auto max-w-2xl rounded-section border border-hairline bg-surface-card p-7 text-center shadow-sm">
+            <Lock size={26} className="mx-auto text-altus-red" aria-hidden />
+            <h1 className="mt-3 text-[24px] font-extrabold tracking-[-0.02em] text-ink-strong">CA Handover is restricted</h1>
+            <p className="mx-auto mt-2 max-w-xl text-[14px] leading-relaxed text-ink-muted">
+              This section contains encrypted portal credentials and is available only to authorized administrators.
+            </p>
+          </section>
+        </main>
+      </>
+    );
+  }
 
   const [groups, returns] = await Promise.all([listCaCredentials(), listCaReturns()]);
 

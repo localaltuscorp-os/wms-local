@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { hrSupportEnabled } from "@/lib/hr/flag";
-import { isPolicyCategory } from "@/lib/hr/policy-types";
+import { encodeOtherPolicyCategory, isPolicyCategory } from "@/lib/hr/policy-types";
 import { POLICY_STORAGE_PREFIX, policyStoragePath } from "@/lib/hr/sections";
 import { canPublishPolicies } from "@/lib/hr/policies/access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
@@ -46,7 +46,17 @@ export async function uploadPolicy(form: FormData): Promise<Result<{ id: string 
   const category = String(form.get("category") ?? "");
   if (!isPolicyCategory(category)) return { ok: false, error: "Pick a category." };
 
-  const description = String(form.get("description") ?? "").trim().slice(0, 2000) || null;
+  const descriptionInput = String(form.get("description") ?? "")
+    .trim()
+    // Reserve marker space when Other carries its user-facing category label.
+    .slice(0, category === "other" ? 1880 : 2000);
+  const otherCategory = String(form.get("otherCategory") ?? "").trim().replace(/\s+/g, " ");
+  if (category === "other" && (!otherCategory || otherCategory.length > 80)) {
+    return { ok: false, error: "Enter an Other category name (up to 80 characters)." };
+  }
+  const description = category === "other"
+    ? encodeOtherPolicyCategory(descriptionInput, otherCategory)
+    : descriptionInput || null;
 
   const file = form.get("file");
   if (!(file instanceof File)) return { ok: false, error: "Pick a file to upload." };

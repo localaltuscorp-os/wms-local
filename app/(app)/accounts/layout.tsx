@@ -11,5 +11,5 @@ export default async function AccountsLayout({
   children: React.ReactNode;
 }) {
   await requireAccountsAccess();
-  return <>{children}</>;
+  return <div className="accounts-inbox-module">{children}</div>;
 }

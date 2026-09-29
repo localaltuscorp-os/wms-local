@@ -1,6 +1,4 @@
-import Link from "next/link";
-import type { Route } from "next";
-import { ShieldCheck, Clock, PencilLine, ArrowLeft } from "lucide-react";
+import { ShieldCheck, Clock } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isHrStaff } from "@/lib/hr/access";
 import { getPolicyCard, isComingSoon } from "@/lib/hr/policies/registry";
@@ -64,41 +62,18 @@ export default async function PolicyPage({
             {title}
           </span>
         }
-        // In the global top bar so it is reachable at any scroll position: after
-        // signing one policy, people went back through WMS → HR → Policies by
-        // hand to reach the next one.
-        left={
-          <Link
-            href={"/policies" as Route}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
-            style={{ boxShadow: "0 10px 24px -16px rgba(24,24,27,0.55)" }}
-          >
-            <ArrowLeft size={15} strokeWidth={2.4} style={{ color: "#A80400" }} />
-            {/* Short below xl so the policy's title keeps its room in the bar. */}
-            <span className="max-xl:hidden">Back to policies</span>
-            <span className="xl:hidden">Policies</span>
-          </Link>
-        }
-        right={
-          canEdit &&
-          showDoc && (
-            <Link
-              href={`/hr/policies/${key}/edit` as Route}
-              className="group inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
-              style={{ boxShadow: "0 10px 24px -16px rgba(24,24,27,0.55)" }}
-            >
-              <PencilLine size={15} strokeWidth={2.4} style={{ color: "#A80400" }} />
-              <span className="max-md:hidden">Edit Policy</span>
-              <span className="md:hidden">Edit</span>
-            </Link>
-          )
-        }
       />
 
-      <PageShell width="narrow" py={false} className="pt-8 pb-24" style={{ maxWidth: "900px" }}>
+      <PageShell width="wide" py={false} className="pt-6 pb-24">
         {showDoc && policy ? (
           <>
-            <PolicyView doc={policy} signedAt={signedAt} outdated={outdated} />
+            <PolicyView
+              doc={policy}
+              signedAt={signedAt}
+              outdated={outdated}
+              backHref="/policies"
+              editHref={canEdit ? `/hr/policies/${key}/edit` : undefined}
+            />
             {/* The printed-name + date + signature-image sign-off, ALONGSIDE
                 the DigiLocker action in PolicyView's toolbar rather than
                 instead of it: DigiLocker files the stronger record (verified

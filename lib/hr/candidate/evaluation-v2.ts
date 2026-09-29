@@ -656,3 +656,26 @@ export interface EvaluationV2 {
   interviewer?: EvaluationInstance;
   management?: EvaluationInstance;
 }
+
+/**
+ * Management begins as an independent pass, but an interviewer pass is a useful
+ * starting point when management has not recorded anything yet. Return a clone
+ * so the browser can edit it without mutating the interviewer record; it is
+ * persisted as management only after the management evaluator changes it.
+ */
+export function resolveEvaluationInstance(
+  blob: EvaluationV2,
+  role: EvaluatorRole,
+): { instance: EvaluationInstance; seededFromInterviewer: boolean } {
+  const stored = blob[role];
+  if (stored) return { instance: stored, seededFromInterviewer: false };
+
+  if (role === "management" && blob.interviewer) {
+    return {
+      instance: structuredClone(blob.interviewer),
+      seededFromInterviewer: true,
+    };
+  }
+
+  return { instance: emptyInstance(), seededFromInterviewer: false };
+}

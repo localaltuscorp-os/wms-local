@@ -4848,9 +4848,32 @@ export const accountsItFolders = pgTable(
   (t) => [index("accounts_it_folders_sort_idx").on(t.sortOrder)],
 );
 
+// Section 16 — Vasa Family KYC documents (mig 0256). One record per document,
+// with a link to the source file and expiry tracking where applicable.
+export const accountsKycDocuments = pgTable(
+  "accounts_kyc_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    person: text("person").notNull(),
+    documentType: text("document_type").notNull(),
+    documentNumber: text("document_number"),
+    issuedOn: text("issued_on"),
+    expiresOn: text("expires_on"),
+    fileLink: text("file_link"),
+    notes: text("notes"),
+    sortOrder: integer("sort_order"),
+    archived: boolean("archived").notNull().default(false),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("accounts_kyc_documents_sort_idx").on(t.sortOrder)],
+);
+
 export type AccountsVasaBalance = typeof accountsVasaBalances.$inferSelect;
 export type AccountsShare = typeof accountsShares.$inferSelect;
 export type AccountsItFolder = typeof accountsItFolders.$inferSelect;
+export type AccountsKycDocument = typeof accountsKycDocuments.$inferSelect;
 
 // SIP Tracker → Loans sub-tables (mig 0088). Per-loan monthly EMI + loan-account
 // closing balance over dynamic month columns. FY-independent.
