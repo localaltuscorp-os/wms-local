@@ -20,7 +20,7 @@ export const CE_GROUPS: readonly { code: CeGroup; label: string; plural: string 
   { code: "A", label: "Ambassador", plural: "Ambassadors" },
 ];
 
-export type CeCategory = "retainer" | "ambassador" | "ps" | "bss" | "corporate";
+export type CeCategory = "retainer" | "ambassador" | "ps" | "bss" | "os" | "corporate";
 
 export interface CeCategoryMeta {
   code: CeCategory;
@@ -33,12 +33,18 @@ export interface CeCategoryMeta {
   batch: boolean;
 }
 
-/** In the brief's section order: 1 Retainer … 5 Corporate. */
+/**
+ * In the brief's section order: 1 Retainer … 5 Corporate, with OS (2026-09-28)
+ * added as a PS/BSS-style participant — it is a real Admin Panel Product
+ * Master row (`/admin/products`: PS, BSS, OS, Retainer, …) that this list had
+ * never picked up. Unlike PS/BSS it carries no batch number.
+ */
 export const CE_CATEGORIES: readonly CeCategoryMeta[] = [
   { code: "retainer", label: "Retainer", section: "Retainer Clients", group: "C", batch: false },
   { code: "ambassador", label: "Ambassador", section: "Ambassadors", group: "A", batch: false },
   { code: "ps", label: "PS", section: "PS Participants", group: "P", batch: true },
   { code: "bss", label: "BSS", section: "BSS Participants", group: "P", batch: true },
+  { code: "os", label: "OS", section: "OS Participants", group: "P", batch: false },
   { code: "corporate", label: "Corporate", section: "Corporate Consulting Clients", group: "C", batch: false },
 ];
 
@@ -68,12 +74,20 @@ export function accountLabel(name: string, batchCode?: string | null): string {
 
 /* ── Calls ────────────────────────────────────────────────────────────── */
 
-/** The four call types (confirmed 2026-09-18: HH, Tool, Check-in, Reference). */
+/**
+ * The four call types (confirmed 2026-09-18: HH, Tool, Check-in, Reference).
+ *
+ * `tone` names one of the app's CSS colour families (`var(--color-<tone>-*)`)
+ * — four maximally distinct hues (2026-09-26 fix: "is it a Tool Call or an HH
+ * Call — it's not reflecting", two near-identical pairs). Both the week
+ * calendar and the month view key off this one field so they can never drift
+ * apart into two different colour schemes for the same call type.
+ */
 export const CE_CALL_TYPES = [
-  { code: "hh", label: "Handholding Call", short: "HH" },
-  { code: "tool", label: "Tool Call", short: "Tool" },
-  { code: "checkin", label: "Check-in Call", short: "Check-in" },
-  { code: "reference", label: "Reference Call", short: "Reference" },
+  { code: "hh", label: "Handholding Call", short: "HH", tone: "blue" },
+  { code: "tool", label: "Tool Call", short: "Tool", tone: "amber" },
+  { code: "checkin", label: "Check-in Call", short: "Check-in", tone: "green" },
+  { code: "reference", label: "Reference Call", short: "Reference", tone: "purple" },
 ] as const;
 
 export type CeCallType = (typeof CE_CALL_TYPES)[number]["code"];
@@ -83,6 +97,11 @@ export const CE_CALL_TYPE_CODES: readonly string[] = CE_CALL_TYPES.map((c) => c.
 export function callTypeLabel(code: string, short = false): string {
   const t = CE_CALL_TYPES.find((c) => c.code === code);
   return t ? (short ? t.short : t.label) : code;
+}
+
+/** The CSS colour family (`blue`, `amber`, …) a call type renders in. */
+export function callTypeTone(code: string): string {
+  return CE_CALL_TYPES.find((c) => c.code === code)?.tone ?? "slate";
 }
 
 export const CE_DAYS = [

@@ -53,6 +53,30 @@ export function toClock(min: number): string {
   return m === 0 ? `${h12} ${suffix}` : `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
+/**
+ * "11:47 am", "11:47am", "1147 am", "11:47", "23:15" → 707. Null for anything
+ * unreadable. Free-typed, the way Google Calendar's time field takes one:
+ * AM/PM given → 12-hour; AM/PM omitted → the hour is read literally (24-hour),
+ * so "14:30" still means 2:30 PM without forcing the suffix.
+ */
+export function parseClockInput(raw: string): number | null {
+  const v = raw.trim().toLowerCase().replace(/\s+/g, "");
+  const m = /^(\d{1,2})(?::?(\d{2}))?(am|pm)?$/.exec(v);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  const suffix = m[3];
+  if (min > 59) return null;
+  if (suffix) {
+    if (h < 1 || h > 12) return null;
+    if (suffix === "am") h = h % 12;
+    else h = (h % 12) + 12;
+  } else if (h > 23) {
+    return null;
+  }
+  return h * 60 + min;
+}
+
 /** 600 → "10h", 90 → "1h 30m", 45 → "45m", 0 → "0m". */
 export function formatDuration(min: number): string {
   const h = Math.floor(min / 60);

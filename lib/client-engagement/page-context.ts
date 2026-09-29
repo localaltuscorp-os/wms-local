@@ -3,7 +3,7 @@ import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { localDateString } from "@/lib/format";
-import { canManageCe, canViewAnyCalendar } from "@/lib/client-engagement/access";
+import { canManageCe, canViewAnyCalendar } from "@/lib/client-engagement/access-server";
 import { isYmd, mondayOf } from "@/lib/client-engagement/schedule";
 import { ceReady, getCeSnapshot, type CeSnapshot } from "@/lib/queries/client-engagement";
 import type { Employee } from "@/db/schema";
@@ -37,7 +37,10 @@ export async function loadCePage(week?: string | null): Promise<CePageContext> {
   const monday = mondayOf(isYmd(week ?? "") ? week! : today);
   const ready = await ceReady();
   const snapshot = ready ? await getCeSnapshot() : EMPTY;
-  const canManage = canManageCe(me, DUMMY_MODE);
+  const [canManage, canViewAny] = await Promise.all([
+    canManageCe(me, DUMMY_MODE),
+    canViewAnyCalendar(me, isSuperAdmin(me.email), DUMMY_MODE),
+  ]);
   return {
     me,
     ready,
@@ -45,7 +48,7 @@ export async function loadCePage(week?: string | null): Promise<CePageContext> {
     today,
     monday,
     canManage,
-    canViewAny: canViewAnyCalendar(me, isSuperAdmin(me.email), DUMMY_MODE),
+    canViewAny,
     myMemberId: snapshot.members.find((m) => m.employeeId === me.id)?.id ?? null,
   };
 }
