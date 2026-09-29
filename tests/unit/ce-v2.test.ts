@@ -18,7 +18,7 @@ import { needsWeeklyReminder, referenceStatus } from "@/lib/client-engagement/re
 /**
  * WHO MAY MANAGE CLIENT ENGAGEMENT.
  *
- * Until 2026-09-28 this was a hardcoded two-email allowlist (Manan, Ruchita).
+ * This used to be an identity-based allowlist.
  * It is now a ROLE — super-admin or HR staff, via `isHrStaff` — same as
  * `canPublishPolicies` for firm policies (tests/unit/policy-access.test.ts),
  * for the same reason: mocked here rather than exercised against a real
@@ -36,22 +36,22 @@ beforeEach(() => hrStaff.mockReset());
 
 const person = (email: string | null, name: string, isAdmin = false): Employee => ({ id: `e-${name}`, email, name, isAdmin }) as unknown as Employee;
 
-const MANAN = person("manan@unleashed.in", "Manan Vasa", true);
-const RUCHITA = person("ruchitaambre.altuscorp@gmail.com", "Ruchita Ambre", true);
-const RASHMI = person("rashmitripathi.altuscorp@gmail.com", "Rashmi Tripathi", false);
-const OTHER_ADMIN = person("rohanchoudhary.altuscorp@gmail.com", "Rohan Choudhary", true);
+const HR_MANAGER = person("hr.manager@example.com", "HR Manager", true);
+const HR_STAFF_MEMBER = person("hr.staff@example.com", "HR Staff Member", true);
+const EMPLOYEE = person("employee@example.com", "Test Employee", false);
+const ADMINISTRATOR = person("administrator@example.com", "Test Administrator", true);
 
 describe("who may manage — assign, transfer, add, delete", () => {
   it("is whoever isHrStaff admits — super-admins and HR staff", async () => {
     hrStaff.mockResolvedValue(true);
-    expect(await canManageCe(MANAN)).toBe(true);
-    expect(await canManageCe(RUCHITA)).toBe(true);
+    expect(await canManageCe(HR_MANAGER)).toBe(true);
+    expect(await canManageCe(HR_STAFF_MEMBER)).toBe(true);
   });
 
-  it("is nobody else — not Rashmi, not a plain admin isHrStaff refuses", async () => {
+  it("refuses people who are not HR staff", async () => {
     hrStaff.mockResolvedValue(false);
-    expect(await canManageCe(RASHMI)).toBe(false);
-    expect(await canManageCe(OTHER_ADMIN)).toBe(false);
+    expect(await canManageCe(EMPLOYEE)).toBe(false);
+    expect(await canManageCe(ADMINISTRATOR)).toBe(false);
   });
 
   it("reads the ROLE and never the name", async () => {
@@ -59,16 +59,16 @@ describe("who may manage — assign, transfer, add, delete", () => {
     // after that. Both admitted whoever the code happened to name; neither
     // reacted to who is actually HR staff today.
     hrStaff.mockResolvedValue(false);
-    for (const name of ["Ruchita", "Ruchita Nair", "Manan Rao", "Mananjay Rao"]) {
-      expect(await canManageCe(person("x@y.z", name))).toBe(false);
+    for (const name of ["Test Employee", "Another Employee", "New Manager", "Example User"]) {
+      expect(await canManageCe(person("test@example.com", name))).toBe(false);
     }
     hrStaff.mockResolvedValue(true);
-    expect(await canManageCe(person("someone.new@altuscorp.in", "Someone New"))).toBe(true);
+    expect(await canManageCe(person("new.hr@example.com", "New HR Staff Member"))).toBe(true);
   });
 
   it("admits the dummy admin only in dummy mode", async () => {
     hrStaff.mockResolvedValue(false);
-    const dummy = person("dummy.admin@example.invalid", "Dummy Admin");
+    const dummy = person("dummy-admin@example.com", "Dummy Administrator", true);
     expect(await canManageCe(dummy, false)).toBe(false);
     expect(await canManageCe(dummy, true)).toBe(true);
   });
@@ -77,18 +77,18 @@ describe("who may manage — assign, transfer, add, delete", () => {
 describe("calendar visibility and editing", () => {
   it("lets admins and super-admins pick anyone", async () => {
     hrStaff.mockResolvedValue(false);
-    expect(await canViewAnyCalendar(OTHER_ADMIN, false)).toBe(true); // OTHER_ADMIN.isAdmin
-    expect(await canViewAnyCalendar(RASHMI, true)).toBe(true); // isSuperAdmin flag
-    expect(await canViewAnyCalendar(RASHMI, false)).toBe(false);
+    expect(await canViewAnyCalendar(ADMINISTRATOR, false)).toBe(true); // ADMINISTRATOR.isAdmin
+    expect(await canViewAnyCalendar(EMPLOYEE, true)).toBe(true); // isSuperAdmin flag
+    expect(await canViewAnyCalendar(EMPLOYEE, false)).toBe(false);
   });
 
   it("lets the assignee edit their own account, and managers any", async () => {
     hrStaff.mockResolvedValue(false);
-    expect(await canEditAccount(RASHMI, RASHMI.id)).toBe(true);
-    expect(await canEditAccount(RASHMI, "e-jeevan")).toBe(false);
-    expect(await canEditAccount(RASHMI, null)).toBe(false);
+    expect(await canEditAccount(EMPLOYEE, EMPLOYEE.id)).toBe(true);
+    expect(await canEditAccount(EMPLOYEE, "employee-2")).toBe(false);
+    expect(await canEditAccount(EMPLOYEE, null)).toBe(false);
     hrStaff.mockResolvedValue(true);
-    expect(await canEditAccount(RUCHITA, "e-jeevan")).toBe(true);
+    expect(await canEditAccount(HR_STAFF_MEMBER, "employee-2")).toBe(true);
   });
 });
 
@@ -111,8 +111,8 @@ describe("vocabulary", () => {
   });
 
   it("prints the batch in brackets", () => {
-    expect(accountLabel("ABC Shah", "79")).toBe("ABC Shah (79)");
-    expect(accountLabel("Lawrence & Mayo", null)).toBe("Lawrence & Mayo");
+    expect(accountLabel("Test Account", "79")).toBe("Test Account (79)");
+    expect(accountLabel("Example Company", null)).toBe("Example Company");
   });
 });
 
@@ -188,8 +188,8 @@ describe("inactive view", () => {
 describe("grids", () => {
   const monday = "2026-09-14";
   const members = [
-    { id: "m-ruchita", name: "Ruchita", activeClientLimit: 5 },
-    { id: "m-jeevan", name: "Jeevan", activeClientLimit: 10 },
+    { id: "member-1", name: "Team Member One", activeClientLimit: 5 },
+    { id: "member-2", name: "Team Member Two", activeClientLimit: 10 },
   ];
   const acct = (id: string, name: string, category: string, assignedTo: string | null, extra: Partial<{ batchCode: string; hhStatus: string }> = {}) => ({
     id,
@@ -201,11 +201,11 @@ describe("grids", () => {
     hhStatus: extra.hhStatus ?? "standard",
   });
   const accounts = [
-    acct("a1", "ABC Shah", "ps", "m-ruchita", { batchCode: "79" }),
-    acct("a2", "PQR Mehta", "ps", "m-ruchita", { batchCode: "72" }),
-    acct("a3", "Held Person", "ps", "m-ruchita", { hhStatus: "on_hold" }),
-    acct("a4", "Retainer Co", "retainer", "m-jeevan"),
-    acct("a5", "Amb One", "ambassador", null),
+    acct("a1", "Test Account One", "ps", "member-1", { batchCode: "79" }),
+    acct("a2", "Test Account Two", "ps", "member-1", { batchCode: "72" }),
+    acct("a3", "Held Test Account", "ps", "member-1", { hhStatus: "on_hold" }),
+    acct("a4", "Example Retainer", "retainer", "member-2"),
+    acct("a5", "Example Ambassador", "ambassador", null),
   ];
   const slot = (id: string, accountId: string, day: string, start: string, end: string) => ({
     id, accountId, dayOfWeek: day, startTime: start, endTime: end, startDate: "2026-09-01", endDate: null,
@@ -221,22 +221,22 @@ describe("grids", () => {
 
   it("builds the Emp Grid with per-employee totals and a grand total", () => {
     const g = buildEmpGrid(members, accounts, engagements, monday, new Set(["ps"]));
-    const ruchita = g.sections.find((s) => s.memberName === "Ruchita")!;
-    expect(ruchita.rows.map((r) => [r.sr, r.label, r.minutes, r.calls])).toEqual([
-      [1, "ABC Shah (79)", 180, 2],
-      [2, "PQR Mehta (72)", 240, 3],
+    const firstMember = g.sections.find((s) => s.memberName === "Team Member One")!;
+    expect(firstMember.rows.map((r) => [r.sr, r.label, r.minutes, r.calls])).toEqual([
+      [1, "Test Account One (79)", 180, 2],
+      [2, "Test Account Two (72)", 240, 3],
     ]);
-    expect(ruchita.total).toEqual({ participants: 2, minutes: 420, engagements: 5 });
-    expect(g.sections.find((s) => s.memberName === "Jeevan")!.rows).toEqual([]);
+    expect(firstMember.total).toEqual({ participants: 2, minutes: 420, engagements: 5 });
+    expect(g.sections.find((s) => s.memberName === "Team Member Two")!.rows).toEqual([]);
     expect(g.grandTotal).toEqual({ participants: 2, minutes: 420, engagements: 5 });
   });
 
   it("builds the PCA transpose with an Unassigned column that is always there, leading the list", () => {
     const { columns, total } = buildPca(members, accounts, engagements, monday);
-    expect(columns.map((c) => c.memberName)).toEqual(["Unassigned", "Ruchita", "Jeevan"]);
-    const ruchita = columns[1]!.cells;
-    expect([ruchita.P.count, ruchita.C.count, ruchita.A.count, ruchita.all.count]).toEqual([2, 0, 0, 2]);
-    expect(ruchita.all.minutes).toBe(420);
+    expect(columns.map((c) => c.memberName)).toEqual(["Unassigned", "Team Member One", "Team Member Two"]);
+    const firstMember = columns[1]!.cells;
+    expect([firstMember.P.count, firstMember.C.count, firstMember.A.count, firstMember.all.count]).toEqual([2, 0, 0, 2]);
+    expect(firstMember.all.minutes).toBe(420);
     expect(columns[0]!.cells.A.count).toBe(1);
     expect(total.all.count).toBe(4); // the on-hold account is not counted
   });
@@ -249,7 +249,7 @@ describe("grids", () => {
     expect(capacityTone(0, 0)).toBe("green");
     expect(capacityTone(1, 0)).toBe("amber");
     const cap = buildCapacity(members, accounts, engagements, monday);
-    expect(cap[0]).toMatchObject({ name: "Ruchita", active: 2, limit: 5, tone: "green", weeklyMinutes: 420 });
+    expect(cap[0]).toMatchObject({ name: "Team Member One", active: 2, limit: 5, tone: "green", weeklyMinutes: 420 });
   });
 });
 

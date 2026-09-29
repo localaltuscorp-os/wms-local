@@ -55,7 +55,7 @@ export function SalaryEntitySelect({
     <MultiFilter
       values={selected}
       onChange={go}
-      ariaLabel="Filter payroll by entity"
+      aria-label="Filter payroll by entity"
       className={FIELD}
       allLabel="All entities"
       options={entities}
