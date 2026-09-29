@@ -7,7 +7,7 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { salaryBreakupMonths, listSalaryBreakup } from "@/lib/queries/salary-breakup";
 import { SalaryBreakupTable, type SalaryRow } from "@/components/salary/salary-breakup-table";
 import { SalaryPeriodSelect } from "@/components/salary/salary-period-select";
-import { SalaryEntitySelect, ALL_ENTITIES } from "@/components/salary/salary-entity-select";
+import { SalaryEntitySelect } from "@/components/salary/salary-entity-select";
 import { SalaryExportButtons } from "@/components/salary/salary-export-buttons";
 import { PageShell } from "@/components/layout/page-shell";
 import {
@@ -73,14 +73,14 @@ export default async function SalaryPage({ searchParams }: PageProps) {
   const entities = [
     ...new Set(allRows.map((r) => r.companyName?.trim()).filter((c): c is string => Boolean(c))),
   ].sort((a, b) => a.localeCompare(b));
-  const rawEntity = typeof sp.entity === "string" ? sp.entity : undefined;
+  const requestedEntities = (Array.isArray(sp.entity) ? sp.entity : typeof sp.entity === "string" ? [sp.entity] : [])
+    .filter((entity): entity is string => entities.includes(entity));
   // An entity that isn't on this month's sheet falls back to All rather than
   // rendering an empty table — changing month must never strand the view.
-  const entity = rawEntity && entities.includes(rawEntity) ? rawEntity : ALL_ENTITIES;
   const rows =
-    entity === ALL_ENTITIES
+    requestedEntities.length === 0
       ? allRows
-      : allRows.filter((r) => (r.companyName?.trim() ?? "") === entity);
+      : allRows.filter((r) => requestedEntities.includes(r.companyName?.trim() ?? ""));
 
   // WS-5/WS-6 — linked employees for the statement/earnings document downloads
   // (behind SALARY_STATEMENTS). Only rows with a resolved employeeId can be
@@ -196,8 +196,11 @@ export default async function SalaryPage({ searchParams }: PageProps) {
             <div className="flex shrink-0 flex-col items-end gap-2">
               <div className="flex items-center gap-2.5">
                 <SalaryExportButtons month={month} />
+                <Link href={"/salary/import" as Route} className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3.5 py-2 text-[13px] font-bold text-ink-soft transition hover:text-ink-strong">
+                  <FileSpreadsheet size={15} strokeWidth={2.3} /> Bulk Upload
+                </Link>
               </div>
-              <SalaryEntitySelect entities={entities} selected={entity} month={month} />
+              <SalaryEntitySelect entities={entities} selected={requestedEntities} month={month} />
             </div>
           </div>
 

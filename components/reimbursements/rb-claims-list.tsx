@@ -486,6 +486,17 @@ function ClaimCard({
                 Reject
               </button>
             )}
+            {isAdmin && row.status === "rejected" && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => decide("pending")}
+                title="Undo rejection and return this claim to Pending"
+                className="inline-flex items-center gap-1.5 rounded-pill border border-amber-200 bg-amber-50 px-3.5 py-2 text-[13px] font-bold text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-50"
+              >
+                <ArchiveRestore size={14} strokeWidth={2.8} aria-hidden /> Unreject
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
