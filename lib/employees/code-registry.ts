@@ -47,7 +47,12 @@ export async function issueSuggestedEmployeeCode(input: {
   if (!prefix) {
     return { ok: false, error: "Employee Code could not be generated: assign a paying entity with a code prefix first." };
   }
-  return issueEmployeeCode({ ...input, prefix, reason: "Generated on employee creation" });
+  return issueEmployeeCode({
+    ...input,
+    prefix,
+    reason: "Generated on employee creation",
+    onlyIfMissing: true,
+  });
 }
 
 /** The advisory-lock key for one series. Same string ⇒ same lock. */
@@ -70,6 +75,8 @@ export async function issueEmployeeCode(input: {
   actorId: string;
   /** Why the previous code (if any) is being retired. */
   reason?: string | null;
+  /** Automatic allocation must preserve a code that is already assigned. */
+  onlyIfMissing?: boolean;
 }): Promise<CodeResult> {
   const prefix = normalizePrefix(input.prefix);
   if (!prefix) {
@@ -84,9 +91,25 @@ export async function issueEmployeeCode(input: {
 
   try {
     return await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`employee_code_employee:${input.employeeId}`}))`,
+      );
       // Serialise this series. Transaction-scoped, so it releases on commit or
       // rollback without any unlock call to forget.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${prefixLock(prefix)}))`);
+
+      const [current] = await tx
+        .select({ employeeCode: employees.employeeCode })
+        .from(employees)
+        .where(eq(employees.id, input.employeeId))
+        .limit(1);
+      if (input.onlyIfMissing && current?.employeeCode) {
+        const held = parseEmployeeCode(current.employeeCode);
+        if (!held) {
+          return { ok: false as const, error: "Employee already has an invalid Employee Code; it was not changed." };
+        }
+        return { ok: true as const, code: held.code, prefix: held.prefix, seq: held.seq };
+      }
 
       // EVERY seq ever issued in this series — retired rows included. That is
       // the retirement rule: see `nextSeq`, which takes max + 1 and never fills

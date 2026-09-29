@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Loader2, Mic, Pencil, Plus, Table2, Trash2, Undo2 } from "lucide-react";
+import { Check, Loader2, Mic, Pencil, Plus, Table2, Trash2, Undo2, Users } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
@@ -23,6 +23,7 @@ import { IncentiveBadge } from "./ui/badges";
 import { IncentiveEmptyState } from "./ui/states";
 import { INCENTIVE_BTN_NEUTRAL, INCENTIVE_BTN_PRIMARY } from "./ui/chrome";
 import { useDictation } from "@/components/ui/use-dictation";
+import { IncentiveEntrySplitDialog } from "./incentive-entry-split-dialog";
 
 type Mode = { kind: "create" } | { kind: "edit"; row: IncentiveEntryAdminRow } | null;
 
@@ -56,6 +57,7 @@ export function IncentiveEntries({
   const [pendingDelete, setPendingDelete] = React.useState<IncentiveEntryAdminRow | null>(null);
   const [reversing, startReverse] = React.useTransition();
   const [pendingReverse, setPendingReverse] = React.useState<IncentiveEntryAdminRow | null>(null);
+  const [splitRow, setSplitRow] = React.useState<IncentiveEntryAdminRow | null>(null);
 
   function confirmReverse() {
     const row = pendingReverse;
@@ -250,6 +252,10 @@ export function IncentiveEntries({
               </dd>
             </div>
             <div>
+              <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">Booked / Accrued</dt>
+              <dd className="mt-0.5 font-semibold tabular-nums text-ink-soft">{formatInr(r.bookedAmt)} / {formatInr(r.accruedAmt)}</dd>
+            </div>
+            <div>
               <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">Approved</dt>
               <dd className="mt-0.5 font-semibold text-ink-soft">{r.approved ? "Yes" : "No"}</dd>
             </div>
@@ -272,6 +278,15 @@ export function IncentiveEntries({
               className="grid size-9 place-items-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
             >
               <Pencil size={14} strokeWidth={2.3} />
+            </button>
+            <button
+              type="button"
+              aria-label={`Manage team split for ${r.incentiveName} (${r.empName})`}
+              onClick={() => setSplitRow(r)}
+              className="grid size-9 place-items-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong"
+              title="Manage team split"
+            >
+              <Users size={14} strokeWidth={2.3} />
             </button>
             {r.paidAmt > 0 && !r.reversed && (
               <button
@@ -305,6 +320,7 @@ export function IncentiveEntries({
       />
 
       <EntryDialog mode={mode} employees={employees} products={products} onClose={() => setMode(null)} />
+      <IncentiveEntrySplitDialog row={splitRow} employees={employees} onClose={() => setSplitRow(null)} />
 
       <ConfirmDialog
         open={pendingDelete !== null}
@@ -373,6 +389,8 @@ function EntryDialog({
   const [approved, setApproved] = React.useState(false);
   const [approvedAmt, setApprovedAmt] = React.useState("");
   const [approvedDate, setApprovedDate] = React.useState("");
+  const [bookedAmt, setBookedAmt] = React.useState("");
+  const [accruedAmt, setAccruedAmt] = React.useState("");
   const [paid, setPaid] = React.useState(false);
   const [paidAmt, setPaidAmt] = React.useState("");
   const [paidDate, setPaidDate] = React.useState("");
@@ -391,6 +409,8 @@ function EntryDialog({
     setApproved(r?.approved ?? false);
     setApprovedAmt(r ? String(r.approvedAmt) : "");
     setApprovedDate(r?.approvedDate ?? "");
+    setBookedAmt(r ? String(r.bookedAmt) : "");
+    setAccruedAmt(r ? String(r.accruedAmt) : "");
     setPaid(r?.paid ?? false);
     setPaidAmt(r ? String(r.paidAmt) : "");
     setPaidDate(r?.paidDate ?? "");
@@ -427,6 +447,8 @@ function EntryDialog({
       approved,
       approvedAmt: num(approvedAmt),
       approvedDate: approvedDate || null,
+      bookedAmt: num(bookedAmt),
+      accruedAmt: num(accruedAmt),
       paid,
       paidAmt: num(paidAmt),
       paidDate: paidDate || null,
@@ -493,6 +515,8 @@ function EntryDialog({
                 <Field label="Approved"><Select options={yesNoOptions} value={approved ? "yes" : "no"} onValueChange={(value) => setApproved(value === "yes")} ariaLabel="Approved" /></Field>
                 <Field label="Approved Amount"><Input value={approvedAmt} onChange={setApprovedAmt} placeholder="0" numeric /></Field>
                 <Field label="Approved Date"><input type="date" value={approvedDate} onChange={(event) => setApprovedDate(event.target.value)} className={inputClass} /></Field>
+                <Field label="Booked Amount"><Input value={bookedAmt} onChange={setBookedAmt} placeholder="0" numeric /></Field>
+                <Field label="Accrued Amount"><Input value={accruedAmt} onChange={setAccruedAmt} placeholder="0" numeric /></Field>
                 <Field label="Paid"><Select options={yesNoOptions} value={paid ? "yes" : "no"} onValueChange={(value) => setPaid(value === "yes")} ariaLabel="Paid" /></Field>
                 <Field label="Paid Amount"><Input value={paidAmt} onChange={setPaidAmt} placeholder="0" numeric /></Field>
                 <Field label="Paid Date"><input type="date" value={paidDate} onChange={(event) => setPaidDate(event.target.value)} className={inputClass} /></Field>

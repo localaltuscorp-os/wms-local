@@ -12,6 +12,7 @@ import {
 } from "@/lib/queries/outstanding-rosters";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -40,21 +41,10 @@ export default async function ManageContractsPage() {
         </Link>
         <header className="mb-7">
           <h1
-            className="text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(36px, 3.6vw, 48px)",
-              letterSpacing: "-0.025em",
-              lineHeight: 1,
-            }}
+            style={PAGE_COMMAND_BAR_TITLE_STYLE}
           >
             Manage Contracts
           </h1>
-          <p className="mt-2 text-ink-muted font-semibold" style={{ fontSize: 18 }}>
-            Edit contract terms, status, and installment schedules ·{" "}
-            {contracts.length} {contracts.length === 1 ? "contract" : "contracts"}
-          </p>
         </header>
 
         <ContractList

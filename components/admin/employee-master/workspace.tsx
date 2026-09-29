@@ -722,16 +722,13 @@ function Section(props: {
           <Panes>
             <Pane title="Reach">
               <Rows>
-                <Text label="Office Mail" value={v("officialEmail", r.officeEmail) ?? ""} onChange={(x) => set("officialEmail", x || null, r.officeEmail)} />
-                <Text label="Personal Mail" value={v("personalEmail", r.personalEmail) ?? ""} onChange={(x) => set("personalEmail", x || null, r.personalEmail)} />
+                <EmailField label="Office Mail" value={v("officialEmail", r.officialEmail) ?? ""} onChange={(x) => set("officialEmail", x || null, r.officialEmail)} />
+                <EmailField label="Personal Mail" value={v("personalEmail", r.personalEmail) ?? ""} onChange={(x) => set("personalEmail", x || null, r.personalEmail)} />
                 <Text label="Personal Cell" value={v("phone", r.phone) ?? ""} onChange={(x) => set("phone", x || null, r.phone)} />
                 <Field label="WhatsApp"><Readout>{r.whatsapp ?? "—"}</Readout></Field>
-                <Field label="Login address"><Readout>{r.officeEmail}</Readout></Field>
+                <Field label="Login Address"><Readout className="email-readout">{r.loginEmail}</Readout></Field>
               </Rows>
-              <Note>
-                The login address is bound to the Firebase account and is changed through the invite
-                flow, not here — editing it on this screen would break sign-in.
-              </Note>
+              <Note>System-controlled Firebase sign-in address. Change it through the invite flow, not here.</Note>
             </Pane>
 
             <Pane title="Current Address"><AddressBlock a={detail.currentAddress} /></Pane>
@@ -1108,7 +1105,7 @@ function FamilyPanes({ detail }: { detail: EmployeeMasterDetail }) {
 
         <Pane title="Emergency Contacts">
           {emergencyContacts.length === 0 ? (
-            <Empty>None recorded.</Empty>
+            <p className="quiet py-1 text-[12.5px]">No emergency contacts recorded.</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {emergencyContacts.map((c, i) => (
@@ -1222,6 +1219,22 @@ function Text({ label, value, onChange }: { label: string; value: string; onChan
   return (
     <Field label={label}>
       <input value={value} onChange={(e) => onChange(e.target.value)} className="ctl" />
+    </Field>
+  );
+}
+
+function EmailField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <Field label={label}>
+      <input
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="ctl email-ctl"
+        placeholder="Not recorded"
+      />
     </Field>
   );
 }
@@ -1365,8 +1378,8 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 function AddressBlock({ a }: { a: EmployeeMasterDetail["currentAddress"] }) {
   if (a.empty) return <Empty>Not recorded.</Empty>;
   return (
-    <div className="readout leading-relaxed">
-      {[a.line1, a.line2, a.line3, a.landmark].filter(Boolean).join(", ")}
+    <div className="readout address-readout leading-relaxed">
+      <div>{[a.line1, a.line2, a.line3, a.landmark].filter(Boolean).join(", ")}</div>
       {(a.city || a.state || a.pincode) && (
         <div className="quiet mt-0.5">{[a.city, a.state, a.pincode].filter(Boolean).join(" · ")}</div>
       )}

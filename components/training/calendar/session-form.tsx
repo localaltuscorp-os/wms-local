@@ -525,7 +525,7 @@ export function SessionForm({
 
       {/* ── FOOTER ───────────────────────────────────────────────────────── */}
       <div
-        className="flex flex-wrap items-center justify-end gap-2 border-t pt-3.5"
+        className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t bg-surface-card py-3"
         style={{ borderColor: "var(--color-hairline)" }}
       >
         {onCancel && (

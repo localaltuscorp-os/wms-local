@@ -417,3 +417,33 @@ describe("migration 0227 assigns the five letters", () => {
     for (const u of updates) expect(u).toMatch(/code_prefix IS NULL/);
   });
 });
+
+describe("existing employee codes and contact details stay safe", () => {
+  const registry = codeOf("lib/employees/code-registry.ts");
+  const backfill = codeOf("scripts/backfill-employee-codes.ts");
+  const packageJson = codeOf("package.json");
+  const query = codeOf("lib/employees/master-query.ts");
+  const workspace = codeOf("components/admin/employee-master/workspace.tsx");
+
+  it("makes automatic allocation retry-safe without changing deliberate moves", () => {
+    expect(registry).toMatch(/onlyIfMissing: true/);
+    expect(registry).toMatch(/if \(input\.onlyIfMissing && current\?\.employeeCode\)/);
+    expect(registry).toMatch(/employee_code_employee:\$\{input\.employeeId\}/);
+  });
+
+  it("restores an active registry code before allocating a replacement", () => {
+    expect(backfill).toMatch(/employeeCodeRegistry\.status, "active"/);
+    expect(backfill).toMatch(/restoreCode/);
+    expect(backfill).toMatch(/isNull\(employees\.employeeCode\)/);
+    expect(packageJson).toMatch(/employees:backfill-codes/);
+  });
+
+  it("separates editable office and personal mail from the system login", () => {
+    expect(query).toMatch(/loginEmail: r\.email/);
+    expect(workspace).toMatch(/<EmailField label="Office Mail"/);
+    expect(workspace).toMatch(/<EmailField label="Personal Mail"/);
+    expect(workspace).toMatch(/label="Login Address"/);
+    expect(workspace).toMatch(/type="email"/);
+    expect(workspace).toMatch(/No emergency contacts recorded\./);
+  });
+});

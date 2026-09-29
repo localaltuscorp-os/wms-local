@@ -27,7 +27,7 @@ function todayIst(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
-export function SelfLearningForm() {
+export function SelfLearningForm({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const firstRef = React.useRef<HTMLInputElement>(null);
   const [kind, setKind] = React.useState<Kind>("book");
@@ -81,6 +81,7 @@ export function SelfLearningForm() {
     setEndTime("");
     firstRef.current?.focus();
     router.refresh();
+    onSuccess?.();
   }
 
   return (
@@ -250,7 +251,7 @@ export function SelfLearningForm() {
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3 border-t border-hairline pt-3">
+      <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-hairline bg-surface-card py-3">
         <button
           type="submit"
           disabled={submitting}

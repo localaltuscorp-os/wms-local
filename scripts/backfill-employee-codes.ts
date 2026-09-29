@@ -1,6 +1,6 @@
 import { and, eq, ilike, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
+import { employeeCodeRegistry, employees } from "@/db/schema";
 import {
   issueSuggestedEmployeeCode,
   suggestPrefixFor,
@@ -35,19 +35,29 @@ async function main() {
     return;
   }
 
-  const planned: { id: string; name: string; email: string; prefix: string | null }[] = [];
+  const planned: { id: string; name: string; prefix: string | null; restoreCode: string | null }[] = [];
   for (const employee of candidates) {
+    const [active] = await db
+      .select({ code: employeeCodeRegistry.code })
+      .from(employeeCodeRegistry)
+      .where(
+        and(
+          eq(employeeCodeRegistry.employeeId, employee.id),
+          eq(employeeCodeRegistry.status, "active"),
+        ),
+      )
+      .limit(1);
     planned.push({
       id: employee.id,
       name: employee.name,
-      email: employee.email,
       prefix: await suggestPrefixFor(employee.id),
+      restoreCode: active?.code ?? null,
     });
   }
 
   console.log(`${APPLY ? "APPLY" : "DRY RUN"}: ${planned.length} active employees without codes`);
   for (const row of planned) {
-    console.log(`- ${row.name} <${row.email}> -> ${row.prefix ?? "NO PREFIX (skipped)"}`);
+    console.log(`- ${row.name} -> ${row.restoreCode ? `RESTORE ${row.restoreCode}` : (row.prefix ?? "NO PREFIX (skipped)")}`);
   }
 
   if (!APPLY) {
@@ -65,8 +75,21 @@ async function main() {
   if (!actor.isAdmin) throw new Error(`Acting employee is not an admin: ${actor.name}`);
 
   let issued = 0;
+  let restored = 0;
   let skipped = 0;
   for (const row of planned) {
+    if (row.restoreCode) {
+      const recovered = await db
+        .update(employees)
+        .set({ employeeCode: row.restoreCode })
+        .where(and(eq(employees.id, row.id), isNull(employees.employeeCode)))
+        .returning({ id: employees.id });
+      if (recovered.length > 0) {
+        restored += 1;
+        console.log(`  restored ${row.restoreCode} -> ${row.name}`);
+      }
+      continue;
+    }
     if (!row.prefix) {
       skipped += 1;
       continue;
@@ -76,7 +99,7 @@ async function main() {
     issued += 1;
     console.log(`  issued ${result.code} -> ${row.name}`);
   }
-  console.log(`Complete: issued=${issued}, skipped_without_prefix=${skipped}`);
+  console.log(`Complete: issued=${issued}, restored=${restored}, skipped_without_prefix=${skipped}`);
 }
 
 main().catch((error) => {

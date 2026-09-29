@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, History } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { formatDate } from "@/lib/format";
 import { BILLING_DOC_TYPE_LABELS } from "@/db/enums";
 import { getBillingDocument } from "@/lib/queries/billing-documents";
@@ -70,19 +71,11 @@ export default async function BillingDocumentPage({
         </div>
       </div>
 
-      <header className="billing-no-print mb-4">
-        <h1
-          className="text-ink-strong"
-          style={{
-            fontFamily: "var(--font-display), system-ui, sans-serif",
-            fontWeight: 900,
-            fontSize: "clamp(24px,2.8vw,34px)",
-            letterSpacing: "-0.025em",
-          }}
-        >
+      <header className="billing-no-print mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <h1 style={PAGE_COMMAND_BAR_TITLE_STYLE}>
           {document.docNo ?? `Draft ${BILLING_DOC_TYPE_LABELS[document.docType].toLowerCase()}`}
         </h1>
-        <p className="mt-1 text-[13.5px] text-ink-muted">
+        <p className="text-[12.5px] font-medium text-ink-muted">
           {document.customerName} · {formatDate(document.docDate)}
           {createdByName ? ` · raised by ${createdByName}` : ""}
         </p>

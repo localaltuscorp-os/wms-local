@@ -9712,6 +9712,67 @@ export type NewDelegatedAccessGrant = typeof delegatedAccessGrants.$inferInsert;
 export type DelegatedAccessEvent = typeof delegatedAccessEvents.$inferSelect;
 
 /* ──────────────────────────────────────────────────────────────────────────
+ * Scoped temporary access
+ *
+ * This is a restrictive overlay, never a second source of privilege. A live
+ * recipient row limits the employee's existing access to the saved module
+ * scopes; it cannot grant a capability, role, data scope, or write right.
+ * Legacy delegated-access rows above remain unchanged.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const scopedAccessGrants = pgTable(
+  "scoped_access_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    grantedById: uuid("granted_by_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedById: uuid("revoked_by_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("scoped_access_grants_live_idx").on(t.expiresAt, t.revokedAt)],
+);
+
+export const scopedAccessRecipients = pgTable(
+  "scoped_access_recipients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    grantId: uuid("grant_id").notNull().references((): AnyPgColumn => scopedAccessGrants.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull().references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedById: uuid("revoked_by_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("scoped_access_recipient_uniq").on(t.grantId, t.employeeId),
+    index("scoped_access_recipients_employee_idx").on(t.employeeId, t.revokedAt),
+  ],
+);
+
+export const scopedAccessScopes = pgTable(
+  "scoped_access_scopes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipientId: uuid("recipient_id").notNull().references((): AnyPgColumn => scopedAccessRecipients.id, { onDelete: "cascade" }),
+    moduleKey: text("module_key").notNull(),
+    accessLevel: text("access_level").$type<"full" | "viewing" | "custom">().notNull(),
+    /** Custom selections only. Keys stay in the code catalogue, not the DB. */
+    navigationKeys: jsonb("navigation_keys").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("scoped_access_scope_uniq").on(t.recipientId, t.moduleKey),
+    index("scoped_access_scopes_recipient_idx").on(t.recipientId),
+  ],
+);
+
+export type ScopedAccessGrant = typeof scopedAccessGrants.$inferSelect;
+export type ScopedAccessRecipient = typeof scopedAccessRecipients.$inferSelect;
+export type ScopedAccessScope = typeof scopedAccessScopes.$inferSelect;
+
+/* ──────────────────────────────────────────────────────────────────────────
  * THE PERMISSION MATRIX (migration 0219)
  *
  * Only the GRANTS are stored. The module → sub-module → sub-sub-module TREE is
