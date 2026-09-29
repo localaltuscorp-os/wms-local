@@ -1,35 +1,50 @@
-/**
- * WHO MAY CHANGE THE HOLIDAY CALENDAR — Ruchita and Rutvisha, and nobody else.
- *
- * This list is NARROWER than admin, deliberately. A holiday row is not a
- * cosmetic record: `lib/queries/attendance-status.ts` reads the same table and
- * marks that date a holiday on every employee's attendance for the month, which
- * moves working-day counts, hour targets and ultimately pay. Anyone who can add
- * a date can give the whole company a paid day off, so the capability is held by
- * two named people rather than by whoever happens to hold `isAdmin`.
- *
- * ⚠ THIS REMOVED ACCESS THAT ADMINS USED TO HAVE. The /admin/holidays actions
- * were gated on requireAdmin(); they now gate on this list. Super-admins are NOT
- * included either - "nobody else" was the instruction, and a silent super-admin
- * carve-out would make the rule untrue. If a break-glass path is wanted later,
- * add it here where it can be seen, never at a call site.
- *
- * ── PURE + CLIENT-SAFE ─────────────────────────────────────────────────────
- * No `server-only`, no DB - same shape as lib/auth/super-admin.ts, so a client
- * component can hide a control the server would refuse anyway. The server
- * guards that USE this live in lib/hr/holiday-access.ts.
- *
- * Keyed by email, matching lib/teams/roster.ts: `employees.email` is unique and
- * survives a rename, while the uuid differs per environment.
- */
-export const HOLIDAY_ADMIN_EMAILS = [
-  "ruchitaambre.altuscorp@gmail.com", // Ruchita Ambre
-  "rutvishamehta.altuscorp@gmail.com", // Rutvisha Mehta
-] as const;
+import "server-only";
+import type { Employee } from "@/db/schema";
+import { isHrStaff } from "@/lib/hr/access";
 
-/** True for the two people allowed to change the holiday calendar. */
-export function canManageHolidays(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const e = email.trim().toLowerCase();
-  return HOLIDAY_ADMIN_EMAILS.includes(e as (typeof HOLIDAY_ADMIN_EMAILS)[number]);
+/**
+ * WHO MAY CHANGE THE HOLIDAY CALENDAR — HR staff and super-admins.
+ *
+ * That is `isHrStaff` (lib/hr/access.ts): membership of the "HR" department,
+ * or the super-admin list. A holiday row is not a cosmetic record —
+ * `lib/queries/attendance-status.ts` reads the same table and marks that date
+ * a holiday on every employee's attendance for the month, which moves working-
+ * day counts, hour targets and ultimately pay. So the capability stays off
+ * `isAdmin` in general, but it is no longer two named email addresses either
+ * (account holder, 2026-09-29 — "give the ability to super admins and HR team
+ * instead of hardcoding emails").
+ *
+ * ── THE SAME CHANGE, ALREADY MADE ONCE ──────────────────────────────────────
+ * `lib/hr/policies/access.ts` (`canPublishPolicies`) solved this identical
+ * problem for firm policies on 2026-09-21: a two-address list plus a NAME
+ * fallback that let a namesake ("Suruchita" matched `includes("ruchita")")
+ * borrow the grant. Moving to `isHrStaff` fixed both — a role instead of a
+ * list, so granting or revoking is a change on the Employee Master's
+ * department field, not a code deploy. This mirrors that fix exactly,
+ * `dummyMode` escape hatch included.
+ *
+ * ── PURE, MINUS THE DB READ ─────────────────────────────────────────────────
+ * `isHrStaff` needs a department lookup, so this is `server-only` (it never
+ * was truly client-safe before either — nothing outside a server file ever
+ * imported it). The server guards that use it live alongside the writes
+ * themselves (app/(app)/hr/holidays/actions.ts, app/(admin)/admin/holidays/
+ * actions.ts); the UI hiding the form is a convenience, never the control.
+ */
+
+/** The dummy database signs in as this account, so it may manage holidays there. */
+const DUMMY_EMAIL = "dummy.admin@example.invalid";
+
+/**
+ * May this person add, edit or remove an ad-hoc holiday?
+ *
+ * `dummyMode` is passed by the caller from DUMMY_MODE, which is forced off in
+ * production — so the dummy admin is admitted on port 3002 and nowhere else.
+ */
+export async function canManageHolidays(
+  me: Employee | null | undefined,
+  dummyMode = false,
+): Promise<boolean> {
+  if (!me) return false;
+  if (dummyMode && (me.email ?? "").trim().toLowerCase() === DUMMY_EMAIL) return true;
+  return isHrStaff(me);
 }

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "../fixtures/source-code";
-import { HOLIDAY_ADMIN_EMAILS, canManageHolidays } from "@/lib/hr/holiday-admins";
 import { computeDayCode } from "@/lib/attendance/status";
 import type { AttendanceSchedule } from "@/lib/attendance/schedule";
 import { expectsScheduledHours } from "@/lib/attendance/hours-rule";
@@ -27,34 +26,10 @@ const HR_ACTIONS = codeOf("app/(app)/hr/holidays/actions.ts");
 const HOLIDAY_QUERIES = codeOf("lib/queries/holidays.ts");
 const M0221 = readFileSync(join(ROOT, "db/migrations/0221_holiday_note.sql"), "utf8");
 
-describe("permissions — Ruchita and Rutvisha, and nobody else", () => {
-  it("the allow-list is exactly those two", () => {
-    expect([...HOLIDAY_ADMIN_EMAILS]).toEqual([
-      "ruchitaambre.altuscorp@gmail.com",
-      "rutvishamehta.altuscorp@gmail.com",
-    ]);
-  });
-
-  it("admits both of them", () => {
-    expect(canManageHolidays("ruchitaambre.altuscorp@gmail.com")).toBe(true);
-    expect(canManageHolidays("rutvishamehta.altuscorp@gmail.com")).toBe(true);
-  });
-
-  it("refuses a normal employee, an admin, and the founder", () => {
-    // Deliberately narrower than admin: anyone who can add a date can give the
-    // whole company a paid day off and move everybody's hour target.
-    expect(canManageHolidays("someone.else@altuscorp.com")).toBe(false);
-    expect(canManageHolidays("manan@unleashed.in")).toBe(false);
-    expect(canManageHolidays("rohanchoudhary.altuscorp@gmail.com")).toBe(false);
-  });
-
-  it("fails closed on an absent or blank identity", () => {
-    expect(canManageHolidays(null)).toBe(false);
-    expect(canManageHolidays(undefined)).toBe(false);
-    expect(canManageHolidays("")).toBe(false);
-    expect(canManageHolidays("   ")).toBe(false);
-  });
-
+describe("permissions — HR staff and super-admins, and nobody else", () => {
+  // The rule itself (who counts as HR staff, dummy-mode escape hatch, and so
+  // on) is tested in tests/unit/holiday-admins.test.ts. These are the
+  // structural checks: that every write path actually calls the gate.
   it("ALL THREE write actions re-check server-side — create, edit and delete", () => {
     // The panel is hidden for everyone else, but hiding a form is not a
     // control: these are HTTP endpoints, reachable with any arguments by
@@ -69,7 +44,7 @@ describe("permissions — Ruchita and Rutvisha, and nobody else", () => {
       const after = HR_ACTIONS.indexOf("export async function", start + 1);
       const body = HR_ACTIONS.slice(start, after === -1 ? HR_ACTIONS.length : after);
       expect(body, `${name} must re-check canManageHolidays`).toMatch(
-        /canManageHolidays\(me\.email\)/,
+        /canManageHolidays\(me,/,
       );
     }
   });
@@ -335,11 +310,11 @@ describe("the UI offers the three fields and the three actions", () => {
     expect(panel).toMatch(/removeAdHocHoliday/);
   });
 
-  it("only the two named people are shown the panel", () => {
+  it("only HR staff and super-admins are shown the panel", () => {
     // Presentation, not the control — but the page should still not draw a form
     // whose every action would refuse.
     const page = codeOf("app/(app)/hr/holidays/page.tsx");
-    expect(page).toMatch(/canManageHolidays\(me\.email\)/);
+    expect(page).toMatch(/canManageHolidays\(me,/);
     expect(page).toMatch(/mayEditHolidays/);
   });
 

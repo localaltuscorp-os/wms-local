@@ -150,11 +150,11 @@ export function IntakeField({
       <input
         {...common}
         type={field.type === "tel" ? "tel" : field.type}
-        inputMode={field.type === "number" ? "numeric" : undefined}
+        inputMode={field.type === "tel" || field.type === "number" ? "numeric" : undefined}
         min={field.type === "number" ? 0 : undefined}
-        maxLength={2000}
+        maxLength={field.type === "tel" ? 10 : 2000}
         placeholder={field.placeholder ?? " "}
-        onChange={(e) => onChange(field.key, e.target.value)}
+        onChange={(e) => onChange(field.key, field.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
       />
       {labelEl}
       {showMic && <FieldMic dictation={dictation} />}

@@ -40,12 +40,12 @@ export interface CeCategoryMeta {
  * never picked up. Unlike PS/BSS it carries no batch number.
  */
 export const CE_CATEGORIES: readonly CeCategoryMeta[] = [
-  { code: "retainer", label: "Retainer", section: "Retainer Clients", group: "C", batch: false },
-  { code: "ambassador", label: "Ambassador", section: "Ambassadors", group: "A", batch: false },
   { code: "ps", label: "PS", section: "PS Participants", group: "P", batch: true },
   { code: "bss", label: "BSS", section: "BSS Participants", group: "P", batch: true },
   { code: "os", label: "OS", section: "OS Participants", group: "P", batch: false },
+  { code: "retainer", label: "Retainer", section: "Retainer Clients", group: "C", batch: false },
   { code: "corporate", label: "Corporate", section: "Corporate Consulting Clients", group: "C", batch: false },
+  { code: "ambassador", label: "Ambassador", section: "Ambassadors", group: "A", batch: false },
 ];
 
 export const CE_CATEGORY_CODES: readonly string[] = CE_CATEGORIES.map((c) => c.code);

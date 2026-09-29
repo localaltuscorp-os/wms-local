@@ -884,10 +884,10 @@ function FieldControl({
       }
       autoComplete={field.type === "tel" ? "tel-national" : field.type === "email" ? "email" : undefined}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(field.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
       onBlur={onCommit}
       placeholder={field.placeholder}
-      maxLength={1000}
+      maxLength={field.type === "tel" ? 10 : 1000}
       min={field.type === "number" ? 1 : undefined}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}

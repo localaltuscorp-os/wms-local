@@ -163,11 +163,12 @@ export function InviteCandidateDialog({
                 <Field label="Cell number">
                   <input
                     value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     required
                     type="tel"
-                    inputMode="tel"
+                    inputMode="numeric"
                     autoComplete="tel"
+                    maxLength={10}
                     className={INPUT}
                   />
                 </Field>

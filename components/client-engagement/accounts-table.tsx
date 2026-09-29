@@ -302,7 +302,7 @@ export function AccountsTable({
           </button>
           {colMenuOpen ? (
             <div className="absolute left-0 top-9 z-20 w-[220px] rounded-xl border border-hairline bg-surface-card p-1.5" style={{ boxShadow: "0 20px 50px -20px rgba(15,23,42,0.35)" }}>
-              {table.getAllLeafColumns().filter((c) => c.id !== "select" && c.id !== "name").map((c) => (
+              {table.getAllLeafColumns().filter((c) => c.id !== "select" && c.id !== "name" && c.id !== "actions").map((c) => (
                 <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-ink-soft hover:bg-surface-soft">
                   <input type="checkbox" checked={c.getIsVisible()} onChange={c.getToggleVisibilityHandler()} className="size-3.5 accent-[var(--color-altus-red)]" />
                   {typeof c.columnDef.header === "string" ? c.columnDef.header : c.id}

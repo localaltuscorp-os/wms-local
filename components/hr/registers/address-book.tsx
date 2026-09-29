@@ -284,10 +284,10 @@ export function AddressBook({
               </datalist>
             </Field>
             <Field label="Cell No">
-              <input value={draft.cellNo} onChange={(e) => setDraft({ ...draft, cellNo: e.target.value })} type="tel" inputMode="tel" className={INPUT} />
+              <input value={draft.cellNo} onChange={(e) => setDraft({ ...draft, cellNo: e.target.value.replace(/\D/g, "").slice(0, 10) })} type="tel" inputMode="numeric" maxLength={10} className={INPUT} />
             </Field>
             <Field label="Alternate No">
-              <input value={draft.alternateNo} onChange={(e) => setDraft({ ...draft, alternateNo: e.target.value })} type="tel" inputMode="tel" className={INPUT} />
+              <input value={draft.alternateNo} onChange={(e) => setDraft({ ...draft, alternateNo: e.target.value.replace(/\D/g, "").slice(0, 10) })} type="tel" inputMode="numeric" maxLength={10} className={INPUT} />
             </Field>
             <Field label="Email" className="col-span-2 max-sm:col-span-1">
               <input value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} type="email" className={INPUT} />

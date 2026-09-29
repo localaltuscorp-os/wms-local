@@ -66,6 +66,7 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState<VendorRow | null>(null);
 
   const categories = React.useMemo(
     () => Array.from(new Set([...VENDOR_CATEGORIES, ...vendors.map((v) => v.category)])).sort((a, b) => a.localeCompare(b)),
@@ -236,10 +237,14 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                       </span>
                     </td>
                     <td className={`${TD} whitespace-nowrap`}>
-                      <div className="flex items-center justify-end gap-1.5">
+                      {/* Edit/active/delete STACKED (asked 2026-09-29: the
+                          Postal Address column already eats the row's
+                          horizontal room, so these three no longer compete
+                          for it side by side). */}
+                      <div className="flex items-start justify-end gap-1.5">
                         <WhatsAppButton phone={v.cellNo} name={name} />
                         {canEdit ? (
-                          <>
+                          <div className="flex flex-col gap-1">
                             <IconBtn label="Edit" onClick={() => setDraft(toDraft(v))}>
                               <Pencil size={14} />
                             </IconBtn>
@@ -252,19 +257,10 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                             >
                               {v.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
                             </IconBtn>
-                            <IconBtn
-                              label="Delete"
-                              danger
-                              busy={busy === `del-${v.id}`}
-                              onClick={() => {
-                                if (window.confirm(`Delete ${name} from the Directory? This can't be undone.`)) {
-                                  void run(`del-${v.id}`, () => deleteVendor(v.id), "Vendor deleted");
-                                }
-                              }}
-                            >
+                            <IconBtn label="Delete" danger onClick={() => setConfirmDelete(v)}>
                               <Trash2 size={14} />
                             </IconBtn>
-                          </>
+                          </div>
                         ) : null}
                       </div>
                     </td>
@@ -314,7 +310,7 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
               <input value={draft.lastName} onChange={(e) => set({ lastName: e.target.value })} className={INPUT} />
             </Field>
             <Field label="Cell No">
-              <input value={draft.cellNo} onChange={(e) => set({ cellNo: e.target.value })} type="tel" inputMode="tel" className={INPUT} />
+              <input value={draft.cellNo} onChange={(e) => set({ cellNo: e.target.value.replace(/\D/g, "").slice(0, 10) })} type="tel" inputMode="numeric" maxLength={10} className={INPUT} />
             </Field>
             <Field label="Email Address">
               <input value={draft.email} onChange={(e) => set({ email: e.target.value })} type="email" className={INPUT} />
@@ -358,6 +354,36 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
               </button>
             </div>
           </form>
+        </Modal>
+      ) : null}
+
+      {confirmDelete ? (
+        <Modal title="Delete vendor" onClose={() => setConfirmDelete(null)}>
+          <p className="text-[14px] text-ink-strong">
+            Are you sure you want to delete {vendorFullName(confirmDelete)}? This can&apos;t be undone.
+          </p>
+          <div className="mt-5 flex justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(null)}
+              className="pastel-cta wg-btn rounded-lg px-4 py-2 text-[13.5px] font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy === `del-${confirmDelete.id}`}
+              onClick={async () => {
+                const id = confirmDelete.id;
+                const ok = await run(`del-${id}`, () => deleteVendor(id), "Vendor deleted");
+                if (ok) setConfirmDelete(null);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-60"
+              style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
+            >
+              {busy === `del-${confirmDelete.id}` ? <Loader2 size={15} className="animate-spin" /> : null} Delete
+            </button>
+          </div>
         </Modal>
       ) : null}
 

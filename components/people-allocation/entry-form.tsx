@@ -268,6 +268,27 @@ export function EntryForm({
             options={productOptions}
           />
         </Field>
+        {/* Start and end TOGETHER (asked 2026-09-29), with Batch No. — only
+            relevant for PS/BSS — moved after them instead of splitting the
+            two dates apart. */}
+        <Field label="Start Date" required>
+          <DateField
+            className={inputCls}
+            value={start}
+            placeholder="Select start date"
+            onChange={(e) => setStart(e.target.value)}
+            aria-label="Start Date"
+          />
+        </Field>
+        <Field label="End Date" required>
+          <DateField
+            className={inputCls}
+            value={end}
+            placeholder="Select end date"
+            onChange={(e) => setEnd(e.target.value)}
+            aria-label="End Date"
+          />
+        </Field>
         {/* Batch No. appears only for PS and BSS; the note says so even when it
             is on screen, so the rule is never a surprise. */}
         {showBatch ? (
@@ -295,25 +316,6 @@ export function EntryForm({
         ) : (
           <div className="max-md:hidden" />
         )}
-
-        <Field label="Start Date" required>
-          <DateField
-            className={inputCls}
-            value={start}
-            placeholder="Select start date"
-            onChange={(e) => setStart(e.target.value)}
-            aria-label="Start Date"
-          />
-        </Field>
-        <Field label="End Date" required>
-          <DateField
-            className={inputCls}
-            value={end}
-            placeholder="Select end date"
-            onChange={(e) => setEnd(e.target.value)}
-            aria-label="End Date"
-          />
-        </Field>
       </div>
 
       {/* Weekly Call 1 and 2 to begin with, more on demand. */}

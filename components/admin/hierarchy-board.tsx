@@ -159,7 +159,14 @@ export function HierarchyBoard({
   const [historyFor, setHistoryFor] = useState<BoardPerson | null>(null);
   const [historyRows, setHistoryRows] = useState<HistoryPeriod[]>([]);
   const [historyState, setHistoryState] = useState<"loading" | "ready" | "error">("loading");
-  const [, startTransition] = useTransition();
+  // CAPTURED, not discarded (found 2026-09-29: it used to be `[, startTransition]`)
+  // — with nothing gating the up/down buttons, a second click before
+  // `router.refresh()` landed fired ANOTHER reorder from the same
+  // still-stale order, and only settled a couple of clicks later once the
+  // refreshes caught up. Below, `onReorder` is withheld entirely while a
+  // reorder is in flight, so a click during that window is a no-op instead
+  // of a race.
+  const [isPending, startTransition] = useTransition();
 
   /** Open the history dialog and load that person's periods. The fetch lives in
    *  the click handler, so the dialog itself stays a pure presenter. */
@@ -272,7 +279,7 @@ export function HierarchyBoard({
               onMove={move}
               onHistory={openHistory}
               enableReorder={enableReorder}
-              onReorder={reorder}
+              onReorder={isPending ? undefined : reorder}
             />
           ))}
         </div>

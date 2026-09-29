@@ -602,11 +602,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "PCA Grid",
             routes: ["/operations/client-engagement/pca"],
           },
-          {
-            key: "operations.client-engagement.team",
-            label: "Team & Log",
-            routes: ["/operations/client-engagement/team"],
-          },
         ],
       },
       { key: "operations.directory", label: "Directory", routes: ["/operations/directory"] },

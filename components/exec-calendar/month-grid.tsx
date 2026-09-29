@@ -1,6 +1,6 @@
 "use client";
 
-import { categoryColors } from "@/lib/exec-calendar/taxonomy";
+import { categoryColors, execCategory } from "@/lib/exec-calendar/taxonomy";
 import { monthWeeks, parseDay } from "@/lib/exec-calendar/grid";
 import { monthName } from "@/lib/exec-calendar/period";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
@@ -170,14 +170,14 @@ export function ExecMonthGrid({
                   ) : (
                     <div className="mt-[2px] space-y-[2px]">
                       {list.slice(0, MAX_CHIPS).map((e) => {
-                        const col = categoryColors(e.categoryKey);
+                        const cat = execCategory(e.categoryKey);
                         return (
                           <button
                             key={e.id}
                             type="button"
                             onClick={() => onPickEvent?.(e)}
-                            className="block w-full truncate rounded-[3px] px-[3px] text-left text-[10px] font-semibold leading-[1.4]"
-                            style={{ background: col.bg, color: col.deep }}
+                            className="block w-full truncate rounded-[3px] px-[3px] text-left text-[10px] font-semibold leading-[1.4] text-[#111]"
+                            style={{ background: `color-mix(in srgb, ${cat.hex} 55%, white)` }}
                             title={e.title}
                           >
                             {e.title}

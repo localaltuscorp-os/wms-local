@@ -37,6 +37,7 @@ import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { HolidayCarousel } from "./holiday-carousel";
 import { localDateString } from "@/lib/format";
 import { canManageHolidays } from "@/lib/hr/holiday-admins";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { listAdHocHolidaysBetween } from "./actions";
 import { AdHocHolidayPanel } from "./adhoc-panel";
 
@@ -75,10 +76,10 @@ export default async function HolidaysPage({
   /* AD-HOC DAYS come from the `holidays` TABLE - the same rows attendance
      grades against - so what is listed here and what an employee sees on their
      attendance cannot disagree. One read covers the print year (past days
-     included) and every published year after it. Read for everyone; only the
-     two named people get the panel that writes them. */
+     included) and every published year after it. Read for everyone; only HR
+     staff and super-admins get the panel that writes them. */
   const adHoc = await listAdHocHolidaysBetween(`${printYear}-01-01`, `${lastYear}-12-31`);
-  const mayEditHolidays = canManageHolidays(me.email);
+  const mayEditHolidays = await canManageHolidays(me, DUMMY_MODE);
 
   const calendar = mergeCalendar(years, adHoc);
   const upcoming = upcomingFrom(calendar, today);
@@ -132,13 +133,8 @@ export default async function HolidaysPage({
           showingAll={showingAll}
           firstMonth={months[0] ?? null}
           count={current ? monthHolidays.length : undefined}
+          addHoliday={mayEditHolidays ? <AdHocHolidayPanel year={panelYear} rows={panelRows} /> : null}
         />
-
-        {mayEditHolidays && (
-          <div className="no-print">
-            <AdHocHolidayPanel year={panelYear} rows={panelRows} />
-          </div>
-        )}
 
         {/* ── On screen: upcoming only ─────────────────────────────────
             Three states, one card. The CARD markup is identical in the month
@@ -428,13 +424,34 @@ const HOL_CSS = `
   }
 
   /* Calendar */
-  /* ── Ad-hoc holiday panel (Ruchita + Rutvisha only) ─────────────────── */
+  /* ── Ad-hoc holiday panel (HR staff and super-admins only) ───────────── */
   .hol-adhoc{
     width:100%; margin:0 0 18px;
     border:1px solid var(--color-hairline-strong, rgba(15,23,42,.14));
     border-radius:16px; padding:16px 18px;
     background: var(--color-surface-card, #fff);
   }
+  /* The popup (asked 2026-09-29): the "Add Holiday" trigger opens this
+     instead of the form sitting inline on the page permanently. */
+  .hol-adhoc-overlay{
+    position:fixed; inset:0; z-index:150;
+    display:grid; place-items:center; padding:16px;
+    background: rgba(15,23,42,.45);
+  }
+  .hol-adhoc-modal{
+    position:relative; width:100%; max-width:640px; max-height:86vh;
+    overflow-y:auto; margin:0;
+    box-shadow: 0 30px 80px -30px rgba(15,23,42,.45);
+  }
+  .hol-adhoc-close{
+    position:absolute; top:14px; right:14px;
+    display:grid; place-items:center; width:30px; height:30px; border-radius:999px;
+    border:0; background:transparent; cursor:pointer; color: var(--color-ink-subtle, #64748b);
+  }
+  .hol-adhoc-close:hover{ background: var(--color-surface-soft, #f8fafc); color: var(--color-ink-strong, #0f172a); }
+  .hol-adhoc-divider{ height:1px; margin:16px 0 14px; background: var(--color-hairline, rgba(15,23,42,.08)); }
+  .hol-adhoc-subtitle{ margin:0; font-size:13px; font-weight:800; color: var(--color-ink-strong, #0f172a); }
+  .hol-adhoc-empty{ margin:8px 0 0; font-size:12.5px; color: var(--color-ink-subtle, #64748b); }
   .hol-adhoc-head{ display:flex; align-items:center; gap:8px; color: var(--color-altus-red-deep, #A80400); }
   .hol-adhoc-title{ margin:0; font-size:14.5px; font-weight:800; color: var(--color-ink-strong, #0f172a); }
   .hol-adhoc-lead{

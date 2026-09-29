@@ -620,12 +620,12 @@ function Field({
       {label}
       <input
         type={field.type === "tel" ? "tel" : "text"}
-        inputMode={field.type === "tel" ? "tel" : field.type === "number" ? "numeric" : undefined}
+        inputMode={field.type === "tel" || field.type === "number" ? "numeric" : undefined}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(field.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
         disabled={disabled}
         placeholder={disabled ? "= permanent" : ""}
-        maxLength={2000}
+        maxLength={field.type === "tel" ? 10 : 2000}
         className={`rounded-lg border border-hairline bg-surface-soft px-2.5 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)] disabled:opacity-50${push}`}
       />
     </label>
@@ -788,10 +788,10 @@ function RepeaterField({
                   <span className="text-[11px] font-bold text-ink-soft">{s.label}<span className="text-[color:var(--color-altus-red)]"> *</span></span>
                   <input
                     type={s.type === "tel" ? "tel" : "text"}
-                    inputMode={s.type === "tel" ? "tel" : undefined}
+                    inputMode={s.type === "tel" ? "numeric" : undefined}
                     value={row[s.key] ?? ""}
-                    onChange={(e) => onCell(rowIdx, s.key, e.target.value)}
-                    maxLength={200}
+                    onChange={(e) => onCell(rowIdx, s.key, s.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
+                    maxLength={s.type === "tel" ? 10 : 200}
                     className="rounded-lg border border-hairline bg-white px-2.5 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
                   />
                 </label>
