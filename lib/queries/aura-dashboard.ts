@@ -1,10 +1,11 @@
 import "server-only";
 import { and, eq, gte, inArray, isNotNull, lt, lte, ne, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { attendanceLogs, employees, holidays, leaveRequests, tasks } from "@/db/schema";
+import { attendanceLogs, employees, leaveRequests, tasks } from "@/db/schema";
 import { PENDING_STATUSES, PRIORITY_LABELS, TASK_PRIORITIES } from "@/db/enums";
 import type { TaskPriority, TaskStatus } from "@/db/enums";
 import { withRetry } from "@/lib/db/with-timeout";
+import { listUpcomingHolidays } from "@/lib/queries/upcoming-holidays";
 
 /**
  * Every number the Aura dashboard draws, in one module.
@@ -677,23 +678,14 @@ export async function upcomingHolidays(
   limit = 4,
 ): Promise<UpcomingDay[]> {
   const today = ymd(now, tz);
-  const rows = await withRetry(
-    () =>
-      db
-        .select({ holidayDate: holidays.holidayDate, label: holidays.label })
-        .from(holidays)
-        .where(and(eq(holidays.isActive, true), gte(holidays.holidayDate, today)))
-        .orderBy(holidays.holidayDate)
-        .limit(limit),
-    { timeoutMs: [...READ_BUDGET], label: "aura.upcomingHolidays" },
-  );
+  const rows = await listUpcomingHolidays({ today, limit });
 
   return rows.map((r) => {
     const days = Math.round(
-      (Date.parse(`${r.holidayDate}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000,
+      (Date.parse(`${r.date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000,
     );
     return {
-      ymd: r.holidayDate,
+      ymd: r.date,
       label: r.label,
       when: days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`,
     };
