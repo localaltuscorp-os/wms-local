@@ -355,9 +355,12 @@ const nextConfig: NextConfig = {
     // URL. Bundled, that URL becomes the bundler's placeholder root and loading
     // dies with `ERR_INVALID_FILE_URL_PATH: file:///ROOT/.../pglite.data`.
     // Externalizing keeps it a plain runtime require out of node_modules, where
-    // the path resolves. It is a devDependency and only reached when
-    // DUMMY_MODE=true, so production route graphs never see it.
-    "@electric-sql/pglite",
+    // the path resolves. This entry MUST be local-dummy-only: a production
+    // external is still copied into function traces even when its require uses
+    // a variable specifier.
+    ...(process.env.DUMMY_MODE === "true" && process.env.NODE_ENV !== "production"
+      ? ["@electric-sql/pglite"]
+      : []),
     "pdfkit",
     // Server-only headless-Chromium PDF renderer for rich ("Google Docs") HR
     // letters. Externalized like pdfkit so their large native/binary trees are
