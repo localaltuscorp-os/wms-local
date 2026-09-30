@@ -22,7 +22,7 @@ Introduce a super-admin approval queue for per-employee attendance, incentives, 
 ## Files
 
 - `db/schema.ts`
-- `db/migrations/0256_compensation_approval_workflow.sql`
+- `db/migrations/0259_compensation_approval_workflow.sql`
 - `lib/compensation/workflow.ts`
 - `app/(admin)/admin/approvals/*`
 - `components/admin/approvals/approval-workbench.tsx`
@@ -35,7 +35,7 @@ Introduce a super-admin approval queue for per-employee attendance, incentives, 
 
 ## Database and deployment
 
-Apply `db/migrations/0256_compensation_approval_workflow.sql` through the approved development migration process before deploying the routes. It is forward-only and additive. Rollback is removal of the new routes/actions after ensuring no pending production records rely on the table; do not drop the table while audit records are needed.
+Apply `db/migrations/0259_compensation_approval_workflow.sql` through the approved development migration process before deploying the routes. It is forward-only and additive. Rollback is removal of the new routes/actions after ensuring no pending production records rely on the table; do not drop the table while audit records are needed.
 
 ## Validation
 

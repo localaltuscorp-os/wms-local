@@ -58,7 +58,7 @@ export function VendorBulkEntry({
 
   function onGridProceed(gridRows: VendorFields[]) {
     if (gridRows.length === 0) {
-      setError("Fill at least one vendor - First Name and Category are required.");
+      setError("Fill at least one vendor. First Name, Last Name, Company Name, Cell No., WhatsApp Cell No. and Vendor Category are required.");
       return;
     }
     setError(null);

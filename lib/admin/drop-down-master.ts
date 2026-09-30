@@ -23,6 +23,7 @@ export const DROP_DOWN_MASTER_MODULES: readonly DropDownMasterModule[] = [
     entries: [
       { label: "Functions", href: "/admin/functions" as Route },
       { label: "Designations", href: "/admin/designations" as Route },
+      { label: "Temporary Break", href: "/admin/temporary-break" as Route },
     ],
   },
   {
@@ -60,3 +61,13 @@ export const DROP_DOWN_MASTER_MODULES: readonly DropDownMasterModule[] = [
     entries: [{ label: "Holidays", href: "/admin/holidays" as Route }],
   },
 ];
+
+/** The Admin sidebar keeps the Dropdown index open for its launcher and child pages. */
+export function isDropDownMasterPath(pathname: string): boolean {
+  return (
+    pathname === "/admin/drop-down-master" ||
+    DROP_DOWN_MASTER_MODULES.some((module) =>
+      module.entries.some((entry) => pathname === entry.href || pathname.startsWith(`${entry.href}/`)),
+    )
+  );
+}

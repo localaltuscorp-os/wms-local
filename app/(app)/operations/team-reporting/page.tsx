@@ -40,6 +40,7 @@ function withoutDummyFixtures(snapshot: HierarchySnapshot): HierarchySnapshot {
     people: snapshot.people.filter((p) => keep(p.id)),
     columns,
     unassignedCount: unassigned.filter((p) => p.reportCount === 0).length,
+    temporaryBreak: snapshot.temporaryBreak.filter((p) => keep(p.id)),
   };
 }
 
@@ -127,7 +128,7 @@ export default async function TeamReportingPage() {
   // he's still a valid TARGET (a manager to transfer someone TO), so only the
   // "who's being moved" list drops him, via a separate `people` array rather
   // than filtering the one `snapshot.people` everything else reads.
-  const transferablePeople = snapshot.people.filter((p) => p.id !== me.id);
+  const transferablePeople = snapshot.people.filter((p) => !p.isRoot);
 
   return (
     <PageShell width="wide">
@@ -187,6 +188,14 @@ export default async function TeamReportingPage() {
         enableReorder={canEdit}
         managerAccents={managerAccentsFor(snapshot)}
       />
+      <section className="mt-4 rounded-xl border border-hairline bg-surface-card p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="rounded-md bg-[#f1f2f4] p-1.5 text-[#6b7280]"><Users2 size={14} /></span>
+          <h2 className="text-[13px] font-bold text-ink-strong">Temporary Break</h2>
+          <span className="text-[12px] text-ink-muted">Outside the active reporting hierarchy</span>
+        </div>
+        {snapshot.temporaryBreak.length ? <div className="flex flex-wrap gap-2">{snapshot.temporaryBreak.map((person) => <span key={person.id} className="rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-[12px] font-semibold text-ink-soft">{person.name}</span>)}</div> : <p className="text-[12px] text-ink-muted">No employees on Temporary Break.</p>}
+      </section>
     </PageShell>
   );
 }

@@ -13,6 +13,7 @@ describe("Dropdown configuration explorer", () => {
         entries: [
           { label: "Functions", href: "/admin/functions" },
           { label: "Designations", href: "/admin/designations" },
+          { label: "Temporary Break", href: "/admin/temporary-break" },
         ],
       },
       {
@@ -69,11 +70,11 @@ describe("Dropdown configuration explorer", () => {
 
   it("keeps static launcher windows beside an independently expandable explorer", () => {
     const source = readFileSync("components/admin/drop-down-master-explorer.tsx", "utf8");
-    expect(source).toContain("aria-expanded={treeOpen}");
-    expect(source).toContain("toggleModule(category.id)");
+    expect(source).toContain("aria-expanded={expanded}");
+    expect(source).toContain("toggleModule(category.id, containsActivePage)");
     expect(source).toContain("aria-current={active ? \"page\" : undefined}");
     expect(source).toContain("style={{ backgroundColor: WINDOW_TINTS[category.id] }}");
-    expect(source).toContain("rounded-[28px]");
+    expect(source).toContain("rounded-[24px]");
     expect(source).not.toContain("focusCategory");
   });
 });

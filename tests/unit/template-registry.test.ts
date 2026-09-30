@@ -27,7 +27,7 @@ const { dbStub } = vi.hoisted(() => ({
   dbStub: {
     select: () => ({
       from: () => ({
-        where: () => ({ orderBy: async () => [], limit: async () => [] }),
+        where: () => ({ orderBy: async () => [], limit: async () => [], then: (resolve: (value: never[]) => unknown) => Promise.resolve([]).then(resolve) }),
         orderBy: async () => [],
       }),
     }),
@@ -43,6 +43,9 @@ vi.mock("@/lib/goals/lookups", () => ({
 vi.mock("@/lib/goals/template-workbook", () => ({
   decorateGoalsTemplate: async (base: Buffer) => base,
 }));
+vi.mock("@/lib/auth/current", () => ({ requireUser: async () => ({ id: "test-user" }) }));
+vi.mock("@/lib/queries/compliance-board", () => ({ loadManageablePeople: async () => [] }));
+vi.mock("@/lib/queries/products", () => ({ listActiveProductNames: async () => [] }));
 
 import { buildTemplate } from "@/lib/templates/resolve";
 import { TEMPLATE_REGISTRY } from "@/lib/templates/registry";
@@ -55,6 +58,7 @@ import { columnForHeader as goalColumnForHeader } from "@/lib/goals/template-col
 import { WEEKLY_GOALS_COLUMNS } from "@/lib/weekly-goals/template-columns";
 import { columnsFor } from "@/lib/project-plan/bulk";
 import { PLAN_KINDS } from "@/lib/project-plan/levels";
+import { VENDOR_COLUMNS, vendorColumnForHeader } from "@/lib/operations/directory";
 
 /** Every cell of the first `rows` rows of a sheet, as strings. */
 function headCells(buffer: Buffer, sheetName?: string, rows = 6): string[] {
@@ -100,6 +104,11 @@ function headerRowCells(
 
 function sheetNames(buffer: Buffer): string[] {
   return XLSX.read(buffer, { type: "buffer" }).SheetNames;
+}
+
+/** Generated templates append `*` to a configured required header. */
+function plainHeader(value: string): string {
+  return value.replace(/\s*\*$/, "");
 }
 
 async function built(key: string, opts: Parameters<typeof buildTemplate>[1] = {}) {
@@ -155,7 +164,7 @@ describe("Tasks workbook", () => {
 describe("Weekly Goals workbook", () => {
   it("carries the exact headers its importer recognises", async () => {
     const { buffer } = await built(TEMPLATE_KEYS.weeklyGoals);
-    const cells = headCells(buffer);
+    const cells = headCells(buffer).map(plainHeader);
     for (const col of WEEKLY_GOALS_COLUMNS) {
       expect(cells, `column "${col.header}"`).toContain(col.header);
     }
@@ -203,7 +212,7 @@ describe("Goals workbooks", () => {
 describe("Projects workbook", () => {
   it.each(PLAN_KINDS)("carries the %s kind's columns", async (kind) => {
     const { buffer } = await built(TEMPLATE_KEYS.projects, { kind });
-    const cells = headCells(buffer);
+    const cells = headCells(buffer).map(plainHeader);
     for (const col of columnsFor(kind)) {
       expect(cells, `${kind}: column "${col.header}"`).toContain(col.header);
     }
@@ -227,13 +236,22 @@ describe("Accounts workbook", () => {
     expect(names).toContain("Accounts Task List");
     expect(names).toContain("Screenshots to Post");
 
-    const taskCells = headCells(buffer, "Accounts Task List");
+    const taskCells = headCells(buffer, "Accounts Task List").map(plainHeader);
     for (const h of ["Area", "Task Description", "Status", "Target Date", "Actual Date"]) {
       expect(taskCells, `task header "${h}"`).toContain(h);
     }
-    const shotCells = headCells(buffer, "Screenshots to Post");
+    const shotCells = headCells(buffer, "Screenshots to Post").map(plainHeader);
     for (const h of ["Project Name", "Project Details", "Frequency"]) {
       expect(shotCells, `shot header "${h}"`).toContain(h);
     }
+  });
+});
+
+describe("Vendor Directory workbook", () => {
+  it("carries only columns the Vendor bulk parser recognises", async () => {
+    const { buffer } = await built(TEMPLATE_KEYS.vendors);
+    const headers = headerRowCells(buffer, "Vendors", vendorColumnForHeader);
+    expect(headers.length).toBe(VENDOR_COLUMNS.length);
+    expect(headers.filter((header) => !vendorColumnForHeader(header))).toEqual([]);
   });
 });

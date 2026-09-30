@@ -18,6 +18,7 @@
 export const MASTER_STATUS_VALUES = [
   "active",
   "probation",
+  "temporary_break",
   "inactive",
   "offboarded",
 ] as const;

@@ -704,6 +704,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             routes: ["/admin/hierarchy"],
           },
           {
+            key: "admin.people.temporary-break",
+            label: "Temporary Break",
+            routes: ["/admin/temporary-break"],
+          },
+          {
             // The KEY is unchanged on purpose: it is stored in
             // `module_permissions.node_key`, so renaming it would orphan every
             // grant anybody has already made. Only the label and the route move.

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { settingsEvents, templateFiles } from "@/db/schema";
+import { settingsEvents, templateFieldConfigs, templateFiles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { requireModuleEdit } from "@/lib/permissions/resolve";
@@ -148,4 +148,35 @@ export async function deleteTemplates(keys: string[]): Promise<ActionResult<{ de
   await audit(me.id, "template_deleted", toDelete.map((t) => t.key).join(", ") || "(none)");
   revalidatePath(PATH);
   return { ok: true, deleted: toDelete.length };
+}
+
+/** Persist one template variant's required fields. Defaults remain code-defined
+ * when no row exists; this action never changes an uploaded binary override. */
+export async function saveMandatoryFields(
+  key: string,
+  variant: string,
+  requiredFields: string[],
+): Promise<ActionResult> {
+  const me = await requireAdmin();
+  await requireModuleEdit(NODE);
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const def = templateDef(key);
+  const shape = def?.variants?.find((item) => item.id === variant);
+  if (!def || !shape) return { ok: false, error: "Unknown template variant." };
+  if (!Array.isArray(requiredFields) || requiredFields.some((field) => !shape.fields.some((item) => item.id === field))) {
+    return { ok: false, error: "Unknown mandatory field." };
+  }
+
+  await db
+    .insert(templateFieldConfigs)
+    .values({ key, variant, requiredFields: [...new Set(requiredFields)], updatedById: me.id })
+    .onConflictDoUpdate({
+      target: [templateFieldConfigs.key, templateFieldConfigs.variant],
+      set: { requiredFields: [...new Set(requiredFields)], updatedById: me.id, updatedAt: new Date() },
+    });
+  await audit(me.id, "mandatory_fields_changed", `${key}:${variant}`);
+  revalidatePath(PATH);
+  return { ok: true };
 }

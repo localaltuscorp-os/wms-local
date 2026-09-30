@@ -17,6 +17,8 @@ import {
   type IncentiveRosterEntry,
   type ParseIncentiveResult,
 } from "@/lib/import/incentive-import";
+import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { notifyIfPaidIncreased } from "@/lib/incentive/notifications/paid-increase";
 import { recordManualIncentivePayment } from "@/lib/incentive/record-manual-payment";
 import { round2 } from "@/lib/incentive/payout-math";
@@ -497,7 +499,8 @@ async function readImport(formData: FormData): Promise<ImportRead> {
   const file = formData.get("file");
   if (!(file instanceof File)) return { ok: false, error: "No file uploaded." };
   const [roster, products] = await Promise.all([activeRoster(), listActiveProductNames()]);
-  return { ok: true, parsed: await parseIncentiveImport(file, roster, products) };
+  const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.incentiveEntries, "default"));
+  return { ok: true, parsed: await parseIncentiveImport(file, roster, products, required) };
 }
 
 /** Parse every row and return every issue. This action writes nothing. */
