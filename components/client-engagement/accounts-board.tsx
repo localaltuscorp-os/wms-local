@@ -1,14 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { fireToast } from "@/lib/toast";
-import { ceAssignAccount } from "@/app/(app)/operations/client-engagement/actions";
-import { accountLabel, CE_CATEGORIES } from "@/lib/client-engagement/constants";
+import { CE_CATEGORIES } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
 import { AccountDialog } from "./account-dialog";
-import { TransferDialog } from "./transfer-dialog";
-import { AccountsTable } from "./accounts-table";
+import { AccountsTablePane } from "./accounts-table-pane";
 import { Select } from "./ui";
 
 /**
@@ -35,6 +32,7 @@ export function AccountsBoard({
   referencesSlot,
   focusMember,
   query,
+  searchJump,
   addRequest,
 }: {
   accounts: CeAccountRow[];
@@ -62,6 +60,14 @@ export function AccountsBoard({
    */
   query: string;
   /**
+   * A category to jump to because the search bar found a match outside the
+   * currently selected tab, paired with a nonce so the same category found
+   * twice in a row still re-applies (asked 2026-09-29: pressing Enter on a
+   * found name should switch to its section and clear the tab/member filters
+   * that would otherwise still hide it).
+   */
+  searchJump?: { category: string; nonce: number } | null;
+  /**
    * A top-right "+ Add People" click, paired with a nonce so the same button
    * clicked twice still re-opens the dialog. The button itself now lives in
    * OverviewBoard (one fixed button, top right — asked 2026-09-28: "keep the
@@ -76,8 +82,9 @@ export function AccountsBoard({
   );
   const [batch, setBatch] = React.useState("");
   const [memberFilter, setMemberFilter] = React.useState("");
-  const [editing, setEditing] = React.useState<CeAccountRow | "new" | null>(null);
-  const [moving, setMoving] = React.useState<CeAccountRow | null>(null);
+  // The top-right "+ Add People" button's own dialog — row-level edit and
+  // transfer now live inside AccountsTablePane, which owns that state itself.
+  const [addingNew, setAddingNew] = React.useState(false);
 
   // A KPI card click can arrive between renders, same as TimeField's own
   // outside-value sync in ./ui.tsx — adjusted during render (React's own
@@ -94,7 +101,18 @@ export function AccountsBoard({
   const [appliedAddNonce, setAppliedAddNonce] = React.useState(addRequest?.nonce);
   if (addRequest && addRequest.nonce !== appliedAddNonce) {
     setAppliedAddNonce(addRequest.nonce);
-    setEditing("new");
+    setAddingNew(true);
+  }
+
+  // Same render-time-adjustment pattern for a search match found outside the
+  // active tab — switch to its category and drop the batch/member filters
+  // that would otherwise keep the match hidden.
+  const [appliedSearchNonce, setAppliedSearchNonce] = React.useState(searchJump?.nonce);
+  if (searchJump && searchJump.nonce !== appliedSearchNonce) {
+    setAppliedSearchNonce(searchJump.nonce);
+    setTab(searchJump.category as Tab);
+    setBatch("");
+    setMemberFilter("");
   }
 
   const memberName = React.useMemo(() => new Map(members.map((m) => [m.id, m.name] as const)), [members]);
@@ -123,27 +141,6 @@ export function AccountsBoard({
       )
     : [];
 
-  const canEdit = (a: CeAccountRow) => canManage || (myMemberId !== null && a.assignedTo === myMemberId);
-
-  async function bulkTransfer(rows: CeAccountRow[], toMemberId: string) {
-    const toName = members.find((m) => m.id === toMemberId)?.name ?? "someone";
-    let ok = 0;
-    let clashes = 0;
-    for (const a of rows) {
-      const res = await ceAssignAccount(a.id, toMemberId);
-      if (res.ok) {
-        ok += 1;
-        clashes += res.clashes;
-      }
-    }
-    const failed = rows.length - ok;
-    fireToast({
-      message: `${ok} of ${rows.length} moved to ${toName}${clashes ? ` — ${clashes} call${clashes === 1 ? "" : "s"} now overlap and need re-timing` : ""}${failed ? `, ${failed} failed` : ""}`,
-      type: failed ? "info" : "success",
-      duration: 8000,
-    });
-  }
-
   return (
     <>
       {/* Category tabs. */}
@@ -157,15 +154,16 @@ export function AccountsBoard({
       {tab === "references" ? (
         referencesSlot
       ) : (
-        <AccountsTable
+        <AccountsTablePane
           accounts={inTab}
           members={members}
           loads={loads}
+          capacity={capacity}
+          callCounts={callCounts}
           canManage={canManage}
-          canEdit={canEdit}
-          onOpen={setEditing}
-          onMove={setMoving}
-          onBulkTransfer={bulkTransfer}
+          myMemberId={myMemberId}
+          batches={batches}
+          defaultCategory={category!.code}
           extraControls={
             <>
               {category!.batch ? (
@@ -199,25 +197,15 @@ export function AccountsBoard({
         />
       )}
 
-      {editing ? (
+      {addingNew ? (
         <AccountDialog
-          account={editing === "new" ? null : editing}
+          account={null}
           defaultCategory={category?.code}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           batches={batches}
           canManage={canManage}
-          canEdit={editing === "new" ? true : canEdit(editing)}
-          onClose={() => setEditing(null)}
-        />
-      ) : null}
-      {moving ? (
-        <TransferDialog
-          accountId={moving.id}
-          label={accountLabel(moving.fullName, moving.batchCode)}
-          currentMemberId={moving.assignedTo}
-          capacity={capacity}
-          hasCalls={(callCounts[moving.id] ?? 0) > 0}
-          onClose={() => setMoving(null)}
+          canEdit
+          onClose={() => setAddingNew(false)}
         />
       ) : null}
     </>

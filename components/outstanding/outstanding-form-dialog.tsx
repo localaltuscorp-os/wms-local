@@ -368,10 +368,11 @@ export function OutstandingFormDialog({
               <Field label="Cell No">
                 <input
                   type="tel"
+                  inputMode="numeric"
                   value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
+                  onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="Optional"
-                  maxLength={40}
+                  maxLength={10}
                   className={INPUT_CLASS}
                 />
               </Field>

@@ -10,7 +10,6 @@ import {
   Gauge,
   GraduationCap,
   Handshake,
-  History,
   LayoutDashboard,
   LayoutGrid,
   ListChecks,
@@ -181,7 +180,6 @@ export const OPERATIONS_AREAS: OperationsArea[] = [
       { href: "/operations/client-engagement/calendar", label: "Calendar", Icon: CalendarDays },
       { href: "/operations/client-engagement/employees", label: "Employee Grid", Icon: Users2 },
       { href: "/operations/client-engagement/pca", label: "PCA Grid", Icon: ClipboardList },
-      { href: "/operations/client-engagement/team", label: "Team & Log", Icon: History },
     ],
   },
   {

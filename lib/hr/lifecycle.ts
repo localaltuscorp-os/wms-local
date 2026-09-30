@@ -149,7 +149,7 @@ export const HR_STAGES: HrStage[] = [
       // And AFTER it, the outcome of the pre-employment programme. The letter
       // the candidate signs before that programme is the Free Training Letter
       // in Post-Interview; this is the one the firm issues when it ends.
-      { slug: "after-free-training", label: "After Free Training", Icon: Award, kind: "doc", typeKey: "after-free-training", blurb: "The outcome of the 15-day pre-employment training & evaluation." },
+      { slug: "after-free-training", label: "After Pre-Employment Training", Icon: Award, kind: "doc", typeKey: "after-free-training", blurb: "The outcome of the 15-day pre-employment training & evaluation." },
       { slug: "employee-of-the-month", label: "Employee of the Month", Icon: Trophy, kind: "doc", typeKey: "employee-of-the-month", blurb: "Recognise a standout performer." },
       { slug: "birthday-wishes", label: "Birthday Wishes", Icon: Cake, kind: "doc", typeKey: "birthday", blurb: "A warm birthday note from the team." },
       { slug: "resignation-rejection", label: "Resignation Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "resignation-rejection", blurb: "Decline a resignation and retain the employee." },

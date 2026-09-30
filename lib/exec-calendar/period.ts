@@ -174,3 +174,21 @@ export function monthName(ymd: string, withYear = false): string {
   const name = MONTHS_LONG[d.getUTCMonth()]!;
   return withYear ? `${name} ${d.getUTCFullYear()}` : name;
 }
+
+/**
+ * A week's 7 days, grouped into one segment per distinct month — one segment
+ * covering all 7 for a normal week, two when the week straddles a boundary
+ * (asked 2026-09-29, Weekly Grid and Monthly Grid both: a week half September
+ * half October should not be labelled by only one of them). Shared by both
+ * grids' sticky month band.
+ */
+export function monthSegments(days: readonly string[]): { month: string; span: number }[] {
+  const segs: { month: string; span: number }[] = [];
+  for (const d of days) {
+    const m = monthStart(d);
+    const last = segs[segs.length - 1];
+    if (last && last.month === m) last.span += 1;
+    else segs.push({ month: m, span: 1 });
+  }
+  return segs;
+}

@@ -17,6 +17,7 @@ import {
   dayCodeOf,
   formatDuration,
   freeGaps,
+  mondayOf,
   parseHm,
   runsOn,
   slotMinutes,
@@ -186,6 +187,25 @@ export function CalendarView({
   const sunday = addDays(monday, 6);
   const fmtDate = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
+  // "This/Last/Next month" (or week) only for the three periods adjacent to
+  // TODAY — anything further away is named by itself instead of staying
+  // stuck on a generic label (asked 2026-09-29: it kept saying "This month"
+  // while looking at October).
+  const monthLabel = (() => {
+    const cur = monthStart(today);
+    if (monthAnchor === cur) return "This month";
+    if (monthAnchor === addMonths(cur, -1)) return "Last month";
+    if (monthAnchor === addMonths(cur, 1)) return "Next month";
+    return monthName(monthAnchor, true);
+  })();
+  const weekLabel = (() => {
+    const cur = mondayOf(today);
+    if (monday === cur) return "This week";
+    if (monday === addDays(cur, -7)) return "Last week";
+    if (monday === addDays(cur, 7)) return "Next week";
+    return `${fmtDate(monday)} – ${fmtDate(sunday)}`;
+  })();
+
   return (
     <>
       <Toolbar>
@@ -237,7 +257,7 @@ export function CalendarView({
             className={BTN_NEUTRAL}
             onClick={() => (view === "month" ? setMonthAnchor(monthStart(today)) : go({ week: today }))}
           >
-            {view === "month" ? "This month" : "This week"}
+            {view === "month" ? monthLabel : weekLabel}
           </button>
           <button
             type="button"
@@ -249,7 +269,7 @@ export function CalendarView({
           </button>
         </div>
         <span className="shrink-0 whitespace-nowrap text-[13.5px] font-extrabold text-ink-strong" style={DISPLAY}>
-          {view === "month" ? monthName(monthAnchor, true) : `${fmtDate(monday)} – ${fmtDate(sunday)}`}
+          {(view === "month" ? monthAnchor : monday).slice(0, 4)}
         </span>
         <span className="min-w-0 flex-1" />
         {canEdit ? (
@@ -483,7 +503,6 @@ export function CalendarView({
           members={canManage ? members : members.filter((m) => m.id === memberId)}
           accounts={accounts}
           lockedMemberId={canManage ? null : memberId}
-          canManage={canManage}
           weekStart={monday}
           onClose={() => setAddCallOpen(false)}
         />

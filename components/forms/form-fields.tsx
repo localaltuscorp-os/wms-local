@@ -118,10 +118,11 @@ export function FieldInput({
   return (
     <input
       type={field.type === "tel" ? "tel" : field.type}
+      inputMode={field.type === "tel" ? "numeric" : undefined}
       value={value}
-      onChange={(e) => onChange(field.key, e.target.value)}
+      onChange={(e) => onChange(field.key, field.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
       placeholder={field.placeholder}
-      maxLength={2000}
+      maxLength={field.type === "tel" ? 10 : 2000}
       min={field.type === "number" ? 0 : undefined}
       className={inputClass}
     />
