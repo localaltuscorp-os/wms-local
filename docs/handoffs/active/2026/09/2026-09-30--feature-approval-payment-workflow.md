@@ -50,6 +50,17 @@ Apply `db/migrations/0256_compensation_approval_workflow.sql` through the approv
 - Review the existing salary and legacy incentive-payout pages during QA: the new Accounts queue is the controlled payment route; any legacy payment UI that remains enabled should be retired or routed through `compensation_approvals` before release.
 - Preserve unrelated uncommitted HR and holiday changes present in the worktree.
 
+## Hub-only brand placement
+
+- The Altus logo and name render in the top bar only on `/hub`.
+- All module pages omit that brand, and the shared module footer begins directly with the available module links.
+- This is a presentation-only change; navigation, workspace access, and footer behavior are unchanged.
+
+## Final validation correction
+
+- Restored the required display label for the `assignment_needed` management-assessment outcome. This fixes the branch TypeScript error without changing the workflow or stored values.
+- `corepack pnpm typecheck` passed after this correction.
+
 ## Branch integration
 
 - Latest `origin/main` was merged into `Vinal` before this feature was merged.

@@ -77,7 +77,7 @@ const OUTCOME_MAP: Record<
   // the canonical `shortlisted` value, while the assessment keeps the more
   // specific management outcome in its own saved data.
   free_training: { status: "shortlisted", letterKey: "free-training", letterLabel: "Free training letter", label: "Free training" },
-  assignment_needed: { status: "shortlisted", letterKey: "assignment-needed", letterLabel: "Assignment needed" },
+  assignment_needed: { status: "shortlisted", letterKey: "assignment-needed", letterLabel: "Assignment needed", label: "Assignment needed" },
 };
 const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected", "free_training", "assignment_needed"];
 
