@@ -74,9 +74,8 @@ const CFG = resolveEffectiveConfig(FULL_TIME);
 const SCHED = toAttendanceSchedule(CFG);
 
 /**
- * September 2026 — chosen because the PUBLISHED HR calendar really does put
- * three holidays in it (Janmashtami, Ganpati Day 1, Ganpati Day 10), so these
- * tests exercise the firm's own list rather than invented dates.
+ * September 2026 is the payroll fixture month. Its synthetic three-day case
+ * below is deliberately separate from the published calendar assertions.
  */
 const MONTH = "2026-09";
 /**
@@ -86,12 +85,6 @@ const MONTH = "2026-09";
  * asserts they buy back exactly 27 hours (3 x 9).
  */
 const SEPT_HOLIDAYS = ["2026-09-04", "2026-09-14", "2026-09-23"];
-/**
- * What the HR list ACTUALLY publishes for September 2026. Ganpati Day 10 on
- * the 23rd was withdrawn on 2026-09-24, so the published set and the payroll
- * fixture above are no longer the same three dates and cannot share a list.
- */
-const PUBLISHED_SEPT = ["2026-09-04", "2026-09-14"];
 /** Sundays in September 2026. */
 const SUNDAYS = ["2026-09-06", "2026-09-13", "2026-09-20", "2026-09-27"];
 
@@ -202,29 +195,41 @@ function payrollFor(days: GradedDayInput[], monthlySalary = 54_000) {
    ──────────────────────────────────────────────────────────────────────────── */
 
 describe("the published HR holiday calendar reaches attendance", () => {
-  it("normalises the published list to the yyyy-mm-dd the grader keys on", () => {
+  it("normalises the authoritative 2026 list to the yyyy-mm-dd the grader keys on", () => {
     const dates = publishedHolidayDates(2026);
-    expect(dates).toContain("2026-01-26"); // Republic Day
-    expect(dates).toContain("2026-08-15"); // Independence Day
-    for (const d of PUBLISHED_SEPT) expect(dates).toContain(d);
+    expect(dates).toEqual([
+      "2026-09-14",
+      "2026-09-25",
+      "2026-10-20",
+      "2026-11-08",
+      "2026-11-10",
+      "2026-11-11",
+    ]);
+    expect(dates).not.toContain("2026-01-26");
     for (const d of dates) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it("covers every published year, and is empty for one with no list", () => {
-    expect(publishedHolidayDates(2027).length).toBeGreaterThan(0);
-    expect(publishedHolidayDates(2028).length).toBeGreaterThan(0);
+  it("covers every supplied calendar year, and is empty outside the supplied range", () => {
+    expect(publishedHolidayDates(2026)).toHaveLength(6);
+    // The supplied 2027 table includes 1-Jan-2028 as its final row; it is
+    // stored with calendar year 2028 so every consumer receives the real date.
+    expect(publishedHolidayDates(2027)).toHaveLength(14);
+    expect(publishedHolidayDates(2028)).toHaveLength(15);
+    expect(publishedHolidayDates(2029)).toHaveLength(15);
+    expect(publishedHolidayDates(2030)).toHaveLength(15);
+    expect(publishedHolidayDates(2031)).toEqual(["2031-01-01"]);
     expect(publishedHolidayDates(2035)).toEqual([]);
   });
 
-  it("carries a readable label, with the '(National Holiday)' tag stripped", () => {
-    const republic = publishedHolidaysForYear(2026).find((h) => h.date === "2026-01-26");
-    expect(republic?.label).toBe("Republic Day");
+  it("carries the supplied readable label", () => {
+    const ganpati = publishedHolidaysForYear(2026).find((h) => h.date === "2026-09-14");
+    expect(ganpati?.label).toBe("Ganpati - Day 1 / Ganesh Chaturthi");
   });
 
-  it("looks ahead with NO horizon — the next day off may be a year out", () => {
-    const from2027 = publishedHolidaysFrom("2027-11-15");
-    expect(from2027.some((h) => h.date.startsWith("2028"))).toBe(true);
-    expect(from2027.every((h) => h.date >= "2027-11-15")).toBe(true);
+  it("looks ahead through the supplied horizon", () => {
+    const from2030 = publishedHolidaysFrom("2030-12-31");
+    expect(from2030).toEqual([{ date: "2031-01-01", label: "English New Year" }]);
+    expect(from2030.every((h) => h.date >= "2030-12-31")).toBe(true);
   });
 
   /**
@@ -246,16 +251,16 @@ describe("the published HR holiday calendar reaches attendance", () => {
   it("an INACTIVE holiday row withdraws a published day from the panel too", () => {
     const published = publishedHolidaysFrom("2026-09-01").slice(0, 5);
     const withAll = mergeUpcomingHolidays([], published, "2026-09-01", 5);
-    expect(withAll.some((h) => h.date === "2026-09-04")).toBe(true);
+    expect(withAll.some((h) => h.date === "2026-09-14")).toBe(true);
 
     const suppressed = mergeUpcomingHolidays(
       [],
       published,
       "2026-09-01",
       5,
-      new Set(["2026-09-04"]),
+      new Set(["2026-09-14"]),
     );
-    expect(suppressed.some((h) => h.date === "2026-09-04")).toBe(false);
+    expect(suppressed.some((h) => h.date === "2026-09-14")).toBe(false);
   });
 });
 
