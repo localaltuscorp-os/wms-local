@@ -4,6 +4,8 @@
 - **Branch:** `integration/om-rudra-vinal-2026-09-30`
 - **Objective:** Integrate the requested `origin/Om`, `origin/Rudra`, and `origin/Vinal` deliveries into current `origin/main` without including other outstanding branches.
 - **Status:** Validated for Development Repository integration; not promoted to production.
+- **Source tips:** `origin/Vinal` `3dc055d4`, `origin/Rudra` `7975e980`, and `origin/Om` `17495144`.
+- **Validated integration commit:** `73db6b77` (before this handoff-only update).
 
 ## Integrated scope
 
@@ -31,6 +33,7 @@
 - Changed-test set: 247 passed and 3 stale Control Panel expectations failed. The failures expect the removed `/control-panel/users` screen and its permission node, while Om intentionally makes Roles the landing and removes that node.
 - TypeScript initially found one integrated Vinal defect (missing `assignment_needed.label`); fixed. Rerun passed.
 - Optimized Next.js production build: passed (compiled, TypeScript, page-data collection, and 36 static pages).
+- Full ESLint run: passed with 0 errors and 407 existing warnings.
 - `pnpm check:leaks`: passed; all watched packages clean, including zero PGlite source and NFT traces.
 
 ## Known issues
