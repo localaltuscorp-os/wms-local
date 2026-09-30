@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/current";
 import { requireModuleEdit } from "@/lib/permissions/resolve";
 import { setReportingManager, managerHistoryFor } from "@/lib/employees/manager-history";
 import { reorderSibling } from "@/lib/employees/sort-order";
+import { setIsManager } from "@/lib/employees/is-manager";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
@@ -89,6 +90,31 @@ export async function reorderTeamMember(
 
   const res = await reorderSibling(employeeId, direction);
   if (!res.ok) return res;
+  revalidatePath("/operations/team-reporting");
+  return { ok: true };
+}
+
+/**
+ * PROMOTE/DEMOTE — Team Reporting's "Add/Delete Manager" (2026-09-26).
+ *
+ * Gives (or removes) somebody a guaranteed column even with zero direct
+ * reports right now — see `is-manager.ts` and `getHierarchy`'s tree-column
+ * rule. Demoting is always safe: a manager who still HAS reports keeps their
+ * column regardless (that half of the rule is unconditional), this flag only
+ * ever ADDS a slot, never hides one that reports would otherwise justify.
+ */
+export async function setEmployeeIsManager(
+  employeeId: string,
+  isManager: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireAdmin();
+  await requireModuleEdit(NODE);
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return { ok: false, error: limited.error };
+  if (!z.string().uuid().safeParse(employeeId).success) return { ok: false, error: "Invalid id" };
+
+  const wrote = await setIsManager(employeeId, isManager);
+  if (!wrote) return { ok: false, error: "Manager designation isn't set up on this database yet." };
   revalidatePath("/operations/team-reporting");
   return { ok: true };
 }

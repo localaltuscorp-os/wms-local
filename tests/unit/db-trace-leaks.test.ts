@@ -50,6 +50,8 @@ const TRAPPED = ["@electric-sql/pglite", "drizzle-orm/pglite"] as const;
 
 /** The file that every database-touching route imports. */
 const DB_INDEX = "lib/db/index.ts";
+const NEXT_CONFIG = "next.config.ts";
+const LEAK_CHECK = "scripts/measure-functions-storage.mjs";
 
 /**
  * Source with `typeof import(...)` replaced, since that form is a TYPE and is
@@ -122,6 +124,22 @@ describe("no other file in the database layer imports PGlite directly", () => {
       }
     });
   }
+});
+
+describe("production configuration cannot trace the dummy database", () => {
+  it("externalizes PGlite only for non-production DUMMY_MODE", () => {
+    const source = codeOf(NEXT_CONFIG);
+    expect(source).toContain('process.env.DUMMY_MODE === "true"');
+    expect(source).toContain('process.env.NODE_ENV !== "production"');
+    expect(source).toMatch(/\? \["@electric-sql\/pglite"\]\s*:\s*\[\]/);
+  });
+
+  it("checks NFT deployment traces as well as compiled JavaScript", () => {
+    const source = codeOf(LEAK_CHECK);
+    expect(source).toContain('entry.name.endsWith(".nft.json")');
+    expect(source).toContain('includes("@electric-sql/pglite")');
+    expect(source).toContain("pgliteTraces > 0");
+  });
 });
 
 describe("the leak detector can see what it claims to see", () => {

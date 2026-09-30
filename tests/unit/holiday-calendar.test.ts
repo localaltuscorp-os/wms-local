@@ -17,7 +17,7 @@ import {
   type CalendarHoliday,
 } from "@/lib/hr/holiday-calendar";
 
-// 15 Sep 2026: Ganpati Day 1 (14-Sep) has just passed, 23-Sep is still ahead.
+// 15 Sep 2026: Ganpati Day 1 (14-Sep) has just passed, 25-Sep is still ahead.
 const TODAY = "2026-09-15";
 
 describe("mergeCalendar", () => {
@@ -31,10 +31,10 @@ describe("mergeCalendar", () => {
   });
 
   it("lets the published name win when an ad-hoc row repeats a published date", () => {
-    const list = mergeCalendar([2026], [{ holidayDate: "2026-01-26", label: "Duplicate" }]);
-    const day = list.filter((h) => h.iso === "2026-01-26");
+    const list = mergeCalendar([2026], [{ holidayDate: "2026-09-14", label: "Duplicate" }]);
+    const day = list.filter((h) => h.iso === "2026-09-14");
     expect(day).toHaveLength(1);
-    expect(day[0]?.name).toBe("Republic Day");
+    expect(day[0]?.name).toBe("Ganpati - Day 1 / Ganesh Chaturthi");
     expect(day[0]?.adHoc).toBe(false);
   });
 });
@@ -88,14 +88,14 @@ describe("print year", () => {
   it("prints today's calendar year, clamped to the published range", () => {
     expect(printYearFor(TODAY)).toBe(2026);
     expect(printYearFor("2020-05-01")).toBe(2026);
-    expect(printYearFor("2031-05-01")).toBe(2028);
+    expect(printYearFor("2032-05-01")).toBe(2031);
   });
 
   it("puts past and ad-hoc days of that year into quarters", () => {
     const list = mergeCalendar([2026], [{ holidayDate: "2026-02-02", label: "Ad-hoc" }]);
     const quarters = quartersOfYear(list, 2026);
     const all = quarters.flatMap((q) => q.holidays.map((h) => h.iso));
-    expect(all).toContain("2026-01-26");
+    expect(all).toContain("2026-09-14");
     expect(all).toContain("2026-02-02");
     expect(quarters[0]?.span).toBe("Jan – Mar");
   });

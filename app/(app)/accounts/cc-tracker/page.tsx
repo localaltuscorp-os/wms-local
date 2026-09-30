@@ -46,8 +46,8 @@ export default async function CcMasterPage({ searchParams }: PageProps) {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="w-full px-8 pt-6 pb-8 max-md:px-4 max-md:pt-5 max-md:pb-6">
-        <Link href={"/accounts" as Route} className="mb-2.5 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-soft hover:text-altus-red">
+      <main className="w-full px-8 pt-4 pb-8 max-md:px-4 max-md:pt-4 max-md:pb-6">
+        <Link href={"/accounts" as Route} className="mb-1.5 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-soft hover:text-altus-red">
           <ArrowLeft size={14} strokeWidth={2.4} />
           Accounts Index
         </Link>
@@ -68,29 +68,20 @@ export default async function CcMasterPage({ searchParams }: PageProps) {
               </Link>
             </div>
           }
+          toolbar={
+            <div className="flex w-full min-w-0 flex-nowrap gap-1 overflow-x-auto pb-0.5">
+              {cols.map((c) => {
+                const active = c.month === month;
+                const href = `/accounts/cc-tracker?fy=${fyStartYear}&m=${c.month}` as Route;
+                return (
+                  <Link key={c.month} href={href} className="inline-flex shrink-0 items-center rounded-md px-2.5 py-1.5 text-[12px] font-bold transition-colors" style={active ? { background: "var(--color-altus-red)", color: "#fff" } : { background: "var(--color-surface-soft)", color: "var(--color-ink-soft)" }}>
+                    {c.label} &apos;{String(c.calYear % 100).padStart(2, "0")}
+                  </Link>
+                );
+              })}
+            </div>
+          }
         />
-
-        {/* Month chips (Apr→Mar) */}
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {cols.map((c) => {
-            const active = c.month === month;
-            const href = `/accounts/cc-tracker?fy=${fyStartYear}&m=${c.month}` as Route;
-            return (
-              <Link
-                key={c.month}
-                href={href}
-                className="inline-flex items-center rounded-lg px-3 py-1.5 text-[13px] font-bold transition-colors"
-                style={
-                  active
-                    ? { background: "var(--color-altus-red)", color: "#fff" }
-                    : { background: "var(--color-surface-soft)", color: "var(--color-ink-soft)" }
-                }
-              >
-                {c.label} &apos;{String(c.calYear % 100).padStart(2, "0")}
-              </Link>
-            );
-          })}
-        </div>
 
         <CcMaster
           fyStartYear={fyStartYear}

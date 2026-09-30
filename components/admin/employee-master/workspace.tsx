@@ -608,6 +608,15 @@ function Section(props: {
             <Pane title="Identity">
               <Rows>
                 <Field label="Employee Code"><Readout>{r.employeeCode ?? "Not issued"}</Readout></Field>
+                {/* Read-only here: the one-way-door decision (set once "Done",
+                    can't be unset) is owned by the HR Record page's card, which
+                    also handles the requireHrStaff() gate. Showing it here without
+                    a second write path keeps that guarantee in the one place. */}
+                <Field label="Background Check">
+                  <Readout>
+                    {r.backgroundCheck === "yes" ? "Done" : r.backgroundCheck === "no" ? "Not Done" : "Not decided yet"}
+                  </Readout>
+                </Field>
                 <Text label="Employee Name" value={v("name", r.name) ?? ""} onChange={(x) => set("name", x, r.name)} />
                 <Pick label="Designation" value={v("designationId", r.designationId) ?? ""} onChange={(x) => set("designationId", x || null, r.designationId)} options={options.designations} />
                 <Pick label="Entity" value={v("payingEntityId", r.entityId) ?? ""} onChange={(x) => set("payingEntityId", x || null, r.entityId)} options={options.entities} />

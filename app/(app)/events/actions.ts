@@ -170,7 +170,7 @@ export async function deleteExecEvent(id: string): Promise<Result> {
 const PrefsInput = z.object({
   startMin: Minute,
   endMin: Minute,
-  slotMin: z.union([z.literal(30), z.literal(60)]),
+  slotMin: z.union([z.literal(15), z.literal(30), z.literal(60)]),
 });
 
 export async function saveExecGridPrefs(input: z.infer<typeof PrefsInput>): Promise<Result> {
@@ -270,8 +270,15 @@ async function stampDays(
   let skipped = 0;
   for (const d of days) {
     const sameDay = existing.filter((e) => e.day === d);
+    // BUG (found 2026-09-26): this used to check `e.routineId != null` — ANY
+    // routine's block at the same time, not THIS one's. A day already holding
+    // some OTHER routine's (or a stray leftover's) block at the identical
+    // startMin/endMin silently read as "already stamped" and got skipped,
+    // while unaffected days stamped fine — producing exactly the scattered,
+    // non-contiguous result reported: three correct days, a gap where an
+    // unrelated block happened to share the slot, then more correct days.
     const already = sameDay.some(
-      (e) => e.routineId != null && e.startMin === v.startMin && e.endMin === v.endMin,
+      (e) => e.routineId === routineId && e.startMin === v.startMin && e.endMin === v.endMin,
     );
     if (already) { skipped += 1; continue; }
 

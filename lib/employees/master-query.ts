@@ -17,6 +17,7 @@ import {
 import { isCurrentStaff } from "@/lib/queries/employees";
 import { codeHistoryFor } from "./code-registry";
 import { resolveEmployeeType, type EmployeeTypeCode } from "./employee-type";
+import { backgroundCheckStatusesAll, type BackgroundCheckStatus } from "@/lib/hr/background-check";
 
 /**
  * THE EMPLOYEE MASTER — one read across every existing source of truth.
@@ -335,6 +336,11 @@ export interface EmployeeMasterRow {
   deactivatedAt: Date | null;
   /** active | probation | inactive | offboarded — what the Status column shows. */
   status: string;
+
+  /** "yes"/"no"/null — see lib/hr/background-check.ts for why this is read via
+   *  raw SQL rather than a schema.ts column. null on a database without 0248,
+   *  same as an employee who hasn't been decided yet — both show as "—". */
+  backgroundCheck: BackgroundCheckStatus;
 }
 
 const MASTER_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
@@ -361,6 +367,11 @@ export async function loadEmployeeMasterRows(
   now: Date = new Date(),
 ): Promise<EmployeeMasterRow[]> {
   const today = now.toISOString().slice(0, 10);
+
+  // One extra round trip rather than a join: the columns aren't in
+  // db/schema.ts (see lib/hr/background-check.ts), so Drizzle can't select
+  // them by name here the way it does everything else below.
+  const backgroundChecks = await backgroundCheckStatusesAll();
 
   const rows = await db
     .select({
@@ -454,6 +465,7 @@ export async function loadEmployeeMasterRows(
       monthlyCtc: annual == null ? null : Math.round((annual / 12) * 100) / 100,
       tdsMonthly: r.tdsMonthly == null ? null : Number(r.tdsMonthly),
       onProbation,
+      backgroundCheck: backgroundChecks.get(r.id) ?? null,
       status: statusOf({
         isActive: r.isActive,
         employmentStatus: r.employmentStatus,
