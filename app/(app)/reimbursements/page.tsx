@@ -41,6 +41,7 @@ import {
   settledShare,
 } from "@/lib/reimbursements/claim-kpis";
 import { attachmentCountsBySubmission } from "@/lib/queries/reimbursement-attachments";
+import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +54,11 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const view = (Array.isArray(sp.view) ? sp.view[0] : sp.view) === "archived" ? "archived" : "active";
   const def = MODULES.reimbursement;
+  const visibleEmployeeIds = me.isAdmin ? undefined : [me.id, ...(await getDownlineIds(me.id))];
 
   // Same loads as the generic ModulePage — zero new queries.
   const [rows, requestFields, adminFieldsLive, products, requestFieldsRaw, adminFieldsRaw] = await Promise.all([
-    listModuleSubmissions({ module: "reimbursement", employeeId: me.id, isAdmin: me.isAdmin, archived: view === "archived" }),
+    listModuleSubmissions({ module: "reimbursement", employeeId: me.id, isAdmin: me.isAdmin, visibleEmployeeIds, archived: view === "archived" }),
     resolveRequestFields("reimbursement"),
     resolveAdminFields("reimbursement"),
     getProductOptions(),

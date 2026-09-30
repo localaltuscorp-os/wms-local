@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
 import { ChevronDown, Search } from "lucide-react";
@@ -234,14 +233,13 @@ export function AuraTopBar({
     // dashboard this one hides rather than eating a third of a small screen.
     <header className={onDashboard ? "aura-topbar app-topbar" : "aura-topbar app-topbar max-md:hidden"}>
 
-      <a
+      {false && <a
         href="/hub"
         aria-label="Altus — back to the dashboard"
         className="flex shrink-0 items-center gap-2.5 rounded-lg outline-none transition-opacity hover:opacity-80"
       >
-        <Image src="/logo.png" alt="" width={170} height={188} priority className="h-8 w-auto" />
-        <span className="aura-brand max-lg:hidden">Altus</span>
-      </a>
+        {/* Brand moved into the module footer ribbon. */}
+      </a>}
 
       {/* A page's OWN title, portaled in (the HR console names itself more
           precisely than its route can be read). `empty:hidden` so it costs no

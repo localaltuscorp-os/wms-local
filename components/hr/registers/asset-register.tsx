@@ -40,14 +40,24 @@ type Draft = {
   clearPassword: boolean;
 };
 
-function draftFrom(a?: AssetRow): Draft {
+function nextSerialNo(assets: AssetRow[]): string {
+  const latest = assets.reduce((max, asset) => {
+    const serial = asset.serialNo?.trim() ?? "";
+    if (!/^\d+$/.test(serial)) return max;
+    const value = Number(serial);
+    return Number.isSafeInteger(value) ? Math.max(max, value) : max;
+  }, 0);
+  return String(latest + 1);
+}
+
+function draftFrom(a?: AssetRow, nextSerial = ""): Draft {
   return {
     id: a?.id,
     assetCode: a?.assetCode,
     assetType: a?.assetType ?? "",
     assetName: a?.assetName ?? "",
     location: a?.location ?? "",
-    serialNo: a?.serialNo ?? "",
+    serialNo: a?.serialNo ?? nextSerial,
     model: a?.model ?? "",
     make: a?.make ?? "",
     description: a?.description ?? "",
@@ -97,6 +107,7 @@ export function AssetRegister({
   const [issued, setIssued] = React.useState<"all" | HrAssetIssuedKind>("all");
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const nextSerial = React.useMemo(() => nextSerialNo(assets), [assets]);
 
   const needle = q.trim().toLowerCase();
   const rows = assets
@@ -187,7 +198,7 @@ export function AssetRegister({
         {canEdit ? (
           <button
             type="button"
-            onClick={() => setDraft(draftFrom())}
+            onClick={() => setDraft(draftFrom(undefined, nextSerial))}
             className="ml-auto inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-[14px] font-bold text-white"
             style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
           >
@@ -309,7 +320,14 @@ export function AssetRegister({
                 <input value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} className={INPUT} />
               </Field>
               <Field label="Serial No">
-                <input value={draft.serialNo} onChange={(e) => setDraft({ ...draft, serialNo: e.target.value })} className={`${INPUT} font-mono`} />
+                <input
+                  value={draft.serialNo}
+                  onChange={(e) => setDraft({ ...draft, serialNo: e.target.value })}
+                  readOnly={!draft.id}
+                  inputMode="numeric"
+                  className={`${INPUT} font-mono read-only:bg-surface-soft read-only:text-ink-muted`}
+                />
+                {!draft.id ? <p className="mt-1 text-[11px] font-medium text-ink-muted">Generated from the next available serial number when saved.</p> : null}
               </Field>
               <Field label="Location">
                 <input value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} className={INPUT} />
@@ -457,6 +475,12 @@ function FileSlot({
   onClear: () => void;
 }) {
   const [uploading, setUploading] = React.useState(false);
+  const [localPreviewUrl, setLocalPreviewUrl] = React.useState<string | null>(null);
+  const previewUrl = url ?? localPreviewUrl;
+
+  React.useEffect(() => () => {
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+  }, [localPreviewUrl]);
 
   async function pick(file: File) {
     setUploading(true);
@@ -473,6 +497,10 @@ function FileSlot({
         fireToast({ message: `Upload failed: ${error.message}`, type: "error" });
         return;
       }
+      setLocalPreviewUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return URL.createObjectURL(file);
+      });
       onUploaded(signed.path);
     } finally {
       setUploading(false);
@@ -486,15 +514,15 @@ function FileSlot({
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink-muted">
           {uploading ? "Uploading…" : path ? (url ? "Attached" : "Attached — save to keep") : "No file"}
         </span>
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-pill bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft hover:text-ink-strong">
+        {previewUrl ? (
+          <a href={previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-pill bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft hover:text-ink-strong">
             <Eye size={11} /> View
           </a>
         ) : null}
         {!readOnly ? (
           <>
             {path ? (
-              <button type="button" onClick={onClear} className="rounded-pill bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft hover:text-[color:var(--color-altus-red)]">
+              <button type="button" onClick={() => { setLocalPreviewUrl(null); onClear(); }} className="rounded-pill bg-white px-2 py-0.5 text-[11px] font-bold text-ink-soft hover:text-[color:var(--color-altus-red)]">
                 Remove
               </button>
             ) : null}
