@@ -3,7 +3,7 @@
 - **Date:** 2026-09-30
 - **Development branch:** `integration/vinal-precedence-shreya-om-2026-09-30`
 - **Objective:** Record Shreya's branch tip, retain the latest Om delivery, make Vinal authoritative over Rudra where their implementations overlap, deploy development, and separately promote only the approved module-backup feature to production.
-- **Status:** Development candidate validated; backup-only production release pushed; development push and Vercel deployment pending.
+- **Status:** Development and backup-only production releases pushed; Vercel development production deployment verified healthy.
 
 ## Development integration
 
@@ -46,4 +46,11 @@
 
 ## Development deployment
 
-Pending. Record development SHA, Vercel deployment URL, alias, health checks, and rollback information after the push/deployment completes.
+- Development `origin/main` SHA: `7aa16b49`.
+- Vercel project: `altus-corp2/wms-local`.
+- Ready deployment ID: `dpl_3MxPkwojbGLHAY9SiSnnx7ZM7mKA`.
+- Deployment URL: `https://wms-local-o3j1c3xya-altus-corp2.vercel.app`.
+- Production alias: `https://wms-local.vercel.app`.
+- Health monitoring: three consecutive probes returned HTTP 200 for `/`, `/api/health`, `/attendance`, `/my-salary`, and `/admin/module-backups`.
+- The redundant queued retry deployment was removed after the Ready deployment and alias were verified.
+- Vercel rollback candidate: the preceding Ready production deployment `https://wms-local-33e5j6fhg-altus-corp2.vercel.app`.
