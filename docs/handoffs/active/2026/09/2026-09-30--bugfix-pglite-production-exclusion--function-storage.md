@@ -36,6 +36,9 @@ reported this case as clean.
   - Any production trace containing PGlite is a failure.
 - `tests/unit/db-trace-leaks.test.ts`
   - Guards the environment condition and NFT-trace inspection.
+- `AGENTS.md`
+  - Makes zero PGlite production bundles/traces a standing repository rule.
+  - Requires a production build and `pnpm check:leaks` after related changes.
 
 ## Database and migrations
 
