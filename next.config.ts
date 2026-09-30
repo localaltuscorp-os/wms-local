@@ -64,7 +64,8 @@ const nextConfig: NextConfig = {
 
   // TypeScript is still mandatory in CI (`pnpm typecheck`). Do not run the
   // same whole-program check again inside `next build`: on Vercel's 8 GB
-  // builder webpack needs a 3.5 GB heap cap to leave native-memory headroom,
+  // builder webpack is temporarily allowed a 4 GB heap while the larger
+  // production graph is being reduced; Vercel still enforces the 8 GB machine cap.
   // while the duplicate Next typecheck needs more than that and aborts after
   // compilation. Keeping the checks separate makes both fit and preserves the
   // fail-closed GitHub check on every pushed commit.
@@ -145,7 +146,7 @@ const nextConfig: NextConfig = {
      * other half of the fix and not something to turn back on here.
      *
      * ── THE HEAP SIZE IS PART OF THIS FIX, AND IT WENT DOWN ───────────────
-     * package.json's `build` script now passes `--max-old-space-size=3584`,
+     * package.json's `build` script now passes `--max-old-space-size=4096`,
      * lowered from 6144, and it also no longer starts with `rm -rf .next`.
      * Both are deliberate, and the second is the one that reads as wrong:
      *
@@ -169,9 +170,9 @@ const nextConfig: NextConfig = {
      * The first production build after the 23 September merge still reached
      * the container's 8 GB limit with a 4096 MB heap during compilation. The
      * cap was therefore 3072 MB. After the 29 September fork integration,
-     * Vercel exhausted that JavaScript heap during compilation, while the old
-     * 4096 MB cap left too little native-memory headroom. 3584 MB is the
-     * controlled middle ground that preserves the Webpack pipeline and cache.
+     * Vercel exhausted both the 3072 MB and 3584 MB JavaScript heaps during
+     * compilation. This temporary 4096 MB attempt is bounded by Vercel's 8 GB
+     * machine cap; the durable fix remains reducing the production build graph.
      *
      * ── TURBOPACK WAS TRIED AND REJECTED (2026-09-24) ─────────────────────
      * DO NOT "just drop --webpack". It is half the build time and it will
