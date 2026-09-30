@@ -2,7 +2,7 @@
 
 - **Date:** 2026-09-30
 - **Branch:** `feature/published-holiday-calendar-2026-2031`
-- **Status:** Approved for isolated production promotion; Vercel deployment pending
+- **Status:** Released to production and verified
 - **Approved development commit:** `3b4c904764d2b760ca87675650c0df8b54d7baa6`
 - **Production release branch:** `release/holiday-calendar-2026-2031`
 
@@ -73,13 +73,8 @@ The supplied calendar replaces the existing published lists, including the 2026 
 
 ## Remaining work
 
-- Push the isolated release commit to `fork/main`; this repository branch is the
-  configured Vercel production source and the push should trigger the production
-  build automatically.
-- Run the verified reconciliation with `--apply`, then verify the active database
-  set and the live Attendance/Holiday List output.
-- Verify that Vercel reports the deployment as Ready and that the live Holiday
-  List shows the replacement calendar.
+- Ask an authenticated user to visually confirm Attendance and Holiday List labels
+  against the supplied table; the deployment and database checks are complete.
 - No schema migration is required; one controlled data reconciliation is required.
 - The full unit-suite baseline still has 26 previously recorded unrelated
   failures. The release owner explicitly approved this isolated holiday-only
@@ -98,3 +93,15 @@ The supplied calendar replaces the existing published lists, including the 2026 
   the focused holiday tests, and normally push the resulting revert to
   `fork/main`. Restore the recorded prior database flags/labels if a data rollback
   is required. Do not force-push or rewrite production history.
+
+## Production result
+
+- Application release SHA on `fork/main`: `90c6a21d0fbb17157ca99404a22c07be085265fc`.
+- Database reconciliation applied successfully: 66 authoritative active dates;
+  12 obsolete admin rows retained inactive; 10 obsolete event rows retained with
+  office-closed cleared.
+- Final production-base validation passed: 4 focused files / 107 tests, TypeScript,
+  optimized Next.js build, 36 static pages, and `pnpm check:leaks` with zero leaks.
+- Vercel deployment `dpl_GP6Q86RtC5R51pJaRJHdfFRqhUUK` reached Ready and owns
+  `https://wms-local.vercel.app`.
+- Live `/api/health` returned HTTP 200 with database and storage checks healthy.
