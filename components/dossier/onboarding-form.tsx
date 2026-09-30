@@ -666,12 +666,12 @@ function Field({
       {label}
       <input
         type={field.type === "tel" ? "tel" : "text"}
-        inputMode={field.type === "tel" || field.type === "number" ? "numeric" : undefined}
+        inputMode={field.type === "tel" ? "tel" : field.type === "number" ? "numeric" : undefined}
         value={value}
-        onChange={(e) => onChange(field.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={disabled ? "= permanent" : ""}
-        maxLength={field.type === "tel" ? 10 : 2000}
+        maxLength={2000}
         className={`rounded-lg border border-hairline bg-surface-soft px-2.5 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)] disabled:opacity-50${push}`}
       />
     </label>
