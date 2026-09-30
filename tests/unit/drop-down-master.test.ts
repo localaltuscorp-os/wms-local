@@ -66,4 +66,14 @@ describe("Dropdown configuration explorer", () => {
     expect(source).toContain("gridTemplateRows: `repeat(${category.entries.length}, minmax(0, 1fr))`");
     expect(source).toContain("href={entry.href}");
   });
+
+  it("keeps static launcher windows beside an independently expandable explorer", () => {
+    const source = readFileSync("components/admin/drop-down-master-explorer.tsx", "utf8");
+    expect(source).toContain("aria-expanded={treeOpen}");
+    expect(source).toContain("toggleModule(category.id)");
+    expect(source).toContain("aria-current={active ? \"page\" : undefined}");
+    expect(source).toContain("style={{ backgroundColor: WINDOW_TINTS[category.id] }}");
+    expect(source).toContain("rounded-[28px]");
+    expect(source).not.toContain("focusCategory");
+  });
 });

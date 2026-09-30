@@ -2,46 +2,104 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
 import { DROP_DOWN_MASTER_MODULES } from "@/lib/admin/drop-down-master";
+
+const WINDOW_TINTS = {
+  people: "color-mix(in srgb, var(--color-red-bg) 86%, transparent)",
+  attendance: "color-mix(in srgb, var(--color-blue-bg) 86%, transparent)",
+  masters: "color-mix(in srgb, var(--color-amber-bg) 86%, transparent)",
+  billing: "color-mix(in srgb, var(--color-purple-bg) 86%, transparent)",
+  hr: "color-mix(in srgb, var(--color-green-bg) 86%, transparent)",
+} as const;
 
 /** Existing Admin configuration routes, presented as a compact explorer. */
 export function DropDownMasterExplorer() {
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [treeOpen, setTreeOpen] = useState(true);
+  const [expandedModules, setExpandedModules] = useState<ReadonlySet<string>>(() => new Set());
+  const pathname = usePathname() ?? "";
 
-  function focusCategory(id: string) {
-    setFocusedId(id);
-    document.getElementById(`dropdown-category-${id}`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
+  function toggleModule(id: string) {
+    setExpandedModules((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
     });
+  }
+
+  function isActiveRoute(href: string) {
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   return (
     <section className="grid gap-4 lg:grid-cols-[176px_minmax(0,1fr)]" aria-label="Dropdown configuration">
-      <aside className="h-fit rounded-xl border border-hairline bg-surface-card p-2.5 lg:sticky lg:top-6" aria-label="Dropdown categories">
-        <div className="mb-1.5 flex items-center gap-1.5 px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-ink-subtle">
-          <FolderOpen size={13} strokeWidth={2.4} /> Dropdown
-        </div>
-        <div className="flex flex-col gap-0.5 border-l border-hairline pl-1.5">
-          {DROP_DOWN_MASTER_MODULES.map((category) => {
-            const active = focusedId === category.id;
-            return (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => focusCategory(category.id)}
-                className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12.5px] font-semibold transition-colors ${
-                  active ? "bg-surface-soft text-ink-strong" : "text-ink-muted hover:bg-surface-soft hover:text-ink-strong"
-                }`}
-                aria-controls={`dropdown-category-${category.id}`}
-              >
-                <Folder size={14} strokeWidth={2.15} className="shrink-0 text-ink-subtle" />
-                {category.label}
-              </button>
-            );
-          })}
-        </div>
+      <aside className="h-fit rounded-2xl border border-hairline bg-surface-card p-2.5 lg:sticky lg:top-6" aria-label="Dropdown explorer">
+        <button
+          type="button"
+          onClick={() => setTreeOpen((open) => !open)}
+          aria-expanded={treeOpen}
+          aria-controls="dropdown-explorer-tree"
+          className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] font-black uppercase tracking-[0.1em] text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red"
+        >
+          {treeOpen ? <ChevronDown size={13} strokeWidth={2.5} /> : <ChevronRight size={13} strokeWidth={2.5} />}
+          {treeOpen ? <FolderOpen size={14} strokeWidth={2.2} /> : <Folder size={14} strokeWidth={2.2} />}
+          Dropdown
+        </button>
+
+        {treeOpen && (
+          <nav id="dropdown-explorer-tree" aria-label="Dropdown folders" className="relative ml-[11px] mt-1 border-l border-hairline pl-2">
+            {DROP_DOWN_MASTER_MODULES.map((category) => {
+              const expanded = expandedModules.has(category.id);
+              const FolderIcon = expanded ? FolderOpen : Folder;
+
+              return (
+                <div key={category.id} className="relative">
+                  <span aria-hidden="true" className="absolute -left-2 top-4 h-px w-2 bg-hairline" />
+                  <button
+                    type="button"
+                    onClick={() => toggleModule(category.id)}
+                    aria-expanded={expanded}
+                    aria-controls={`dropdown-module-${category.id}`}
+                    className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-[12.5px] font-semibold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red"
+                  >
+                    {expanded ? <ChevronDown size={13} strokeWidth={2.5} /> : <ChevronRight size={13} strokeWidth={2.5} />}
+                    <FolderIcon size={14} strokeWidth={2.1} className="shrink-0 text-ink-subtle" />
+                    <span className="min-w-0 truncate">{category.label}</span>
+                  </button>
+
+                  {expanded && (
+                    <div id={`dropdown-module-${category.id}`} className="relative ml-[11px] border-l border-hairline pl-2 pb-1">
+                      {category.entries.map((entry) => {
+                        const active = isActiveRoute(entry.href);
+                        return (
+                          <Link
+                            key={entry.href}
+                            href={entry.href}
+                            aria-current={active ? "page" : undefined}
+                            className={`relative flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[12px] font-medium transition-colors before:absolute before:-left-2 before:top-1/2 before:h-px before:w-2 before:bg-hairline ${
+                              active
+                                ? "bg-altus-red text-white shadow-sm"
+                                : "text-ink-muted hover:bg-surface-soft hover:text-ink-strong"
+                            }`}
+                          >
+                            <FileText size={13} strokeWidth={2} className="shrink-0" />
+                            <span className="min-w-0 truncate">{entry.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+        )}
       </aside>
 
       <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
@@ -53,7 +111,8 @@ export function DropDownMasterExplorer() {
               id={`dropdown-category-${category.id}`}
               onMouseEnter={() => setFocusedId(category.id)}
               onFocus={() => setFocusedId(category.id)}
-              className={`group relative min-h-[152px] overflow-hidden rounded-xl border bg-surface-card transition-colors ${
+              style={{ backgroundColor: WINDOW_TINTS[category.id] }}
+              className={`group relative min-h-[152px] overflow-hidden rounded-[28px] border transition-colors ${
                 focused ? "border-altus-red/45" : "border-hairline hover:border-altus-red/35"
               }`}
               aria-label={`${category.label} configuration`}

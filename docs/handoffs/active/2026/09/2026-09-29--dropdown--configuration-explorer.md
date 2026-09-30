@@ -1,8 +1,8 @@
 # Dropdown configuration explorer
 
-- Date: 2026-09-29
+- Date: 2026-09-30
 - Work item: Dropdown configuration explorer
-- Status: Complete locally; not committed or pushed
+- Status: Ready to commit and push on `Om`
 
 ## Objective
 
@@ -22,6 +22,18 @@ configuration explorer. It must only organize existing configuration pages.
   duplicate configuration links from the Admin rail. Employees, Employee
   Master, Reporting Hierarchy, and Upload Master remain outside Dropdown.
 - Preserved the restricted Clients and Subjects rail for roster-only users.
+
+## Latest refinement
+
+- Changed only `components/admin/drop-down-master-explorer.tsx` and its focused
+  unit test.
+- The left rail is now an IDE-style tree: `Dropdown` is its collapsible root,
+  and categories expand independently without hiding sibling categories.
+- Existing child pages remain their existing route links. The right-side
+  windows remain a static launcher and retain their hover/focus option reveal.
+- Added transparent internal tints without gradients: People is red; the other
+  windows use blue, amber, violet, and green. Their corners are now 28px.
+- No data, CRUD, route, permission, backend, or database behavior changed.
 
 ## Files
 
@@ -44,12 +56,24 @@ guards remain authoritative, including route-specific permission checks.
 - `node node_modules/eslint/bin/eslint.js components/admin/admin-nav-config.ts components/admin/drop-down-master-explorer.tsx components/admin/roster-nav.ts 'app/(admin)/admin/drop-down-master/page.tsx' lib/admin/drop-down-master.ts tests/unit/drop-down-master.test.ts tests/unit/functions-rename.test.ts` — passed
 - `node node_modules/typescript/bin/tsc --noEmit` — passed
 
+## Latest verification
+
+- `pnpm exec vitest run tests/unit/drop-down-master.test.ts --reporter=verbose`
+  passed: 5 tests.
+- `pnpm exec eslint components/admin/drop-down-master-explorer.tsx tests/unit/drop-down-master.test.ts`
+  passed.
+- `GET /admin/drop-down-master` against the local dev server returned 200 and
+  the client component compiled successfully.
+- `pnpm typecheck` is blocked by a pre-existing malformed generated file at
+  `.next/dev/types/validator.ts`; it did not report a Dropdown source error.
+
 ## Known state
 
-The worktree contains unrelated in-progress Temporary Access and Employee
-Master changes. Preserve them when staging or committing this work.
+The worktree has unrelated untracked agent, build, and log artifacts. Preserve
+them and stage only the three files for this Dropdown refinement.
 
 ## Rollback
 
-Restore the six files listed above from the prior revision. No migration or
+Restore `components/admin/drop-down-master-explorer.tsx` and
+`tests/unit/drop-down-master.test.ts` from the prior revision. No migration or
 data rollback is required.
