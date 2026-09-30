@@ -32,6 +32,14 @@ export const TEMPLATE_KEYS = {
   projects: "projects_bulk_import",
   /** Accounts → Task List (+ Screenshots to Post) → Bulk Upload. */
   accountsTaskList: "accounts-task-list",
+  wcc: "dcc_wcc_bulk_import",
+  mcc: "dcc_mcc_bulk_import",
+  operationsChecklist: "operations_checklist_bulk_import",
+  jobDescriptions: "job_descriptions_bulk_import",
+  vendors: "operations_vendor_bulk_import",
+  incentiveEntries: "incentive_entries_bulk_import",
+  outstanding: "billing_outstanding_bulk_import",
+  collections: "billing_collection_bulk_import",
 } as const;
 
 export type TemplateKey = (typeof TEMPLATE_KEYS)[keyof typeof TEMPLATE_KEYS];
@@ -68,6 +76,7 @@ export interface TemplateHrefOptions {
   periodKey?: string | null;
   /** Project Plan: the plan kind (`project`, `milestone`, `action`…). */
   kind?: string | null;
+  variant?: string | null;
 }
 
 /**
@@ -79,6 +88,7 @@ export function templateHref(key: TemplateKey, opts: TemplateHrefOptions = {}): 
   if (opts.level) q.set("level", opts.level);
   if (opts.periodKey) q.set("periodKey", opts.periodKey);
   if (opts.kind) q.set("kind", opts.kind);
+  if (opts.variant) q.set("variant", opts.variant);
   const qs = q.toString();
   return `/api/templates/${key}${qs ? `?${qs}` : ""}`;
 }

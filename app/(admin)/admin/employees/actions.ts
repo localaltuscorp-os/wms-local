@@ -27,6 +27,7 @@ import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
 // delegating each row to `editEmployee`, so there is one write path for a
 // manager change and not two that could disagree.
 import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-history";
+import { isEmployeeOnTemporaryBreak } from "@/lib/employees/temporary-break";
 import { resolveEmployeeType } from "@/lib/employees/employee-type";
 import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { auditLog } from "@/lib/logs/audit";
@@ -588,6 +589,12 @@ export async function editEmployee(
   if (parsed.data.isAdmin !== undefined) patch.isAdmin = parsed.data.isAdmin;
 
   if (parsed.data.managerId !== undefined) {
+    if (isSuperAdmin(emp.email)) {
+      return { ok: false, error: "A hierarchy root cannot be moved or assigned a manager." };
+    }
+    if (await isEmployeeOnTemporaryBreak(emp.id)) {
+      return { ok: false, error: "An employee on Temporary Break cannot be assigned to a manager." };
+    }
     if (parsed.data.managerId === emp.id) {
       return { ok: false, error: "An employee can't be their own manager." };
     }
@@ -598,6 +605,9 @@ export async function editEmployee(
     // refused above; this catches the two-step version (making your own report
     // your manager), which the old check let straight through.
     if (parsed.data.managerId) {
+      if (await isEmployeeOnTemporaryBreak(parsed.data.managerId)) {
+        return { ok: false, error: "A Temporary Break employee cannot be selected as a manager." };
+      }
       if (await wouldCreateCycle(emp.id, parsed.data.managerId)) {
         return {
           ok: false,

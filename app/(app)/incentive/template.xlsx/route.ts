@@ -5,6 +5,8 @@ import { employees } from "@/db/schema";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { listActiveProductNames } from "@/lib/queries/products";
 import { apiViewDenial } from "@/lib/permissions/api-guard";
+import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +37,11 @@ export async function GET(request: Request): Promise<Response> {
       .where(and(eq(employees.isActive, true), isNotNull(employees.employeeCode))),
     listActiveProductNames(),
   ]);
+  const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.incentiveEntries, "default"));
   const buffer = await buildIncentiveEntryTemplate({
     roster: roster.map((row) => ({ ...row, employeeCode: row.employeeCode! })),
     products,
+    required,
   });
   return new Response(buffer, {
     headers: {

@@ -1,7 +1,7 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
+import { employeeTemporaryBreaks, employees } from "@/db/schema";
 import { loadSortOrders } from "@/lib/employees/sort-order";
 import { loadManagerFlags } from "@/lib/employees/is-manager";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
@@ -51,6 +51,8 @@ export interface HierarchyPerson {
    *  A person is treated as a manager if EITHER this is true OR they have
    *  reports; see `getHierarchy`'s tree-column rule. */
   isManager: boolean;
+  /** Root hierarchy users are never draggable/subordinate candidates. */
+  isRoot: boolean;
 }
 
 export interface HierarchyColumn {
@@ -64,6 +66,7 @@ export interface HierarchyColumn {
 export interface HierarchySnapshot {
   people: HierarchyPerson[];
   columns: HierarchyColumn[];
+  temporaryBreak: HierarchyPerson[];
   /** Ids with no manager AND no reports — listed so nobody is invisible. */
   unassignedCount: number;
 }
@@ -117,9 +120,22 @@ export async function getHierarchy(
   // and the isActive filter would let a future active one through. Filtering on
   // the archetype states the intent.
   const staff = rows.filter((r) => r.accountType === "employee");
+  const activeBreakRows = staff.length
+    ? await db
+      .select({ employeeId: employeeTemporaryBreaks.employeeId })
+      .from(employeeTemporaryBreaks)
+      .where(and(inArray(employeeTemporaryBreaks.employeeId, staff.map((row) => row.id)), isNull(employeeTemporaryBreaks.endedAt)))
+    : [];
+  const temporaryBreakIds = new Set(activeBreakRows.map((row) => row.employeeId));
+  const activeStaff = staff
+    .filter((row) => !temporaryBreakIds.has(row.id))
+    .map((row) => ({
+      ...row,
+      managerId: row.managerId && temporaryBreakIds.has(row.managerId) ? null : row.managerId,
+    }));
 
   const reportsByManager = new Map<string, typeof staff>();
-  for (const r of staff) {
+  for (const r of activeStaff) {
     const key = r.managerId;
     if (!key) continue;
     const list = reportsByManager.get(key);
@@ -142,7 +158,7 @@ export async function getHierarchy(
     return total;
   }
 
-  const people: HierarchyPerson[] = staff.map((r) => ({
+  const people: HierarchyPerson[] = activeStaff.map((r) => ({
     id: r.id,
     name: r.name,
     email: r.email,
@@ -156,6 +172,7 @@ export async function getHierarchy(
     totalDownline: totalDownlineOf(r.id),
     sortOrder: sortOrders.get(r.id) ?? null,
     isManager: managerFlags.get(r.id) ?? false,
+    isRoot: isSuperAdmin(r.email),
   }));
 
   const byId = new Map(people.map((p) => [p.id, p]));
@@ -185,7 +202,7 @@ export async function getHierarchy(
    * the order they joined. The id breaks ties for rows inserted in the same
    * instant (a bulk import), so the board never reshuffles between renders.
    */
-  const joinedAt = new Map(staff.map((r) => [r.id, r.createdAt.getTime()]));
+  const joinedAt = new Map(activeStaff.map((r) => [r.id, r.createdAt.getTime()]));
   const byJoin = (a: HierarchyPerson, b: HierarchyPerson) =>
     (joinedAt.get(a.id) ?? 0) - (joinedAt.get(b.id) ?? 0) || a.id.localeCompare(b.id);
   const byName = (a: HierarchyPerson, b: HierarchyPerson) => a.name.localeCompare(b.name);
@@ -270,5 +287,24 @@ export async function getHierarchy(
     people,
     columns,
     unassignedCount: unassigned.filter((p) => p.reportCount === 0).length,
+    temporaryBreak: staff
+      .filter((row) => temporaryBreakIds.has(row.id))
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        role: row.role,
+        department: row.department,
+        designationId: row.designationId,
+        avatarUrl: row.avatarUrl,
+        isAdmin: row.isAdmin,
+        managerId: null,
+        reportCount: 0,
+        totalDownline: 0,
+        sortOrder: sortOrders.get(row.id) ?? null,
+        isManager: false,
+        isRoot: isSuperAdmin(row.email),
+      }))
+      .sort(byName),
   };
 }

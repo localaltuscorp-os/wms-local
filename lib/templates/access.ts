@@ -1,8 +1,10 @@
 import "server-only";
 
-import { requireUser } from "@/lib/auth/current";
+import { requireAdmin, requireUser } from "@/lib/auth/current";
 import { requireGoalsAccess } from "@/lib/goals/access";
 import { requireAccountsAccess } from "@/lib/accounts/access";
+import { requireHrStaff } from "@/lib/hr/access";
+import { requireWorkspaceAdmin } from "@/lib/auth/workspace-access";
 import { TEMPLATE_KEYS } from "./keys";
 
 /**
@@ -29,6 +31,20 @@ export async function requireTemplateAccess(key: string): Promise<void> {
     case TEMPLATE_KEYS.quarterlyGoals:
     case TEMPLATE_KEYS.yearlyGoals:
       await requireGoalsAccess();
+      return;
+    case TEMPLATE_KEYS.incentiveEntries:
+      await requireAdmin();
+      return;
+    case TEMPLATE_KEYS.jobDescriptions:
+    case TEMPLATE_KEYS.vendors:
+      await requireHrStaff();
+      return;
+    case TEMPLATE_KEYS.operationsChecklist:
+      await requireWorkspaceAdmin("operations");
+      return;
+    case TEMPLATE_KEYS.outstanding:
+    case TEMPLATE_KEYS.collections:
+      await requireWorkspaceAdmin("billing");
       return;
     default:
       await requireUser();

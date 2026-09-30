@@ -186,10 +186,10 @@ const COLUMNS: ColumnDef[] = [
   { key: "teamLead", label: "Team Lead", default: false, value: (r) => yn(r.isTeamLead), sort: (r) => (r.isTeamLead ? 1 : 0) },
   { key: "trainPass", label: "Train Pass", default: false, value: (r) => yn(r.trainPass), sort: (r) => (r.trainPass ? 1 : 0) },
   { key: "doc", label: "DOC", default: false, value: (r) => ymd(r.dateOfCompletion), sort: (r) => r.dateOfCompletion ?? "" },
-  { key: "personalEmail", label: "Personal Mail", default: false, value: (r) => t(r.personalEmail) },
-  { key: "phone", label: "Personal Cell", default: false, value: (r) => t(r.phone) },
+  { key: "personalEmail", label: "Personal Mail", default: false, value: (r) => t(r.personalEmail), sort: (r) => (r.personalEmail ?? "").toLowerCase() },
+  { key: "phone", label: "Personal Cell", default: false, value: (r) => t(r.phone), sort: (r) => r.phone ?? "" },
   { key: "tds", label: "Monthly TDS", default: false, numeric: true, pay: true, value: (r) => inr(r.tdsMonthly), sort: (r) => r.tdsMonthly ?? -1 },
-  { key: "ptExempt", label: "PT Exempt", default: false, value: (r) => (r.ptExempt == null ? DASH : yn(r.ptExempt)) },
+  { key: "ptExempt", label: "PT Exempt", default: false, value: (r) => (r.ptExempt == null ? DASH : yn(r.ptExempt)), sort: (r) => r.ptExempt == null ? -1 : r.ptExempt ? 1 : 0 },
   {
     key: "backgroundCheck",
     label: "Background Check",
@@ -263,6 +263,25 @@ function activeFilterCount(f: FilterState): number {
 const bool3 = (v: string, actual: boolean | null): boolean =>
   v === "" || (v === "yes" ? actual === true : actual === false);
 
+type KpiFilter = "confirmed" | "probation" | "employees" | "full_time_interns" | "part_time_interns" | "interns";
+
+function isActiveWorkforce(row: EmployeeMasterRow): boolean {
+  return row.isActive && row.employmentStatus === "active" && !row.onTemporaryBreak;
+}
+
+function matchesKpi(row: EmployeeMasterRow, filter: KpiFilter): boolean {
+  if (!isActiveWorkforce(row)) return false;
+  const intern = row.effectiveEmployeeType === "intern";
+  switch (filter) {
+    case "confirmed": return !intern && !row.onProbation;
+    case "probation": return !intern && row.onProbation;
+    case "employees": return !intern;
+    case "fullTimeInterns": return intern && row.workerType === "full_time";
+    case "partTimeInterns": return intern && row.workerType !== "full_time";
+    case "interns": return intern;
+  }
+}
+
 /* ── The component ────────────────────────────────────────────────────────── */
 
 export function EmployeeMasterTable({
@@ -281,6 +300,7 @@ export function EmployeeMasterTable({
   const [query, setQuery] = React.useState("");
   const [filters, setFilters] = React.useState<FilterState>(NO_FILTERS);
   const [statusTab, setStatusTab] = React.useState<EmployeeStatusTab>("all");
+  const [kpiFilter, setKpiFilter] = React.useState<KpiFilter | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [columnsOpen, setColumnsOpen] = React.useState(false);
   const [sortKey, setSortKey] = React.useState<ColumnKey>("employee");
@@ -320,11 +340,12 @@ export function EmployeeMasterTable({
   }, [available]);
 
   const columns = React.useMemo(
-    () => available.filter((c) => visibleKeys.includes(c.key)),
+    () => available.filter((c) => c.key === "employee" || visibleKeys.includes(c.key)),
     [available, visibleKeys],
   );
 
   function toggleColumn(key: ColumnKey) {
+    if (key === "employee") return;
     setVisibleKeys((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
       // Never let the table become headless. "Employee Details" is the row's
@@ -354,6 +375,26 @@ export function EmployeeMasterTable({
     return out;
   }, [rows]);
 
+  const kpis = React.useMemo(() => {
+    const active = rows.filter(isActiveWorkforce);
+    const confirmed = active.filter((row) => row.status === "active").length;
+    const probation = active.filter((row) => row.status === "probation").length;
+    const fullTimeInterns = active.filter(
+      (row) => row.effectiveEmployeeType === "intern" && row.workerType === "full_time",
+    ).length;
+    const partTimeInterns = active.filter(
+      (row) => row.effectiveEmployeeType === "intern" && row.workerType !== "full_time",
+    ).length;
+    return [
+      { key: "confirmed" as const, label: "Confirmed Employees", value: confirmed, tone: "green" },
+      { key: "probation" as const, label: "On Probation", value: probation, tone: "blue" },
+      { key: "employees" as const, label: "Total Employees", value: confirmed + probation, tone: "green" },
+      { key: "full_time_interns" as const, label: "Full-Time Interns", value: fullTimeInterns, tone: "green" },
+      { key: "part_time_interns" as const, label: "Part-Time Interns", value: partTimeInterns, tone: "green" },
+      { key: "interns" as const, label: "Total Interns", value: fullTimeInterns + partTimeInterns, tone: "green" },
+    ];
+  }, [rows]);
+
   /* ── search + filter + sort ────────────────────────────────────────────── */
 
   const view = React.useMemo(() => {
@@ -372,6 +413,7 @@ export function EmployeeMasterTable({
       // viewer can see, so anything it excludes is excluded regardless of what
       // the Filters panel says.
       if (!matchesStatusTab(r.status, statusTab)) return false;
+      if (kpiFilter && !matchesKpi(r, kpiFilter)) return false;
       const f = filters;
       if (f.entityId && r.entityId !== f.entityId) return false;
       if (f.designationId && r.designationId !== f.designationId) return false;
@@ -407,7 +449,7 @@ export function EmployeeMasterTable({
       });
     }
     return out;
-  }, [rows, query, filters, statusTab, sortKey, sortDir]);
+  }, [rows, query, filters, statusTab, kpiFilter, sortKey, sortDir]);
 
   /**
    * THE EFFECTIVE SELECTION IS DERIVED, not stored.
@@ -483,6 +525,27 @@ export function EmployeeMasterTable({
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-6 gap-2 overflow-x-auto" role="group" aria-label="Employee workforce KPIs">
+        {kpis.map((kpi) => {
+          const active = kpiFilter === kpi.key;
+          return (
+            <button
+              key={kpi.key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setKpiFilter((current) => current === kpi.key ? null : kpi.key)}
+              className={cn(
+                "min-w-[145px] rounded-lg border px-3 py-2 text-left transition-colors",
+                kpi.tone === "blue" ? "border-sky-200 bg-sky-50" : "border-emerald-200 bg-emerald-50",
+                active ? "ring-2 ring-altus-red ring-offset-1" : "hover:border-hairline-strong",
+              )}
+            >
+              <span className="block text-[11px] font-semibold leading-tight text-ink-muted">{kpi.label}</span>
+              <span className="mt-1 block text-xl font-bold tabular-nums text-ink-strong">{kpi.value}</span>
+            </button>
+          );
+        })}
+      </div>
       {/* ── Controls ────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1 max-w-[380px]">
@@ -557,8 +620,9 @@ export function EmployeeMasterTable({
               <label key={c.key} className="flex cursor-pointer items-center gap-2 text-[12.5px]">
                 <input
                   type="checkbox"
-                  checked={visibleKeys.includes(c.key)}
+                  checked={c.key === "employee" || visibleKeys.includes(c.key)}
                   onChange={() => toggleColumn(c.key)}
+                  disabled={c.key === "employee"}
                   className="size-3.5 accent-[var(--color-altus-red)]"
                 />
                 {c.label}
@@ -591,7 +655,7 @@ export function EmployeeMasterTable({
             <Select label="Shift Type" value={filters.workerType} onChange={(v) => setFilters((f) => ({ ...f, workerType: v }))}
               options={EMPLOYEE_TYPE_OPTIONS.map((w) => ({ id: w, name: WORKER_TYPE_LABELS[w] }))} />
             <Select label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))}
-              options={["active", "probation", "inactive", "offboarded"].map((s) => ({ id: s, name: s }))} />
+              options={["active", "probation", "temporary_break", "inactive", "offboarded"].map((s) => ({ id: s, name: s.replace(/_/g, " ") }))} />
             <Select label="Team Lead" value={filters.teamLead} onChange={(v) => setFilters((f) => ({ ...f, teamLead: v }))} options={YES_NO} />
             <Select label="Train Pass" value={filters.trainPass} onChange={(v) => setFilters((f) => ({ ...f, trainPass: v }))} options={YES_NO} />
             {canSeePay && (
@@ -624,10 +688,10 @@ export function EmployeeMasterTable({
 
       {/* ── Table ───────────────────────────────────────────────────────── */}
       <div className="overflow-x-auto rounded-xl border border-hairline">
-        <table className="w-full border-collapse">
+        <table className="min-w-[1450px] border-collapse">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft">
-              <th className="w-9 px-2 py-2">
+              <th className="sticky left-0 z-20 w-9 bg-surface-soft px-2 py-2">
                 <input
                   type="checkbox"
                   aria-label="Select all visible employees"
@@ -641,7 +705,7 @@ export function EmployeeMasterTable({
                   key={c.key}
                   scope="col"
                   onClick={() => sortBy(c.key)}
-                  className={`select-none px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted ${c.numeric ? "text-right" : "text-left"} ${c.sort ? "cursor-pointer hover:text-ink-strong" : ""}`}
+                  className={`select-none px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted ${c.key === "employee" ? "sticky left-9 z-20 min-w-[220px] bg-surface-soft" : ""} ${c.numeric ? "text-right" : "text-left"} ${c.sort ? "cursor-pointer hover:text-ink-strong" : ""}`}
                 >
                   {c.label}
                   {sortKey === c.key && <span aria-hidden className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
@@ -662,9 +726,9 @@ export function EmployeeMasterTable({
               <tr
                 key={r.id}
                 onClick={() => setOpenId(r.id)}
-                className="cursor-pointer border-b border-hairline/60 transition-colors hover:bg-surface-soft"
+                className="group cursor-pointer border-b border-hairline/60 transition-colors hover:bg-surface-soft"
               >
-                <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                <td className="sticky left-0 z-10 bg-white px-2 py-1.5 group-hover:bg-surface-soft" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     aria-label={`Select ${r.name}`}
@@ -675,7 +739,7 @@ export function EmployeeMasterTable({
                 </td>
                 {columns.map((c) =>
                   c.key === "employee" ? (
-                    <td key={c.key} className="px-2.5 py-1.5">
+                    <td key={c.key} className="sticky left-9 z-10 min-w-[220px] bg-white px-2.5 py-1.5 group-hover:bg-surface-soft">
                       <EmployeeCell row={r} />
                     </td>
                   ) : c.key === "status" ? (
@@ -685,7 +749,7 @@ export function EmployeeMasterTable({
                   ) : (
                     <td
                       key={c.key}
-                      className={`px-2.5 py-1.5 text-[12.5px] ${c.numeric ? "text-right tabular-nums" : ""} text-ink-soft`}
+                      className={`px-2.5 py-1.5 text-[12.5px] ${c.key === "doj" ? "whitespace-nowrap" : ""} ${c.numeric ? "text-right tabular-nums" : ""} text-ink-soft`}
                     >
                       {c.render ? c.render(r) : c.value(r)}
                     </td>
@@ -778,6 +842,7 @@ function EmployeeCell({ row }: { row: EmployeeMasterRow }) {
 function statusColour(status: string): string {
   return status === "active" ? "#15803d"
     : status === "probation" ? "#b45309"
+    : status === "temporary_break" ? "#6b7280"
     : status === "inactive" ? "#9ca3af"
     : "#6b7280";
 }
@@ -787,7 +852,7 @@ function StatusPill({ status }: { status: string }) {
   return (
     <span className="inline-flex rounded-pill px-2 py-0.5 text-[11px] font-bold capitalize"
       style={{ background: bg, color: statusColour(status) }}>
-      {status}
+      {status.replace(/_/g, " ")}
     </span>
   );
 }

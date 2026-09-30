@@ -15,6 +15,8 @@ import {
   type ImportPreview,
   type RosterEntry,
 } from "@/lib/import/task-import";
+import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 async function activeRoster(): Promise<RosterEntry[]> {
   return db
@@ -32,7 +34,8 @@ export async function previewTaskImport(formData: FormData): Promise<ImportPrevi
     return { rows: [], totalRows: 0, validCount: 0, errorCount: 0, fatal: "No file uploaded." };
   }
   const roster = await activeRoster();
-  return buildImportPreview(file, roster, me.id);
+  const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.tasks, "default"));
+  return buildImportPreview(file, roster, me.id, required);
 }
 
 export interface CommitImportResult {
@@ -53,7 +56,8 @@ export async function commitTaskImport(formData: FormData): Promise<CommitImport
   }
 
   const roster = await activeRoster();
-  const preview = await buildImportPreview(file, roster, me.id);
+  const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.tasks, "default"));
+  const preview = await buildImportPreview(file, roster, me.id, required);
   if (preview.fatal) {
     return { ok: false, created: 0, skipped: 0, error: preview.fatal };
   }

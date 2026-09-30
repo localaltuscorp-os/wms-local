@@ -21,7 +21,8 @@ import { EMPLOYEE_TYPE_OPTIONS, WORKER_TYPE_LABELS, payBasisFor } from "@/lib/at
    ════════════════════════════════════════════════════════════════════════════ */
 
 /** Every value `statusOf` in lib/employees/master-query.ts can return. */
-const ALL_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
+const ALL_STATUSES = ["active", "probation", "temporary_break", "inactive", "offboarded"] as const;
+const ACTIVE_WORKFORCE_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
 
 describe("Employee status — All | Current | Probation | Past", () => {
   it("offers exactly those four, in that order", () => {
@@ -47,6 +48,7 @@ describe("Employee status — All | Current | Probation | Past", () => {
     expect(matchesStatusTab("offboarded", "past")).toBe(true);
     expect(matchesStatusTab("active", "past")).toBe(false);
     expect(matchesStatusTab("probation", "past")).toBe(false);
+    expect(matchesStatusTab("temporary_break", "past")).toBe(false);
   });
 
   it("All matches everything", () => {
@@ -61,10 +63,17 @@ describe("Employee status — All | Current | Probation | Past", () => {
    */
   it("Current, Probation and Past partition every status exactly once", () => {
     const buckets: EmployeeStatusTab[] = ["current", "probation", "past"];
-    for (const status of ALL_STATUSES) {
+    for (const status of ACTIVE_WORKFORCE_STATUSES) {
       const hits = buckets.filter((b) => matchesStatusTab(status, b));
       expect(hits, `${status} landed in ${hits.length} buckets`).toHaveLength(1);
     }
+  });
+
+  it("keeps Temporary Break visible in All without misclassifying it as active or past", () => {
+    expect(matchesStatusTab("temporary_break", "all")).toBe(true);
+    expect(matchesStatusTab("temporary_break", "current")).toBe(false);
+    expect(matchesStatusTab("temporary_break", "probation")).toBe(false);
+    expect(matchesStatusTab("temporary_break", "past")).toBe(false);
   });
 
   it("an unrecognised status falls in NO bucket rather than being mislabelled", () => {

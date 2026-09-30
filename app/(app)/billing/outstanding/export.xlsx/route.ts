@@ -15,6 +15,9 @@ import {
   toCollectionRowArray,
   outstandingExportFilename,
 } from "@/lib/exports/outstanding-rich";
+import { requiredFieldsForTemplate, requiredHeader } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
+import { templateFieldId } from "@/lib/templates/registry";
 
 /**
  * GET /outstanding/export.xlsx
@@ -69,7 +72,9 @@ export async function GET(request: Request): Promise<Response> {
 
   // ── Blank import templates — header row only ──
   if (template === "outstanding") {
-    const ws = XLSX.utils.aoa_to_sheet([[...OUTSTANDING_TEMPLATE_HEADERS]]);
+    const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.outstanding, "default"));
+    const headers = OUTSTANDING_TEMPLATE_HEADERS.map((label) => requiredHeader(label, templateFieldId(label), required));
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
     ws["!cols"] = OUTSTANDING_TEMPLATE_HEADERS.map(() => ({ wch: 18 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Outstanding");
@@ -79,7 +84,9 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
   if (template === "collection") {
-    const ws = XLSX.utils.aoa_to_sheet([[...COLLECTION_TEMPLATE_HEADERS]]);
+    const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.collections, "default"));
+    const headers = COLLECTION_TEMPLATE_HEADERS.map((label) => requiredHeader(label, templateFieldId(label), required));
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
     ws["!cols"] = COLLECTION_TEMPLATE_HEADERS.map(() => ({ wch: 20 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Collection");

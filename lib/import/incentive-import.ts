@@ -105,6 +105,7 @@ export async function parseIncentiveImport(
   file: File,
   roster: IncentiveRosterEntry[],
   products: readonly string[],
+  requiredFields: ReadonlySet<string> = new Set(["employeeId", "empName", "incentiveName", "periodMonth", "amount", "approved", "paid"]),
 ): Promise<ParseIncentiveResult> {
   let raw: Record<string, unknown>[];
   try {
@@ -124,7 +125,7 @@ export async function parseIncentiveImport(
     const header = Object.keys(raw[0]!).find((key) => aliasSet.has(norm(key)));
     if (header) fields[field] = header;
   }
-  for (const required of ["employeeId", "empName", "incentiveName", "periodMonth", "amount", "approved", "paid"]) {
+  for (const required of requiredFields) {
     if (!fields[required]) return fatal(`Missing required column: ${headerLabel(required)}.`);
   }
 
@@ -146,6 +147,9 @@ export async function parseIncentiveImport(
       continue;
     }
     const issue = (field: string, message: string) => issues.push({ rowNumber, field, message });
+    for (const field of requiredFields) {
+      if (!text(source[fields[field]!])) issue(headerLabel(field), "is required.");
+    }
     const enteredId = text(source[fields.employeeId!]);
     const enteredName = text(source[fields.empName!]);
     const byEmployeeId = enteredId ? byId.get(enteredId.toUpperCase()) : undefined;

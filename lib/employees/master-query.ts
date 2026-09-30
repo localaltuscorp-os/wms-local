@@ -18,6 +18,7 @@ import { isCurrentStaff } from "@/lib/queries/employees";
 import { codeHistoryFor } from "./code-registry";
 import { resolveEmployeeType, type EmployeeTypeCode } from "./employee-type";
 import { backgroundCheckStatusesAll, type BackgroundCheckStatus } from "@/lib/hr/background-check";
+import { activeTemporaryBreakEmployeeIds } from "./temporary-break";
 
 /**
  * THE EMPLOYEE MASTER — one read across every existing source of truth.
@@ -308,6 +309,8 @@ export interface EmployeeMasterRow {
   dateOfCompletion: string | null;
   /** True when probation_end is set and still in the future (§2's tag). */
   onProbation: boolean;
+  /** Current temporary-break state; employee stays in Employee Master. */
+  onTemporaryBreak: boolean;
 
   /* ── 0244 · EMPLOYEE TYPE AND INTERNSHIP ──────────────────────────────────
      `employeeType` is the PERSON'S OVERRIDE (null = follow the designation);
@@ -334,7 +337,7 @@ export interface EmployeeMasterRow {
   isActive: boolean;
   employmentStatus: string | null;
   deactivatedAt: Date | null;
-  /** active | probation | inactive | offboarded — what the Status column shows. */
+  /** active | probation | temporary_break | inactive | offboarded — Status column. */
   status: string;
 
   /** "yes"/"no"/null — see lib/hr/background-check.ts for why this is read via
@@ -343,16 +346,18 @@ export interface EmployeeMasterRow {
   backgroundCheck: BackgroundCheckStatus;
 }
 
-const MASTER_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
+const MASTER_STATUSES = ["active", "probation", "temporary_break", "inactive", "offboarded"] as const;
 export type MasterStatus = (typeof MASTER_STATUSES)[number];
 
 function statusOf(r: {
   isActive: boolean;
   employmentStatus: string | null;
   onProbation: boolean;
+  onTemporaryBreak: boolean;
 }): MasterStatus {
   if (r.employmentStatus && r.employmentStatus !== "active") return "offboarded";
   if (!r.isActive) return "inactive";
+  if (r.onTemporaryBreak) return "temporary_break";
   return r.onProbation ? "probation" : "active";
 }
 
@@ -371,7 +376,10 @@ export async function loadEmployeeMasterRows(
   // One extra round trip rather than a join: the columns aren't in
   // db/schema.ts (see lib/hr/background-check.ts), so Drizzle can't select
   // them by name here the way it does everything else below.
-  const backgroundChecks = await backgroundCheckStatusesAll();
+  const [backgroundChecks, temporaryBreakIds] = await Promise.all([
+    backgroundCheckStatusesAll(),
+    activeTemporaryBreakEmployeeIds(),
+  ]);
 
   const rows = await db
     .select({
@@ -445,6 +453,7 @@ export async function loadEmployeeMasterRows(
     // in the past is somebody who finished it, and tagging them would be wrong
     // on most of the roster.
     const onProbation = !!r.probationEnd && r.probationEnd >= today;
+    const onTemporaryBreak = temporaryBreakIds.has(r.id);
     const annual = r.annualCtc == null ? null : Number(r.annualCtc);
     return {
       ...r,
@@ -465,11 +474,13 @@ export async function loadEmployeeMasterRows(
       monthlyCtc: annual == null ? null : Math.round((annual / 12) * 100) / 100,
       tdsMonthly: r.tdsMonthly == null ? null : Number(r.tdsMonthly),
       onProbation,
+      onTemporaryBreak,
       backgroundCheck: backgroundChecks.get(r.id) ?? null,
       status: statusOf({
         isActive: r.isActive,
         employmentStatus: r.employmentStatus,
         onProbation,
+        onTemporaryBreak,
       }),
     };
   });

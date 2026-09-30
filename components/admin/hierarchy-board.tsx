@@ -451,7 +451,7 @@ function Card({
 }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: person.id,
-    disabled: !canEdit,
+    disabled: !canEdit || person.isRoot,
   });
 
   /**
@@ -476,12 +476,12 @@ function Card({
     >
       <div className="flex items-start gap-1.5">
         <div
-          {...(canEdit ? { ...attributes, ...listeners } : {})}
-          className={`min-w-0 flex-1 ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}
+          {...(canEdit && !person.isRoot ? { ...attributes, ...listeners } : {})}
+          className={`min-w-0 flex-1 ${canEdit && !person.isRoot ? "cursor-grab active:cursor-grabbing" : ""}`}
         >
           <CardBody person={person} compact={compact} />
         </div>
-        {enableReorder && (
+        {enableReorder && !person.isRoot && (
           <span className="flex shrink-0 flex-col">
             <button
               type="button"
@@ -509,7 +509,7 @@ function Card({
           history button, since a row holding only one of them looked broken. */}
       {compact ? null : (
       <div className="mt-2 flex items-center gap-1.5">
-        {canEdit && (
+        {canEdit && !person.isRoot && (
           <label className="min-w-0 flex-1">
             <span className="sr-only">Move {person.name} to another manager</span>
             <select
