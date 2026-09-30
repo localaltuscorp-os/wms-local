@@ -57,12 +57,12 @@ export default async function SalaryPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const months = await salaryBreakupMonths();
   const raw = typeof sp.month === "string" ? sp.month : undefined;
-  // Default to the last COMPLETE month — not the current in-progress month (which
-  // only has a day or two logged, so it would show tiny pro-rated pay). `months`
-  // is newest-first; the first one before this IST month is the last full one.
+  // Prefer the active IST month whenever that month's payroll sheet exists.
+  // When it has not been generated yet, the page still stays on that active month.
   const nowYm = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 7);
-  const defaultMonth = months.find((m) => m < nowYm) ?? months[0] ?? "";
+  const defaultMonth = nowYm;
   const month = raw && MONTH_RE.test(raw) ? raw : defaultMonth;
+  const selectableMonths = months.includes(nowYm) ? months : [nowYm, ...months];
   const allRows = month ? await listSalaryBreakup(month) : [];
 
   // ENTITY SCOPE, resolved server-side from `?entity=`. It used to be a
@@ -182,8 +182,8 @@ export default async function SalaryPage({ searchParams }: PageProps) {
 
               {/* Year + month, inline with the title — the two dropdowns that
                   replaced the year-chip and month-chip rows below the header. */}
-              {months.length > 0 && (
-                <SalaryPeriodSelect months={months} selected={month ?? ""} />
+              {selectableMonths.length > 0 && (
+                <SalaryPeriodSelect months={selectableMonths} selected={month ?? ""} />
               )}
             </div>
 

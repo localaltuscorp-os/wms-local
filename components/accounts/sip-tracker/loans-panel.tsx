@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Plus, X, Pencil, Trash2, Check, Loader2 } from "lucide-react";
+import { Plus, X, Pencil, Trash2, Check, Loader2, Search } from "lucide-react";
 import { LookupSelect, type LookupOption } from "@/components/ui/lookup-select";
 import { fireToast } from "@/lib/toast";
 import { addAccountsLookup, softDeleteAccountsLookup } from "@/lib/accounts/lookups";
 import type { LoanItemRow, LoanPeriodRow, LoanCell } from "@/lib/queries/accounts-loans";
 import { parseAmount, formatINR, sumAmounts } from "@/lib/accounts/amounts";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
 import {
   createLoanItem, updateLoanItem, deleteLoanItem,
   createLoanPeriod, deleteLoanPeriod, setLoanCell,
@@ -14,6 +16,7 @@ import {
 
 const INPUT = "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
 const CELL = "w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-right text-[12.5px] font-semibold text-ink-strong outline-none transition-colors focus:border-[color:var(--color-altus-red)]";
+const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]";
 
 function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>—</span>; }
 const ck = (loanId: string, periodId: string) => `${loanId}:${periodId}`;
@@ -51,7 +54,19 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
   const [busy, setBusy] = React.useState(false);
   const [cellBusy, setCellBusy] = React.useState<string | null>(null);
   const [newPeriod, setNewPeriod] = React.useState("");
+  const [q, setQ] = React.useState("");
+  const [fEntity, setFEntity] = React.useState<string[]>([]);
   const [, startTransition] = React.useTransition();
+
+  const entities = React.useMemo(() => Array.from(new Set([...entityOptions.map((option) => option.name), ...loans.map((loan) => loan.entity ?? "")].filter(Boolean))), [entityOptions, loans]);
+  const filtered = React.useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return loans.filter((loan) => {
+      if (fEntity.length > 0 && !fEntity.includes(loan.entity ?? "")) return false;
+      return !needle || [loan.code, loan.entity, loan.loanName, loan.location, loan.emiDate].filter(Boolean).join(" ").toLowerCase().includes(needle);
+    });
+  }, [loans, q, fEntity]);
+  const hasFilters = q || fEntity.length > 0;
 
   const val = (loanId: string, periodId: string): CellVal => grid[ck(loanId, periodId)] ?? { emi: "", closing: "" };
   const ytdEmi = (loanId: string) => sumAmounts(periods.map((p) => parseAmount(val(loanId, p.id).emi)));
@@ -145,13 +160,26 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="loans, entity">
+          <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
+            <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search — loans, entity" title="Local search — filters only loans on this page" aria-label="Local search loans and entity" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          </div>
+        </CollapsibleSearch>
+        <MultiFilter className={CHIP} values={fEntity} onChange={setFEntity} options={entities} allLabel="All Entities" aria-label="Filter loans by entity" />
+        {hasFilters && <button type="button" onClick={() => { setQ(""); setFEntity([]); }} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red"><X size={15} strokeWidth={2.4} /> Clear</button>}
+      </div>
+
+      <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "loan" : "loans"}{hasFilters ? ` · filtered from ${loans.length}` : ""}</div>
+
       {(adding || editingId) && <LoanEditorDialog draft={draft} setDraft={setDraft} entityOptions={entityOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />}
 
       {/* Grid 1 — EMIs */}
       <div>
         <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-soft">Loan EMIs (paid per month)</div>
-        <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-          <table className="w-full border-collapse text-left" style={{ minWidth: 560 + periods.length * 96 }}>
+        <div className="accounts-inbox-shell table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+          <table className="accounts-inbox-table w-full border-collapse text-left" style={{ minWidth: 560 + periods.length * 96 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                 <Th>Loan</Th>
@@ -160,13 +188,13 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                     <span className="inline-flex items-center gap-1"><span className="text-ink-strong">{p.label}</span><PeriodDelete onDelete={() => removePeriod(p.id, p.label)} /></span>
                   </th>
                 ))}
-                <Th className="text-right">YTD EMI</Th><Th className="text-right">{""}</Th>
+                <Th className="text-right">YTD EMI</Th><Th className="accounts-inbox-actions text-right">{""}</Th>
               </tr>
             </thead>
             <tbody>
-              {loans.length === 0 && !adding ? (
-                <tr><td colSpan={emiCols} className="px-5 py-12 text-center"><p className="text-[15px] font-semibold text-ink-muted">No loans yet.</p><button type="button" onClick={startAdd} className="mt-3 inline-flex items-center gap-1.5 text-[14px] font-bold text-altus-red"><Plus size={15} strokeWidth={2.6} /> Add the First Loan</button></td></tr>
-              ) : loans.map((r) => (
+              {filtered.length === 0 && !adding ? (
+                <tr><td colSpan={emiCols} className="px-5 py-12 text-center"><p className="text-[15px] font-semibold text-ink-muted">{hasFilters ? "No loans match these filters." : "No loans yet."}</p>{!hasFilters && <button type="button" onClick={startAdd} className="mt-3 inline-flex items-center gap-1.5 text-[14px] font-bold text-altus-red"><Plus size={15} strokeWidth={2.6} /> Add the First Loan</button>}</td></tr>
+              ) : filtered.map((r) => (
                 <tr key={r.id} className="group transition-colors hover:bg-surface-soft" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                   <Td><LoanIdentity r={r} /></Td>
                   {periods.map((p) => {
@@ -174,7 +202,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                     return <td key={p.id} className="px-1.5 py-2"><input value={val(r.id, p.id).emi} disabled={cellBusy === id} inputMode="numeric" onChange={(e) => setGrid((g) => ({ ...g, [ck(r.id, p.id)]: { ...val(r.id, p.id), emi: e.target.value } }))} onBlur={(e) => commit(r.id, p.id, "emi", e.target.value)} className={CELL + " disabled:opacity-60"} style={{ minWidth: 88 }} aria-label="EMI" placeholder="—" /></td>;
                   })}
                   <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytdEmi(r.id) ? `Rs. ${formatINR(ytdEmi(r.id))}` : <Dim />}</Td>
-                  <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => removeLoan(r.id)} busy={busy} /></Td>
+                  <Td className="accounts-inbox-actions text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => removeLoan(r.id)} busy={busy} /></Td>
                 </tr>
               ))}
             </tbody>
@@ -183,11 +211,11 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
       </div>
 
       {/* Grid 2 — Closing balances */}
-      {loans.length > 0 && (
+      {filtered.length > 0 && (
         <div>
           <div className="mb-2 text-[12px] font-bold uppercase tracking-[0.12em] text-ink-soft">Loan account closing balances</div>
-          <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-            <table className="w-full border-collapse text-left" style={{ minWidth: 440 + periods.length * 96 }}>
+          <div className="accounts-inbox-shell table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+            <table className="accounts-inbox-table w-full border-collapse text-left" style={{ minWidth: 440 + periods.length * 96 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                   <Th>Loan</Th>
@@ -196,7 +224,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
                 </tr>
               </thead>
               <tbody>
-                {loans.map((r) => (
+                {filtered.map((r) => (
                   <tr key={r.id} className="transition-colors hover:bg-surface-soft" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                     <Td className="font-bold text-ink-strong whitespace-nowrap">{r.loanName}</Td>
                     {periods.map((p) => {
@@ -239,7 +267,7 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   const [c, setC] = React.useState(false);
   React.useEffect(() => { if (!c) return; const t = setTimeout(() => setC(false), 3500); return () => clearTimeout(t); }, [c]);
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="accounts-inbox-action-buttons flex items-center justify-end gap-1">
       <button type="button" onClick={onEdit} disabled={busy} aria-label="Edit loan" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong disabled:opacity-50"><Pencil size={15} strokeWidth={2.2} /></button>
       {c ? <button type="button" onClick={onDelete} disabled={busy} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50" style={{ background: "var(--color-altus-red)" }}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.4} />} Confirm</button>
         : <button type="button" onClick={() => setC(true)} disabled={busy} aria-label="Delete loan" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] hover:text-altus-red disabled:opacity-50"><Trash2 size={15} strokeWidth={2.2} /></button>}

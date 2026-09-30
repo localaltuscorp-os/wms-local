@@ -58,10 +58,10 @@ export default async function OvertimePage() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[1400px] px-8 max-lg:px-6 max-md:px-4 pt-8 pb-16">
+      <main className="mx-auto max-w-[1400px] px-8 max-lg:px-6 max-md:px-4 pt-5 pb-10">
         {/* ── Glass hero ── */}
         <header
-          className="wg-rise relative mb-5 overflow-hidden rounded-[26px] px-7 py-6 max-md:px-4 max-md:py-5"
+          className="wg-rise relative mb-3 overflow-hidden rounded-2xl px-5 py-4 max-md:px-4 max-md:py-3"
           style={{
             background: [
               `radial-gradient(120% 190% at 100% 0%, color-mix(in srgb, ${GREEN} 9%, transparent), transparent 55%)`,
@@ -73,7 +73,7 @@ export default async function OvertimePage() {
               "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 44px -28px rgba(15,23,42,0.22)",
           }}
         >
-          <div className="flex items-end justify-between gap-6 flex-wrap">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="min-w-0">
               <span
                 className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
@@ -84,18 +84,18 @@ export default async function OvertimePage() {
                 <Timer size={13} strokeWidth={2.6} /> Employees · Overtime
               </span>
               <h1
-                className="mt-3 text-ink-strong"
+                className="mt-1.5 text-ink-strong"
                 style={{
                   fontFamily: "var(--font-display), system-ui, sans-serif",
                   fontWeight: 900,
-                  fontSize: "clamp(30px,3.6vw,46px)",
+                  fontSize: "clamp(25px,3vw,34px)",
                   letterSpacing: "-0.03em",
                   lineHeight: 1.02,
                 }}
               >
                 Overtime
               </h1>
-              <p className="mt-1.5 max-w-[76ch] text-[15px] font-medium text-ink-muted">
+              <p className="mt-1 max-w-[76ch] text-[13.5px] font-medium text-ink-muted">
                 {canReview
                   ? "Log extra hours and review your team's overtime."
                   : "Log the extra hours you put in. Your manager approves them."}
@@ -105,7 +105,7 @@ export default async function OvertimePage() {
             {canReview && (
               <Link
                 href={"/overtime/dashboard" as Route}
-                className="brand-btn wg-btn wg-sheen inline-flex items-center gap-2 rounded-pill px-5 py-2.5 text-[14px] font-bold text-white whitespace-nowrap"
+                className="brand-btn wg-btn wg-sheen inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-bold text-white whitespace-nowrap"
                 style={{
                   background: `linear-gradient(135deg, ${GREEN}, ${GREEN_DEEP})`,
                   boxShadow: `0 10px 24px -12px color-mix(in srgb, ${GREEN_DEEP} 70%, transparent), inset 0 1px 0 rgba(255,255,255,0.25)`,
@@ -129,7 +129,7 @@ export default async function OvertimePage() {
         {/* ── KPI strip (folded over the loaded rows — zero extra queries) ── */}
         <section
           aria-label="Overtime totals"
-          className="mb-6 grid grid-cols-4 gap-3.5 max-lg:grid-cols-2 max-sm:grid-cols-1"
+          className="mb-4 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1"
         >
           <KpiCard
             icon={<Clock size={17} strokeWidth={2.4} />}
@@ -208,7 +208,7 @@ function KpiCard({
 }) {
   return (
     <div
-      className="wg-rise wg-btn rounded-2xl bg-surface-card px-4.5 py-4 max-md:px-4"
+      className="wg-rise wg-btn rounded-xl bg-surface-card px-3.5 py-3 max-md:px-3"
       style={{
         boxShadow:
           "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.7), 0 10px 28px -20px rgba(15,23,42,0.35)",
@@ -217,7 +217,7 @@ function KpiCard({
     >
       <div className="flex items-center gap-2">
         <span
-          className="inline-grid size-8 shrink-0 place-items-center rounded-[10px]"
+          className="inline-grid size-7 shrink-0 place-items-center rounded-lg"
           style={{
             background: `color-mix(in srgb, ${accent} 10%, transparent)`,
             color: accent,
@@ -225,7 +225,7 @@ function KpiCard({
         >
           {icon}
         </span>
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-subtle">
+        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-subtle">
           {label}
         </span>
       </div>
@@ -241,7 +241,7 @@ function KpiCard({
       >
         {value}
       </div>
-      <div className="mt-1 text-[12px] font-medium text-ink-subtle">{caption}</div>
+      <div className="mt-0.5 text-[11px] font-medium text-ink-subtle">{caption}</div>
       {progress != null && (
         <div
           className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full"

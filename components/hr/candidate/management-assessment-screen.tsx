@@ -34,6 +34,7 @@ import {
   FilePlus2,
   Send,
   ArrowUpRight,
+  ExternalLink,
   IndianRupee,
   Scale,
 } from "lucide-react";
@@ -72,8 +73,11 @@ const OUTCOME_MAP: Record<
   selected: { status: "hired", letterKey: "selection", letterLabel: "Selection letter", label: "Selected" },
   shortlisted: { status: "shortlisted", letterKey: "next-round", letterLabel: "Next-round letter", label: "Shortlisted" },
   rejected: { status: "rejected", letterKey: "rejection", letterLabel: "Regret letter", label: "Rejected" },
-  free_training: { status: "free_training", letterKey: "free-training", letterLabel: "Free training letter", label: "Free training" },
-  assignment_needed: { status: "assignment_needed", letterKey: "assignment-needed", letterLabel: "Assignment letter", label: "Assignment needed" },
+  // These are still active pipeline states. The candidate-status action accepts
+  // the canonical `shortlisted` value, while the assessment keeps the more
+  // specific management outcome in its own saved data.
+  free_training: { status: "shortlisted", letterKey: "free-training", letterLabel: "Free training letter", label: "Free training" },
+  assignment_needed: { status: "shortlisted", letterKey: "assignment-needed", letterLabel: "Assignment needed" },
 };
 const OUTCOME_ORDER: Exclude<MgmtOutcome, null>[] = ["selected", "shortlisted", "rejected", "free_training", "assignment_needed"];
 
@@ -332,7 +336,7 @@ export function ManagementAssessmentScreen({
   async function emailRecruiter() {
     const email = recruiterEmailRef.current.trim();
     const oc = outcomeRef.current;
-    if (!oc || (oc !== "selected" && oc !== "rejected") || !email) return;
+    if (!oc || !email) return;
     setEmailingRecruiter(true);
     try {
       const res = await sendRecruiterOutcome(cidRef.current, {
@@ -400,7 +404,7 @@ export function ManagementAssessmentScreen({
     <>
       <style>{CSS}</style>
 
-      <PageShell width="standard" py={false} className="pt-6 pb-24">
+      <PageShell width="wide" py={false} className="pt-4 pb-16">
         {/* ── THE CANDIDATE BAR — HORIZONTAL, FULL WIDTH, FROZEN ──────────
             Was a 340px card in the left column, stacked vertically. Three
             problems with that: it held the one control the whole screen depends
@@ -498,7 +502,7 @@ export function ManagementAssessmentScreen({
             makes sense once a candidate is picked (its ten sections are that
             candidate's assessment) — hidden until then, so the empty-state
             workspace gets the full width instead of sitting beside a dead rail. */}
-        <div className={noCandidate ? "grid grid-cols-1" : "grid grid-cols-[260px_1fr] gap-6 max-lg:grid-cols-1"}>
+        <div className={noCandidate ? "grid grid-cols-1" : "grid gap-6 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)]"}>
           {/* LEFT — the index of the ten sections */}
           {!noCandidate && (
             <aside className="max-lg:order-1">
@@ -998,12 +1002,7 @@ function AttachmentsCard({
         n={9}
         icon={<Paperclip size={17} />}
         title="Attachments"
-        sub="Resumes, assignments, screenshots, or a short video - drop them here."
-        action={
-          <button type="button" onClick={() => inputRef.current?.click()} className="inline-flex shrink-0 items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft">
-            <UploadCloud size={15} /> Add files
-          </button>
-        }
+        sub="Files are saved with this candidate's management assessment and can be opened from their file card."
       />
       <input
         ref={inputRef}
@@ -1084,6 +1083,19 @@ function AttachmentTile({
           <p className="truncate text-[12.5px] font-semibold text-ink-strong" title={a.name}>{a.name}</p>
           <p className="text-[11px] text-ink-subtle tabular-nums">{fmtBytes(a.size)}</p>
         </div>
+        {a.url ? (
+          <a
+            href={a.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-bold text-altus-red-deep hover:bg-red-50"
+            title={`Open ${a.name}`}
+          >
+            Open <ExternalLink size={12} />
+          </a>
+        ) : (
+          <span className="shrink-0 text-[10.5px] font-medium text-ink-subtle" title="Reload if the file was just uploaded.">Unavailable</span>
+        )}
       </div>
       <button
         type="button"
@@ -1418,7 +1430,8 @@ function RecruiterCard({
   onReason: (v: string) => void;
   onEmailRecruiter: () => void;
 }) {
-  const canEmail = (outcome === "selected" || outcome === "rejected") && via && email.trim().length > 0;
+  const hasEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const canEmail = Boolean(outcome) && via && hasEmail;
   return (
     <Card>
       <CardHead
@@ -1449,7 +1462,7 @@ function RecruiterCard({
             disabled={!canEmail || emailing}
             className="inline-flex items-center gap-2 rounded-pill px-4 py-2 text-[13px] font-bold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
             style={{ background: "linear-gradient(135deg,#E10600,#A80400)" }}
-            title={outcome === "shortlisted" ? "Available for Selected or Rejected outcomes" : undefined}
+            title={!outcome ? "Select an outcome before sending." : !hasEmail ? "Enter a valid recruiter email." : undefined}
           >
             {emailing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Email Recruiter the Outcome
           </button>

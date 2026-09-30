@@ -1,6 +1,4 @@
-import Link from "next/link";
-import type { Route } from "next";
-import { SlidersHorizontal, Eye } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { requireHrStaff } from "@/lib/hr/access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { PageShell } from "@/components/layout/page-shell";
@@ -34,21 +32,15 @@ export default async function PolicyEditPage({
             Policy Editor
           </span>
         }
-        right={
-          <Link
-            href={`/hr/policies/${key}` as Route}
-            className="group inline-flex items-center gap-2 rounded-pill border border-hairline-strong bg-white px-4 py-2 text-[13px] font-bold text-ink-strong transition-transform hover:-translate-y-0.5 max-md:px-3"
-            style={{ boxShadow: "0 10px 24px -16px rgba(24,24,27,0.55)" }}
-          >
-            <Eye size={15} strokeWidth={2.4} style={{ color: "#A80400" }} />
-            <span className="max-md:hidden">View Live</span>
-            <span className="md:hidden">View</span>
-          </Link>
-        }
       />
 
       <PageShell width="wide" py={false} className="pt-8 pb-24">
-        <PolicyEditor policyKey={key} isSuperAdmin={superAdmin} />
+        <PolicyEditor
+          policyKey={key}
+          isSuperAdmin={superAdmin}
+          backHref="/policies"
+          liveHref={`/hr/policies/${key}`}
+        />
       </PageShell>
     </div>
   );

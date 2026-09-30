@@ -54,10 +54,10 @@ function AmountCell({ value, busy, onChange, onCommit, isCurrent }: { value: str
 
 const key = (itemId: string, month: number) => `${itemId}:${month}`;
 
-type Draft = { code: string; entity: string | null; fundName: string; location: string; sipDate: string; type: string | null; amount: string };
-function emptyDraft(): Draft { return { code: "", entity: null, fundName: "", location: "", sipDate: "", type: null, amount: "" }; }
-function toDraft(r: SipItemRow): Draft {
-  return { code: r.code ?? "", entity: r.entity, fundName: r.fundName, location: r.location ?? "", sipDate: r.sipDate ?? "", type: r.type, amount: r.amount ?? "" };
+type Draft = { code: string; entity: string | null; fundName: string; location: string; sipDate: string; type: string | null; amount: string; selectedMonth: number };
+function emptyDraft(selectedMonth = 4): Draft { return { code: "", entity: null, fundName: "", location: "", sipDate: "", type: null, amount: "", selectedMonth }; }
+function toDraft(r: SipItemRow, selectedMonth: number): Draft {
+  return { code: r.code ?? "", entity: r.entity, fundName: r.fundName, location: r.location ?? "", sipDate: r.sipDate ?? "", type: r.type, amount: r.amount ?? "", selectedMonth };
 }
 
 export function SipTracker({ fyStartYear, cols, currentMonth, items, months, entityOptions, typeOptions }: {
@@ -102,9 +102,10 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
 
   const hasFilters = q || fEntity.length > 0 || fType.length > 0;
   const nextCode = React.useMemo(() => String(items.reduce((max, item) => /^\d+$/.test(item.code ?? "") ? Math.max(max, Number(item.code)) : max, 0) + 1), [items]);
+  const defaultMonth = currentMonth ?? cols[0]?.month ?? 4;
   function clearFilters() { setQ(""); setFEntity([]); setFType([]); }
-  function startAdd() { setEditingId(null); setDraft({ ...emptyDraft(), code: nextCode }); setAdding(true); }
-  function startEdit(r: SipItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
+  function startAdd() { setEditingId(null); setDraft({ ...emptyDraft(defaultMonth), code: nextCode }); setAdding(true); }
+  function startEdit(r: SipItemRow) { setAdding(false); setDraft(toDraft(r, defaultMonth)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
 
   function save() {
@@ -113,7 +114,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
     setBusy(true);
     const base = { code: draft.code, entity: draft.entity, fundName, location: draft.location, sipDate: draft.sipDate, type: draft.type, amount: draft.amount };
     startTransition(async () => {
-      const res = adding ? await createSipItem({ ...base, fyStartYear }) : await updateSipItem({ ...base, id: editingId });
+      const res = adding ? await createSipItem({ ...base, fyStartYear, selectedMonth: draft.selectedMonth }) : await updateSipItem({ ...base, id: editingId });
       setBusy(false);
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       fireToast({ message: adding ? "Fund added." : "Saved.", type: "success" });
@@ -181,12 +182,12 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
         </button>
       </div>
 
-      {(adding || editingId) && <FundEditorDialog draft={draft} setDraft={setDraft} entityOptions={entityOptions} typeOptions={typeOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />}
+      {(adding || editingId) && <FundEditorDialog cols={cols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} typeOptions={typeOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />}
 
       <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "fund" : "funds"}{hasFilters ? ` · filtered from ${items.length}` : ""}</div>
 
-      <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-        <table className="w-full border-collapse text-left" style={{ minWidth: 1080 + cols.length * 92 }}>
+      <div className="accounts-inbox-shell table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+        <table className="accounts-inbox-table w-full border-collapse text-left" style={{ minWidth: 560 + cols.length * 92 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--color-hairline)" }}>
               <Th>Fund</Th>
@@ -197,7 +198,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                 </th>
               ))}
               <Th className="text-right">YTD</Th>
-              <Th className="text-right">{""}</Th>
+              <Th className="accounts-inbox-actions text-right">{""}</Th>
             </tr>
           </thead>
           <tbody>
@@ -226,7 +227,7 @@ export function SipTracker({ fyStartYear, cols, currentMonth, items, months, ent
                     );
                   })}
                   <Td className="text-right font-bold text-ink-strong whitespace-nowrap">{ytd(r.id) ? `Rs. ${formatINR(ytd(r.id))}` : <Dim />}</Td>
-                  <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
+                  <Td className="accounts-inbox-actions text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                 </tr>
               ))
             )}
@@ -258,7 +259,7 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   const [confirming, setConfirming] = React.useState(false);
   React.useEffect(() => { if (!confirming) return; const t = setTimeout(() => setConfirming(false), 3500); return () => clearTimeout(t); }, [confirming]);
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="accounts-inbox-action-buttons flex items-center justify-end gap-1">
       <button type="button" onClick={onEdit} disabled={busy} aria-label="Edit fund" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong disabled:opacity-50"><Pencil size={15} strokeWidth={2.2} /></button>
       {confirming ? (
         <button type="button" onClick={onDelete} disabled={busy} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50" style={{ background: "var(--color-altus-red)" }}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.4} />} Confirm</button>
@@ -269,8 +270,8 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   );
 }
 
-function FundEditorDialog({ draft, setDraft, entityOptions, typeOptions, onSave, onCancel, busy, adding }: {
-  draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; entityOptions: LookupOption[]; typeOptions: LookupOption[]; onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean;
+function FundEditorDialog({ cols, draft, setDraft, entityOptions, typeOptions, onSave, onCancel, busy, adding }: {
+  cols: FyMonthCol[]; draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; entityOptions: LookupOption[]; typeOptions: LookupOption[]; onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean;
 }) {
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   return (
@@ -290,6 +291,7 @@ function FundEditorDialog({ draft, setDraft, entityOptions, typeOptions, onSave,
           <Field label="SIP date"><input value={draft.sipDate} onChange={(e) => set({ sipDate: e.target.value })} className={INPUT} placeholder="1st" aria-label="SIP date" /></Field>
           <Field label="Type"><ValueSelect label="type" kind="sip_type" options={typeOptions} value={draft.type} onChange={(v) => set({ type: v })} placeholder="SIP…" /></Field>
           <Field label="Installment amount (Rs.)"><input value={draft.amount} onChange={(e) => set({ amount: e.target.value })} className={INPUT} inputMode="numeric" placeholder="125000" aria-label="Installment amount" /></Field>
+          {adding && <Field label="First contribution month"><select value={draft.selectedMonth} onChange={(e) => set({ selectedMonth: Number(e.target.value) })} className={INPUT} aria-label="First contribution month">{cols.map((col) => <option key={col.month} value={col.month}>{col.label} {col.calYear}</option>)}</select></Field>}
         </div>
         <div className="flex items-center justify-end gap-2 px-6 py-4" style={{ borderTop: "1px solid var(--color-hairline)", background: "var(--color-surface-soft)" }}>
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2.5 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

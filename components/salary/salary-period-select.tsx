@@ -18,9 +18,9 @@ const MONTHS = [
  * at the cost of pushing the payroll table itself below the fold, and they were
  * the main reason the header sprawled.
  *
- * MONTHS ARE FILTERED TO THE SELECTED YEAR and only offered when a sheet exists
- * for them — the same rule the old grid encoded by dimming unavailable chips.
- * Offering an empty month would navigate to a page that can only say "no rows".
+ * MONTHS ARE FILTERED TO THE SELECTED YEAR. The active month is retained even
+ * before its sheet is generated, so the page never silently falls back to an
+ * earlier payroll period.
  *
  * Changing either dropdown pushes `?month=YYYY-MM`, so the server component
  * re-reads and the URL stays shareable. Nothing is held in local state that the
@@ -30,7 +30,7 @@ export function SalaryPeriodSelect({
   months,
   selected,
 }: {
-  /** Available "YYYY-MM" sheets, newest-first. */
+  /** Available sheets plus the active month, newest-first where applicable. */
   months: string[];
   /** The month currently in view, "YYYY-MM". */
   selected: string;

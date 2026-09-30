@@ -106,11 +106,11 @@ export default async function AttendanceDashboardPage({ searchParams }: PageProp
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="full">
         {/* ── Glass hero band — month headline, nav, exports, summary ──── */}
-        <section className="admin-section-band wg-rise mb-6 px-8 py-7 max-md:px-5 max-md:py-5">
-          <div className="relative flex items-start justify-between gap-6 flex-wrap">
-            <div className="flex items-start gap-4 min-w-0">
-              <span className="admin-section-icon size-12 shrink-0 max-md:hidden">
-                <CalendarCheck2 size={24} strokeWidth={2.2} aria-hidden />
+        <section className="admin-section-band wg-rise mb-4 px-5 py-4 max-md:px-4 max-md:py-3">
+          <div className="relative flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="admin-section-icon size-9 shrink-0 max-md:hidden">
+                <CalendarCheck2 size={18} strokeWidth={2.2} aria-hidden />
               </span>
               <div className="min-w-0">
                 <div
@@ -128,7 +128,7 @@ export default async function AttendanceDashboardPage({ searchParams }: PageProp
                   style={{
                     fontFamily: "var(--font-display), system-ui, sans-serif",
                     fontWeight: 800,
-                    fontSize: "clamp(28px, 4vw, 38px)",
+                    fontSize: "clamp(24px, 3vw, 32px)",
                     lineHeight: 1.05,
                     letterSpacing: "-0.02em",
                   }}
@@ -138,7 +138,7 @@ export default async function AttendanceDashboardPage({ searchParams }: PageProp
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-3 max-md:items-start max-md:w-full">
+            <div className="flex flex-col items-end gap-2 max-md:items-start max-md:w-full">
               <AttendanceMonthSelector year={year} month={month} />
               {/* Task A7 — month-scoped report exports. Plain links: the routes
                   respond with an attachment Content-Disposition. */}
@@ -157,7 +157,7 @@ export default async function AttendanceDashboardPage({ searchParams }: PageProp
           </div>
 
           {!loadError && people > 0 && (
-            <div className="relative mt-5 flex items-center gap-2.5 flex-wrap">
+            <div className="relative mt-3 flex items-center gap-2 flex-wrap">
               <span className="admin-stat-pill">
                 <span className="text-[10px] uppercase tracking-[0.12em] font-bold text-ink-subtle">
                   People
@@ -209,7 +209,7 @@ export default async function AttendanceDashboardPage({ searchParams }: PageProp
         )}
 
         {live ? (
-          <div className="mt-6 max-w-[420px]">
+          <div className="mt-4 max-w-[360px]">
             <LiveStatusPanel status={live} />
           </div>
         ) : null}

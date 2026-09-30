@@ -251,7 +251,7 @@ async function candidateHeader(
 const RecruiterOutcomeSchema = z.object({
   to: z.string().trim().email("Enter a valid recruiter email").max(200),
   recruiterName: z.string().max(200).optional(),
-  outcome: z.enum(["selected", "shortlisted", "rejected"]),
+  outcome: z.enum(["selected", "shortlisted", "rejected", "free_training", "assignment_needed"]),
   reason: z.string().max(8000).optional(),
 });
 

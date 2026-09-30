@@ -74,6 +74,8 @@ type Recipients = { to?: string[]; cc?: string[]; bcc?: string[] };
 
 export interface CandidateInvite {
   intakeId: string;
+  /** Address the provider accepted the access-link message for. */
+  recipient: string;
   /** The full URL to hand over. Shown ONCE — it is not recoverable later. */
   url: string;
   expiresAt: Date;
@@ -124,6 +126,13 @@ export async function inviteCandidateByLink(input: {
   const me = await requireHrStaff();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
+  // `created_by_id` is audit metadata, not a requirement for a candidate to
+  // receive their form. A local/dev or delegated session can occasionally
+  // resolve to an identity that is no longer present in `employees`; passing
+  // that stale id into either candidate table turns an otherwise valid invite
+  // into a foreign-key failure. Keep the audit value when it is a real row and
+  // deliberately fall back to null when it is not.
+  const createdById = await persistedEmployeeId(me.id);
 
   const parsed = InviteSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details." };
@@ -177,7 +186,7 @@ export async function inviteCandidateByLink(input: {
         .set({ candidateActive: true, deactivatedAt: null })
         .where(eq(employees.id, existing.id));
     }
-    return issueAndMail(existing.candidateIntakeId, me.id, purpose, recipients);
+    return issueAndMail(existing.candidateIntakeId, createdById, purpose, recipients, email);
   }
 
   // ── New candidate ──
@@ -201,7 +210,7 @@ export async function inviteCandidateByLink(input: {
         mobile,
         positionApplied: positionApplied ?? null,
         data: values,
-        createdById: me.id,
+        createdById,
       })
       .returning({ id: candidateIntake.id });
     if (!row) throw new Error("intake insert returned no row");
@@ -238,7 +247,17 @@ export async function inviteCandidateByLink(input: {
     return { ok: false, error: `Could not create the candidate: ${e?.message ?? String(err)}` };
   }
 
-  return issueAndMail(intakeId, me.id, purpose, recipients);
+  return issueAndMail(intakeId, createdById, purpose, recipients, email);
+}
+
+/** Return a FK-safe audit actor. Candidate invites must still work without one. */
+async function persistedEmployeeId(id: string): Promise<string | null> {
+  const [employee] = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(eq(employees.id, id))
+    .limit(1);
+  return employee?.id ?? null;
 }
 
 /**
@@ -249,9 +268,10 @@ export async function inviteCandidateByLink(input: {
  */
 async function issueAndMail(
   intakeId: string,
-  createdById: string,
+  createdById: string | null,
   purpose: Purpose = "form",
   recipients: Recipients = {},
+  recipient: string,
 ): Promise<Result<CandidateInvite>> {
   const { token, expiresAt } = await issueAccessLink(intakeId, createdById, { purpose });
   const url = formUrl(token);
@@ -263,6 +283,7 @@ async function issueAndMail(
   return {
     ok: true,
     intakeId,
+    recipient,
     url,
     expiresAt,
     warning: mailed ? undefined : "Couldn't email the candidate — copy the link below and send it to them yourself.",
@@ -280,6 +301,7 @@ export async function resendCandidateFormLink(
   const me = await requireHrStaff();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
+  const createdById = await persistedEmployeeId(me.id);
   if (!UUID.safeParse(intakeId).success) return { ok: false, error: "Invalid candidate." };
 
   const [row] = await db
@@ -310,7 +332,7 @@ export async function resendCandidateFormLink(
       .where(eq(employees.id, emp.id));
   }
 
-  const res = await issueAndMail(intakeId, me.id, purpose);
+  const res = await issueAndMail(intakeId, createdById, purpose, {}, row.email);
   if (res.ok && reopened) {
     return {
       ...res,

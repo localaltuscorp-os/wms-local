@@ -66,10 +66,6 @@ import {
   Highlighter,
   Link as LinkIcon,
   ImagePlus,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
   List,
   ListOrdered,
   IndentIncrease,
@@ -88,7 +84,6 @@ import {
   ArrowLeftToLine,
   ArrowRightToLine,
   PanelTopClose,
-  Rows3 as LineHeightIcon,
 } from "lucide-react";
 
 import { Letterhead } from "@/components/hr/letterhead/letterhead";
@@ -430,14 +425,6 @@ const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 
  * dashed "Page N" guide at every 827px of flowed content. */
 const PAGE_CONTENT_H = 1123 - 196 - 100; // 827
 
-/** Line-spacing options for the line-height dropdown. */
-const LINE_HEIGHTS: { label: string; value: string }[] = [
-  { label: "Single", value: "" }, // "" → unset → the frame default
-  { label: "1.15", value: "1.15" },
-  { label: "1.5", value: "1.5" },
-  { label: "Double", value: "2" },
-];
-
 interface ToolButtonProps {
   onClick: () => void;
   active?: boolean;
@@ -492,6 +479,8 @@ export function RichLetterEditor({
   const [uploading, setUploading] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [hlOpen, setHlOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkValue, setLinkValue] = useState("");
   const [tableOpen, setTableOpen] = useState(false);
   // Editable font-size box (Word-style): a text field that mirrors the current
   // selection's size but also accepts a typed value (committed on Enter/blur).
@@ -570,10 +559,6 @@ export function RichLetterEditor({
           : ed.isActive("heading", { level: 3 })
             ? "h3"
             : "p";
-      const lineHeight =
-        (ed.getAttributes("paragraph").lineHeight as string) ||
-        (ed.getAttributes("heading").lineHeight as string) ||
-        "";
       return {
         bold: ed.isActive("bold"),
         italic: ed.isActive("italic"),
@@ -586,11 +571,6 @@ export function RichLetterEditor({
         link: ed.isActive("link"),
         inTable: ed.isActive("table"),
         blockType,
-        lineHeight,
-        alignLeft: ed.isActive({ textAlign: "left" }),
-        alignCenter: ed.isActive({ textAlign: "center" }),
-        alignRight: ed.isActive({ textAlign: "right" }),
-        alignJustify: ed.isActive({ textAlign: "justify" }),
         canUndo: ed.can().undo(),
         canRedo: ed.can().redo(),
         fontFamily: (ts.fontFamily as string) ?? "",
@@ -694,23 +674,6 @@ export function RichLetterEditor({
     [editor],
   );
 
-  const setLink = useCallback(() => {
-    if (!editor) return;
-    const prev = (editor.getAttributes("link").href as string) ?? "";
-    const url = window.prompt("Link URL", prev);
-    if (url === null) return; // cancelled
-    if (url.trim() === "") {
-      editor.chain().focus().extendMarkRange("link").unsetLink().run();
-      return;
-    }
-    editor
-      .chain()
-      .focus()
-      .extendMarkRange("link")
-      .setLink({ href: url.trim() })
-      .run();
-  }, [editor]);
-
   /**
    * A chain that always has something to mark. With a COLLAPSED cursor TipTap
    * would only set a "stored mark" — invisible until you type the next character,
@@ -768,14 +731,37 @@ export function RichLetterEditor({
     [editor],
   );
 
-  const setLineHeight = useCallback(
-    (value: string) => {
-      if (!editor) return;
-      if (value === "") editor.chain().focus().unsetLineHeight().run();
-      else editor.chain().focus().setLineHeight(value).run();
-    },
-    [editor],
-  );
+  const openLink = useCallback(() => {
+    if (!editor) return;
+    setLinkValue((editor.getAttributes("link").href as string) ?? "");
+    setLinkOpen(true);
+    setColorOpen(false);
+    setHlOpen(false);
+    setTableOpen(false);
+  }, [editor]);
+
+  const applyLink = useCallback(() => {
+    const raw = linkValue.trim();
+    if (!raw) {
+      editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+      setLinkOpen(false);
+      return;
+    }
+    const href = /^(https?:|mailto:)/i.test(raw) ? raw : `https://${raw}`;
+    try {
+      const parsed = new URL(href);
+      if (!/^https?:$/.test(parsed.protocol) && parsed.protocol !== "mailto:") throw new Error("Unsupported protocol");
+    } catch {
+      fireToast({ message: "Enter a valid website or email link.", type: "error" });
+      return;
+    }
+    const applied = markChain()?.extendMarkRange("link").setLink({ href }).run();
+    if (!applied) {
+      fireToast({ message: "Place the cursor in text or select text before adding a link.", type: "error" });
+      return;
+    }
+    setLinkOpen(false);
+  }, [editor, linkValue, markChain]);
 
   return (
     <div className="rle-root">
@@ -947,99 +933,34 @@ export function RichLetterEditor({
           <SuperscriptIcon size={17} />
         </ToolButton>
 
-        {/* Text colour */}
-        <div className="rle-pop-wrap">
-          <ToolButton
-            label="Text colour"
-            active={colorOpen}
-            onClick={() => {
-              setColorOpen((v) => !v);
-              setHlOpen(false);
-            }}
-          >
-            <Baseline size={17} />
-          </ToolButton>
-          {colorOpen && (
-            <div className="rle-pop" role="menu" aria-label="Text colour">
-              <div className="rle-swatches">
-                {TEXT_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className="rle-swatch"
-                    style={{ background: c }}
-                    aria-label={`Text colour ${c}`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      markChain()?.setColor(c).run();
-                      setColorOpen(false);
-                    }}
-                  />
-                ))}
-              </div>
-              <button
-                type="button"
-                className="rle-pop-clear"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  markChain()?.unsetColor().run();
-                  setColorOpen(false);
-                }}
-              >
-                Automatic
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Highlight */}
-        <div className="rle-pop-wrap">
-          <ToolButton
-            label="Highlight colour"
-            active={hlOpen}
-            onClick={() => {
-              setHlOpen((v) => !v);
-              setColorOpen(false);
-            }}
-          >
-            <Highlighter size={17} />
-          </ToolButton>
-          {hlOpen && (
-            <div className="rle-pop" role="menu" aria-label="Highlight colour">
-              <div className="rle-swatches">
-                {HIGHLIGHTS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className="rle-swatch"
-                    style={{ background: c }}
-                    aria-label={`Highlight ${c}`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      markChain()?.setBackgroundColor(c).run();
-                      setHlOpen(false);
-                    }}
-                  />
-                ))}
-              </div>
-              <button
-                type="button"
-                className="rle-pop-clear"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  markChain()?.unsetBackgroundColor().run();
-                  setHlOpen(false);
-                }}
-              >
-                No highlight
-              </button>
-            </div>
-          )}
-        </div>
+        <ToolButton
+          label="Text colour"
+          active={colorOpen}
+          onClick={() => {
+            setColorOpen((v) => !v);
+            setHlOpen(false);
+            setLinkOpen(false);
+            setTableOpen(false);
+          }}
+        >
+          <Baseline size={17} />
+        </ToolButton>
+        <ToolButton
+          label="Highlight colour"
+          active={hlOpen}
+          onClick={() => {
+            setHlOpen((v) => !v);
+            setColorOpen(false);
+            setLinkOpen(false);
+            setTableOpen(false);
+          }}
+        >
+          <Highlighter size={17} />
+        </ToolButton>
 
         <Sep />
 
-        <ToolButton label="Insert link (Ctrl+K)" active={state?.link} onClick={setLink}>
+        <ToolButton label="Insert link" active={linkOpen || state?.link} onClick={openLink}>
           <LinkIcon size={17} />
         </ToolButton>
         <ToolButton label="Insert image" disabled={uploading} onClick={insertImageClick}>
@@ -1063,54 +984,6 @@ export function RichLetterEditor({
             ))}
           </span>
         )}
-
-        <Sep />
-
-        <ToolButton
-          label="Align left"
-          active={state?.alignLeft}
-          onClick={() => editor?.chain().focus().setTextAlign("left").run()}
-        >
-          <AlignLeft size={17} />
-        </ToolButton>
-        <ToolButton
-          label="Align centre"
-          active={state?.alignCenter}
-          onClick={() => editor?.chain().focus().setTextAlign("center").run()}
-        >
-          <AlignCenter size={17} />
-        </ToolButton>
-        <ToolButton
-          label="Align right"
-          active={state?.alignRight}
-          onClick={() => editor?.chain().focus().setTextAlign("right").run()}
-        >
-          <AlignRight size={17} />
-        </ToolButton>
-        <ToolButton
-          label="Justify"
-          active={state?.alignJustify}
-          onClick={() => editor?.chain().focus().setTextAlign("justify").run()}
-        >
-          <AlignJustify size={17} />
-        </ToolButton>
-
-        {/* Line spacing */}
-        <div className="rle-lh" role="group" aria-label="Line spacing">
-          <LineHeightIcon size={16} aria-hidden />
-          <select
-            className="rle-select rle-select--lh"
-            aria-label="Line spacing"
-            value={state?.lineHeight ?? ""}
-            onChange={(e) => setLineHeight(e.target.value)}
-          >
-            {LINE_HEIGHTS.map((l) => (
-              <option key={l.label} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </div>
 
         <Sep />
 
@@ -1165,63 +1038,79 @@ export function RichLetterEditor({
           <SeparatorHorizontal size={17} />
         </ToolButton>
 
-        {/* Table insert + editing menu */}
-        <div className="rle-pop-wrap">
-          <ToolButton
-            label={state?.inTable ? "Table tools" : "Insert table"}
-            active={tableOpen || state?.inTable}
-            onClick={() => {
-              setTableOpen((v) => !v);
-              setColorOpen(false);
-              setHlOpen(false);
-            }}
-          >
-            <TableIcon size={17} />
-          </ToolButton>
+        <ToolButton
+          label={state?.inTable ? "Table tools" : "Insert table"}
+          active={tableOpen || state?.inTable}
+          onClick={() => {
+            setTableOpen((v) => !v);
+            setColorOpen(false);
+            setHlOpen(false);
+            setLinkOpen(false);
+          }}
+        >
+          <TableIcon size={17} />
+        </ToolButton>
+
+      </div>
+
+      {(colorOpen || hlOpen || linkOpen || tableOpen) && (
+        <div className="rle-tool-panel no-print">
+          {colorOpen && (
+            <div className="rle-tool-panel-body" role="menu" aria-label="Text colour">
+              <span className="rle-tool-panel-title">Text colour</span>
+              <div className="rle-swatches">
+                {TEXT_COLORS.map((color) => (
+                  <button key={color} type="button" className="rle-swatch" style={{ background: color }} aria-label={`Text colour ${color}`} onClick={() => { markChain()?.setColor(color).run(); setColorOpen(false); }} />
+                ))}
+              </div>
+              <button type="button" className="rle-pop-clear" onClick={() => { markChain()?.unsetColor().run(); setColorOpen(false); }}>Automatic</button>
+            </div>
+          )}
+          {hlOpen && (
+            <div className="rle-tool-panel-body" role="menu" aria-label="Highlight colour">
+              <span className="rle-tool-panel-title">Highlight colour</span>
+              <div className="rle-swatches">
+                {HIGHLIGHTS.map((color) => (
+                  <button key={color} type="button" className="rle-swatch" style={{ background: color }} aria-label={`Highlight ${color}`} onClick={() => { markChain()?.setBackgroundColor(color).run(); setHlOpen(false); }} />
+                ))}
+              </div>
+              <button type="button" className="rle-pop-clear" onClick={() => { markChain()?.unsetBackgroundColor().run(); setHlOpen(false); }}>No highlight</button>
+            </div>
+          )}
+          {linkOpen && (
+            <div className="rle-tool-panel-body rle-link-panel" role="dialog" aria-label="Insert link">
+              <label className="rle-tool-panel-title" htmlFor="rle-link-url">Link destination</label>
+              <input id="rle-link-url" className="rle-link-input" autoFocus value={linkValue} onChange={(event) => setLinkValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyLink(); } }} placeholder="https://example.com or email@example.com" />
+              <button type="button" className="rle-tool-primary" onClick={applyLink}>Apply link</button>
+              {state?.link && <button type="button" className="rle-pop-clear" onClick={() => { editor?.chain().focus().extendMarkRange("link").unsetLink().run(); setLinkOpen(false); }}>Remove link</button>}
+            </div>
+          )}
           {tableOpen && (
-            <div className="rle-pop rle-pop--menu" role="menu" aria-label="Table">
+            <div className="rle-tool-panel-body rle-table-panel" role="menu" aria-label="Table">
               {!state?.inTable ? (
-                <TableGridPicker
-                  onPick={(rows, cols, withHeaderRow) => {
-                    editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
-                    setTableOpen(false);
-                  }}
-                />
+                <TableGridPicker onPick={(rows, cols, withHeaderRow) => {
+                  const inserted = editor?.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+                  if (!inserted) fireToast({ message: "Place the cursor in the letter body before inserting a table.", type: "error" });
+                  else setTableOpen(false);
+                }} />
               ) : (
                 <>
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().addRowBefore().run()}>
-                    <ArrowUpToLine size={15} /> Insert row above
-                  </button>
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().addRowAfter().run()}>
-                    <ArrowDownToLine size={15} /> Insert row below
-                  </button>
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().addColumnBefore().run()}>
-                    <ArrowLeftToLine size={15} /> Insert column left
-                  </button>
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().addColumnAfter().run()}>
-                    <ArrowRightToLine size={15} /> Insert column right
-                  </button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().addRowBefore().run()}><ArrowUpToLine size={15} /> Insert row above</button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().addRowAfter().run()}><ArrowDownToLine size={15} /> Insert row below</button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().addColumnBefore().run()}><ArrowLeftToLine size={15} /> Insert column left</button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().addColumnAfter().run()}><ArrowRightToLine size={15} /> Insert column right</button>
                   <div className="rle-menu-div" aria-hidden />
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().toggleHeaderRow().run()}>
-                    <PanelTopClose size={15} /> Toggle header row
-                  </button>
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().deleteRow().run()}>
-                    <Trash2 size={15} /> Delete row
-                  </button>
-                  <button type="button" className="rle-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={() => editor?.chain().focus().deleteColumn().run()}>
-                    <Trash2 size={15} /> Delete column
-                  </button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().toggleHeaderRow().run()}><PanelTopClose size={15} /> Toggle header row</button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().deleteRow().run()}><Trash2 size={15} /> Delete row</button>
+                  <button type="button" className="rle-menu-item" onClick={() => editor?.chain().focus().deleteColumn().run()}><Trash2 size={15} /> Delete column</button>
                   <div className="rle-menu-div" aria-hidden />
-                  <button type="button" className="rle-menu-item rle-menu-item--danger" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor?.chain().focus().deleteTable().run(); setTableOpen(false); }}>
-                    <Trash2 size={15} /> Delete table
-                  </button>
+                  <button type="button" className="rle-menu-item rle-menu-item--danger" onClick={() => { editor?.chain().focus().deleteTable().run(); setTableOpen(false); }}><Trash2 size={15} /> Delete table</button>
                 </>
               )}
             </div>
           )}
         </div>
-
-      </div>
+      )}
 
       {/* hidden file input for image upload */}
       <input
@@ -1355,7 +1244,7 @@ const RLE_CSS = `
      published as --alw-toolbar-h by a ResizeObserver in letter-editor.tsx (which
      owns the band). 61px is the pre-measurement fallback: one un-wrapped row. */
   position:sticky;top:calc(var(--alw-toolbar-h, 61px) + 6px);z-index:40;
-  display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;justify-content:safe center;gap:2px;
+  display:flex;flex-wrap:wrap;overflow:visible;align-items:center;justify-content:flex-start;gap:2px;
   padding:6px 8px;
   background:rgba(255,255,255,.92);
   backdrop-filter:saturate(1.4) blur(8px);
@@ -1393,24 +1282,27 @@ const RLE_CSS = `
 .rle-size-input:focus{background:color-mix(in srgb,var(--rle-red) 8%,transparent);}
 /* hide the native number-spinner if a UA promotes the datalist input */
 .rle-size-input::-webkit-outer-spin-button,.rle-size-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-.rle-pop-wrap{position:relative;display:inline-flex;}
-.rle-pop{
-  position:absolute;top:calc(100% + 8px);left:0;z-index:60;
-  padding:10px;background:#fff;border:1px solid var(--rle-line);border-radius:12px;
-  box-shadow:0 20px 44px -22px rgba(15,23,42,.5);
+.rle-tool-panel{display:flex;justify-content:center;padding:0 8px;}
+.rle-tool-panel-body{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  max-width:100%;padding:10px 12px;background:#fff;border:1px solid var(--rle-line);border-radius:12px;
+  box-shadow:0 12px 28px -22px rgba(15,23,42,.45);
 }
+.rle-tool-panel-title{font-size:12px;font-weight:800;color:var(--rle-ink);white-space:nowrap;}
 .rle-swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
 .rle-swatch{width:22px;height:22px;border-radius:6px;border:1px solid rgba(15,23,42,.15);cursor:pointer;}
 .rle-swatch:hover{transform:scale(1.08);}
 .rle-swatch:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--rle-red);}
 .rle-pop-clear{margin-top:8px;width:100%;padding:6px 8px;font-size:12px;
   border:1px solid var(--rle-line);border-radius:8px;background:#fafafa;color:#374151;cursor:pointer;}
+.rle-tool-panel-body .rle-pop-clear{width:auto;margin-top:0;}
 .rle-pop-clear:hover{background:#f0f0f1;}
 .rle-select--style{min-width:112px;max-width:132px;font-weight:600;}
-.rle-select--lh{min-width:78px;max-width:96px;padding:0 6px;}
-.rle-lh{display:inline-flex;align-items:center;gap:4px;color:#374151;}
-/* Popover menu (table tools) */
-.rle-pop--menu{padding:6px;min-width:186px;}
+.rle-link-panel{min-width:min(100%,560px);}
+.rle-link-input{min-width:240px;flex:1 1 260px;height:34px;padding:0 10px;border:1px solid var(--rle-line);border-radius:8px;color:var(--rle-ink);font-size:13px;outline:none;}
+.rle-link-input:focus{border-color:var(--rle-red);box-shadow:0 0 0 3px color-mix(in srgb,var(--rle-red) 15%,transparent);}
+.rle-tool-primary{height:34px;padding:0 11px;border:0;border-radius:8px;background:var(--rle-red);color:#fff;font-size:12px;font-weight:800;cursor:pointer;}
+.rle-table-panel{min-width:210px;justify-content:center;}
 .rle-menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;
   font-size:13px;color:var(--rle-ink);background:transparent;border:0;border-radius:8px;cursor:pointer;text-align:left;}
 .rle-menu-item:hover{background:rgba(15,23,42,.06);}

@@ -7,6 +7,7 @@ import type { IntakeInitial, IntakeActions } from "@/components/hr/candidate/int
 import {
   createOwnCandidatePhotoUploadUrl,
   createOwnCandidateWorkUploadUrl,
+  getOwnCandidatePhotoUrl,
   getOwnCandidateWorkFileUrl,
   saveOwnCandidateDraft,
   submitOwnCandidateForm,
@@ -23,6 +24,7 @@ const CANDIDATE_ACTIONS: IntakeActions = {
   save: saveOwnCandidateDraft,
   submit: submitOwnCandidateForm,
   photoUploadUrl: createOwnCandidatePhotoUploadUrl,
+  photoReadUrl: getOwnCandidatePhotoUrl,
   workUploadUrl: createOwnCandidateWorkUploadUrl,
   workFileUrl: getOwnCandidateWorkFileUrl,
 };
