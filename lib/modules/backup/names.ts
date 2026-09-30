@@ -64,6 +64,48 @@ export function uniqueFileName(name: string, taken: Set<string>): string {
   }
 }
 
+function fileExtension(path: string): string {
+  const leaf = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
+  const dot = leaf.lastIndexOf(".");
+  return dot > 0 && dot < leaf.length - 1 ? leaf.slice(dot) : "";
+}
+
+function datePart(value: unknown): string | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  const match = value.match(/^\d{4}-\d{2}-\d{2}/);
+  return match?.[0] ?? null;
+}
+
+/**
+ * Give copied backup files a human-readable name without changing their bytes.
+ * A real uploaded filename wins; generated names describe the content and date
+ * instead of exposing the UUID/object key used by storage.
+ */
+export function backupFileName(input: {
+  path: string;
+  uploadedName?: unknown;
+  label: string;
+  details?: readonly unknown[];
+  date?: unknown;
+}): string {
+  const ext = fileExtension(input.path);
+  const uploaded = typeof input.uploadedName === "string" ? input.uploadedName.trim() : "";
+  if (uploaded) {
+    return fileExtension(uploaded) || !ext ? uploaded : `${uploaded}${ext}`;
+  }
+
+  const details = (input.details ?? [])
+    .filter((value): value is string | number =>
+      (typeof value === "string" && Boolean(value.trim())) || typeof value === "number",
+    )
+    .map((value) => String(value).trim());
+  const date = datePart(input.date);
+  return [...details, input.label, ...(date ? [date] : [])].join(" - ") + ext;
+}
+
 /**
  * The dated folder inside a module's folder: "2026-09-21 03-05".
  *

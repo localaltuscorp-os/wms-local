@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Banknote,
   XCircle,
+  ArrowLeft,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
@@ -211,6 +212,14 @@ export default async function ReimbursementsPage({ searchParams }: PageProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 max-sm:w-full max-sm:justify-start">
+            {view === "archived" && (
+              <Link
+                href={def.path as Route}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-3 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <ArrowLeft size={14} strokeWidth={2.6} /> Back to active claims
+              </Link>
+            )}
             <Link
               href={"/reimbursements/dashboard" as Route}
               className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-3 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"

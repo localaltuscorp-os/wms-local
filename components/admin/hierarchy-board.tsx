@@ -335,26 +335,34 @@ function Column({
       }}
     >
       <header className="mb-3 px-1">
+        {/* NAME + BADGE ARE ONE GROUP, hugging the left edge; the reorder
+            arrows (a THIRD item some columns don't even have) are the only
+            thing pushed to the far right. `justify-between` treating all
+            three as equal flex items — the previous shape — is what let the
+            badge float in the middle of the header instead of sitting next
+            to the name it counts (found 2026-09-26). */}
         <div className="flex items-center justify-between gap-2">
-          {/* THE NAME IS ALWAYS BLACK; the colour becomes an underline under it
-              (asked for 2026-09-17). A coloured name competed with the red the
-              rest of the app uses for "active", and a pale accent on white made
-              some managers' names harder to read than others — the colour is an
-              identifier, not a legibility choice, so it moved to the rule. */}
-          <h3
-            className="truncate text-[14px] font-semibold text-[#0F172A]"
-            style={
-              accent
-                ? { borderBottom: `2px solid ${accent}`, paddingBottom: 2, alignSelf: "flex-start" }
-                : undefined
-            }
-          >
-            {column.managerName}
-          </h3>
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-[#F1F5F9] px-2 py-0.5 text-[11.5px] font-semibold text-[#64748B]">
-            <Users2 size={11} strokeWidth={2.4} />
-            {column.reports.length}
-          </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {/* THE NAME IS ALWAYS BLACK; the colour becomes an underline under it
+                (asked for 2026-09-17). A coloured name competed with the red the
+                rest of the app uses for "active", and a pale accent on white made
+                some managers' names harder to read than others — the colour is an
+                identifier, not a legibility choice, so it moved to the rule. */}
+            <h3
+              className="truncate text-[14px] font-semibold text-[#0F172A]"
+              style={
+                accent
+                  ? { borderBottom: `2px solid ${accent}`, paddingBottom: 2, alignSelf: "flex-start" }
+                  : undefined
+              }
+            >
+              {column.managerName}
+            </h3>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-[#F1F5F9] px-2 py-0.5 text-[11.5px] font-semibold text-[#64748B]">
+              <Users2 size={11} strokeWidth={2.4} />
+              {column.reports.length}
+            </span>
+          </div>
           {enableReorder && column.managerId && (
             <span className="flex shrink-0 flex-col">
               <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -13,6 +13,8 @@ import {
   FileDown,
   IndianRupee,
   Undo2,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { fireToast } from "@/lib/toast";
@@ -1037,6 +1039,9 @@ export function SalaryBreakupTable({
   const [query, setQuery] = useState("");
   const [company, setCompany] = useState<string[]>([]);
   const [sort, setSort] = useState<SortState>(null);
+  const [rowsPerPage, setRowsPerPage] = useState<number | "all">(25);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => new Set());
 
   const companies = useMemo(
     () =>
@@ -1083,6 +1088,20 @@ export function SalaryBreakupTable({
     });
   }
 
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreen]);
+
+  const shownRows = useMemo(
+    () => rowsPerPage === "all" ? filtered : filtered.slice(0, rowsPerPage),
+    [filtered, rowsPerPage],
+  );
+
   function SortGlyph({ colKey }: { colKey: string }) {
     if (sort?.key !== colKey) return <ChevronsUpDown size={12} strokeWidth={2} className="opacity-40" />;
     return sort.dir === "asc" ? (
@@ -1096,7 +1115,7 @@ export function SalaryBreakupTable({
     <button
       type="button"
       onClick={() => toggleSort(key)}
-      className={`admin-th-btn ${align === "right" ? "flex-row-reverse" : ""} ${sort?.key === key ? "text-ink-strong" : ""}`}
+      className={`admin-th-btn ${align === "right" ? "w-full justify-end flex-row-reverse" : ""} ${sort?.key === key ? "text-ink-strong" : ""}`}
     >
       {label}
       <SortGlyph colKey={key} />
@@ -1119,7 +1138,7 @@ export function SalaryBreakupTable({
   // viewer who cannot record payments, not hidden: anyone who reaches this page
   // has finance access and is entitled to see what is owed and what has gone
   // out. (Normal employees never get here — `requireFinanceAccess` redirects.)
-  const visibleCols = COLUMNS.filter((c) => c.key !== "remarks" || showRemarks);
+  const visibleCols = COLUMNS.filter((c) => (c.key !== "remarks" || showRemarks) && !hiddenColumns.has(c.key));
   // NO GROUP HEADER ROW. It existed to label the attendance and build-up blocks
   // that this table no longer carries; with ten single-purpose columns every
   // group would have been a one-cell span with a blank label, i.e. 30px of
@@ -1128,7 +1147,7 @@ export function SalaryBreakupTable({
 
   return (
     <section
-      className="wg-rise admin-panel"
+      className={fullscreen ? "fixed inset-0 z-[80] overflow-auto bg-surface-page p-4" : "wg-rise admin-panel"}
       style={{ animationDelay: "140ms" }}
       aria-label="Salary breakup table"
     >
@@ -1176,8 +1195,23 @@ export function SalaryBreakupTable({
         )}
 
         <div className="ml-auto text-[13px] font-semibold tabular-nums text-ink-subtle">
-          {filtered.length} of {rows.length} employees
+          {shownRows.length} of {filtered.length} filtered · {rows.length} employees
         </div>
+        <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft">
+          Rows
+          <select value={String(rowsPerPage)} onChange={(event) => setRowsPerPage(event.target.value === "all" ? "all" : Number(event.target.value))} className="bg-transparent outline-none">
+            <option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="all">All</option>
+          </select>
+        </label>
+        <button type="button" onClick={() => setFullscreen((value) => !value)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft hover:text-ink-strong" title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}>
+          {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{fullscreen ? "Exit" : "Full screen"}
+        </button>
+        <details className="relative">
+          <summary className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft">Columns</summary>
+          <div className="absolute right-0 z-40 mt-1 max-h-64 w-52 overflow-auto rounded-lg border border-hairline bg-surface-card p-2 shadow-lg">
+            {COLUMNS.filter((column) => column.key !== "remarks" || showRemarks).map((column) => <label key={column.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-[12px] text-ink-strong hover:bg-surface-soft"><input type="checkbox" checked={!hiddenColumns.has(column.key)} onChange={() => setHiddenColumns((previous) => { const next = new Set(previous); next.has(column.key) ? next.delete(column.key) : next.add(column.key); return next; })} />{column.label}</label>)}
+          </div>
+        </details>
       </div>
 
       {/* ── Grid: vertical + horizontal scroll, sticky header/first-col/totals ── */}
@@ -1257,7 +1291,7 @@ export function SalaryBreakupTable({
                 </td>
               </tr>
             ) : (
-              filtered.map((r, i) => (
+              shownRows.map((r, i) => (
                 <tr
                   key={r.id}
                   className="wg-rise group border-b border-hairline last:border-b-0 hover:bg-[color-mix(in_srgb,#E10600_4%,transparent)]"
@@ -1297,7 +1331,7 @@ export function SalaryBreakupTable({
                   {visibleCols.map((c) => (
                     <td
                       key={c.key}
-                      className={`whitespace-nowrap px-3 py-2.5 ${c.key === "company" ? "sticky z-10 group-hover:bg-[color-mix(in_srgb,#E10600_4%,var(--color-surface-card))]" : ""} ${c.align === "right" ? "text-right" : "text-left"}`}
+                      className={`align-middle whitespace-nowrap px-3 py-2.5 ${c.key === "company" ? "sticky z-10 group-hover:bg-[color-mix(in_srgb,#E10600_4%,var(--color-surface-card))]" : ""} ${c.align === "right" ? "text-right" : "text-left"}`}
                       style={{
                         boxShadow:
                           c.key === "company"
