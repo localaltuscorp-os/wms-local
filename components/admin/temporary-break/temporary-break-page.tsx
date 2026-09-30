@@ -39,8 +39,8 @@ export function TemporaryBreakPage({ breaks, eligibleEmployees, canEdit }: {
     startTransition(async () => {
       const result = await endEmployeeTemporaryBreak(row.id);
       setEndingId(null);
-      if (!result.ok) return fireToast(result.error, "error");
-      fireToast(result.restoredManager ? "Temporary Break ended. Previous manager restored." : "Temporary Break ended. No manager is assigned.", "success");
+      if (!result.ok) return fireToast({ message: result.error, type: "error" });
+      fireToast({ message: result.restoredManager ? "Temporary Break ended. Previous manager restored." : "Temporary Break ended. No manager is assigned.", type: "success" });
       router.refresh();
     });
   }
@@ -84,11 +84,11 @@ function TemporaryBreakDialog({ employees, onClose, onSaved }: { employees: Empl
   const [saving, startTransition] = React.useTransition();
   const options = React.useMemo(() => employees.map((employee) => ({ value: employee.id, label: [employee.name, employee.functionName, employee.designationName].filter(Boolean).join(" · ") })), [employees]);
   function save() {
-    if (!employeeId || !breakFrom) return fireToast("Employee and Break From are required.", "error");
+    if (!employeeId || !breakFrom) return fireToast({ message: "Employee and Break From are required.", type: "error" });
     startTransition(async () => {
       const result = await putEmployeeOnTemporaryBreak({ employeeId, breakFrom, expectedReturn: expectedReturn || null, reason: reason.trim() || null });
-      if (!result.ok) return fireToast(result.error, "error");
-      fireToast("Employee placed on Temporary Break.", "success");
+      if (!result.ok) return fireToast({ message: result.error, type: "error" });
+      fireToast({ message: "Employee placed on Temporary Break.", type: "success" });
       onSaved();
     });
   }

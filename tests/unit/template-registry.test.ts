@@ -250,7 +250,7 @@ describe("Accounts workbook", () => {
 describe("Vendor Directory workbook", () => {
   it("carries only columns the Vendor bulk parser recognises", async () => {
     const { buffer } = await built(TEMPLATE_KEYS.vendors);
-    const headers = headerRowCells(buffer, "Vendors", vendorColumnForHeader);
+    const headers = headerRowCells(buffer, "Vendors", (raw) => vendorColumnForHeader(String(raw ?? "")));
     expect(headers.length).toBe(VENDOR_COLUMNS.length);
     expect(headers.filter((header) => !vendorColumnForHeader(header))).toEqual([]);
   });

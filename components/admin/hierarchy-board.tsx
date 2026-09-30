@@ -52,6 +52,7 @@ export interface BoardPerson {
   department: string | null;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isRoot: boolean;
   managerId: string | null;
   reportCount: number;
 }
