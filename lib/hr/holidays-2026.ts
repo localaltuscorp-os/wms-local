@@ -34,11 +34,11 @@ export interface Holiday2026 {
  *
  * ⚠ WORDING CHECK OUTSTANDING: this still says the list is "based on the
  * holiday notification issued by the Government of Maharashtra". That was true
- * of the 21-day list this replaced; the supplied 2026-2028 lists are the FIRM'S
- * OWN 15-day calendar and omit several notified days (Gandhi Jayanti, Christmas,
- * Good Friday, both Eids, Ambedkar Jayanti among them). HR should confirm the
- * sentence before this is shown to employees. Neither string is rendered
- * anywhere today, so nothing incorrect is on screen in the meantime.
+ * of the 21-day list this replaced; the supplied calendar is the FIRM'S OWN
+ * observed list. Its data is authoritative here. HR should separately confirm
+ * the explanatory policy sentence before it is shown to employees. Neither
+ * string is rendered anywhere today, so nothing incorrect is on screen in the
+ * meantime.
  */
 export function holidayIntroFor(year: number): string {
   return `Altus Corp shall observe the following Public and National Holidays for the calendar year ${year}, based on the holiday notification issued by the Government of Maharashtra. Employees shall be entitled to paid holidays on these days, subject to business requirements, operational exigencies, this Policy, and applicable law.`;
@@ -49,74 +49,118 @@ export function holidayTitleFor(year: number): string {
 }
 
 /**
- * THE ALTUS CORP HOLIDAY CALENDAR, 2026-2028.
+ * THE ALTUS CORP HOLIDAY CALENDAR, 2026-2031.
  *
- * Supplied by HR as the firm's own observed list. It is NOT the full Government
- * of Maharashtra notification and is deliberately shorter: 15 days a year
- * against the notification's 21 for 2026.
+ * Supplied as the firm's authoritative observed list. It is not derived from a
+ * government notification: lunar-calendar dates are transcribed per year.
  *
  * `day` is COMPUTED from the date, never transcribed - a wrong weekday on a
  * holiday card is the kind of thing nobody notices until someone has planned
  * leave around it.
  *
- * `national` marks the two statutory National Holidays present in these lists,
- * Republic Day and Independence Day. Gandhi Jayanti - the third - is not in the
- * supplied list, so it is not here.
+ * `national` marks Republic Day and Independence Day where they appear in the
+ * supplied list.
  *
- * "New Year" appears twice a year on purpose: the Diwali new year (Bali
- * Pratipada) and 31 December. Both are named exactly as supplied.
+ * Labels, including supplied asterisks, are kept exactly as supplied.
  */
+const MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+function suppliedHoliday(iso: string, name: string, national = false): Holiday2026 {
+  const [year, month, dayNum] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, dayNum!));
+  return {
+    date: `${String(dayNum).padStart(2, "0")}-${MONTH_ABBRS[month! - 1]}-${year}`,
+    day: WEEKDAYS[date.getUTCDay()]!,
+    name,
+    national,
+    month: month!,
+    dayNum: dayNum!,
+  };
+}
+
 export const HOLIDAYS_2026: Holiday2026[] = [
-  { date: "26-Jan-2026", day: "Monday", name: "Republic Day", national: true, month: 1, dayNum: 26 },
-  { date: "15-Feb-2026", day: "Sunday", name: "Shiv Ratri", national: false, month: 2, dayNum: 15 },
-  { date: "04-Mar-2026", day: "Wednesday", name: "Holi Day 2", national: false, month: 3, dayNum: 4 },
-  { date: "19-Mar-2026", day: "Thursday", name: "Gudhi Padwa", national: false, month: 3, dayNum: 19 },
-  { date: "01-May-2026", day: "Friday", name: "Maharashtra Day", national: false, month: 5, dayNum: 1 },
-  { date: "15-Aug-2026", day: "Saturday", name: "Independence Day", national: true, month: 8, dayNum: 15 },
-  { date: "28-Aug-2026", day: "Friday", name: "Rakshabandhan", national: false, month: 8, dayNum: 28 },
-  { date: "04-Sep-2026", day: "Friday", name: "Janmashtami", national: false, month: 9, dayNum: 4 },
-  { date: "14-Sep-2026", day: "Monday", name: "Ganpati Day 1", national: false, month: 9, dayNum: 14 },
-  { date: "20-Oct-2026", day: "Tuesday", name: "Dashera", national: false, month: 10, dayNum: 20 },
-  { date: "08-Nov-2026", day: "Sunday", name: "Diwali", national: false, month: 11, dayNum: 8 },
-  { date: "09-Nov-2026", day: "Monday", name: "New Year", national: false, month: 11, dayNum: 9 },
-  { date: "11-Nov-2026", day: "Wednesday", name: "Bhai Dooj", national: false, month: 11, dayNum: 11 },
-  { date: "31-Dec-2026", day: "Thursday", name: "New Year", national: false, month: 12, dayNum: 31 },
+  suppliedHoliday("2026-09-14", "Ganpati - Day 1 / Ganesh Chaturthi"),
+  suppliedHoliday("2026-09-25", "Ganpati - Final Day / Anant Chaturdashi"),
+  suppliedHoliday("2026-10-20", "Dussehra"),
+  suppliedHoliday("2026-11-08", "Diwali / Laxmi Pujan"),
+  suppliedHoliday("2026-11-10", "Diwali Padwa / Bali Pratipada / New Year"),
+  suppliedHoliday("2026-11-11", "Bhai Dooj / Bhaubeej"),
 ];
 
 export const HOLIDAYS_2027: Holiday2026[] = [
-  { date: "26-Jan-2027", day: "Tuesday", name: "Republic Day", national: true, month: 1, dayNum: 26 },
-  { date: "06-Mar-2027", day: "Saturday", name: "Shiv Ratri", national: false, month: 3, dayNum: 6 },
-  { date: "23-Mar-2027", day: "Tuesday", name: "Holi Day 2", national: false, month: 3, dayNum: 23 },
-  { date: "07-Apr-2027", day: "Wednesday", name: "Gudhi Padwa", national: false, month: 4, dayNum: 7 },
-  { date: "01-May-2027", day: "Saturday", name: "Maharashtra Day", national: false, month: 5, dayNum: 1 },
-  { date: "15-Aug-2027", day: "Sunday", name: "Independence Day", national: true, month: 8, dayNum: 15 },
-  { date: "17-Aug-2027", day: "Tuesday", name: "Rakshabandhan", national: false, month: 8, dayNum: 17 },
-  { date: "25-Aug-2027", day: "Wednesday", name: "Janmashtami", national: false, month: 8, dayNum: 25 },
-  { date: "04-Sep-2027", day: "Saturday", name: "Ganpati Day 1", national: false, month: 9, dayNum: 4 },
-  { date: "13-Sep-2027", day: "Monday", name: "Ganpati Day 10", national: false, month: 9, dayNum: 13 },
-  { date: "09-Oct-2027", day: "Saturday", name: "Dashera", national: false, month: 10, dayNum: 9 },
-  { date: "29-Oct-2027", day: "Friday", name: "Diwali", national: false, month: 10, dayNum: 29 },
-  { date: "30-Oct-2027", day: "Saturday", name: "New Year", national: false, month: 10, dayNum: 30 },
-  { date: "01-Nov-2027", day: "Monday", name: "Bhai Dooj", national: false, month: 11, dayNum: 1 },
-  { date: "31-Dec-2027", day: "Friday", name: "New Year", national: false, month: 12, dayNum: 31 },
+  suppliedHoliday("2027-01-26", "Republic Day", true),
+  suppliedHoliday("2027-03-06", "Maha Shivratri"),
+  suppliedHoliday("2027-03-22", "Holi - Day 2"),
+  suppliedHoliday("2027-04-07", "Gudhi Padwa"),
+  suppliedHoliday("2027-05-01", "Maharashtra Day"),
+  suppliedHoliday("2027-08-15", "Independence Day", true),
+  suppliedHoliday("2027-08-17", "Raksha Bandhan"),
+  suppliedHoliday("2027-08-25", "Janmashtami"),
+  suppliedHoliday("2027-09-04", "Ganpati - Day 1 / Ganesh Chaturthi"),
+  suppliedHoliday("2027-09-14", "Ganpati - Final Day / Anant Chaturdashi"),
+  suppliedHoliday("2027-10-09", "Dussehra"),
+  suppliedHoliday("2027-10-29", "Diwali / Laxmi Pujan"),
+  suppliedHoliday("2027-10-30", "Diwali Padwa / New Year*"),
+  suppliedHoliday("2027-10-31", "Bhai Dooj / Bhaubeej"),
 ];
 
 export const HOLIDAYS_2028: Holiday2026[] = [
-  { date: "26-Jan-2028", day: "Wednesday", name: "Republic Day", national: true, month: 1, dayNum: 26 },
-  { date: "24-Feb-2028", day: "Thursday", name: "Shiv Ratri", national: false, month: 2, dayNum: 24 },
-  { date: "12-Mar-2028", day: "Sunday", name: "Holi Day 2", national: false, month: 3, dayNum: 12 },
-  { date: "27-Mar-2028", day: "Monday", name: "Gudhi Padwa", national: false, month: 3, dayNum: 27 },
-  { date: "01-May-2028", day: "Monday", name: "Maharashtra Day", national: false, month: 5, dayNum: 1 },
-  { date: "05-Aug-2028", day: "Saturday", name: "Rakshabandhan", national: false, month: 8, dayNum: 5 },
-  { date: "13-Aug-2028", day: "Sunday", name: "Janmashtami", national: false, month: 8, dayNum: 13 },
-  { date: "15-Aug-2028", day: "Tuesday", name: "Independence Day", national: true, month: 8, dayNum: 15 },
-  { date: "23-Aug-2028", day: "Wednesday", name: "Ganpati Day 1", national: false, month: 8, dayNum: 23 },
-  { date: "01-Sep-2028", day: "Friday", name: "Ganpati Day 10", national: false, month: 9, dayNum: 1 },
-  { date: "28-Sep-2028", day: "Thursday", name: "Dashera", national: false, month: 9, dayNum: 28 },
-  { date: "17-Oct-2028", day: "Tuesday", name: "Diwali", national: false, month: 10, dayNum: 17 },
-  { date: "18-Oct-2028", day: "Wednesday", name: "New Year", national: false, month: 10, dayNum: 18 },
-  { date: "20-Oct-2028", day: "Friday", name: "Bhai Dooj", national: false, month: 10, dayNum: 20 },
-  { date: "31-Dec-2028", day: "Sunday", name: "New Year", national: false, month: 12, dayNum: 31 },
+  suppliedHoliday("2028-01-01", "English New Year"),
+  suppliedHoliday("2028-01-26", "Republic Day", true),
+  suppliedHoliday("2028-02-23", "Maha Shivratri"),
+  suppliedHoliday("2028-03-11", "Holi - Day 2"),
+  suppliedHoliday("2028-03-27", "Gudhi Padwa"),
+  suppliedHoliday("2028-05-01", "Maharashtra Day"),
+  suppliedHoliday("2028-08-05", "Raksha Bandhan"),
+  suppliedHoliday("2028-08-13", "Janmashtami"),
+  suppliedHoliday("2028-08-15", "Independence Day", true),
+  suppliedHoliday("2028-08-23", "Ganpati - Day 1 / Ganesh Chaturthi"),
+  suppliedHoliday("2028-09-02", "Ganpati - Final Day / Anant Chaturdashi*"),
+  suppliedHoliday("2028-09-27", "Dussehra"),
+  suppliedHoliday("2028-10-17", "Diwali / Laxmi Pujan"),
+  suppliedHoliday("2028-10-18", "Diwali Padwa / New Year*"),
+  suppliedHoliday("2028-10-19", "Bhai Dooj / Bhaubeej"),
+];
+
+export const HOLIDAYS_2029: Holiday2026[] = [
+  suppliedHoliday("2029-01-01", "English New Year"),
+  suppliedHoliday("2029-01-26", "Republic Day", true),
+  suppliedHoliday("2029-02-11", "Maha Shivratri"),
+  suppliedHoliday("2029-03-01", "Holi - Day 2"),
+  suppliedHoliday("2029-04-14", "Gudhi Padwa"),
+  suppliedHoliday("2029-05-01", "Maharashtra Day"),
+  suppliedHoliday("2029-08-15", "Independence Day", true),
+  suppliedHoliday("2029-08-23", "Raksha Bandhan"),
+  suppliedHoliday("2029-09-01", "Janmashtami"),
+  suppliedHoliday("2029-09-11", "Ganpati - Day 1 / Ganesh Chaturthi"),
+  suppliedHoliday("2029-09-21", "Ganpati - Final Day / Anant Chaturdashi*"),
+  suppliedHoliday("2029-10-16", "Dussehra"),
+  suppliedHoliday("2029-11-05", "Diwali / Laxmi Pujan"),
+  suppliedHoliday("2029-11-06", "Diwali Padwa / New Year*"),
+  suppliedHoliday("2029-11-07", "Bhai Dooj / Bhaubeej"),
+];
+
+export const HOLIDAYS_2030: Holiday2026[] = [
+  suppliedHoliday("2030-01-01", "English New Year"),
+  suppliedHoliday("2030-01-26", "Republic Day", true),
+  suppliedHoliday("2030-03-02", "Maha Shivratri"),
+  suppliedHoliday("2030-03-20", "Holi - Day 2"),
+  suppliedHoliday("2030-04-03", "Gudhi Padwa"),
+  suppliedHoliday("2030-05-01", "Maharashtra Day"),
+  suppliedHoliday("2030-08-13", "Raksha Bandhan"),
+  suppliedHoliday("2030-08-15", "Independence Day", true),
+  suppliedHoliday("2030-08-21", "Janmashtami"),
+  suppliedHoliday("2030-09-01", "Ganpati - Day 1 / Ganesh Chaturthi"),
+  suppliedHoliday("2030-09-11", "Ganpati - Final Day / Anant Chaturdashi*"),
+  suppliedHoliday("2030-10-06", "Dussehra"),
+  suppliedHoliday("2030-10-26", "Diwali / Laxmi Pujan"),
+  suppliedHoliday("2030-10-27", "Diwali Padwa / New Year*"),
+  suppliedHoliday("2030-10-28", "Bhai Dooj / Bhaubeej"),
+];
+
+export const HOLIDAYS_2031: Holiday2026[] = [
+  suppliedHoliday("2031-01-01", "English New Year"),
 ];
 
 export interface HolidayQuarter {
@@ -201,23 +245,27 @@ export const MANAGEMENT_DISCRETION_CLOSING =
    ────────────────────────────────────────────────────────────────────────── */
 
 /** The years the picker offers. */
-export const HOLIDAY_YEARS = [2026, 2027, 2028] as const;
+export const HOLIDAY_YEARS = [2026, 2027, 2028, 2029, 2030, 2031] as const;
 export type HolidayYear = (typeof HOLIDAY_YEARS)[number];
 
 /**
  * Holidays per year.
  *
- * All three years are supplied lists, not derived ones. Most of these dates move
+ * All years are supplied lists, not derived ones. Most of these dates move
  * every year on a lunar calendar, so a year can only ever be added by pasting
  * the real list - never by shifting the previous year's.
  *
- * To add 2029: define HOLIDAYS_2029 above, add it to HOLIDAY_YEARS, and put it
+ * To add another year: define its HOLIDAYS_<year> data above, add it to
+ * HOLIDAY_YEARS, and put it
  * here. It appears in the picker automatically.
  */
 const HOLIDAYS_BY_YEAR: Record<HolidayYear, Holiday2026[]> = {
   2026: HOLIDAYS_2026,
   2027: HOLIDAYS_2027,
   2028: HOLIDAYS_2028,
+  2029: HOLIDAYS_2029,
+  2030: HOLIDAYS_2030,
+  2031: HOLIDAYS_2031,
 };
 
 export function isHolidayYear(v: number): v is HolidayYear {
@@ -258,7 +306,7 @@ export const HOLIDAY_MONTH_ALL = 0;
  * server time - a server in another zone must not show a Mumbai employee the
  * wrong month for several hours a day.
  *
- * The year is clamped into HOLIDAY_YEARS so that once 2029 arrives the page
+ * The year is clamped into HOLIDAY_YEARS so that once 2032 arrives the page
  * still opens on something real instead of an empty year that isn't offered.
  */
 export function defaultHolidayFilter(todayYmd: string): { year: HolidayYear; month: number } {
