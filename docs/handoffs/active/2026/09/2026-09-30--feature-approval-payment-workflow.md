@@ -3,7 +3,7 @@
 - Date: 2026-09-30
 - Work item: `feature/approval-payment-workflow`
 - Base commit: `71d75215`
-- Status: Implemented locally; migration is not applied and no changes were pushed.
+- Status: Integrated into the `Vinal` branch; migration is not applied.
 
 ## Objective
 
@@ -49,3 +49,9 @@ Apply `db/migrations/0256_compensation_approval_workflow.sql` through the approv
 - Run complete `pnpm typecheck`, focused lint, and the relevant payment/approval integration tests in a normal development shell before review.
 - Review the existing salary and legacy incentive-payout pages during QA: the new Accounts queue is the controlled payment route; any legacy payment UI that remains enabled should be retired or routed through `compensation_approvals` before release.
 - Preserve unrelated uncommitted HR and holiday changes present in the worktree.
+
+## Branch integration
+
+- Latest `origin/main` was merged into `Vinal` before this feature was merged.
+- The merges completed without conflicts.
+- Post-merge focused holiday regression passed (52 tests) and `git diff --check` passed.
