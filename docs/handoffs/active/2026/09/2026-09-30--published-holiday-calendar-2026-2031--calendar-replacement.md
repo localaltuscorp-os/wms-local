@@ -2,7 +2,9 @@
 
 - **Date:** 2026-09-30
 - **Branch:** `feature/published-holiday-calendar-2026-2031`
-- **Status:** Ready for feature-branch preview push; not released to production
+- **Status:** Approved for isolated production promotion; Vercel deployment pending
+- **Approved development commit:** `3b4c904764d2b760ca87675650c0df8b54d7baa6`
+- **Production release branch:** `release/holiday-calendar-2026-2031`
 
 ## Objective
 
@@ -48,12 +50,38 @@ The supplied calendar replaces the existing published lists, including the 2026 
 - `git diff --check` passed. No email or credential patterns were found in the
   tracked source/test diff, and this handoff contains no personal data or
   credentials.
+- Production-base focused validation on `fork/main` passed: `pnpm exec vitest
+  run tests/unit/holiday-calendar.test.ts
+  tests/unit/holiday-leave-remote-salary-chain.test.ts
+  tests/unit/company-holidays-merge.test.ts tests/unit/adhoc-holiday.test.ts`
+  completed with 4 files and 107 tests passing.
+- Production-base `pnpm typecheck` equivalent (`tsc --noEmit` with a 6 GB Node
+  heap) passed.
+- A local production-build attempt did not reach application compilation
+  because Turbopack rejected the isolated worktree's external dependency
+  junction. Dependencies were then installed locally, but the subsequent build
+  was interrupted before completion. Vercel's production build remains the
+  deployment gate and must be verified after the `fork/main` push.
 
 ## Remaining work
 
-- Commit and push this feature branch to the Development Repository for preview
-  validation.
+- Push the isolated release commit to `fork/main`; this repository branch is the
+  configured Vercel production source and the push should trigger the production
+  build automatically.
+- Verify that Vercel reports the deployment as Ready and that the live Holiday
+  List shows the replacement calendar.
 - The shared static source needs no SQL migration or database data update.
-- The full unit-suite baseline still has 26 unrelated failures, so production
-  promotion must wait for that baseline to be repaired and release approval to
-  be completed. No production update or deployment has occurred.
+- The full unit-suite baseline still has 26 previously recorded unrelated
+  failures. The release owner explicitly approved this isolated holiday-only
+  promotion based on the focused tests and typecheck above.
+
+## Deployment and rollback
+
+- Scope: the four files from approved development commit `3b4c9047`; no other
+  unreleased `origin/main` commits are included.
+- Deployment trigger: normal, non-force push to `fork/main`; Vercel builds and
+  promotes that branch automatically.
+- Database/migrations: none.
+- Rollback: revert the production release commit on a new release branch, run
+  the focused holiday tests, and normally push the resulting revert to
+  `fork/main`. Do not force-push or rewrite production history.
