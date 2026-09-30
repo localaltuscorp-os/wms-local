@@ -33,7 +33,7 @@ function PillRow({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex shrink-0 flex-nowrap items-center gap-1.5">
       {pills.map((p) => {
         const active = current === p.key;
         return (
@@ -70,7 +70,10 @@ export function QueueFilters({
   counts: { open: number; mine: number; unassigned: number; breaching: number };
 }) {
   return (
-    <div className="space-y-2.5">
+    <div
+      className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1"
+      aria-label="Ticket queue filters"
+    >
       <PillRow
         param="status"
         fallback="open"
@@ -81,26 +84,24 @@ export function QueueFilters({
           { key: "all", label: "All" },
         ]}
       />
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
-        <PillRow
-          param="assignee"
-          fallback="all"
-          pills={[
-            { key: "all", label: "Everyone" },
-            { key: "me", label: "Mine", count: counts.mine },
-            { key: "unassigned", label: "Unassigned", count: counts.unassigned },
-          ]}
-        />
-        <PillRow
-          param="source"
-          fallback="all"
-          pills={[
-            { key: "all", label: "All Sources" },
-            { key: "support", label: "Tickets" },
-            { key: "query", label: "Ask HR" },
-          ]}
-        />
-      </div>
+      <PillRow
+        param="assignee"
+        fallback="all"
+        pills={[
+          { key: "all", label: "Everyone" },
+          { key: "me", label: "Mine", count: counts.mine },
+          { key: "unassigned", label: "Unassigned", count: counts.unassigned },
+        ]}
+      />
+      <PillRow
+        param="source"
+        fallback="all"
+        pills={[
+          { key: "all", label: "All Sources" },
+          { key: "support", label: "Tickets" },
+          { key: "query", label: "Ask HR" },
+        ]}
+      />
     </div>
   );
 }

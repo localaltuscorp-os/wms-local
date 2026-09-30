@@ -191,6 +191,16 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
           scrollbarWidth: "none",
         }}
       >
+        <Link
+          href="/hub"
+          aria-label="Altus — back to the dashboard"
+          title="Altus — back to the dashboard"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-1.5 text-[12.5px] font-bold text-slate-900 outline-none transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-red-500/45"
+        >
+          <img src="/logo.png" alt="" className="h-7 w-auto" />
+          <span className="whitespace-nowrap">Altus</span>
+        </Link>
+        <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-[rgba(15,23,42,0.12)]" />
         {listedModules(access).map((id) => {
           const m = MODULE_THEME[id];
           // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional

@@ -23,6 +23,7 @@ import {
   notifyIncentiveDecision,
   notifyIncentiveResubmitted,
 } from "@/lib/incentive/notifications/service";
+import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -58,6 +59,7 @@ export async function createIncentiveRequest(
   }
 
   revalidatePath("/incentive");
+  afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "incentive", actorId: me.id, employeeName: me.name }));
   return { ok: true, id: inserted.id };
 }
 

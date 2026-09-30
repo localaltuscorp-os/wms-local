@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  holidaysForYear,
   publishedHolidayDates,
   publishedHolidaysForYear,
   publishedHolidaysFrom,
@@ -207,6 +208,40 @@ describe("the published HR holiday calendar reaches attendance", () => {
     ]);
     expect(dates).not.toContain("2026-01-26");
     for (const d of dates) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("keeps the requested 2026/2027 corrections, names, and weekdays", () => {
+    const dateOf = (year: number, month: number, day: number) =>
+      `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const byDate = (year: number) =>
+      new Map(
+        holidaysForYear(year).map((holiday) => [
+          dateOf(year, holiday.month, holiday.dayNum),
+          holiday,
+        ]),
+      );
+
+    const holidays2026 = byDate(2026);
+    expect(holidays2026.has("2026-10-02")).toBe(false);
+    expect(holidays2026.has("2026-11-09")).toBe(false);
+    expect(holidays2026.has("2026-11-24")).toBe(false);
+    expect([...holidays2026.keys()].some((date) => date.startsWith("2026-12-"))).toBe(false);
+
+    const holidays2027 = byDate(2027);
+    expect(holidays2027.has("2027-03-23")).toBe(false);
+    expect(holidays2027.get("2027-03-22")).toMatchObject({
+      name: "Holi - Day 2",
+      day: "Monday",
+    });
+    expect(holidays2027.has("2027-09-13")).toBe(false);
+    expect(holidays2027.get("2027-09-14")).toMatchObject({
+      name: "Ganpati - Final Day / Anant Chaturdashi",
+      day: "Tuesday",
+    });
+    expect(holidays2027.get("2027-10-31")).toMatchObject({
+      name: "Bhai Dooj / Bhaubeej",
+      day: "Sunday",
+    });
   });
 
   it("covers every supplied calendar year, and is empty outside the supplied range", () => {

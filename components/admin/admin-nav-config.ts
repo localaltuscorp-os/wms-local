@@ -56,6 +56,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       // Employees screen keeps the invite, offboarding and previous-employee
       // flows, and this one is the master view with the workspace and bulk edit.
       { href: "/admin/employee-master" as Route, label: "Employee Master", Icon: IdCard },
+      { href: "/admin/approvals" as Route, label: "Approvals", Icon: ShieldCheck },
       // The org chart as a Kanban board. Sits directly under Employees because
       // it edits the same relationship the employee editor's Manager field does
       // — one write path (setReportingManager), two doors onto it.

@@ -6057,6 +6057,38 @@ export const moduleSubmissions = pgTable(
   ],
 );
 
+/**
+ * The financial-control record for one employee's attendance, incentive,
+ * reimbursement, or salary item.  The source tables keep owning the submitted
+ * data; this table only records the super-admin decision and Accounts handoff.
+ */
+export const compensationApprovals = pgTable(
+  "compensation_approvals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").$type<"attendance" | "incentive" | "reimbursement" | "salary">().notNull(),
+    subjectId: uuid("subject_id").notNull(),
+    employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    periodMonth: date("period_month"),
+    payableAmount: numeric("payable_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    status: text("status").$type<"pending" | "approved" | "rejected" | "paid">().notNull().default("pending"),
+    decisionNote: text("decision_note"),
+    decidedById: uuid("decided_by_id").references(() => employees.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    paidById: uuid("paid_by_id").references(() => employees.id, { onDelete: "set null" }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("compensation_approval_subject_uq").on(t.kind, t.subjectId),
+    index("compensation_approval_status_idx").on(t.kind, t.status, t.createdAt),
+    index("compensation_approval_employee_idx").on(t.employeeId, t.periodMonth),
+  ],
+);
+export type CompensationApproval = typeof compensationApprovals.$inferSelect;
+
 /** Admin-saved override of a form's field list (keyed by form_key). */
 export const formConfigs = pgTable("form_configs", {
   formKey: text("form_key").primaryKey(),
