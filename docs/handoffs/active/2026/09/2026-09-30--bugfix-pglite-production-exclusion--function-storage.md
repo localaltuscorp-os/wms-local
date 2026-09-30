@@ -12,8 +12,9 @@
 
 ## Status
 
-Implemented and verified locally. Not pushed, merged, deployed, or verified on
-the Vercel Usage dashboard.
+Implemented and verified locally in commit `d39dc150`. The branch is current
+with `origin/main` and approved for feature-branch push. It has not been merged,
+deployed, or verified on the Vercel Usage dashboard.
 
 ## Root cause
 
