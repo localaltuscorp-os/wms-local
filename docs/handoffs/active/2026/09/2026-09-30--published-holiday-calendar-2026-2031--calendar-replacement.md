@@ -63,25 +63,38 @@ The supplied calendar replaces the existing published lists, including the 2026 
   was interrupted before completion. Vercel's production build remains the
   deployment gate and must be verified after the `fork/main` push.
 
+## Production reconciliation follow-up
+
+- The Aura dashboard's holiday card now uses the same merged reader as Attendance instead of reading only `holidays`.
+- `scripts/reconcile-published-holidays.ts` provides a transaction-scoped dry run by default and requires `--apply` to mutate data. It upserts the published dates/labels, retires obsolete `holidays` rows, and marks obsolete `event_holidays` rows as not office-closed without deleting audit history.
+- Database rollback: restore the affected rows from the JSON dry-run/release evidence (their prior labels and active/office-closed flags). Application rollback is a normal revert of the release commits; no schema migration is involved.
+- Production dry-run result: 66 authoritative dates; 12 obsolete active `holidays` rows to retire; 10 obsolete office-closed `event_holidays` rows to retain as records but mark not office-closed. The dry run rolled back without mutation.
+- Follow-up validation: focused holiday suites passed (4 files, 107 tests); targeted ESLint passed; TypeScript passed with a 6144 MB heap. The production-base Next.js build completed successfully after loading the local validation environment (compile, TypeScript, page-data collection, and 36 static pages).
+
 ## Remaining work
 
 - Push the isolated release commit to `fork/main`; this repository branch is the
   configured Vercel production source and the push should trigger the production
   build automatically.
+- Run the verified reconciliation with `--apply`, then verify the active database
+  set and the live Attendance/Holiday List output.
 - Verify that Vercel reports the deployment as Ready and that the live Holiday
   List shows the replacement calendar.
-- The shared static source needs no SQL migration or database data update.
+- No schema migration is required; one controlled data reconciliation is required.
 - The full unit-suite baseline still has 26 previously recorded unrelated
   failures. The release owner explicitly approved this isolated holiday-only
   promotion based on the focused tests and typecheck above.
 
 ## Deployment and rollback
 
-- Scope: the four files from approved development commit `3b4c9047`; no other
+- Scope: approved development commits `3b4c9047` and `71d75215`; no other
   unreleased `origin/main` commits are included.
 - Deployment trigger: normal, non-force push to `fork/main`; Vercel builds and
   promotes that branch automatically.
-- Database/migrations: none.
+- Database/migrations: no schema migration. The reconciliation preserves rows,
+  deactivates obsolete admin holidays, and clears office-closed only on obsolete
+  event holidays.
 - Rollback: revert the production release commit on a new release branch, run
   the focused holiday tests, and normally push the resulting revert to
-  `fork/main`. Do not force-push or rewrite production history.
+  `fork/main`. Restore the recorded prior database flags/labels if a data rollback
+  is required. Do not force-push or rewrite production history.
