@@ -43,6 +43,14 @@
 - Do not introduce frameworks or infrastructure without approval.
 - Preserve existing functionality unless the task explicitly requires a behavior change.
 
+## PGlite and production-build safety
+
+- PGlite is permitted only for local dummy mode and isolated automated tests.
+- Never include, bundle, externalize, trace, or deploy `@electric-sql/pglite`, its WASM/data files, or `drizzle-orm/pglite` in a production build or Vercel function.
+- Keep production imports and configuration unable to statically resolve PGlite. Local dummy-mode loading must remain explicitly development-only.
+- After changing database bootstrap code, `next.config.ts`, dependencies, or function tracing, run a production build followed by `pnpm check:leaks`.
+- A production build is not acceptable if compiled server chunks or `.next/server/**/*.nft.json` contain a deployable PGlite reference. Do not push or deploy until the trace count is zero.
+
 ## Testing commands
 
 Available repository commands:
