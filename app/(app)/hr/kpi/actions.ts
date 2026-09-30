@@ -64,6 +64,7 @@ export interface KpiAssignmentDTO {
   currentValue: string | null;
   applicable: boolean;
   status: string;
+  archived: boolean;
   updatedAt: string;
   /** "assigned" = a real saved KPI; "dictionary" = inherited from the appraisal
    *  KPI dictionary (not yet saved here) — shown read-only until adopted. */
@@ -84,13 +85,15 @@ function toDTO(r: KpiAssignment): KpiAssignmentDTO {
     currentValue: r.currentValue,
     applicable: r.applicable,
     status: r.status,
+    archived: r.archived,
     updatedAt: r.updatedAt.toISOString(),
     source: "assigned",
   };
 }
 
-/** A person's non-archived KPI assignments for a quarter (all quarters when
- *  `quarter` is null/empty). Newest-updated first. */
+/** A person's KPI assignments for a quarter (all quarters when `quarter` is
+ *  null/empty). Archived rows are included so the UI can filter and restore
+ *  them; inherited appraisal KPIs are suppressed by matching archive rows. */
 export async function loadKpiAssignments(
   employeeId: string,
   quarter?: string | null,
@@ -99,7 +102,6 @@ export async function loadKpiAssignments(
   if (!z.string().uuid().safeParse(employeeId).success) return [];
   const conds = [
     eq(kpiAssignments.employeeId, employeeId),
-    eq(kpiAssignments.archived, false),
   ];
   if (quarter && isQuarterLabel(quarter)) {
     conds.push(eq(kpiAssignments.effectiveQuarter, quarter));
@@ -109,7 +111,9 @@ export async function loadKpiAssignments(
     .from(kpiAssignments)
     .where(and(...conds))
     .orderBy(desc(kpiAssignments.updatedAt));
-  const assigned = rows.map(toDTO);
+  const saved = rows.map(toDTO);
+  const assigned = saved.filter((row) => !row.archived);
+  const archived = saved.filter((row) => row.archived);
 
   // Surface the person's EXISTING appraisal-dictionary KPIs as inherited rows so
   // HR sees what's already set (even before adopting them here). Any dictionary
@@ -125,10 +129,17 @@ export async function loadKpiAssignments(
   if (target) {
     const coveredKeys = new Set(assigned.map((a) => a.kpiKey).filter(Boolean) as string[]);
     const coveredNames = new Set(assigned.map((a) => a.kpiName.trim().toLowerCase()));
+    const archivedKeys = new Set(archived.map((a) => a.kpiKey).filter(Boolean) as string[]);
+    const archivedNames = new Set(archived.map((a) => a.kpiName.trim().toLowerCase()));
     const q = quarter && isQuarterLabel(quarter) ? quarter : currentQuarter();
     const now = new Date().toISOString();
     for (const line of target.lines) {
-      if (coveredKeys.has(line.id) || coveredNames.has(line.label.trim().toLowerCase())) continue;
+      if (
+        coveredKeys.has(line.id) ||
+        coveredNames.has(line.label.trim().toLowerCase()) ||
+        archivedKeys.has(line.id) ||
+        archivedNames.has(line.label.trim().toLowerCase())
+      ) continue;
       assigned.push({
         id: `dict:${line.id}`,
         employeeId,
@@ -142,12 +153,13 @@ export async function loadKpiAssignments(
         currentValue: null,
         applicable: true,
         status: "active",
+        archived: false,
         updatedAt: now,
         source: "dictionary",
       });
     }
   }
-  return assigned;
+  return [...assigned, ...archived];
 }
 
 export interface KpiHistoryDTO {
@@ -569,5 +581,117 @@ export async function removeKpiAssignment(
     return { ok: true, id: after.id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Remove failed." };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Archive inherited appraisal KPI                                     */
+/* ------------------------------------------------------------------ */
+
+const ArchiveInheritedSchema = z.object({
+  employeeId: z.string().uuid(),
+  kpiKey: z.string().min(1).max(120),
+  kpiName: z.string().trim().min(1).max(240),
+  category: z.string().max(120).default(""),
+  frequency: z.enum(KPI_FREQUENCIES),
+  weightage: z.coerce.number().int().min(0).max(100),
+  effectiveQuarter: z.string().refine(isQuarterLabel, "Invalid quarter."),
+  targetValue: z.string().max(200).default(""),
+});
+
+/**
+ * Hide one appraisal-derived KPI for one employee and quarter without editing
+ * the shared appraisal source. An archived assignment is an auditable
+ * tombstone: the loader sees it and suppresses only that inherited row.
+ */
+export async function archiveInheritedKpi(
+  input: z.input<typeof ArchiveInheritedSchema>,
+): Promise<Result<{ id: string }>> {
+  const me = await requireHrStaff();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = ArchiveInheritedSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid KPI." };
+  const v = parsed.data;
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(kpiAssignments)
+      .where(and(
+        eq(kpiAssignments.employeeId, v.employeeId),
+        eq(kpiAssignments.effectiveQuarter, v.effectiveQuarter),
+        eq(kpiAssignments.kpiKey, v.kpiKey),
+      ))
+      .limit(1);
+    if (existing?.archived) return { ok: true, id: existing.id };
+    if (existing) return { ok: false, error: "This KPI is already managed as an assignment." };
+
+    const [row] = await db
+      .insert(kpiAssignments)
+      .values({
+        employeeId: v.employeeId,
+        kpiKey: v.kpiKey,
+        kpiName: v.kpiName,
+        category: v.category,
+        frequency: v.frequency,
+        weightage: v.weightage,
+        effectiveQuarter: v.effectiveQuarter,
+        targetValue: v.targetValue,
+        applicable: false,
+        status: "inactive",
+        archived: true,
+        createdById: me.id,
+        updatedById: me.id,
+      })
+      .returning();
+    if (!row) return { ok: false, error: "Could not archive the KPI." };
+
+    await recordAndNotify({
+      assignment: row,
+      changeType: "removed",
+      previous: null,
+      updated: snapshot(row),
+      changedById: me.id,
+      changedByName: me.name,
+      reason: "Archived inherited appraisal KPI for this employee and quarter.",
+    });
+    revalidatePath("/hr/kpi");
+    return { ok: true, id: row.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not archive the KPI." };
+  }
+}
+
+/** Restore an archived assignment, including a previously hidden inherited KPI. */
+export async function restoreKpiAssignment(id: string): Promise<Result<{ id: string }>> {
+  const me = await requireHrStaff();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Invalid KPI." };
+
+  try {
+    const [before] = await db.select().from(kpiAssignments).where(eq(kpiAssignments.id, id)).limit(1);
+    if (!before) return { ok: false, error: "That KPI assignment no longer exists." };
+    if (!before.archived) return { ok: true, id: before.id };
+    const [after] = await db
+      .update(kpiAssignments)
+      .set({ archived: false, status: "active", applicable: true, updatedById: me.id, updatedAt: new Date() })
+      .where(eq(kpiAssignments.id, id))
+      .returning();
+    if (!after) return { ok: false, error: "Could not restore the KPI." };
+    await recordAndNotify({
+      assignment: after,
+      changeType: "activated",
+      previous: snapshot(before),
+      updated: snapshot(after),
+      changedById: me.id,
+      changedByName: me.name,
+      reason: "Restored from archive.",
+    });
+    revalidatePath("/hr/kpi");
+    return { ok: true, id: after.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not restore the KPI." };
   }
 }
