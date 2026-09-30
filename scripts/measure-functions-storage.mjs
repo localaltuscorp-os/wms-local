@@ -133,6 +133,17 @@ function literalRefs(spec) {
   return new RegExp(`(?:require|import)\\(\\s*["'\`]${escaped}(?:/|["'\`])`);
 }
 
+/** Every *.nft.json under .next/server, recursively. */
+function traces(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...traces(full));
+    else if (entry.name.endsWith(".nft.json")) out.push(full);
+  }
+  return out;
+}
+
 if (argv.includes("--leaks")) {
   const files = jsFiles(SERVER);
   if (files.length === 0) {
@@ -160,6 +171,18 @@ if (argv.includes("--leaks")) {
   }
   const rows = matchers.map(({ spec, count }) => ({ spec, count }));
 
+  // External packages can be absent from emitted JavaScript while Next still
+  // copies them through NFT deployment traces. PGlite is local-only, so even
+  // one production function trace containing it is a leak.
+  let pgliteTraces = 0;
+  for (const file of traces(SERVER)) {
+    try {
+      if (readFileSync(file, "utf8").includes("@electric-sql/pglite")) pgliteTraces++;
+    } catch {
+      // Ignore a trace replaced concurrently by a build.
+    }
+  }
+
   rows.sort((a, b) => b.count - a.count);
   let leaked = 0;
   for (const { spec, count } of rows) {
@@ -169,6 +192,12 @@ if (argv.includes("--leaks")) {
     const verdict = count === 0 ? "clean" : count <= 5 ? "scoped" : "LEAK";
     if (verdict === "LEAK") leaked++;
     console.log(`  ${verdict.padEnd(7)} ${String(count).padStart(4)} files   ${spec}`);
+  }
+  if (pgliteTraces > 0) {
+    leaked++;
+    console.log(`  LEAK    ${String(pgliteTraces).padStart(4)} traces  @electric-sql/pglite (NFT)`);
+  } else {
+    console.log("  clean      0 traces  @electric-sql/pglite (NFT)");
   }
 
   console.log(
@@ -180,17 +209,6 @@ if (argv.includes("--leaks")) {
           "variable specifier, then re-run this check on a fresh build.\n",
   );
   process.exit(leaked === 0 ? 0 : 1);
-}
-
-/** Every *.nft.json under .next/server, recursively. */
-function traces(dir) {
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...traces(full));
-    else if (entry.name.endsWith(".nft.json")) out.push(full);
-  }
-  return out;
 }
 
 /**
