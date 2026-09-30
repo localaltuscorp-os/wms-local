@@ -4,6 +4,7 @@ import path from "node:path";
 import { codeOf } from "../fixtures/source-code";
 import { departments, departmentsBackup, functions } from "@/db/schema";
 import { ADMIN_GROUPS } from "@/components/admin/admin-nav-config";
+import { DROP_DOWN_MASTER_MODULES } from "@/lib/admin/drop-down-master";
 import {
   allPermissionNodes,
   isPermissionNodeKey,
@@ -124,13 +125,14 @@ describe("the screen moved to /admin/functions", () => {
     expect(exists("app/(admin)/admin/departments/actions.ts")).toBe(false);
   });
 
-  it("the admin nav offers Functions and no longer offers Departments", () => {
-    const items = ADMIN_GROUPS.flatMap((g) => g.items);
+  it("Dropdown offers Functions and no longer offers Departments", () => {
+    const items = DROP_DOWN_MASTER_MODULES.flatMap((g) => g.entries);
     const fn = items.find((i) => i.href === "/admin/functions");
     expect(fn).toBeTruthy();
     expect(fn!.label).toBe("Functions");
     expect(items.some((i) => i.label === "Departments")).toBe(false);
     expect(items.some((i) => i.href === "/admin/departments")).toBe(false);
+    expect(ADMIN_GROUPS.flatMap((g) => g.items).some((i) => i.href === "/admin/functions")).toBe(false);
   });
 
   it("the permission node is relabelled but KEEPS its key", () => {

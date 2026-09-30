@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { BookUser } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { listAddressBook } from "@/lib/queries/billing-customers";
 import { CARD_STYLE, BILLING_PURPLE } from "@/lib/billing/ui";
 
@@ -47,15 +48,8 @@ export default async function CustomerAddressBookPage() {
 
   return (
     <PageShell width="wide">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
       <h1
-        className="mt-1 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(24px,2.8vw,34px)",
-          letterSpacing: "-0.025em",
-        }}
+        style={PAGE_COMMAND_BAR_TITLE_STYLE}
       >
         Customer Address Book
       </h1>

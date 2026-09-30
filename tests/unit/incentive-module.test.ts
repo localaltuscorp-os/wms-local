@@ -143,7 +143,6 @@ describe("the Incentive module's internal navigation", () => {
       "requests",
       "targets",
       "entries",
-      "status",
       "billing",
     ]);
     expect(railTabs).toEqual(pageAreas);
@@ -159,11 +158,9 @@ describe("the Incentive module's internal navigation", () => {
     expect([...beforeDefault.matchAll(/tab: "(\w+)"/g)].pop()?.[1]).toBe("dashboard");
   });
 
-  it("keeps Entries and Status admin-only, exactly as the tab strip does", () => {
-    for (const area of ["entries", "status"]) {
-      const line = railBlock.split("\n").find((l) => l.includes(`tab: "${area}"`));
-      expect(line, area).toContain("adminOnly: true");
-    }
+  it("keeps Entries admin-only", () => {
+    const line = railBlock.split("\n").find((l) => l.includes('tab: "entries"'));
+    expect(line).toContain("adminOnly: true");
   });
 
   it("keeps the rail hrefs bare, so the permission node still resolves", () => {

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { listBillingEntities } from "@/lib/billing/entities";
 import { BILLING_DOC_TYPE_LABELS } from "@/db/enums";
 import {
@@ -100,13 +101,8 @@ export default async function EditBillingDocumentPage({
     <PageShell width="wide">
       <BackLink id={id} />
       <h1
-        className="mb-4 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(22px,2.4vw,30px)",
-          letterSpacing: "-0.02em",
-        }}
+        className="mb-4"
+        style={PAGE_COMMAND_BAR_TITLE_STYLE}
       >
         Edit {d.docNo ?? BILLING_DOC_TYPE_LABELS[d.docType].toLowerCase()}
       </h1>

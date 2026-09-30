@@ -271,6 +271,8 @@ export interface EmployeeMasterRow {
   /** The office mail shown under the name — `official_email` where set, else the
    *  login address, because the column must never be blank for a live employee. */
   officeEmail: string;
+  officialEmail: string | null;
+  loginEmail: string;
   personalEmail: string | null;
   phone: string | null;
   whatsapp: string | null;
@@ -457,6 +459,8 @@ export async function loadEmployeeMasterRows(
         designationType: r.designationEmployeeType,
       }),
       officeEmail: r.officialEmail ?? r.email,
+      officialEmail: r.officialEmail,
+      loginEmail: r.email,
       annualCtc: annual,
       monthlyCtc: annual == null ? null : Math.round((annual / 12) * 100) / 100,
       tdsMonthly: r.tdsMonthly == null ? null : Number(r.tdsMonthly),

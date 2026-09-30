@@ -51,7 +51,6 @@ import { IncentiveSection, Segmented } from "../ui/chrome";
 import { IncentiveKpi, IncentiveKpiRow } from "../ui/kpi";
 import { IncentiveEmptyState } from "../ui/states";
 import { GRADE_TONE, SUMMARY_TONE, toneBase, toneFill, toneInk, type Tone } from "../ui/tone";
-import { PeriodProgress } from "./period-progress";
 
 /**
  * INCENTIVE DASHBOARD — the view.
@@ -369,23 +368,6 @@ export function IncentiveAnalyticsDashboard({
           ))}
         </IncentiveKpiRow>
       </section>
-
-      {/* ── Target vs Actual, and the shape of the period ──
-          Directly under the KPI band. A company or team viewer already has the
-          totals in the Team summary below; somebody viewing their OWN dashboard
-          has no team, so that summary is not drawn for them and Target, Actual
-          and Attainment would not appear as figures anywhere on the page. This
-          is where they live, with the bar that relates them and the months that
-          did the work. Collapses to one line when the period holds nothing —
-          see PeriodProgress. */}
-      <PeriodProgress
-        label={data.period.label}
-        scopeLabel={data.scope.label}
-        earned={data.summary.earned}
-        target={data.summary.target}
-        difference={data.summary.target === null ? null : data.summary.earned - data.summary.target}
-        monthly={data.monthly}
-      />
 
       {/* ── Performance ── */}
       {teamCount && <TeamSummary data={data} />}

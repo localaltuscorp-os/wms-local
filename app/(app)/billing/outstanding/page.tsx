@@ -30,6 +30,7 @@ import { listActiveClientNames } from "@/lib/queries/clients";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { OUTSTANDING_CYCLES, OUTSTANDING_CYCLE_LABELS } from "@/db/enums";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -129,23 +130,10 @@ export default async function OutstandingPage({ searchParams }: PageProps) {
         <header className="mb-7 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1
-              className="text-ink-strong"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(40px, 4.2vw, 56px)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1,
-              }}
+              style={PAGE_COMMAND_BAR_TITLE_STYLE}
             >
               Outstanding Dashboard
             </h1>
-            <p
-              className="mt-2 text-ink-muted font-semibold"
-              style={{ fontSize: 18 }}
-            >
-              Outstanding payment monitoring
-            </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             {isAdmin && (

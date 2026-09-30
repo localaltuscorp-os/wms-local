@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import {
   CheckCircle2,
   Download,
@@ -233,15 +234,8 @@ export function CustomerMasterView({
     <>
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
           <h1
-            className="mt-1 text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(24px,2.8vw,34px)",
-              letterSpacing: "-0.025em",
-            }}
+            style={PAGE_COMMAND_BAR_TITLE_STYLE}
           >
             Customer Master
           </h1>

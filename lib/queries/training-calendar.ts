@@ -46,6 +46,7 @@ export interface SessionListRow {
   criticality: number;
   trainerId: string | null;
   trainerName: string | null;
+  createdById: string | null;
   scheduledAt: string; // ISO
   durationMin: number;
   mode: SessionMode;
@@ -105,6 +106,7 @@ export async function listSessions(opts: {
           criticality: tcSessions.criticality,
           trainerId: tcSessions.trainerId,
           trainerName: employees.name,
+          createdById: tcSessions.createdById,
           scheduledAt: tcSessions.scheduledAt,
           durationMin: tcSessions.durationMin,
           mode: tcSessions.mode,
@@ -138,6 +140,7 @@ export async function listSessions(opts: {
     criticality: r.criticality,
     trainerId: r.trainerId,
     trainerName: r.trainerName,
+    createdById: r.createdById,
     scheduledAt: r.scheduledAt.toISOString(),
     durationMin: r.durationMin,
     mode: r.mode as SessionMode,

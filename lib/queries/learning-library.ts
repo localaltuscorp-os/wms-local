@@ -8,6 +8,7 @@ import { isFounderEmail } from "@/lib/auth/founder";
 /** The Self-Learning Library — every visible employee's logged learning. */
 export interface SelfLearningLibraryRow {
   id: string;
+  employeeId: string;
   employeeName: string;
   functionName: string | null;
   title: string;
@@ -27,6 +28,7 @@ export async function listSelfLearningLibrary(
   const rows = await db
     .select({
       id: tcSelfLearning.id,
+      employeeId: tcSelfLearning.employeeId,
       employeeName: employees.name,
       functionName: functions.name,
       title: tcSelfLearning.title,
@@ -48,6 +50,7 @@ export async function listSelfLearningLibrary(
 
   return rows.map((r) => ({
     id: r.id,
+    employeeId: r.employeeId,
     employeeName: r.employeeName,
     functionName: r.functionName,
     title: r.title,
@@ -60,6 +63,7 @@ export async function listSelfLearningLibrary(
 /** The Learning-Share Library — weekly shares with the presenter's name. */
 export interface ShareLibraryRow {
   id: string;
+  employeeId: string;
   employeeName: string;
   topic: string;
   minutes: number;
@@ -70,6 +74,7 @@ export async function listShareLibrary(from: string, to: string): Promise<ShareL
   const rows = await db
     .select({
       id: tcShares.id,
+      employeeId: tcShares.employeeId,
       employeeName: employees.name,
       topic: tcShares.topic,
       minutes: tcShares.minutes,
@@ -82,6 +87,7 @@ export async function listShareLibrary(from: string, to: string): Promise<ShareL
 
   return rows.map((r) => ({
     id: r.id,
+    employeeId: r.employeeId,
     employeeName: r.employeeName,
     topic: r.topic,
     minutes: r.minutes,

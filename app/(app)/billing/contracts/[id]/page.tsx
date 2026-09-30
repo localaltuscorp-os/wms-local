@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Paperclip } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { listBillingEntities } from "@/lib/billing/entities";
 import { CONTRACT_PAYMENT_TYPE_LABELS, CONTRACT_STATUS_LABELS } from "@/db/enums";
 import { getContract } from "@/lib/queries/billing-contracts";
@@ -41,8 +42,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
           <ArrowLeft size={14} /> All Contracts
         </Link>
         <h1
-          className="text-ink-strong"
-          style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(22px,2.6vw,30px)", letterSpacing: "-0.02em" }}
+          style={PAGE_COMMAND_BAR_TITLE_STYLE}
         >
           {c.customerName}
         </h1>

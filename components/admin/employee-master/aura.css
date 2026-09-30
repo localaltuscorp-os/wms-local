@@ -400,7 +400,11 @@
   font-weight: 600;
   color: var(--ink-2);
   min-height: 36px;
+  overflow-wrap: anywhere;
 }
+
+.aura .email-ctl { min-width: 0; }
+.aura .email-readout, .aura .address-readout { word-break: break-word; }
 
 .aura .check {
   display: flex;

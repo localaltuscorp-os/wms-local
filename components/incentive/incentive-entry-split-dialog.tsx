@@ -9,8 +9,8 @@ import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { formatInr } from "@/lib/format";
 import { fireToast } from "@/lib/toast";
 import type { EmployeeOption } from "@/lib/queries/employees";
-import type { IncentiveEntryStatusRow } from "@/lib/queries/incentive-status";
-import { getIncentiveSplit, saveIncentiveSplit } from "@/app/(app)/incentive/status-actions";
+import type { IncentiveEntryAdminRow } from "@/lib/queries/incentives";
+import { getIncentiveEntrySplit, saveIncentiveEntrySplit } from "@/app/(app)/incentive/admin-actions";
 
 const GREEN = "#16a34a";
 const GREEN_DEEP = "#15803d";
@@ -37,12 +37,12 @@ const blank = (): Share => ({ empName: "", employeeId: null, booked: "", accrued
  * Accrued / Paid share. Saving REPLACES the whole participant set; the canonical
  * PAID producer then folds these rows in place of the parent's own amounts.
  */
-export function IncentiveTeamSplit({
+export function IncentiveEntrySplitDialog({
   row,
   employees,
   onClose,
 }: {
-  row: IncentiveEntryStatusRow | null;
+  row: IncentiveEntryAdminRow | null;
   employees: EmployeeOption[];
   onClose: () => void;
 }) {
@@ -58,7 +58,7 @@ export function IncentiveTeamSplit({
     setLoading(true);
     setShares([blank()]);
     (async () => {
-      const res = await getIncentiveSplit("entry", row.id);
+      const res = await getIncentiveEntrySplit({ id: row.id });
       if (cancelled) return;
       setLoading(false);
       if (res.ok && res.rows.length) {
@@ -77,9 +77,9 @@ export function IncentiveTeamSplit({
           {
             empName: row.empName,
             employeeId: row.employeeId,
-            booked: row.booked ? String(row.booked) : "",
-            accrued: row.accrued ? String(row.accrued) : "",
-            paid: row.paid ? String(row.paid) : "",
+            booked: row.bookedAmt ? String(row.bookedAmt) : "",
+            accrued: row.accruedAmt ? String(row.accruedAmt) : "",
+            paid: row.paidAmt ? String(row.paidAmt) : "",
           },
         ]);
       }
@@ -124,9 +124,8 @@ export function IncentiveTeamSplit({
       return;
     }
     startTransition(async () => {
-      const res = await saveIncentiveSplit({
-        parentKind: "entry",
-        parentId: row.id,
+      const res = await saveIncentiveEntrySplit({
+        id: row.id,
         periodMonth: row.periodMonth,
         shares: clean.map((s) => ({
           empName: s.empName.trim(),
@@ -149,9 +148,8 @@ export function IncentiveTeamSplit({
   async function clearSplit() {
     if (!row) return;
     startTransition(async () => {
-      const res = await saveIncentiveSplit({
-        parentKind: "entry",
-        parentId: row.id,
+      const res = await saveIncentiveEntrySplit({
+        id: row.id,
         periodMonth: row.periodMonth,
         shares: [],
       });

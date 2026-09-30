@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { employees, incentiveEntries, incentiveTargets } from "@/db/schema";
+import { employees, incentiveEntries, incentiveParticipants, incentiveTargets } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import {
@@ -55,6 +55,8 @@ const EntryShape = {
   approved: z.boolean().default(false),
   approvedAmt: money.default(0),
   approvedDate: dateStr,
+  bookedAmt: money.default(0),
+  accruedAmt: money.default(0),
   paid: z.boolean().default(false),
   paidAmt: money.default(0),
   paidDate: dateStr,
@@ -118,6 +120,8 @@ export async function createIncentiveEntry(
       approved: v.approved,
       approvedAmt: money2(v.approvedAmt),
       approvedDate: v.approvedDate ?? null,
+      bookedAmt: money2(v.bookedAmt),
+      accruedAmt: money2(v.accruedAmt),
       paid: v.paid,
       paidAmt: money2(v.paidAmt),
       paidDate: v.paidDate ?? null,
@@ -178,6 +182,8 @@ export async function updateIncentiveEntry(
         approved: v.approved,
         approvedAmt: money2(v.approvedAmt),
         approvedDate: v.approvedDate ?? null,
+        bookedAmt: money2(v.bookedAmt),
+        accruedAmt: money2(v.accruedAmt),
         paid: v.paid,
         paidAmt: money2(v.paidAmt),
         paidDate: v.paidDate ?? null,
@@ -230,6 +236,140 @@ export async function deleteIncentiveEntry(
   await db.delete(incentiveEntries).where(eq(incentiveEntries.id, id.data));
   revalidatePath("/incentive");
   return { ok: true };
+}
+
+// --- entry team splits (admin) ---------------------------------------------
+
+const ParticipantShareSchema = z.object({
+  empName: z.string().trim().min(1, "Name is required").max(160),
+  employeeId: z.string().uuid().nullable().optional(),
+  bookedAmt: money.default(0),
+  accruedAmt: money.default(0),
+  paidAmt: money.default(0),
+  paidDate: dateStr,
+  note: z.string().trim().max(2000).nullable().optional(),
+});
+
+const SaveEntrySplitSchema = z.object({
+  id: z.string().uuid(),
+  periodMonth: dateStr,
+  shares: z.array(ParticipantShareSchema).max(40),
+}).strict();
+
+export interface IncentiveEntryParticipant {
+  id: string;
+  empName: string;
+  employeeId: string | null;
+  booked: number;
+  accrued: number;
+  paid: number;
+  paidDate: string | null;
+  note: string | null;
+}
+
+/** Read the current participant split for one permanent incentive entry. */
+export async function getIncentiveEntrySplit(
+  input: { id: string },
+): Promise<ActionResult<{ rows: IncentiveEntryParticipant[] }>> {
+  await requireAdmin();
+  const id = z.string().uuid().safeParse(input.id);
+  if (!id.success) return { ok: false, error: "Invalid id" };
+  const rows = await db
+    .select()
+    .from(incentiveParticipants)
+    .where(eq(incentiveParticipants.entryId, id.data));
+  return {
+    ok: true,
+    rows: rows.map((row) => ({
+      id: row.id,
+      empName: row.empName,
+      employeeId: row.employeeId,
+      booked: Number(row.bookedAmt),
+      accrued: Number(row.accruedAmt),
+      paid: Number(row.paidAmt),
+      paidDate: row.paidDate,
+      note: row.note,
+    })),
+  };
+}
+
+/** Replace the participant split for one permanent entry and record paid deltas. */
+export async function saveIncentiveEntrySplit(
+  input: z.input<typeof SaveEntrySplitSchema>,
+): Promise<ActionResult<{ count: number }>> {
+  const me = await requireAdmin();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = SaveEntrySplitSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const v = parsed.data;
+  const period = v.periodMonth ? `${v.periodMonth.slice(0, 7)}-01` : null;
+  const [entry] = await db
+    .select({ id: incentiveEntries.id, incentiveName: incentiveEntries.incentiveName })
+    .from(incentiveEntries)
+    .where(eq(incentiveEntries.id, v.id));
+  if (!entry) return { ok: false, error: "Incentive entry not found." };
+
+  const previous = await db
+    .select({ employeeId: incentiveParticipants.employeeId, paidAmt: incentiveParticipants.paidAmt })
+    .from(incentiveParticipants)
+    .where(eq(incentiveParticipants.entryId, v.id));
+  const rows = v.shares.map((share) => ({
+    entryId: v.id,
+    projectId: null,
+    periodMonth: period,
+    empName: share.empName.trim(),
+    employeeId: share.employeeId ?? null,
+    bookedAmt: money2(share.bookedAmt),
+    accruedAmt: money2(share.accruedAmt),
+    paidAmt: money2(share.paidAmt),
+    paidDate: share.paidDate ?? null,
+    note: share.note ?? null,
+  }));
+  const before = new Map<string, number>();
+  for (const row of previous) if (row.employeeId) before.set(row.employeeId, (before.get(row.employeeId) ?? 0) + Number(row.paidAmt));
+  const after = new Map<string, { paid: number; paidDate: string | null }>();
+  for (const row of rows) {
+    if (!row.employeeId) continue;
+    const current = after.get(row.employeeId) ?? { paid: 0, paidDate: null };
+    after.set(row.employeeId, {
+      paid: current.paid + Number(row.paidAmt),
+      paidDate: row.paidDate && (!current.paidDate || row.paidDate > current.paidDate) ? row.paidDate : current.paidDate,
+    });
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(incentiveParticipants).where(eq(incentiveParticipants.entryId, v.id));
+    if (rows.length) await tx.insert(incentiveParticipants).values(rows);
+    for (const [employeeId, share] of after) {
+      await recordManualIncentivePayment(tx, {
+        entryId: v.id,
+        eventSource: "participant",
+        employeeId,
+        empName: null,
+        periodMonth: period,
+        paidDate: share.paidDate,
+        increase: round2(share.paid - (before.get(employeeId) ?? 0)),
+        source: "split",
+        note: entry.incentiveName,
+        actorId: me.id,
+      });
+    }
+  });
+  for (const [employeeId, share] of after) {
+    notifyIfPaidIncreased({
+      employeeId,
+      subjectId: v.id,
+      leg: "split-entry",
+      label: entry.incentiveName,
+      previousPaid: before.get(employeeId) ?? 0,
+      paid: share.paid,
+      paidDate: share.paidDate,
+      periodMonth: period,
+      actorId: me.id,
+    });
+  }
+  revalidatePath("/incentive");
+  return { ok: true, count: rows.length };
 }
 
 // --- targets (admin) -------------------------------------------------------
