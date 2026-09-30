@@ -26,8 +26,9 @@ folder reuse and `54dff959` for readable filenames. They are ancestors of
 `origin/main`. The isolated production release branch is
 `release/module-backup-only-2026-09-30`, based on `fork/main` at `8750402e`,
 with production candidate commits `08b65f75`, `ebc43555`, and documentation
-commit `d6fa5b5c`. The release contains only this backup work; production push
-and post-push verification remain to be recorded.
+commits `d6fa5b5c` and `a29a03ce`. The release contains only this backup work.
+It was pushed directly to `fork/main` under the user's explicit release
+authorization and the remote update was verified.
 
 ## Root cause
 
