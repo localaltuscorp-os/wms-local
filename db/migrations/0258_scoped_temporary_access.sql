@@ -1,4 +1,4 @@
--- 0254 — Restrictive scoped temporary access. Additive only; legacy delegated
+-- 0258 — Restrictive scoped temporary access. Additive only; legacy delegated
 -- access remains untouched and continues to resolve existing token sessions.
 
 CREATE TABLE IF NOT EXISTS scoped_access_grants (

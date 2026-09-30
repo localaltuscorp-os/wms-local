@@ -1,7 +1,7 @@
 # 20 — Drop Down Master
 
-**Date:** 26 September 2026  
-**Migration:** None  
+**Date:** 26 September 2026
+**Migration:** None
 **Scope:** Admin Panel navigation and launcher only
 
 ---

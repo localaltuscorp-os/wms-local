@@ -1,4 +1,4 @@
--- 0253 — Optional expiry for a person's assignment to a reusable role.
+-- 0257 — Optional expiry for a person's assignment to a reusable role.
 -- NULL is deliberately "never": existing access remains unchanged on rollout.
 
 ALTER TABLE employee_roles

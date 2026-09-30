@@ -1,0 +1,50 @@
+# Om, Rudra, and Vinal development integration
+
+- **Date:** 2026-09-30
+- **Branch:** `integration/om-rudra-vinal-2026-09-30`
+- **Objective:** Integrate the requested `origin/Om`, `origin/Rudra`, and `origin/Vinal` deliveries into current `origin/main` without including other outstanding branches.
+- **Status:** Validated for Development Repository integration; not promoted to production.
+
+## Integrated scope
+
+- Vinal: Accounts/HR/candidate workflow and UI improvements, including Accounts KYC document support.
+- Rudra: Holiday administration/access, Client Engagement and executive-calendar UI changes, and digit-only phone inputs.
+- Om: Admin dropdown master, training/billing/incentive cleanup, role expiration, and scoped temporary access.
+
+## Conflict resolution
+
+- `components/dossier/onboarding-form.tsx`: retained Vinal's ten-digit HTML validation and Rudra's digit-only normalization.
+- `components/hr/candidate/intake-field.tsx`: retained Vinal's shared phone-field detection/pattern and Rudra's digit-only behavior.
+- `components/hr/candidate/management-assessment-screen.tsx`: added the missing `assignment_needed` display label required by the integrated outcome-map type.
+
+## Database and migration impact
+
+- `0256_accounts_kyc_documents.sql`: Vinal Accounts KYC tables.
+- `0257_role_assignment_expiration.sql`: Om role assignment expiry; renumbered from branch-local `0253` because current main already contains a different `0253` migration.
+- `0258_scoped_temporary_access.sql`: Om scoped access tables; renumbered from branch-local `0254` because current main already contains a different `0254` migration.
+- No SQL was executed. Apply migrations in numeric order before deploying code that depends on them.
+- Rollback is application revert plus database-owner-reviewed reversal; the migrations are additive and must not be casually rolled back after data is written.
+
+## Validation
+
+- Full unit suite: 5,238 passed, 26 failed, 34 skipped across 396 files. Failure count matches the previously recorded repository baseline; branch-specific review follows below.
+- Changed-test set: 247 passed and 3 stale Control Panel expectations failed. The failures expect the removed `/control-panel/users` screen and its permission node, while Om intentionally makes Roles the landing and removes that node.
+- TypeScript initially found one integrated Vinal defect (missing `assignment_needed.label`); fixed. Rerun passed.
+- Optimized Next.js production build: passed (compiled, TypeScript, page-data collection, and 36 static pages).
+- `pnpm check:leaks`: passed; all watched packages clean, including zero PGlite source and NFT traces.
+
+## Known issues
+
+- The repository continues to have the established 26 unit-test failures. This integration did not increase that count. Three changed-suite failures are stale Control Panel assertions for the intentionally removed Users/effective-access screens; the application build and TypeScript contracts use Roles as the current landing.
+- Existing build warnings about broad NFT tracing and dynamic cookie access remain; they did not fail the build and were not introduced or expanded as part of conflict resolution.
+
+## Security and access impact
+
+- Om changes role expiry, temporary access resolution, and Control Panel permission UI.
+- Rudra changes holiday administration authorization.
+- These are security-sensitive paths; production promotion requires explicit release approval after development validation and migration review.
+
+## Excluded branches
+
+- `origin/Shreya` had no remaining file diff against main.
+- `origin/mobile-web-login-devices` and `origin/docs/repository-policy` were explicitly not included.
