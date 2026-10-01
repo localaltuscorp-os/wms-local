@@ -694,9 +694,12 @@ export interface IncentiveEntryAdminRow {
   approved: boolean;
   approvedAmt: number;
   approvedDate: string | null;
+  bookedAmt: number;
+  accruedAmt: number;
   paid: boolean;
   paidAmt: number;
   paidDate: string | null;
+  participantCount: number;
   reversed: boolean;
   note: string | null;
 }
@@ -716,9 +719,12 @@ function toAdminRow(e: IncentiveEntry): IncentiveEntryAdminRow {
     approved: e.approved,
     approvedAmt: num(e.approvedAmt),
     approvedDate: e.approvedDate,
+    bookedAmt: num(e.bookedAmt),
+    accruedAmt: num(e.accruedAmt),
     paid: e.paid,
     paidAmt: num(e.paidAmt),
     paidDate: e.paidDate,
+    participantCount: 0,
     reversed: e.reversed,
     note: e.note,
   };
@@ -739,14 +745,19 @@ export async function listIncentiveEntriesAdmin(
   const visible = opts.visibleNames ?? null;
   if (visible && visible.size === 0) return [];
 
-  const [rows, removed] = await Promise.all([
+  const [rows, removed, participantRows] = await Promise.all([
     listIncentiveEntries({ year }),
     removedNameKeys(),
+    db.select({ entryId: incentiveParticipants.entryId }).from(incentiveParticipants),
   ]);
+  const participantCount = new Map<string, number>();
+  for (const row of participantRows) {
+    if (row.entryId) participantCount.set(row.entryId, (participantCount.get(row.entryId) ?? 0) + 1);
+  }
   // Drop entries belonging to removed (inactive) employees, and anything
   // outside the viewer's permitted people.
   return rows
-    .map(toAdminRow)
+    .map((row) => ({ ...toAdminRow(row), participantCount: participantCount.get(row.id) ?? 0 }))
     .filter((r) => !removed.has(nameKey(r.empName)))
     .filter((r) => !visible || visible.has(nameKey(r.empName)));
 }

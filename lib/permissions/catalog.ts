@@ -602,11 +602,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "PCA Grid",
             routes: ["/operations/client-engagement/pca"],
           },
-          {
-            key: "operations.client-engagement.team",
-            label: "Team & Log",
-            routes: ["/operations/client-engagement/team"],
-          },
         ],
       },
       { key: "operations.directory", label: "Directory", routes: ["/operations/directory"] },
@@ -707,6 +702,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             key: "admin.people.hierarchy",
             label: "Reporting Hierarchy",
             routes: ["/admin/hierarchy"],
+          },
+          {
+            key: "admin.people.temporary-break",
+            label: "Temporary Break",
+            routes: ["/admin/temporary-break"],
           },
           {
             // The KEY is unchanged on purpose: it is stored in
@@ -935,11 +935,6 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "control-panel.permissions",
         label: "Permissions",
         routes: ["/control-panel/permissions"],
-      },
-      {
-        key: "control-panel.effective-access",
-        label: "Effective Access",
-        routes: ["/control-panel/effective-access"],
       },
       {
         key: "control-panel.temporary-access",

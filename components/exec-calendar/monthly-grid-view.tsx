@@ -8,14 +8,13 @@ import {
   isoWeek,
   laneDay,
   minToLabel,
-  monthStart,
   parseDay,
   rangeLabel,
   slotMinutes,
   weekStart,
   type GridConfig,
 } from "@/lib/exec-calendar/grid";
-import { monthName } from "@/lib/exec-calendar/period";
+import { monthName, monthSegments } from "@/lib/exec-calendar/period";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
 import { MARKER_BG, MARKER_FG, markersByDay, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import { useEventContextMenu } from "./event-context-menu";
@@ -33,12 +32,12 @@ import { useEventContextMenu } from "./event-context-menu";
  *
  * THE STICKY MONTH TITLE (asked twice — it "still disappeared" the first
  * time): every week — not just the ones where a month starts — renders its
- * OWN sticky band naming the month it belongs to (by its Thursday, the same
- * "the day in the middle owns the week" rule the header numbering uses).
+ * OWN sticky band, split by `monthSegments` into one label per month the
+ * week's days actually fall in (two, for a week straddling a boundary).
  * Because every week's `<section>` has one, the browser's native sticky
  * stacking swaps them for free as you scroll — the same trick the per-week
  * dark bar below it already relies on (see the comment down there). A
- * banner that only appeared on month-transition weeks (Weekly Grid's
+ * banner that only appeared on month-transition weeks (Weekly Grid's old
  * approach) would vanish the moment you scrolled past that one week, which
  * is exactly the bug being fixed.
  */
@@ -57,11 +56,6 @@ const RULE = "#D3D3D3";
 /** One week before, then five more — the -1/+4 window around `anchor`'s week. */
 const WEEKS_BEFORE = 1;
 const WEEKS_TOTAL = 6;
-
-/** Which month a week "belongs to" for the sticky title — its Thursday's month. */
-function owningMonth(monday: string): string {
-  return monthStart(addDays(monday, 3));
-}
 
 export function ExecMonthlyGridView({
   anchor,
@@ -146,17 +140,42 @@ export function ExecMonthlyGridView({
           return (
             <section key={`${wk}-${wi}`} ref={isCurrentWeek ? currentWeekRef : undefined} aria-label={`Week of ${wk}`}>
               {/* Every week has one — see the file-level comment on why that,
-                  and not "only when the month changes", is what stays visible. */}
+                  and not "only when the month changes", is what stays visible.
+                  Sticks at HEAD_H, BELOW the column header — asked 2026-09-29:
+                  it used to stick at top:0, the SAME offset as the column
+                  header, and its higher z-index then painted over "Time |
+                  Monday | Tuesday | …" the moment both were pinned, which
+                  looked exactly like that row never freezing at all. Split
+                  into per-month segments (asked 2026-09-29) so a week
+                  straddling a boundary shows both months, each over its own
+                  days, instead of the single month its Thursday happens to
+                  fall in. */}
               <div
-                className="sticky top-0 z-40 flex items-center px-3 text-[12px] font-black uppercase tracking-wide text-white"
-                style={{ background: MONTH_BG, height: MONTH_H }}
+                className="sticky z-25 grid border-t border-white/10 text-white"
+                style={{ top: HEAD_H, gridTemplateColumns: cols, background: MONTH_BG, height: MONTH_H }}
               >
-                {monthName(owningMonth(wk), true)}
+                <div className="sticky left-0 z-10" style={{ background: MONTH_BG }} />
+                {(() => {
+                  let col = 2;
+                  return monthSegments(days).map((seg) => {
+                    const gridColumn = `${col} / span ${seg.span}`;
+                    col += seg.span;
+                    return (
+                      <div
+                        key={seg.month}
+                        className="flex items-center border-l border-white/15 px-3 text-[12px] font-black uppercase tracking-wide"
+                        style={{ gridColumn }}
+                      >
+                        {monthName(seg.month, true)}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
 
               <div
                 className="sticky z-20 grid border-t border-white/10 text-white"
-                style={{ top: MONTH_H, gridTemplateColumns: cols, background: weekBg }}
+                style={{ top: HEAD_H + MONTH_H, gridTemplateColumns: cols, background: weekBg }}
               >
                 <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: weekBg }}>
                   Week {isoWeek(wk).week}

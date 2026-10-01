@@ -13,11 +13,13 @@ import { fireToast } from "@/lib/toast";
 import { DateField } from "@/components/ui/date-field";
 
 /**
- * Declare / correct / withdraw an ad-hoc holiday.
+ * Declare / correct / withdraw an ad-hoc holiday — behind an "Add Holiday"
+ * button next to the Month/All upcoming toggle (asked 2026-09-29), popping
+ * open a dialog rather than sitting inline on the page permanently.
  *
- * Rendered ONLY for Ruchita and Rutvisha (the page decides), but that is
- * presentation: every action re-checks the same allow-list server-side, so
- * hiding the panel is a courtesy and not the control.
+ * Rendered ONLY for HR staff and super-admins (the page decides), but that is
+ * presentation: every action re-checks the same rule server-side, so hiding
+ * the button is a courtesy and not the control.
  *
  * The copy states the consequence plainly - this marks the day a holiday on
  * everyone's attendance - because the person clicking it is giving the whole
@@ -38,6 +40,7 @@ export function AdHocHolidayPanel({
   rows: AdHocHolidayRow[];
 }) {
   const router = useRouter();
+  const [open, setOpen] = React.useState(false);
   const [date, setDate] = React.useState("");
   const [label, setLabel] = React.useState("");
   const [note, setNote] = React.useState("");
@@ -73,115 +76,140 @@ export function AdHocHolidayPanel({
   }
 
   return (
-    <section className="hol-adhoc no-print" aria-labelledby="hol-adhoc-title">
-      <div className="hol-adhoc-head">
-        <CalendarPlus size={16} strokeWidth={2.4} />
-        <h2 id="hol-adhoc-title" className="hol-adhoc-title">Ad-hoc holiday</h2>
-      </div>
-      <p className="hol-adhoc-lead">
-        A day off declared outside the published {year} calendar. Adding one marks that date a
-        holiday on <strong>every employee&rsquo;s attendance</strong> for the month.
-      </p>
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="hol-adhoc-add no-print">
+        <CalendarPlus size={14} /> Add Holiday
+      </button>
 
-      <form className="hol-adhoc-form" onSubmit={submit}>
-        <label className="hol-filter">
-          <span className="hol-filter-label">Date</span>
-          <DateField
-          
-            required
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            min={`${year}-01-01`}
-            max={`${year}-12-31`}
-            className="hol-select"
-            aria-label="Ad-hoc holiday date"
-          />
-        </label>
-        <label className="hol-filter hol-adhoc-name">
-          <span className="hol-filter-label">Name</span>
-          <input
-            type="text"
-            required
-            maxLength={120}
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="e.g. Election Day"
-            className="hol-select"
-            aria-label="Ad-hoc holiday name"
-          />
-        </label>
-        <label className="hol-filter hol-adhoc-name">
-          <span className="hol-filter-label">
-            Note <span className="hol-adhoc-opt">optional</span>
-          </span>
-          <input
-            type="text"
-            maxLength={500}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Why the day was declared"
-            className="hol-select"
-            aria-label="Ad-hoc holiday note (optional)"
-          />
-        </label>
-        <button type="submit" disabled={busy === "add"} className="hol-adhoc-add">
-          {busy === "add" ? <Loader2 size={14} className="animate-spin" /> : <CalendarPlus size={14} />}
-          Add holiday
-        </button>
-      </form>
+      {open && (
+        <div
+          className="hol-adhoc-overlay no-print"
+          role="dialog"
+          aria-modal
+          aria-labelledby="hol-adhoc-title"
+          onClick={(e) => e.target === e.currentTarget && setOpen(false)}
+        >
+          <section className="hol-adhoc hol-adhoc-modal">
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="hol-adhoc-close">
+              <X size={16} />
+            </button>
+            <div className="hol-adhoc-head">
+              <CalendarPlus size={16} strokeWidth={2.4} />
+              <h2 id="hol-adhoc-title" className="hol-adhoc-title">Ad-hoc holiday</h2>
+            </div>
+            <p className="hol-adhoc-lead">
+              A day off declared outside the published {year} calendar. Adding one marks that date a
+              holiday on <strong>every employee&rsquo;s attendance</strong> for the month.
+            </p>
 
-      {rows.length > 0 && (
-        <ul className="hol-adhoc-list" role="list">
-          {rows.map((r) =>
-            editingId === r.id ? (
-              <EditRow
-                key={r.id}
-                row={r}
-                year={year}
-                busy={busy === r.id}
-                onCancel={() => setEditingId(null)}
-                onSave={async (next) => {
-                  if (busy) return;
-                  setBusy(r.id);
-                  const res = await editAdHocHoliday({ id: r.id, ...next });
-                  setBusy(null);
-                  if (!res.ok) return fireToast({ message: res.error, type: "error" });
-                  fireToast({ message: `${next.label} updated.`, type: "success" });
-                  setEditingId(null);
-                  router.refresh();
-                }}
-              />
-            ) : (
-              <li key={r.id} className="hol-adhoc-row">
-                <span className="hol-adhoc-date">{r.holidayDate}</span>
-                <span className="hol-adhoc-label">
-                  {r.label}
-                  {r.note && <span className="hol-adhoc-note">{r.note}</span>}
+            <form className="hol-adhoc-form" onSubmit={submit}>
+              <label className="hol-filter">
+                <span className="hol-filter-label">Date</span>
+                <DateField
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  min={`${year}-01-01`}
+                  max={`${year}-12-31`}
+                  className="hol-select"
+                  aria-label="Ad-hoc holiday date"
+                />
+              </label>
+              <label className="hol-filter hol-adhoc-name">
+                <span className="hol-filter-label">Name</span>
+                <input
+                  type="text"
+                  required
+                  maxLength={120}
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  placeholder="e.g. Election Day"
+                  className="hol-select"
+                  aria-label="Ad-hoc holiday name"
+                />
+              </label>
+              <label className="hol-filter hol-adhoc-name">
+                <span className="hol-filter-label">
+                  Note <span className="hol-adhoc-opt">optional</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setEditingId(r.id)}
-                  disabled={busy !== null}
-                  aria-label={`Edit ${r.label}`}
-                  className="hol-adhoc-del"
-                >
-                  <Pencil size={13} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(r)}
-                  disabled={busy === r.id}
-                  aria-label={`Remove ${r.label}`}
-                  className="hol-adhoc-del"
-                >
-                  {busy === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                </button>
-              </li>
-            ),
-          )}
-        </ul>
+                <input
+                  type="text"
+                  maxLength={500}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Why the day was declared"
+                  className="hol-select"
+                  aria-label="Ad-hoc holiday note (optional)"
+                />
+              </label>
+              <button type="submit" disabled={busy === "add"} className="hol-adhoc-add">
+                {busy === "add" ? <Loader2 size={14} className="animate-spin" /> : <CalendarPlus size={14} />}
+                Add holiday
+              </button>
+            </form>
+
+            {/* A separate section, not just more rows under the form (asked
+                2026-09-29): declaring and withdrawing are different intents,
+                so they get different parts of the dialog. */}
+            <div className="hol-adhoc-divider" />
+            <h3 className="hol-adhoc-subtitle">Delete an ad-hoc holiday</h3>
+            {rows.length === 0 ? (
+              <p className="hol-adhoc-empty">No ad-hoc holidays declared for {year} yet.</p>
+            ) : (
+              <ul className="hol-adhoc-list" role="list">
+                {rows.map((r) =>
+                  editingId === r.id ? (
+                    <EditRow
+                      key={r.id}
+                      row={r}
+                      year={year}
+                      busy={busy === r.id}
+                      onCancel={() => setEditingId(null)}
+                      onSave={async (next) => {
+                        if (busy) return;
+                        setBusy(r.id);
+                        const res = await editAdHocHoliday({ id: r.id, ...next });
+                        setBusy(null);
+                        if (!res.ok) return fireToast({ message: res.error, type: "error" });
+                        fireToast({ message: `${next.label} updated.`, type: "success" });
+                        setEditingId(null);
+                        router.refresh();
+                      }}
+                    />
+                  ) : (
+                    <li key={r.id} className="hol-adhoc-row">
+                      <span className="hol-adhoc-date">{r.holidayDate}</span>
+                      <span className="hol-adhoc-label">
+                        {r.label}
+                        {r.note && <span className="hol-adhoc-note">{r.note}</span>}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(r.id)}
+                        disabled={busy !== null}
+                        aria-label={`Edit ${r.label}`}
+                        className="hol-adhoc-del"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(r)}
+                        disabled={busy === r.id}
+                        aria-label={`Remove ${r.label}`}
+                        className="hol-adhoc-del"
+                      >
+                        {busy === r.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ul>
+            )}
+          </section>
+        </div>
       )}
-    </section>
+    </>
   );
 }
 
@@ -212,7 +240,6 @@ function EditRow({
   return (
     <li className="hol-adhoc-row hol-adhoc-row-edit">
       <DateField
-          
         required
         value={date}
         onChange={(e) => setDate(e.target.value)}

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Inbox } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Inbox, Pencil, Trash2 } from "lucide-react";
 import { INCENTIVE_STATUS_LABELS, INCENTIVE_TYPE_LABELS, INCENTIVE_TYPES } from "@/db/enums";
 import { INCENTIVE_DATE_KEY, incentiveDetailPairs } from "@/lib/incentive-fields";
 import {
@@ -29,6 +30,9 @@ import { IncentiveFormDialog } from "./incentive-form-dialog";
 import { IncentiveBadge } from "./ui/badges";
 import { IncentiveEmptyState } from "./ui/states";
 import { toneFill, toneInk } from "./ui/tone";
+import { ConfirmDialog } from "./ui/confirm-dialog";
+import { deletePendingIncentiveRequest } from "@/app/(app)/incentive/actions";
+import { fireToast } from "@/lib/toast";
 
 /**
  * INCENTIVE REQUESTS — three views of one list.
@@ -358,6 +362,20 @@ export function IncentiveList({
         renderRowDetail={(r) => (
           <RequestDetail row={r} canReview={canReview} isOwner={r.employeeId === me.id} />
         )}
+        rowActions={(r) => {
+          const mayManage = r.status === "pending" && !r.hasDecision && (r.employeeId === me.id || isAdmin);
+          return mayManage ? (
+            <RequestActions
+              row={r}
+              me={me}
+              employees={employees}
+              products={products}
+              shiftTypes={shiftTypes}
+              monthlyCtc={monthlyCtc}
+              defaultShift={defaultShift}
+            />
+          ) : null;
+        }}
         emptyState={
           <IncentiveEmptyState
             icon={Inbox}
@@ -367,6 +385,75 @@ export function IncentiveList({
         }
       />
     </div>
+  );
+}
+
+/** Pending requests are the only records that may be changed or removed. */
+function RequestActions({
+  row,
+  me,
+  employees,
+  products,
+  shiftTypes,
+  monthlyCtc,
+  defaultShift,
+}: {
+  row: IncentiveRequestRow;
+  me: { id: string; name: string };
+  employees: EmployeeOption[];
+  products: string[];
+  shiftTypes: string[];
+  monthlyCtc?: string;
+  defaultShift?: string | null;
+}) {
+  const router = useRouter();
+  const [confirming, setConfirming] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+  function remove() {
+    startTransition(async () => {
+      const res = await deletePendingIncentiveRequest({ id: row.id });
+      if (!res.ok) {
+        fireToast({ message: res.error, type: "error" });
+        return;
+      }
+      setConfirming(false);
+      fireToast({ message: "Pending incentive request deleted." });
+      router.refresh();
+    });
+  }
+
+  return (
+    <>
+      <div className="inline-flex items-center gap-1">
+        <IncentiveFormDialog
+          products={products}
+          shiftTypes={shiftTypes}
+          monthlyCtc={monthlyCtc}
+          defaultShift={defaultShift}
+          employees={employees}
+          me={me}
+          requester={{ id: row.employeeId, name: row.employeeName }}
+          edit={{ id: row.id, type: row.type, details: row.details, split: row.split }}
+          trigger={
+            <button type="button" aria-label={`Edit ${INCENTIVE_TYPE_LABELS[row.type]}`} className="grid size-9 place-items-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong">
+              <Pencil size={14} strokeWidth={2.3} />
+            </button>
+          }
+        />
+        <button type="button" aria-label={`Delete ${INCENTIVE_TYPE_LABELS[row.type]}`} onClick={() => setConfirming(true)} className="grid size-9 place-items-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft" style={{ color: "var(--color-altus-red-deep)" }}>
+          <Trash2 size={14} strokeWidth={2.3} />
+        </button>
+      </div>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Delete pending incentive request?"
+        body={<>This removes this pending request and its draft submission history. Requests with a recorded decision cannot be deleted.</>}
+        confirmLabel="Delete request"
+        pending={pending}
+        onConfirm={remove}
+      />
+    </>
   );
 }
 
@@ -389,7 +476,7 @@ function RequestDetail({
   const amount = defaultIncentiveAmount(row.type, row.details ?? {});
 
   return (
-    <div className="space-y-4" data-request={row.id} data-status={row.status}>
+    <div className="space-y-3" data-request={row.id} data-status={row.status}>
       {row.decidedAt && row.decidedByName && (
         <p className="text-[12.5px] text-ink-subtle">
           {INCENTIVE_STATUS_LABELS[row.status] ?? row.status} by {row.decidedByName} ·{" "}
@@ -412,11 +499,11 @@ function RequestDetail({
         </div>
       )}
 
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-2.5 max-md:grid-cols-1">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-surface-soft max-md:grid-cols-1" style={{ borderColor: "var(--color-hairline)" }}>
         {pairs.map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</dt>
-            <dd className="mt-0.5 whitespace-pre-wrap break-words text-[13.5px] text-ink-strong">
+          <div key={label} className="min-w-0 bg-surface-card px-3.5 py-3">
+            <dt className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{label}</dt>
+            <dd className="mt-1 whitespace-pre-wrap break-words text-[13.5px] font-medium text-ink-strong">
               {isLink(value) ? (
                 <a
                   href={value.trim()}
@@ -433,13 +520,13 @@ function RequestDetail({
           </div>
         ))}
         {amount > 0 && (
-          <div>
+          <div className="min-w-0 bg-surface-card px-3.5 py-3">
             <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">Amount</dt>
             <dd className="mt-0.5 text-[13.5px] tabular-nums text-ink-strong">{formatInr(amount)}</dd>
           </div>
         )}
         {row.split && row.split.length > 0 && (
-          <div className="col-span-full">
+          <div className="col-span-full min-w-0 bg-surface-card px-3.5 py-3">
             <dt className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-subtle">Split</dt>
             <dd className="mt-0.5 break-words text-[13.5px] text-ink-strong">
               {row.split.map((s) => `${s.name} ${formatPct(s.pct)}%`).join(" · ")}

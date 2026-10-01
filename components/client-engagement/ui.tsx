@@ -191,7 +191,10 @@ export function CeDialog({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center" role="dialog" aria-modal aria-label={title}>
+    // z-[60], ABOVE the global header's z-50 (asked 2026-09-29: the top nav
+    // stayed bright/undimmed behind this dialog — the two shared z-50, and
+    // the header's own stacking context won that tie).
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:items-center" role="dialog" aria-modal aria-label={title}>
       <button type="button" aria-label="Close" onClick={onClose} className="fixed inset-0 cursor-default bg-[rgba(15,23,42,0.32)]" />
       <div
         className="relative my-6 w-full rounded-[20px] border border-hairline bg-surface-card"

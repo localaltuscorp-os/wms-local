@@ -1,8 +1,8 @@
 import { BookUser } from "lucide-react";
-import { requireWorkspace } from "@/lib/auth/workspace-access";
+import { requireUser } from "@/lib/auth/current";
 import { PageShell } from "@/components/layout/page-shell";
 import { isHrStaff } from "@/lib/hr/access";
-import { isMissingVendorTable, listVendors } from "@/lib/queries/ops-vendors";
+import { isMissingVendorTable, listActiveVendorCategories, listVendors } from "@/lib/queries/ops-vendors";
 import { VendorDirectory } from "@/components/operations/directory/vendor-directory";
 
 export const dynamic = "force-dynamic";
@@ -11,17 +11,18 @@ const ACCENT_DEEP = "#A80400";
 
 /**
  * OPERATIONS → Directory. Every outside vendor Altus Corp works with — contact,
- * postal address, website and AMC. Everyone in Operations can view; Ruchita,
- * Rutvisha and Manan can add, edit and bulk-upload.
+ * postal address, website and AMC. Every employee can view; the existing HR
+ * staff / super-admin guard remains the only way to change it.
  */
 export default async function OperationsDirectoryPage() {
-  const me = await requireWorkspace("operations");
+  const me = await requireUser();
   // Hiding the controls is a courtesy; the actions ask the same question again.
   const canEdit = await isHrStaff(me);
 
   let vendors;
+  let categories;
   try {
-    vendors = await listVendors();
+    [vendors, categories] = await Promise.all([listVendors(), listActiveVendorCategories()]);
   } catch (e) {
     if (!isMissingVendorTable(e)) throw e;
     return <DirectorySetupNeeded />;
@@ -38,7 +39,7 @@ export default async function OperationsDirectoryPage() {
           <p className="text-[13px] text-ink-muted">Every Altus Corp vendor - contact, postal address, website and AMC.</p>
         </div>
       </header>
-      <VendorDirectory vendors={vendors} canEdit={canEdit} />
+      <VendorDirectory vendors={vendors} categories={categories.map((category) => category.name)} canEdit={canEdit} />
     </PageShell>
   );
 }

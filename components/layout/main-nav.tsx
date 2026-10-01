@@ -22,7 +22,6 @@ import {
   CreditCard,
   Award,
   Table2,
-  Layers,
   IndianRupee,
   Wallet,
   Compass,
@@ -69,7 +68,6 @@ import {
   // its five entries are the five the Admin Panel group listed before it moved.
   UserCog,
   KeyRound,
-  Eye,
   Clock,
 } from "lucide-react";
 import type { Route } from "next";
@@ -522,9 +520,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
    * drive the same `?tab=` parameter, so they can never disagree about which
    * area you are looking at.
    *
-   * Entries and Status are `adminOnly` to match the strip, which has always
-   * rendered them for admins only (Status additionally behind the
-   * INCENTIVE_STATUS_UI flag, checked on the server). A rail entry for an area
+   * Entries is `adminOnly` to match the strip. A rail entry for an area
    * the strip is not showing would be a dead link, so the page falls back to
    * Dashboard for any `?tab=` it cannot honour — see IncentiveTabs.
    */
@@ -533,7 +529,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * RAIL ORDER IS USAGE ORDER (2026-09-16 restructure). Filing and deciding a
      * request is the module's most frequent job, so Requests sits second rather
      * than fourth; Targets follows because it is the thing a request is measured
-     * against. Entries, Status and Billing are periodic admin and accounts work
+     * against. Entries and Billing are periodic admin and accounts work
      * and move to the end. The `?tab=` values, the permission gates and the
      * default are unchanged — only the order someone reads them in.
      */
@@ -546,7 +542,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       { href: "/incentive" as Route, label: "Requests", Icon: ListChecks, tab: "requests" },
       { href: "/incentive" as Route, label: "Targets", Icon: Target, tab: "targets" },
       { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },
-      { href: "/incentive" as Route, label: "Status", Icon: Layers, tab: "status", adminOnly: true },
       { href: "/incentive" as Route, label: "Billing", Icon: IndianRupee, tab: "billing" },
     ],
     groups: [],
@@ -574,7 +569,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     top: [
       { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
       { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
-      { href: "/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
       { href: "/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
     ],
     groups: [],

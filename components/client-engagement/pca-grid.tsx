@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { CE_GROUPS, type CeGroup } from "@/lib/client-engagement/constants";
+import { groupOf, type CeGroup } from "@/lib/client-engagement/constants";
 import { formatDuration } from "@/lib/client-engagement/schedule";
-import type { PcaCell, PcaColumn, PcaMatrixRow } from "@/lib/client-engagement/grids";
-import { CARD, CARD_SHADOW, DISPLAY, HhStatusPill, Segmented } from "./ui";
+import type { Load, MemberCapacity, PcaCell, PcaColumn, PcaMatrixRow } from "@/lib/client-engagement/grids";
+import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
+import { AccountsTablePane } from "./accounts-table-pane";
+import { CARD, CARD_SHADOW, DISPLAY, Segmented } from "./ui";
 
 /**
  * PCA GRID — the transpose of the Emp Grid.
@@ -14,16 +16,45 @@ import { CARD, CARD_SHADOW, DISPLAY, HhStatusPill, Segmented } from "./ui";
  * time committed and the number of calls. Ambassadors are never added into a
  * total (asked 2026-09-19); the board's "All" footer follows the same rule.
  *
- * BELOW: the board from the sketch — P / C / A / All buttons, a column per
- * person (Unassigned last) listing the names themselves, and a Total row.
+ * BELOW (rebuilt 2026-09-29, "change this into the table view as we did in
+ * Overview... make the respective functions for it"): the SAME AccountsTable
+ * Overview uses — select, group-by, Columns, Active/Inactive/All, sortable
+ * columns, edit and transfer — filtered to whichever P/C/A/All group the
+ * Segmented control above it picks, in place of the old read-only card board.
  */
 
 type View = CeGroup | "all";
 
-export function PcaGrid({ columns, total }: { columns: PcaColumn[]; total: PcaMatrixRow }) {
+export function PcaGrid({
+  columns,
+  total,
+  accounts,
+  members,
+  loads,
+  capacity,
+  callCounts,
+  canManage,
+  myMemberId,
+}: {
+  columns: PcaColumn[];
+  total: PcaMatrixRow;
+  accounts: CeAccountRow[];
+  members: CeMemberRow[];
+  loads: Record<string, Load>;
+  capacity: MemberCapacity[];
+  callCounts: Record<string, number>;
+  canManage: boolean;
+  myMemberId: string | null;
+}) {
   const [view, setView] = React.useState<View>("all");
-  const groups = view === "all" ? CE_GROUPS : CE_GROUPS.filter((g) => g.code === view);
-  const key = view === "all" ? "all" : view;
+  const batches = React.useMemo(
+    () => [...new Set(accounts.map((a) => a.batchCode).filter((b): b is string => Boolean(b)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [accounts],
+  );
+  const boardAccounts = React.useMemo(
+    () => (view === "all" ? accounts : accounts.filter((a) => groupOf(a.category) === view)),
+    [accounts, view],
+  );
 
   return (
     <>
@@ -66,10 +97,7 @@ export function PcaGrid({ columns, total }: { columns: PcaColumn[]; total: PcaMa
         </table>
       </section>
 
-      {/* The board — the sketch's "a column per person, names listed under
-          each". One CARD per person in a wrapping grid (2026-09-19): a fixed
-          9-column table could not fit with the sidebar open, so Unassigned —
-          the column that matters most — scrolled out of sight. */}
+      {/* The board — Overview's own AccountsTable, filtered to this group. */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2 px-1">
         <h2 className="mr-auto text-[18px] font-extrabold tracking-[-0.01em] text-ink-strong" style={DISPLAY}>
           Who carries whom
@@ -87,71 +115,16 @@ export function PcaGrid({ columns, total }: { columns: PcaColumn[]; total: PcaMa
         />
       </div>
 
-      <div className="grid items-stretch gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
-        {columns.map((c) => {
-          // "All" totals P + C only — ambassadors are never added into a total (asked 2026-09-19).
-          const cell = view === "all" ? sumCells(c.cells.P, c.cells.C) : c.cells[key];
-          const unassigned = c.memberId === null;
-          return (
-            <section
-              key={c.memberId ?? "unassigned"}
-              className={`${CARD} flex min-w-0 flex-col overflow-hidden`}
-              style={{
-                ...CARD_SHADOW,
-                ...(unassigned ? { borderColor: "color-mix(in srgb, var(--color-red-deep) 35%, transparent)", borderStyle: "dashed" } : {}),
-              }}
-            >
-              <header className="border-b border-hairline px-3 py-2">
-                <h3 className="truncate text-[14px] font-extrabold" style={{ ...DISPLAY, color: unassigned ? "var(--color-red-deep)" : "var(--color-ink-strong)" }}>
-                  {c.memberName}
-                </h3>
-              </header>
-              <div className="flex-1 px-3 py-2">
-                {groups.map((g) => {
-                  const entries = c.entries.filter((e) => e.group === g.code);
-                  return (
-                    <div key={g.code} className="mb-2 last:mb-0">
-                      <div className="mb-1 text-[10px] font-black uppercase tracking-[0.1em] text-ink-subtle">
-                        {g.plural} <span className="tabular-nums">({entries.length})</span>
-                      </div>
-                      {entries.length ? (
-                        <ol className="grid gap-1">
-                          {entries.map((e, i) => (
-                            <li key={e.accountId} className="flex min-w-0 items-start gap-1.5 text-[12.5px] leading-snug">
-                              <span className="w-4 shrink-0 text-right text-[11px] font-bold tabular-nums text-ink-subtle">{i + 1}.</span>
-                              <span className="min-w-0 break-words font-semibold text-ink-strong">
-                                {e.label}
-                                {e.hhStatus !== "standard" ? (
-                                  <span className="ml-1 inline-block align-middle">
-                                    <HhStatusPill status={e.hhStatus} small />
-                                  </span>
-                                ) : null}
-                              </span>
-                            </li>
-                          ))}
-                        </ol>
-                      ) : (
-                        <span className="text-[12px] text-ink-subtle">—</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <footer className="border-t border-hairline px-3 py-2" style={{ background: "color-mix(in srgb, var(--color-slate) 40%, transparent)" }}>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-[0.1em] text-ink-subtle">{view === "all" ? "Total (P + C)" : "Total"}</span>
-                  <span className="ml-auto text-[17px] font-extrabold leading-none tabular-nums text-ink-strong" style={DISPLAY}>
-                    {cell.count}
-                  </span>
-                </div>
-                <div className="mt-0.5 text-right text-[11px] font-semibold tabular-nums text-ink-muted">
-                  {formatDuration(cell.minutes)} · {cell.calls} call{cell.calls === 1 ? "" : "s"} a week
-                </div>
-              </footer>
-            </section>
-          );
-        })}
-      </div>
+      <AccountsTablePane
+        accounts={boardAccounts}
+        members={members}
+        loads={loads}
+        capacity={capacity}
+        callCounts={callCounts}
+        canManage={canManage}
+        myMemberId={myMemberId}
+        batches={batches}
+      />
     </>
   );
 }

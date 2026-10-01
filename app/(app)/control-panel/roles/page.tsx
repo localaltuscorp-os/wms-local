@@ -33,6 +33,10 @@ export default async function ControlPanelRolesPage() {
           email: user.email,
           employeeCode: user.employeeCode,
           roleNames: user.roleNames,
+          roleAssignments: user.roleAssignments.map((assignment) => ({
+            ...assignment,
+            expiresAt: assignment.expiresAt?.toISOString() ?? null,
+          })),
         }))}
         permissionsByRole={permissionsByRole}
         modules={modules}

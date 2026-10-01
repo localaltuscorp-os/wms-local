@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -29,6 +30,7 @@ export function HolidayCarousel({
   showingAll,
   firstMonth,
   count,
+  addHoliday,
 }: {
   /** The month on screen; null in the All upcoming view. */
   current: MonthKey | null;
@@ -39,34 +41,39 @@ export function HolidayCarousel({
   firstMonth: MonthKey | null;
   /** How many holidays this month has — the list below no longer repeats the month. */
   count?: number;
+  /** The "Add Holiday" trigger (HR staff/super-admins only) — sits right of the toggle. */
+  addHoliday?: ReactNode;
 }) {
   const allHref = `/hr/holidays?year=${(current ?? firstMonth)?.year ?? ""}&month=0` as Route;
 
   return (
     <nav className="hol-carousel no-print" aria-label="Browse upcoming holidays by month">
-      <div className="hol-car-toggle" role="group" aria-label="View">
-        {firstMonth ? (
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="hol-car-toggle" role="group" aria-label="View">
+          {firstMonth ? (
+            <Link
+              href={hrefFor(current ?? firstMonth)}
+              replace
+              scroll={false}
+              className={`hol-car-pill${showingAll ? "" : " is-on"}`}
+              aria-current={showingAll ? undefined : "true"}
+            >
+              Month
+            </Link>
+          ) : (
+            <span className="hol-car-pill is-on">Month</span>
+          )}
           <Link
-            href={hrefFor(current ?? firstMonth)}
+            href={allHref}
             replace
             scroll={false}
-            className={`hol-car-pill${showingAll ? "" : " is-on"}`}
-            aria-current={showingAll ? undefined : "true"}
+            className={`hol-car-pill${showingAll ? " is-on" : ""}`}
+            aria-current={showingAll ? "true" : undefined}
           >
-            Month
+            All upcoming
           </Link>
-        ) : (
-          <span className="hol-car-pill is-on">Month</span>
-        )}
-        <Link
-          href={allHref}
-          replace
-          scroll={false}
-          className={`hol-car-pill${showingAll ? " is-on" : ""}`}
-          aria-current={showingAll ? "true" : undefined}
-        >
-          All upcoming
-        </Link>
+        </div>
+        {addHoliday}
       </div>
 
       {!showingAll && current && (

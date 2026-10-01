@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Plus, Search, X } from "lucide-react";
+import { CE_CATEGORIES } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
 import { CapacityBar } from "./capacity-bar";
@@ -48,6 +49,7 @@ export function OverviewBoard({
   const [focusMember, setFocusMember] = React.useState<{ id: string; nonce: number } | null>(null);
   const [query, setQuery] = React.useState("");
   const [searchOpen, setSearchOpen] = React.useState(false);
+  const [searchJump, setSearchJump] = React.useState<{ category: string; nonce: number } | null>(null);
   const [addRequest, setAddRequest] = React.useState<{ nonce: number } | null>(null);
   const boardRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -61,6 +63,17 @@ export function OverviewBoard({
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
 
+  function jumpToMatch() {
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const match = accounts.find((a) =>
+      `${a.fullName} ${a.organization ?? ""} ${a.batchCode ?? ""} ${a.tags.join(" ")}`.toLowerCase().includes(q),
+    );
+    if (match && CE_CATEGORIES.some((c) => c.code === match.category)) {
+      setSearchJump({ category: match.category, nonce: Date.now() });
+    }
+  }
+
   return (
     <>
       {/* The KPI bar and the search/add controls share one line (asked
@@ -71,11 +84,11 @@ export function OverviewBoard({
           toolbar (asked 2026-09-28: "one button 'Add People'"). It calls the
           same dialog AccountsBoard already opens for "Add participant" —
           only the button itself moved and got one fixed label. */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <CapacityBar capacity={capacity} unassigned={unassigned} onSelectMember={selectMember} />
         </div>
-        <div className="relative flex shrink-0 items-center gap-2">
+        <div className="relative flex shrink-0 items-center gap-2 pt-1">
           {canManage ? (
             <button
               type="button"
@@ -107,8 +120,12 @@ export function OverviewBoard({
                   className={`${FIELD} pl-8`}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
-                  placeholder="Search this category…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setSearchOpen(false);
+                    if (e.key === "Enter") jumpToMatch();
+                  }}
+                  onBlur={() => setQuery("")}
+                  placeholder="Search…"
                 />
               </div>
             </div>
@@ -129,6 +146,7 @@ export function OverviewBoard({
           referencesSlot={referencesSlot}
           focusMember={focusMember}
           query={query}
+          searchJump={searchJump}
           addRequest={addRequest}
         />
       </div>

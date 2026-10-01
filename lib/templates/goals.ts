@@ -8,6 +8,8 @@ import { employees } from "@/db/schema";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listGoalLookups } from "@/lib/goals/lookups";
 import { decorateGoalsTemplate } from "@/lib/goals/template-workbook";
+import { requiredFieldsForTemplate } from "./field-config";
+import { goalLevelTemplateKey } from "./keys";
 
 /**
  * The Goals bulk-import workbook — the built-in template served by
@@ -37,6 +39,8 @@ export async function buildGoalsTemplate(
   opts: { level?: string; periodKey?: string } = {},
 ): Promise<{ buffer: Buffer; fileName: string }> {
   const { level = "", periodKey = "" } = opts;
+  const key = goalLevelTemplateKey(level);
+  const requiredFields = new Set(await requiredFieldsForTemplate(key, level || "default"));
 
   const [baseFile, clients, lookups, roster] = await Promise.all([
     readFile(path.join(process.cwd(), "public", "templates", "Altus-Goals-Template.xlsx")),
@@ -55,6 +59,7 @@ export async function buildGoalsTemplate(
     measures: lookups.measures,
     types: lookups.types,
     roster: roster.map((r) => r.name).filter(Boolean),
+    requiredFields,
   });
 
   const levelLabel = level

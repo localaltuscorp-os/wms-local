@@ -37,12 +37,12 @@ export function CapacityBar({
 }) {
   const staffed = capacity.filter((c) => c.active > 0);
   return (
-    <div className="flex gap-2 scroll-x-only">
+    <div className="flex gap-2 scroll-x-only pt-1">
       {/* The pool waiting to be handed out — first in the line. */}
       <button
         type="button"
         onClick={() => onSelectMember?.("none")}
-        className="w-[160px] shrink-0 rounded-2xl border border-dashed px-3 py-2.5 text-left transition-transform hover:-translate-y-px"
+        className="w-[160px] shrink-0 rounded-2xl border border-dashed px-3 py-2.5 text-left transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-12px_rgba(15,23,42,0.35)]"
         style={{
           borderColor: "color-mix(in srgb, var(--color-altus-red) 30%, transparent)",
           background: "color-mix(in srgb, var(--color-altus-red) 3%, var(--color-surface-card))",
@@ -65,7 +65,7 @@ export function CapacityBar({
             type="button"
             key={c.memberId}
             onClick={() => onSelectMember?.(c.memberId)}
-            className="w-[160px] shrink-0 rounded-2xl border border-hairline bg-surface-card px-3 py-2.5 text-left transition-transform hover:-translate-y-px"
+            className="w-[160px] shrink-0 rounded-2xl border border-hairline bg-surface-card px-3 py-2.5 text-left transition-all hover:-translate-y-px hover:shadow-[0_10px_24px_-12px_rgba(15,23,42,0.35)]"
             style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04)" }}
             title={`${c.name}: ${c.active} active of ${c.limit || "no"} cap (${pct}%) — ${state}. Click to filter the board below.`}
           >

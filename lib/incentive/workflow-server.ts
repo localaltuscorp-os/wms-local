@@ -14,6 +14,7 @@ import type { LogEventType } from "@/lib/logs/events";
 import type { PreparedIncentiveRequest } from "@/lib/incentive/prepare-request";
 import type { IncentiveSplitShare } from "@/lib/incentive/split";
 import {
+  PENDING_REQUEST_EDIT_NOTE,
   RESUBMITTED_STATUS,
   checkDecision,
   checkResubmission,
@@ -323,6 +324,60 @@ export async function resubmitIncentive(
     if (!submission) throw new Error("submission insert returned no row");
 
     return { ok: true as const, submissionNo: nextNo, submissionId: submission.id, submittedAt: now };
+  });
+}
+
+/**
+ * Amend a request while it is still pending and has never been decided.
+ *
+ * This deliberately appends a submission instead of overwriting the first
+ * snapshot. Once a decision exists, edits must use the resubmission path (when
+ * applicable) or are refused; the decision and its evidence remain immutable.
+ */
+export async function amendPendingIncentive(
+  input: { requestId: string; actorId: string; prepared: PreparedIncentiveRequest },
+  opts: { tx?: Tx } = {},
+): Promise<{ ok: true; submissionNo: number } | { ok: false; error: string }> {
+  return inTx(opts.tx, async (t) => {
+    const [row] = await t
+      .select({
+        id: incentiveRequests.id,
+        type: incentiveRequests.type,
+        status: incentiveRequests.status,
+        submissionNo: incentiveRequests.submissionNo,
+      })
+      .from(incentiveRequests)
+      .where(eq(incentiveRequests.id, input.requestId))
+      .for("update");
+    if (!row) return { ok: false as const, error: "That incentive request no longer exists." };
+    if (row.status !== "pending") return { ok: false as const, error: "Only a pending request can be edited." };
+    if (row.type !== input.prepared.type) return { ok: false as const, error: "Editing keeps the original incentive type." };
+    const [decision] = await t
+      .select({ id: incentiveRequestDecisions.id })
+      .from(incentiveRequestDecisions)
+      .where(eq(incentiveRequestDecisions.requestId, row.id))
+      .limit(1);
+    if (decision) return { ok: false as const, error: "A decided request cannot be edited." };
+
+    const nextNo = row.submissionNo + 1;
+    const now = new Date();
+    const changed = await t
+      .update(incentiveRequests)
+      .set({ details: input.prepared.details, split: input.prepared.split, submissionNo: nextNo, updatedAt: now })
+      .where(and(eq(incentiveRequests.id, row.id), eq(incentiveRequests.status, "pending"), eq(incentiveRequests.submissionNo, row.submissionNo)))
+      .returning({ id: incentiveRequests.id });
+    if (!changed.length) return { ok: false as const, error: STALE };
+    await t.insert(incentiveRequestSubmissions).values({
+      requestId: row.id,
+      submissionNo: nextNo,
+      type: row.type,
+      details: input.prepared.details,
+      split: input.prepared.split,
+      justification: PENDING_REQUEST_EDIT_NOTE,
+      submittedById: input.actorId,
+      submittedAt: now,
+    });
+    return { ok: true as const, submissionNo: nextNo };
   });
 }
 

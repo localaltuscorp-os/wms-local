@@ -17,6 +17,7 @@ import {
 import { CYCLE_MONTHS, DEADLINES_PER_MONTH, MCC_FREQUENCIES, MCC_FREQUENCY_LABEL } from "./mcc-frequency";
 import { MAX_MINUTES, minutesText } from "./minutes";
 import type { ComplianceKind } from "./schedule";
+import { requiredHeader } from "@/lib/templates/field-config";
 
 /**
  * THE WCC / MCC BULK-UPLOAD WORKBOOK (account holder, 2026-09-19: "the excel
@@ -52,7 +53,6 @@ const MUTED = "FF64748B";
 const HAIRLINE = "FFE2E8F0";
 const NEEDED_FILL = "FFFEE2E2"; // still needed
 const NOT_USED_FILL = "FFE5E7EB"; // not used for this frequency
-const REQUIRED_MARK = " *";
 
 const thin = { style: "thin" as const, color: { argb: HAIRLINE } };
 const cellBorder = { top: thin, left: thin, bottom: thin, right: thin };
@@ -110,8 +110,8 @@ function examples(kind: ComplianceKind, me: string): (string | number)[][] {
  * The workbook, for one checklist and the people this viewer may add
  * compliances for (the viewer first).
  */
-export async function buildComplianceTemplate(args: { kind: ComplianceKind; people: readonly BulkPerson[] }): Promise<Buffer> {
-  const { kind, people } = args;
+export async function buildComplianceTemplate(args: { kind: ComplianceKind; people: readonly BulkPerson[]; required?: ReadonlySet<string> }): Promise<Buffer> {
+  const { kind, people, required } = args;
   const cols = bulkColumns(kind);
   const lastCol = cols.length;
   const KIND = kind.toUpperCase();
@@ -191,7 +191,8 @@ export async function buildComplianceTemplate(args: { kind: ComplianceKind; peop
   headerRow.height = 30;
   cols.forEach((c, i) => {
     const cell = headerRow.getCell(i + 1);
-    cell.value = c.required === "yes" ? `${c.header}${REQUIRED_MARK}` : c.header;
+    const effectiveRequired = required ?? new Set(cols.filter((item) => item.required === "yes").map((item) => item.field));
+    cell.value = requiredHeader(c.header, c.field, effectiveRequired);
     styleHeaderCell(cell);
     cell.note = { texts: [{ text: c.help }], margins: { insetmode: "auto" } } as ExcelJS.Comment;
   });

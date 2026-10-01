@@ -16,30 +16,14 @@
  */
 
 /** Suggested categories. The field stays free text — the list only speeds typing. */
-export const VENDOR_CATEGORIES = [
-  "AC",
-  "Broadband",
-  "Carpenter",
-  "Catering",
-  "CCTV",
-  "Computer Repairs",
-  "Courier",
-  "Electrician",
-  "IT Hardware",
-  "Pest Control",
-  "Plumber",
-  "Printing",
-  "Stationery",
-  "Travel",
-  "Other",
-] as const;
-
 /** One vendor as the form and the bulk grid hold it: every text field a string. */
 export interface VendorFields {
   category: string;
   firstName: string;
   lastName: string;
+  companyName: string;
   cellNo: string;
+  whatsappCellNo: string;
   email: string;
   addressLine1: string;
   addressLine2: string;
@@ -51,6 +35,12 @@ export interface VendorFields {
   pincode: string;
   website: string;
   amc: boolean;
+  officeOpenTime: string;
+  officeEndTime: string;
+  businessCardFrontPath: string;
+  businessCardBackPath: string;
+  cataloguePath: string;
+  additionalLinks: string;
   notes: string;
 }
 
@@ -60,7 +50,9 @@ export const EMPTY_VENDOR: VendorFields = {
   category: "",
   firstName: "",
   lastName: "",
+  companyName: "",
   cellNo: "",
+  whatsappCellNo: "",
   email: "",
   addressLine1: "",
   addressLine2: "",
@@ -72,6 +64,12 @@ export const EMPTY_VENDOR: VendorFields = {
   pincode: "",
   website: "",
   amc: false,
+  officeOpenTime: "",
+  officeEndTime: "",
+  businessCardFrontPath: "",
+  businessCardBackPath: "",
+  cataloguePath: "",
+  additionalLinks: "",
   notes: "",
 };
 
@@ -85,7 +83,9 @@ export const VENDOR_COLUMNS: { key: keyof VendorFields; label: string; aliases: 
   { key: "category", label: "Category", aliases: ["category", "type", "service", "vendor type"] },
   { key: "firstName", label: "First Name", aliases: ["first name", "firstname", "first", "name"] },
   { key: "lastName", label: "Last Name", aliases: ["last name", "lastname", "surname", "last"] },
+  { key: "companyName", label: "Company Name", aliases: ["company name", "company", "organisation", "organization"] },
   { key: "cellNo", label: "Cell No", aliases: ["cell no", "cell", "cell number", "mobile", "mobile no", "phone", "phone no", "contact no"] },
+  { key: "whatsappCellNo", label: "WhatsApp Cell No", aliases: ["whatsapp cell no", "whatsapp number", "whatsapp", "whatsapp no"] },
   { key: "email", label: "Email Address", aliases: ["email address", "email", "e-mail", "mail"] },
   { key: "addressLine1", label: "Address Line 1", aliases: ["address line 1", "address 1", "line 1", "address"] },
   { key: "addressLine2", label: "Address Line 2", aliases: ["address line 2", "address 2", "line 2"] },
@@ -97,6 +97,9 @@ export const VENDOR_COLUMNS: { key: keyof VendorFields; label: string; aliases: 
   { key: "pincode", label: "Pincode", aliases: ["pincode", "pin code", "pin", "zip", "postal code"] },
   { key: "website", label: "Website", aliases: ["website", "web", "url", "site"] },
   { key: "amc", label: "AMC", aliases: ["amc", "amc yes no", "under amc"] },
+  { key: "officeOpenTime", label: "Vendor Office Open Time", aliases: ["vendor office open time", "office open time", "open time"] },
+  { key: "officeEndTime", label: "Vendor Office End Time", aliases: ["vendor office end time", "office end time", "close time", "end time"] },
+  { key: "additionalLinks", label: "Additional Links", aliases: ["additional links", "links", "other links"] },
   { key: "notes", label: "Notes", aliases: ["notes", "note", "remarks", "comments"] },
 ];
 
@@ -129,15 +132,22 @@ export function normalizeWebsite(raw: string): string {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 /** Every problem with a row, in words a person can act on. Empty = valid. */
 export function vendorErrors(v: VendorFields): string[] {
   const errors: string[] = [];
   if (!v.firstName.trim()) errors.push("First Name is required");
+  if (!v.lastName.trim()) errors.push("Last Name is required");
+  if (!v.companyName.trim()) errors.push("Company Name is required");
+  if (!v.cellNo.trim()) errors.push("Cell No is required");
+  if (!v.whatsappCellNo.trim()) errors.push("WhatsApp Cell No is required");
   if (!v.category.trim()) errors.push("Category is required");
   if (v.email.trim() && !EMAIL_RE.test(v.email.trim())) errors.push("Email is not valid");
   const pin = normalizePincode(v.pincode);
   if (pin && !/^\d{6}$/.test(pin)) errors.push("Pincode must be 6 digits");
+  if (v.officeOpenTime && !TIME_RE.test(v.officeOpenTime)) errors.push("Vendor Office Open Time must be HH:MM");
+  if (v.officeEndTime && !TIME_RE.test(v.officeEndTime)) errors.push("Vendor Office End Time must be HH:MM");
   return errors;
 }
 

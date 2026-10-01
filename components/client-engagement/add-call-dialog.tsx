@@ -7,19 +7,15 @@ import {
   accountLabel,
   categoryOf,
   CE_CALL_TYPES,
-  CE_CATEGORIES,
   CE_DAY_START_MIN,
   CE_DAYS,
-  categoryNeedsBatch,
 } from "@/lib/client-engagement/constants";
 import { CE_MANAGER_NAMES } from "@/lib/client-engagement/access";
 import { toHm, validateEngagement } from "@/lib/client-engagement/schedule";
 import { isInactiveAccount } from "@/lib/client-engagement/status";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
-import { ceAddAccount, ceSaveEngagement } from "@/app/(app)/operations/client-engagement/actions";
+import { ceSaveEngagement } from "@/app/(app)/operations/client-engagement/actions";
 import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Select, TimeField } from "./ui";
-
-const NEW = "__new__";
 
 interface CallRow {
   key: number;
@@ -49,42 +45,30 @@ export function AddCallDialog({
   members,
   accounts,
   lockedMemberId,
-  canManage,
   weekStart,
   onClose,
 }: {
   members: CeMemberRow[];
   accounts: CeAccountRow[];
   lockedMemberId: string | null;
-  canManage: boolean;
   weekStart: string;
   onClose: () => void;
 }) {
   const [memberId, setMemberId] = React.useState(lockedMemberId ?? members[0]?.id ?? "");
   const [accountId, setAccountId] = React.useState("");
-  // Only meaningful while accountId === NEW — for an EXISTING participant the
-  // product type is read off their own account instead (asked 2026-09-28:
-  // "this should be autofetched from the participant, client, ambassador
-  // selected" — it is their own data, not a second thing to pick again).
-  const [newCategory, setNewCategory] = React.useState<string>(CE_CATEGORIES[0]!.code);
-  const [batch, setBatch] = React.useState("");
-  const [newName, setNewName] = React.useState("");
   const [rows, setRows] = React.useState<CallRow[]>([newRow(0)]);
   const nextKey = React.useRef(1);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [rowErrors, setRowErrors] = React.useState<Record<number, string>>({});
 
-  const isNewPerson = accountId === NEW;
   const selected = accounts.find((a) => a.id === accountId);
-  const category = isNewPerson ? newCategory : (selected?.category ?? "");
-  const needsBatch = categoryNeedsBatch(category);
   // Every account this employee already carries, any product type — picking
-  // ONE is what tells the dialog which product type this call is under.
+  // ONE is what tells the dialog which product type this call is under. Only
+  // an existing PCA can be picked here (asked 2026-09-29): this dialog
+  // schedules a call, it does not also create a new participant/client/
+  // ambassador — that stays Overview's "+ Add People".
   const candidates = accounts.filter((a) => a.assignedTo === memberId).sort((a, b) => a.fullName.localeCompare(b.fullName));
-  const batchesHere = [...new Set(accounts.filter((a) => a.assignedTo === memberId && a.category === newCategory && a.batchCode).map((a) => a.batchCode!))].sort(
-    (a, b) => a.localeCompare(b, undefined, { numeric: true }),
-  );
 
   function updateRow(key: number, patch: Partial<CallRow>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -112,31 +96,10 @@ export function AddCallDialog({
     setError(null);
     setRowErrors({});
 
-    if (!isNewPerson && !accountId) {
+    if (!accountId) {
       setBusy(false);
       setError("Pick who the calls are with.");
       return;
-    }
-    if (isNewPerson && !newName.trim()) {
-      setBusy(false);
-      setError("Give the new person a name.");
-      return;
-    }
-
-    let resolvedAccountId = accountId;
-    if (isNewPerson) {
-      const res = await ceAddAccount({
-        fullName: newName,
-        category,
-        batchCode: needsBatch ? batch : null,
-        assignTo: memberId,
-      });
-      if (!res.ok) {
-        setBusy(false);
-        setError(res.error);
-        return;
-      }
-      resolvedAccountId = res.id;
     }
 
     let ok = 0;
@@ -148,7 +111,7 @@ export function AddCallDialog({
         continue;
       }
       const res = await ceSaveEngagement({
-        accountId: resolvedAccountId,
+        accountId,
         teamMemberId: memberId,
         callType: r.callType,
         dayOfWeek: r.day,
@@ -233,57 +196,20 @@ export function AddCallDialog({
                 {isInactiveAccount(a) ? " — inactive" : ""}
               </option>
             ))}
-            {canManage ? <option value={NEW}>+ New person…</option> : null}
           </Select>
         </label>
 
         <label>
           <span className={LABEL}>Product type</span>
-          {isNewPerson ? (
-            <Select value={newCategory} onChange={(v) => { setNewCategory(v); setBatch(""); }} ariaLabel="Product type">
-              {CE_CATEGORIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <div className={`${FIELD} flex items-center ${selected ? "text-ink-strong" : "text-ink-subtle"}`}>
-              {selected ? categoryOf(selected.category)?.label : "Pick a person first"}
-            </div>
-          )}
+          <div className={`${FIELD} flex items-center ${selected ? "text-ink-strong" : "text-ink-subtle"}`}>
+            {selected ? categoryOf(selected.category)?.label : "Pick a person first"}
+          </div>
         </label>
       </div>
 
-      {isNewPerson ? (
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className={needsBatch ? "" : "sm:col-span-2"}>
-            <span className={LABEL}>New person&apos;s name</span>
-            <input className={FIELD} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Added and assigned to this employee" autoFocus />
-          </label>
-          {needsBatch ? (
-            <label>
-              <span className={LABEL}>Batch number</span>
-              <input
-                className={FIELD}
-                value={batch}
-                onChange={(e) => setBatch(e.target.value)}
-                placeholder="e.g. 79"
-                list="ce-addcall-batches"
-              />
-              <datalist id="ce-addcall-batches">
-                {batchesHere.map((b) => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
-            </label>
-          ) : null}
-        </div>
-      ) : null}
-
-      {!canManage && !candidates.length ? (
+      {!candidates.length ? (
         <p className="mt-3 text-[12px] text-ink-muted">
-          Only people already assigned to you can be scheduled. {CE_MANAGER_NAMES} assign new ones.
+          Nobody is assigned to this employee yet — {CE_MANAGER_NAMES} add and assign people on Overview first.
         </p>
       ) : null}
       {selected && isInactiveAccount(selected) ? (

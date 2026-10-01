@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { WEEKLY_GOALS_COLUMNS } from "@/lib/weekly-goals/template-columns";
+import { requiredHeader } from "./field-config";
 
 /**
  * The Weekly Goals bulk-import workbook — the built-in served by
@@ -40,8 +41,9 @@ const cellBorder = { top: thin, left: thin, bottom: thin, right: thin };
 
 const HEADER_ROW = 1;
 const DATA_ROWS = 200;
+const WEEKLY_FIELD_IDS = ["client", "subject", "priority", "targetDate", "incentive", "kpi", "target", "percentDone", "explanation", "notes", "link", "employee"] as const;
 
-export async function buildWeeklyGoalsTemplate(): Promise<Buffer> {
+export async function buildWeeklyGoalsTemplate(requiredFields: ReadonlySet<string> = new Set()): Promise<Buffer> {
   const roster = await db
     .select({ name: employees.name })
     .from(employees)
@@ -56,8 +58,8 @@ export async function buildWeeklyGoalsTemplate(): Promise<Buffer> {
   const sheet = wb.addWorksheet("Weekly Goals", {
     views: [{ state: "frozen", ySplit: HEADER_ROW }],
   });
-  sheet.columns = WEEKLY_GOALS_COLUMNS.map((c) => ({
-    header: c.header,
+  sheet.columns = WEEKLY_GOALS_COLUMNS.map((c, index) => ({
+    header: requiredHeader(c.header, WEEKLY_FIELD_IDS[index]!, requiredFields),
     key: c.header,
     width: c.header === "Target" ? 46 : c.header === "Notes" ? 28 : 16,
   }));
@@ -99,7 +101,7 @@ export async function buildWeeklyGoalsTemplate(): Promise<Buffer> {
 
   // ── Sheet 1: a worked example, off the entry grid ────────────────────
   const example = wb.addWorksheet("Example");
-  example.columns = WEEKLY_GOALS_COLUMNS.map((c) => ({ header: c.header, key: c.header, width: 22 }));
+  example.columns = WEEKLY_GOALS_COLUMNS.map((c, index) => ({ header: requiredHeader(c.header, WEEKLY_FIELD_IDS[index]!, requiredFields), key: c.header, width: 22 }));
   example.getRow(1).font = { bold: true, color: { argb: "FF1F2937" } };
   example.addRow(WEEKLY_GOALS_COLUMNS.map((c) => c.example));
 

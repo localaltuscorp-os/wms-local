@@ -197,12 +197,14 @@ export function TeamTransferPanel({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-14 w-[104px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[12.5px] font-bold leading-tight text-white"
+        className="flex h-14 w-[104px] shrink-0 items-center justify-center gap-1.5 rounded-xl text-[12.5px] font-bold leading-tight text-white"
         style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
       >
-        <Users2 size={15} strokeWidth={2.4} />
-        <span>Transfer</span>
-        <span>Employee</span>
+        <Users2 size={15} strokeWidth={2.4} className="shrink-0" />
+        <span className="flex flex-col">
+          <span>Transfer</span>
+          <span>Employee</span>
+        </span>
       </button>
 
       {/* THE PICKERS, as a dialog. Only ONE overlay is ever mounted: opening

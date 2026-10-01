@@ -752,7 +752,9 @@ export const opsVendors = pgTable(
     category: text("category").notNull().default("Other"),
     firstName: text("first_name").notNull(),
     lastName: text("last_name"),
+    companyName: text("company_name"),
     cellNo: text("cell_no"),
+    whatsappCellNo: text("whatsapp_cell_no"),
     email: text("email"),
     addressLine1: text("address_line1"),
     addressLine2: text("address_line2"),
@@ -764,6 +766,12 @@ export const opsVendors = pgTable(
     pincode: text("pincode"),
     website: text("website"),
     amc: boolean("amc").notNull().default(false),
+    officeOpenTime: time("office_open_time"),
+    officeEndTime: time("office_end_time"),
+    businessCardFrontPath: text("business_card_front_path"),
+    businessCardBackPath: text("business_card_back_path"),
+    cataloguePath: text("catalogue_path"),
+    additionalLinks: text("additional_links").array().notNull().default(sql`'{}'::text[]`),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
@@ -774,6 +782,26 @@ export const opsVendors = pgTable(
   (t) => [index("ops_vendors_active_idx").on(t.isActive), index("ops_vendors_category_idx").on(t.category)],
 );
 export type OpsVendor = typeof opsVendors.$inferSelect;
+
+/** Operations → Directory: managed source of truth for vendor categories. */
+export const opsVendorCategories = pgTable(
+  "ops_vendor_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    updatedById: uuid("updated_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ops_vendor_categories_name_uidx").on(sql`lower(${t.name})`),
+    index("ops_vendor_categories_active_idx").on(t.isActive, t.sortOrder),
+  ],
+);
+export type OpsVendorCategory = typeof opsVendorCategories.$inferSelect;
 
 /** Client Engagement roster and account pipeline (migration 0230). */
 export const ceTeamMembers = pgTable(
@@ -9767,6 +9795,67 @@ export type NewDelegatedAccessGrant = typeof delegatedAccessGrants.$inferInsert;
 export type DelegatedAccessEvent = typeof delegatedAccessEvents.$inferSelect;
 
 /* ──────────────────────────────────────────────────────────────────────────
+ * Scoped temporary access
+ *
+ * This is a restrictive overlay, never a second source of privilege. A live
+ * recipient row limits the employee's existing access to the saved module
+ * scopes; it cannot grant a capability, role, data scope, or write right.
+ * Legacy delegated-access rows above remain unchanged.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const scopedAccessGrants = pgTable(
+  "scoped_access_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    grantedById: uuid("granted_by_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedById: uuid("revoked_by_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("scoped_access_grants_live_idx").on(t.expiresAt, t.revokedAt)],
+);
+
+export const scopedAccessRecipients = pgTable(
+  "scoped_access_recipients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    grantId: uuid("grant_id").notNull().references((): AnyPgColumn => scopedAccessGrants.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id").notNull().references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedById: uuid("revoked_by_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("scoped_access_recipient_uniq").on(t.grantId, t.employeeId),
+    index("scoped_access_recipients_employee_idx").on(t.employeeId, t.revokedAt),
+  ],
+);
+
+export const scopedAccessScopes = pgTable(
+  "scoped_access_scopes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipientId: uuid("recipient_id").notNull().references((): AnyPgColumn => scopedAccessRecipients.id, { onDelete: "cascade" }),
+    moduleKey: text("module_key").notNull(),
+    accessLevel: text("access_level").$type<"full" | "viewing" | "custom">().notNull(),
+    /** Custom selections only. Keys stay in the code catalogue, not the DB. */
+    navigationKeys: jsonb("navigation_keys").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("scoped_access_scope_uniq").on(t.recipientId, t.moduleKey),
+    index("scoped_access_scopes_recipient_idx").on(t.recipientId),
+  ],
+);
+
+export type ScopedAccessGrant = typeof scopedAccessGrants.$inferSelect;
+export type ScopedAccessRecipient = typeof scopedAccessRecipients.$inferSelect;
+export type ScopedAccessScope = typeof scopedAccessScopes.$inferSelect;
+
+/* ──────────────────────────────────────────────────────────────────────────
  * THE PERMISSION MATRIX (migration 0219)
  *
  * Only the GRANTS are stored. The module → sub-module → sub-sub-module TREE is
@@ -9876,6 +9965,41 @@ export const employeeManagerHistory = pgTable(
 
 export type EmployeeManagerHistory = typeof employeeManagerHistory.$inferSelect;
 export type NewEmployeeManagerHistory = typeof employeeManagerHistory.$inferInsert;
+
+/** Temporary workforce break; separate from offboarding and login state. */
+export const employeeTemporaryBreaks = pgTable(
+  "employee_temporary_breaks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    breakFrom: date("break_from").notNull(),
+    expectedReturn: date("expected_return"),
+    reason: text("reason"),
+    previousManagerId: uuid("previous_manager_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    startedById: uuid("started_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    endedById: uuid("ended_by_id").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("employee_temporary_breaks_one_active_uidx")
+      .on(t.employeeId)
+      .where(sql.raw('"ended_at" IS NULL')),
+    index("employee_temporary_breaks_active_idx").on(t.endedAt, t.breakFrom),
+  ],
+);
+
+export type EmployeeTemporaryBreak = typeof employeeTemporaryBreaks.$inferSelect;
+export type NewEmployeeTemporaryBreak = typeof employeeTemporaryBreaks.$inferInsert;
 
 /* ── Operations · Event Checklist (migration 0221) ───────────────────────────
  * Dates are driven by an OFFSET from the event, and that one decision shapes
@@ -11014,6 +11138,27 @@ export type TemplateFile = typeof templateFiles.$inferSelect;
 export type NewTemplateFile = typeof templateFiles.$inferInsert;
 
 /**
+ * Upload Master mandatory-field overrides. No row means use the registry's
+ * built-in defaults; one row applies only to its template key and variant.
+ */
+export const templateFieldConfigs = pgTable(
+  "template_field_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull(),
+    variant: text("variant").notNull().default("default"),
+    requiredFields: jsonb("required_fields").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    updatedById: uuid("updated_by_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("template_field_configs_key_variant_uq").on(t.key, t.variant)],
+);
+export type TemplateFieldConfig = typeof templateFieldConfigs.$inferSelect;
+
+/**
  * Access Control — a grant of ELEVATED visibility, per domain.
  *
  * Two domains today, one rule and one table: `tasks` (whose work a person may
@@ -11244,6 +11389,8 @@ export const employeeRoles = pgTable(
     assignedById: uuid("assigned_by_id").references(() => employees.id, {
       onDelete: "set null",
     }),
+    /** Null means this employee keeps the role until it is explicitly removed. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

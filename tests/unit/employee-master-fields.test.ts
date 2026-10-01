@@ -21,7 +21,8 @@ import { EMPLOYEE_TYPE_OPTIONS, WORKER_TYPE_LABELS, payBasisFor } from "@/lib/at
    ════════════════════════════════════════════════════════════════════════════ */
 
 /** Every value `statusOf` in lib/employees/master-query.ts can return. */
-const ALL_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
+const ALL_STATUSES = ["active", "probation", "temporary_break", "inactive", "offboarded"] as const;
+const ACTIVE_WORKFORCE_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
 
 describe("Employee status — All | Current | Probation | Past", () => {
   it("offers exactly those four, in that order", () => {
@@ -47,6 +48,7 @@ describe("Employee status — All | Current | Probation | Past", () => {
     expect(matchesStatusTab("offboarded", "past")).toBe(true);
     expect(matchesStatusTab("active", "past")).toBe(false);
     expect(matchesStatusTab("probation", "past")).toBe(false);
+    expect(matchesStatusTab("temporary_break", "past")).toBe(false);
   });
 
   it("All matches everything", () => {
@@ -61,10 +63,17 @@ describe("Employee status — All | Current | Probation | Past", () => {
    */
   it("Current, Probation and Past partition every status exactly once", () => {
     const buckets: EmployeeStatusTab[] = ["current", "probation", "past"];
-    for (const status of ALL_STATUSES) {
+    for (const status of ACTIVE_WORKFORCE_STATUSES) {
       const hits = buckets.filter((b) => matchesStatusTab(status, b));
       expect(hits, `${status} landed in ${hits.length} buckets`).toHaveLength(1);
     }
+  });
+
+  it("keeps Temporary Break visible in All without misclassifying it as active or past", () => {
+    expect(matchesStatusTab("temporary_break", "all")).toBe(true);
+    expect(matchesStatusTab("temporary_break", "current")).toBe(false);
+    expect(matchesStatusTab("temporary_break", "probation")).toBe(false);
+    expect(matchesStatusTab("temporary_break", "past")).toBe(false);
   });
 
   it("an unrecognised status falls in NO bucket rather than being mislabelled", () => {
@@ -415,5 +424,35 @@ describe("migration 0227 assigns the five letters", () => {
     const updates = sqlText.match(/UPDATE paying_entities SET code_prefix[^;]+;/g) ?? [];
     expect(updates.length).toBe(5);
     for (const u of updates) expect(u).toMatch(/code_prefix IS NULL/);
+  });
+});
+
+describe("existing employee codes and contact details stay safe", () => {
+  const registry = codeOf("lib/employees/code-registry.ts");
+  const backfill = codeOf("scripts/backfill-employee-codes.ts");
+  const packageJson = codeOf("package.json");
+  const query = codeOf("lib/employees/master-query.ts");
+  const workspace = codeOf("components/admin/employee-master/workspace.tsx");
+
+  it("makes automatic allocation retry-safe without changing deliberate moves", () => {
+    expect(registry).toMatch(/onlyIfMissing: true/);
+    expect(registry).toMatch(/if \(input\.onlyIfMissing && current\?\.employeeCode\)/);
+    expect(registry).toMatch(/employee_code_employee:\$\{input\.employeeId\}/);
+  });
+
+  it("restores an active registry code before allocating a replacement", () => {
+    expect(backfill).toMatch(/employeeCodeRegistry\.status, "active"/);
+    expect(backfill).toMatch(/restoreCode/);
+    expect(backfill).toMatch(/isNull\(employees\.employeeCode\)/);
+    expect(packageJson).toMatch(/employees:backfill-codes/);
+  });
+
+  it("separates editable office and personal mail from the system login", () => {
+    expect(query).toMatch(/loginEmail: r\.email/);
+    expect(workspace).toMatch(/<EmailField label="Office Mail"/);
+    expect(workspace).toMatch(/<EmailField label="Personal Mail"/);
+    expect(workspace).toMatch(/label="Login Address"/);
+    expect(workspace).toMatch(/type="email"/);
+    expect(workspace).toMatch(/No emergency contacts recorded\./);
   });
 });

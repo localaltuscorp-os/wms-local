@@ -1,5 +1,15 @@
 import type { ReactNode } from "react";
 
+/** Shared page-title typography for routes that do not use the command-bar shell. */
+export const PAGE_COMMAND_BAR_TITLE_STYLE = {
+  fontFamily: "var(--font-display), system-ui, sans-serif",
+  fontWeight: 800,
+  color: "var(--color-ink-strong)",
+  fontSize: "clamp(22px, 2vw, 32px)",
+  letterSpacing: "-0.03em",
+  lineHeight: 1.02,
+} as const;
+
 /**
  * PageCommandBar — the Yearly Goals header, extracted so every page can wear it.
  *
@@ -83,14 +93,7 @@ export function PageCommandBar({
         <div className="flex min-w-[200px] flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
           {!titleInTopBar && (
             <h1
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 800,
-                color: "var(--color-ink-strong)",
-                fontSize: "clamp(22px, 2vw, 32px)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.02,
-              }}
+              style={PAGE_COMMAND_BAR_TITLE_STYLE}
             >
               {title}
             </h1>

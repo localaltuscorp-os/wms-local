@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { incentiveRequests } from "@/db/schema";
+import { incentiveRequestDecisions, incentiveRequests } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canReviewIncentives, INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
 import { rateLimitOrError } from "@/lib/rate-limit";
@@ -14,6 +14,7 @@ import { prepareIncentiveRequest } from "@/lib/incentive/prepare-request";
 import { DECISION_ACTIONS, NOTE_MAX, checkResubmission, type DecisionAction } from "@/lib/incentive/workflow";
 import {
   fileIncentiveRequest,
+  amendPendingIncentive,
   loadIncentiveRequestHistory,
   recordIncentiveDecision,
   resubmitIncentive,
@@ -230,6 +231,65 @@ export async function resubmitIncentiveRequest(input: {
 
   revalidatePath("/incentive");
   return { ok: true, submissionNo: res.submissionNo };
+}
+
+const PendingEditSchema = z.object({
+  id: z.string().uuid(),
+  details: z.record(z.string(), z.string()),
+  split: z.array(z.object({ employeeId: z.string().max(64), pct: z.number() }).strict()).max(20).nullable().optional(),
+}).strict();
+
+/** Amend a pending, never-decided request while retaining every submission snapshot. */
+export async function updatePendingIncentiveRequest(input: {
+  id: string;
+  details: Record<string, string>;
+  split?: { employeeId: string; pct: number }[] | null;
+}): Promise<ActionResult<{ submissionNo: number }>> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const parsed = PendingEditSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const [row] = await db
+    .select({ employeeId: incentiveRequests.employeeId, type: incentiveRequests.type, status: incentiveRequests.status })
+    .from(incentiveRequests)
+    .where(eq(incentiveRequests.id, parsed.data.id));
+  if (!row || (row.employeeId !== me.id && !me.isAdmin)) return { ok: false, error: "That incentive request was not found." };
+  if (row.status !== "pending") return { ok: false, error: "Only a pending request can be edited." };
+  const prepared = await prepareIncentiveRequest(row.employeeId, { type: row.type, details: parsed.data.details, split: parsed.data.split ?? null });
+  if (!prepared.ok) return prepared;
+  const result = await amendPendingIncentive({ requestId: parsed.data.id, actorId: me.id, prepared: prepared.values });
+  if (!result.ok) return result;
+  revalidatePath("/incentive");
+  return result;
+}
+
+/** Delete only a pending request that has never received a decision. */
+export async function deletePendingIncentiveRequest(input: { id: string }): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  const id = z.string().uuid().safeParse(input.id);
+  if (!id.success) return { ok: false, error: "Invalid request" };
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ employeeId: incentiveRequests.employeeId, status: incentiveRequests.status })
+      .from(incentiveRequests)
+      .where(eq(incentiveRequests.id, id.data))
+      .for("update");
+    if (!row || (row.employeeId !== me.id && !me.isAdmin)) return { ok: false as const, error: "That incentive request was not found." };
+    if (row.status !== "pending") return { ok: false as const, error: "Only a pending request can be deleted." };
+    const [decision] = await tx
+      .select({ id: incentiveRequestDecisions.id })
+      .from(incentiveRequestDecisions)
+      .where(eq(incentiveRequestDecisions.requestId, id.data))
+      .limit(1);
+    if (decision) return { ok: false as const, error: "A decided request cannot be deleted." };
+    const removed = await tx.delete(incentiveRequests).where(and(eq(incentiveRequests.id, id.data), eq(incentiveRequests.status, "pending"))).returning({ id: incentiveRequests.id });
+    return removed.length ? ({ ok: true as const }) : ({ ok: false as const, error: "This request changed. Reload and try again." });
+  });
+  if (result.ok) revalidatePath("/incentive");
+  return result;
 }
 
 /**

@@ -52,6 +52,7 @@ export interface BoardPerson {
   department: string | null;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isRoot: boolean;
   managerId: string | null;
   reportCount: number;
 }
@@ -159,7 +160,14 @@ export function HierarchyBoard({
   const [historyFor, setHistoryFor] = useState<BoardPerson | null>(null);
   const [historyRows, setHistoryRows] = useState<HistoryPeriod[]>([]);
   const [historyState, setHistoryState] = useState<"loading" | "ready" | "error">("loading");
-  const [, startTransition] = useTransition();
+  // CAPTURED, not discarded (found 2026-09-29: it used to be `[, startTransition]`)
+  // — with nothing gating the up/down buttons, a second click before
+  // `router.refresh()` landed fired ANOTHER reorder from the same
+  // still-stale order, and only settled a couple of clicks later once the
+  // refreshes caught up. Below, `onReorder` is withheld entirely while a
+  // reorder is in flight, so a click during that window is a no-op instead
+  // of a race.
+  const [isPending, startTransition] = useTransition();
 
   /** Open the history dialog and load that person's periods. The fetch lives in
    *  the click handler, so the dialog itself stays a pure presenter. */
@@ -272,7 +280,7 @@ export function HierarchyBoard({
               onMove={move}
               onHistory={openHistory}
               enableReorder={enableReorder}
-              onReorder={reorder}
+              onReorder={isPending ? undefined : reorder}
             />
           ))}
         </div>
@@ -451,7 +459,7 @@ function Card({
 }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: person.id,
-    disabled: !canEdit,
+    disabled: !canEdit || person.isRoot,
   });
 
   /**
@@ -476,12 +484,12 @@ function Card({
     >
       <div className="flex items-start gap-1.5">
         <div
-          {...(canEdit ? { ...attributes, ...listeners } : {})}
-          className={`min-w-0 flex-1 ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}
+          {...(canEdit && !person.isRoot ? { ...attributes, ...listeners } : {})}
+          className={`min-w-0 flex-1 ${canEdit && !person.isRoot ? "cursor-grab active:cursor-grabbing" : ""}`}
         >
           <CardBody person={person} compact={compact} />
         </div>
-        {enableReorder && (
+        {enableReorder && !person.isRoot && (
           <span className="flex shrink-0 flex-col">
             <button
               type="button"
@@ -509,7 +517,7 @@ function Card({
           history button, since a row holding only one of them looked broken. */}
       {compact ? null : (
       <div className="mt-2 flex items-center gap-1.5">
-        {canEdit && (
+        {canEdit && !person.isRoot && (
           <label className="min-w-0 flex-1">
             <span className="sr-only">Move {person.name} to another manager</span>
             <select

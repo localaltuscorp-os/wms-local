@@ -15,7 +15,7 @@ import { istYmd } from "@/lib/weekly-goals/week";
  *    partial-day boundary to get wrong.
  *  · CALENDAR-YEAR YTD. The Incentive module's year is January–December: the
  *    page's year picker, `yearBounds` in lib/queries/incentives.ts and
- *    `ytdMonths` in lib/queries/incentive-status.ts. (The April financial year
+ *    the retired status roll-up query. (The April financial year
  *    belongs to the salary earnings document and Accounts, not to this module.)
  *  · IST "NOW". Which month is current is decided in Asia/Kolkata on the server
  *    (`istYmd`), never from the viewer's browser clock.

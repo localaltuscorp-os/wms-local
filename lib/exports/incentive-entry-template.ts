@@ -1,6 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import type { IncentiveRosterEntry } from "@/lib/import/incentive-import";
+import { requiredHeader } from "@/lib/templates/field-config";
 
 const HEADERS = [
   "Employee ID", "Employee Name", "Incentive Product", "Period Month", "Amount", "Approved",
@@ -18,6 +19,7 @@ const border = { bottom: { style: "hair" as const, color: { argb: "FFE2E8F0" } }
 export async function buildIncentiveEntryTemplate(args: {
   roster: readonly IncentiveRosterEntry[];
   products: readonly string[];
+  required?: ReadonlySet<string>;
 }): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Altus Corp";
@@ -29,7 +31,9 @@ export async function buildIncentiveEntryTemplate(args: {
 
   const widths = [38, 26, 28, 16, 15, 13, 18, 17, 11, 15, 17, 42];
   widths.forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
-  const header = sheet.addRow([...HEADERS]);
+  const ids = ["employeeId", "empName", "incentiveName", "periodMonth", "amount", "approved", "approvedAmt", "approvedDate", "paid", "paidAmt", "paidDate", "note"];
+  const defaultRequired = new Set(["employeeId", "empName", "incentiveName", "periodMonth", "amount", "approved", "paid"]);
+  const header = sheet.addRow(HEADERS.map((label, index) => requiredHeader(label, ids[index]!, args.required ?? defaultRequired)));
   header.height = 26;
   header.eachCell((cell) => {
     cell.font = { name: "Calibri", size: 10.5, bold: true, color: { argb: "FFFFFFFF" } };

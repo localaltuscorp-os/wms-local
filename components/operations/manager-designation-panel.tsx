@@ -65,11 +65,13 @@ export function ManagerDesignationPanel({ people }: { people: HierarchyPerson[] 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-14 w-[104px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-hairline-strong bg-white text-[12.5px] font-bold leading-tight text-ink-strong transition hover:border-hairline"
+        className="flex h-14 w-[104px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-hairline-strong bg-white text-[12.5px] font-bold leading-tight text-ink-strong transition hover:border-hairline"
       >
-        <UserCog size={15} strokeWidth={2.4} />
-        <span>Add/Delete</span>
-        <span>Manager</span>
+        <UserCog size={15} strokeWidth={2.4} className="shrink-0" />
+        <span className="flex flex-col">
+          <span>Add/Delete</span>
+          <span>Manager</span>
+        </span>
       </button>
 
       {open && (
