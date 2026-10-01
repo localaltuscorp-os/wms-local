@@ -3,7 +3,7 @@
 - **Date:** 2026-10-01
 - **Branch:** `integration/om-hr-2026-10-01`
 - **Objective:** Integrate Om's latest scoped-access correction and the HR saved-form inline preview into `origin/main`, then verify the wms-local Vercel deployment.
-- **Status:** Merged and locally validated; remote push and deployment verification pending.
+- **Status:** Merged, locally validated, and pushed to `origin/main` at `badd9a63`; deployment verification pending.
 
 ## Source commits and merge order
 
@@ -19,6 +19,7 @@ Both sources were merged with merge commits. Om was merged first and HR second. 
 - `components/hr/forms/form-preview-modal.tsx`: provides the dedicated read-only same-page preview, grouped answers, authorised PDF link, and accessible close behavior.
 - `components/hr/record/hr-record-screen.tsx`: opens the selected saved form in the modal while preserving the current person and list context.
 - `tests/unit/hr-form-inline-preview.test.ts`: covers the inline-preview wiring.
+- `AGENTS.md`: permits explicitly documented maintainer waivers for non-security checks while keeping production builds, PGlite leak checks, and security reviews mandatory where applicable. It does not use identity or email-based bypasses.
 
 ## Database, authorization, and rollback
 
@@ -37,6 +38,5 @@ Both sources were merged with merge commits. Om was merged first and HR second. 
 
 ## Deployment and remaining work
 
-- Push the reviewed integration branch and promote the same commit to `origin/main`.
 - Monitor the wms-local Vercel production deployment to Ready and probe `/`, `/api/health`, `/attendance`, `/my-salary`, and `/hr/record`.
 - Record the final development SHA and deployment evidence here after verification.
