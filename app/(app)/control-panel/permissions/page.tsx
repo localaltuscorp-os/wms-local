@@ -2,6 +2,8 @@ import { listControlPanelUsers } from "@/lib/queries/control-panel";
 import { allPermissionNodes } from "@/lib/permissions/catalog";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { PermissionsClient } from "@/components/control-panel/permissions-client";
+import { forbiddenError, getSignedInEmployee } from "@/lib/auth/current";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,8 @@ export const dynamic = "force-dynamic";
  * enforced here.
  */
 export default async function ControlPanelPermissionsPage() {
+  const signedIn = await getSignedInEmployee();
+  if (!signedIn || !(await isMasterAdmin(signedIn.email))) throw forbiddenError();
   const users = await listControlPanelUsers();
   const nodes = allPermissionNodes()
     .filter((n) => n.depth <= 3)

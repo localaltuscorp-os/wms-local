@@ -15,21 +15,25 @@ import { matchFills, mccOccurrences, periodFor, scheduleDetail, scheduleText, ty
 
 /**
  * MCC frequencies (account holder, 2026-09-19): Monthly, 2 times/month, 3 times/
- * month, Alternate Month, Quarterly, Half Yearly, Annually.
+ * month, 4 times/month, Alternate Month, Quarterly (single or multiple due
+ * dates), Half Yearly (single or multiple due dates), Annually.
  */
 
 const s = (over: Partial<MccSchedule>): MccSchedule => ({ frequency: "monthly", days: [5], startMonth: null, ...over });
 const deadlines = (x: MccSchedule, mk: string) => mccDeadlinesIn(x, mk).map((d) => d.deadline);
 
-describe("the seven frequencies, in the checklist's own words", () => {
+describe("the MCC frequencies, in the checklist's own words", () => {
   it("are labelled exactly as the Frequency column writes them", () => {
     expect(MCC_FREQUENCIES.map((f) => MCC_FREQUENCY_LABEL[f])).toEqual([
       "Monthly",
       "2 times/month",
       "3 times/month",
+      "4 times/month",
       "Alternate Month",
       "Quarterly",
+      "Quarterly — multiple due dates",
       "Half Yearly",
+      "Half Yearly — multiple due dates",
       "Annually",
     ]);
   });
@@ -152,7 +156,18 @@ describe("storing and reading back", () => {
 
   it("round-trips every frequency through its columns", () => {
     for (const f of MCC_FREQUENCIES) {
-      const n = normalizeMccSchedule({ frequency: f, days: f === "twice_monthly" ? [15, null] : f === "thrice_monthly" ? [10, 20, null] : [12], startMonth: 7 });
+      const n = normalizeMccSchedule({
+        frequency: f,
+        days:
+          f === "twice_monthly"
+            ? [15, null]
+            : f === "thrice_monthly"
+              ? [10, 20, null]
+              : f === "four_times_monthly" || f === "quarterly_multiple" || f === "half_yearly_multiple"
+                ? [1, 5, 10, null]
+                : [12],
+        startMonth: 7,
+      });
       if (!n.ok) throw new Error(n.error);
       expect(mccScheduleOf(mccColumns(n.schedule))).toEqual(n.schedule);
     }

@@ -264,8 +264,8 @@ export function ComplianceDashboardView({
       <div className="mt-8 flex flex-col gap-8">
         <Section title="Weekly vs Monthly" hint="The two checklists, side by side" icon={BarChart3}>
           <div className="grid grid-cols-2 gap-3">
-            <KindPanel name="WCC — Weekly" kpis={data.wcc} href="/dcc/wcc" />
-            <KindPanel name="MCC — Monthly" kpis={data.mcc} href="/dcc/mcc" />
+            <KindPanel name="Daily and Weekly" kpis={data.wcc} href="/employees/cc?view=weekly" />
+            <KindPanel name="Monthly and longer" kpis={data.mcc} href="/employees/cc?view=monthly" />
           </div>
         </Section>
 
@@ -311,7 +311,7 @@ export function ComplianceDashboardView({
                 // that matches on title — which is the same set of rows.
                 const params = new URLSearchParams({ find: bar.label });
                 if (who && who !== "me") params.set("who", who);
-                router.push(`/dcc/wcc?${params.toString()}` as Route);
+                router.push(`/employees/cc?view=consolidated&${params.toString()}` as Route);
               }}
             />
           )}
@@ -443,7 +443,7 @@ export function ComplianceDashboardView({
                 <tr key={p.ownerId} className="border-b border-hairline last:border-0 hover:bg-slate-50/70">
                   <td className="px-4 py-2.5 font-semibold text-ink-strong">
                     <Link
-                      href={`/dcc/wcc?who=${encodeURIComponent(p.ownerId)}` as Route}
+                      href={`/employees/cc?view=consolidated&who=${encodeURIComponent(p.ownerId)}` as Route}
                       className="hover:underline"
                       title={`Open ${p.ownerName}'s checklist`}
                     >

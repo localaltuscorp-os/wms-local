@@ -15,6 +15,7 @@ import {
   Settings as SettingsIcon,
   ScrollText,
   ListFilter,
+  Archive,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -74,6 +75,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/notifications" as Route, label: "Notifications", Icon: Bell },
       { href: "/admin/task-reminders" as Route, label: "Task Reminders", Icon: BellRing },
       { href: "/admin/logs" as Route, label: "Logs", Icon: ScrollText },
+      { href: "/admin/module-backups" as Route, label: "Module Backups", Icon: Archive },
       { href: "/admin/settings" as Route, label: "Settings", Icon: SettingsIcon },
     ],
   },

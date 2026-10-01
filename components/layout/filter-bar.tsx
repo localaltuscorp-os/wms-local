@@ -354,8 +354,14 @@ export function FilterBar({
           : showScopeChip && assigneeMode === "default"
             ? "My Tasks"
             : "All Employees";
+  // Super-admins open on the whole company. That is the page's baseline, not
+  // a filter they selected, so it must not create an "active" chip or a Clear
+  // All action on first render.
+  const allEmployeesIsDefault =
+    selfScope && me?.isSuperAdmin === true && assigneeMode === "all" && emp.length === 0;
   const assigneeActive =
-    emp.length > 0 || ((showScopeChip || selfScope) && assigneeMode === "all");
+    emp.length > 0 ||
+    ((showScopeChip || selfScope) && assigneeMode === "all" && !allEmployeesIsDefault);
 
   // ── Active-filter chips (the summary row) ──────────────────────────────
   type ActivePill = { key: string; label: string; color: string; remove: () => void };
@@ -389,7 +395,7 @@ export function FilterBar({
     activePills.push({ key: "scope-all", label: "All Tasks", color: TINT.assignee, remove: () => setAssigneeMode("default") });
   // The dashboard's equivalent: says the view has been widened off you, and
   // removing the chip puts it back.
-  if (selfScope && assigneeMode === "all")
+  if (selfScope && assigneeMode === "all" && !allEmployeesIsDefault)
     activePills.push({
       key: "scope-all-emp",
       label: "All Employees",

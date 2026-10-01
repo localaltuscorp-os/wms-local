@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
@@ -154,7 +155,10 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
           onMouseEnter={() => setVisible(true)}
           onClick={() => setVisible(true)}
           className="pointer-events-auto absolute flex h-[52px] w-32 cursor-pointer items-center justify-center bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
-          style={{ opacity: visible ? 0 : 1, pointerEvents: visible ? "none" : "auto" }}
+          style={{
+            opacity: visible ? 0 : 1,
+            pointerEvents: visible ? "none" : "auto",
+          }}
           tabIndex={visible ? -1 : 0}
         >
           <span
@@ -163,54 +167,81 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
             style={{ background: "rgba(15,23,42,0.14)" }}
           />
         </button>
-      <nav
-        aria-label="All modules"
-        // Hidden state is inert as well as invisible: `inert` drops it out of the
-        // tab order and the accessibility tree, so a keyboard user never lands on
-        // ten invisible links. Revealing it restores both. It sits on the nav,
-        // not the wrapper — an inert wrapper would swallow its own hover.
-        inert={!visible}
-        // `max-w` + `overflow-x-auto` keep it from ever exceeding its column: on
-        // a narrow screen the strip scrolls sideways inside its own glass rather
-        // than pushing the page wider.
-        className="absolute flex max-w-[calc(100%-24px)] items-center gap-x-0.5 overflow-x-auto rounded-[18px] px-2 py-2 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
-        style={{
-          opacity: visible ? 1 : 0,
-          // A short lift rather than the old slide-off-screen: in flow there is
-          // no viewport edge to hide behind, and a long travel would read as the
-          // bar arriving from somewhere else on the page.
-          transform: visible ? "translateY(0)" : "translateY(6px)",
-          // Belt and braces with `inert`: an invisible dock must not eat a click
-          // aimed at whatever sits behind it.
-          pointerEvents: visible ? "auto" : "none",
-          background: "rgba(255,255,255,0.88)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
-          border: "1px solid rgba(0,0,0,0.08)",
-          boxShadow: "0 6px 24px -8px rgba(15,23,42,0.18), 0 1px 2px rgba(15,23,42,0.06)",
-          scrollbarWidth: "none",
-        }}
-      >
-        {listedModules(access).map((id) => {
-          const m = MODULE_THEME[id];
-          // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
-          // module (the Control Panel) is appended to `listedModules` and owns no
-          // letter, so the two lists are the same length only by coincidence —
-          // and a letter looked up by render position would move the moment one
-          // appeared or disappeared. `indexOf` returns -1 for a module with no
-          // place in the order, which resolves to no badge, which is correct.
-          const i = MODULE_ORDER.indexOf(id);
-          const allowed = canAccessWorkspace(id, access);
-          const Icon = m.Icon;
-          const shortcut = moduleShortcutHint(i);
-          // The badge is the compact "⌥Q"; the hover says it in words.
-          const shortcutLabel = moduleShortcutLabel(i);
-          const active = activeWs === id;
+        <nav
+          aria-label="All modules"
+          // Hidden state is inert as well as invisible: `inert` drops it out of the
+          // tab order and the accessibility tree, so a keyboard user never lands on
+          // ten invisible links. Revealing it restores both. It sits on the nav,
+          // not the wrapper — an inert wrapper would swallow its own hover.
+          inert={!visible}
+          // The dock itself is always as wide as its containing column. The brand
+          // and dismiss button are fixed at either end; ONLY the module list in
+          // the middle scrolls. This keeps Altus visible and prevents a long
+          // module list from pushing the close button off-screen.
+          className="absolute inset-x-3 flex items-center rounded-[18px] px-2 py-2 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
+          style={{
+            opacity: visible ? 1 : 0,
+            // A short lift rather than the old slide-off-screen: in flow there is
+            // no viewport edge to hide behind, and a long travel would read as the
+            // bar arriving from somewhere else on the page.
+            transform: visible ? "translateY(0)" : "translateY(6px)",
+            // Belt and braces with `inert`: an invisible dock must not eat a click
+            // aimed at whatever sits behind it.
+            pointerEvents: visible ? "auto" : "none",
+            background: "rgba(255,255,255,0.88)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            border: "1px solid rgba(0,0,0,0.08)",
+            boxShadow:
+              "0 6px 24px -8px rgba(15,23,42,0.18), 0 1px 2px rgba(15,23,42,0.06)",
+          }}
+        >
+          <Link
+            href="/hub"
+            aria-label="Altus — back to dashboard"
+            title="Back to dashboard"
+            className="inline-flex shrink-0 items-center gap-2 border-r border-[rgba(15,23,42,0.12)] px-2 pr-3 outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
+          >
+            <Image
+              src="/logo.png"
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8 object-contain"
+            />
+            <span className="whitespace-nowrap text-[13px] font-bold tracking-[-0.01em] text-[#171e35]">
+              Altus
+            </span>
+          </Link>
 
-          const inner = (
-            <>
-              <Icon size={15} strokeWidth={2.3} aria-hidden />
-              {/* The same letter the hub badges show, so the shortcut is
+          <div
+            // The scroll region deliberately starts AFTER the fixed brand. `min-w-0`
+            // is load-bearing in a flex row: without it, the list would expand the
+            // dock instead of scrolling within the space between brand and close.
+            className="min-w-0 flex-1 overflow-x-auto no-scrollbar"
+            style={{ scrollbarWidth: "none" }}
+          >
+            <div className="flex w-max min-w-full items-center gap-x-0.5 px-1">
+              {listedModules(access).map((id) => {
+                const m = MODULE_THEME[id];
+                // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
+                // module (the Control Panel) is appended to `listedModules` and owns no
+                // letter, so the two lists are the same length only by coincidence —
+                // and a letter looked up by render position would move the moment one
+                // appeared or disappeared. `indexOf` returns -1 for a module with no
+                // place in the order, which resolves to no badge, which is correct.
+                const i = MODULE_ORDER.indexOf(id);
+                const allowed = canAccessWorkspace(id, access);
+                const Icon = m.Icon;
+                const shortcut = moduleShortcutHint(i);
+                // The badge is the compact "⌥Q"; the hover says it in words.
+                const shortcutLabel = moduleShortcutLabel(i);
+                const active = activeWs === id;
+
+                const inner = (
+                  <>
+                    <Icon size={15} strokeWidth={2.3} aria-hidden />
+                    {/* The same letter the hub badges show, so the shortcut is
                   learnable from whichever surface you happen to be looking at.
                   Dimmer than the label — a hint, not a heading — and aria-hidden
                   so the row does not read as "Alt Q W M S Alt W Goals".
@@ -218,96 +249,118 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
                   navigate (it would collide with typing), so a bare "Q" here
                   would be advertising a shortcut that does nothing. The glyph
                   is spelled out as "Alt+Q" in this entry's hover title. */}
-              {shortcut && <span aria-hidden className="opacity-55">{shortcut}</span>}
-              <span className="whitespace-nowrap">{m.label}</span>
-            </>
-          );
+                    {shortcut && (
+                      <span aria-hidden className="opacity-55">
+                        {shortcut}
+                      </span>
+                    )}
+                    <span className="whitespace-nowrap">{m.label}</span>
+                  </>
+                );
 
-          // Locked: no link, no hover affordance, and said out loud for screen
-          // readers rather than left as an unexplained dead label.
-          if (!allowed) {
-            return (
-              <span
-                key={id}
-                title={`${m.label} — you don't have access to this module`}
-                className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold"
-                style={{ color: "rgba(15,23,42,0.30)" }}
-              >
-                {inner}
-                <span className="sr-only"> (no access)</span>
-              </span>
-            );
-          }
+                // Locked: no link, no hover affordance, and said out loud for screen
+                // readers rather than left as an unexplained dead label.
+                if (!allowed) {
+                  return (
+                    <span
+                      key={id}
+                      title={`${m.label} — you don't have access to this module`}
+                      className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold"
+                      style={{ color: "rgba(15,23,42,0.30)" }}
+                    >
+                      {inner}
+                      <span className="sr-only"> (no access)</span>
+                    </span>
+                  );
+                }
 
-          return (
-            <Link
-              key={id}
-              href={m.href}
-              title={shortcutLabel ? `${m.label} — ${shortcutLabel}` : m.label}
-              aria-current={active ? "page" : undefined}
-              // Resting state is a dark neutral so ten labels do not glare on the
-              // light glass; the module's own accent appears on hover/focus, and
-              // stays on for the room you are already in.
-              className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
-              style={{
-                ["--mod-accent" as string]: m.accent,
-                // ACTIVE is a tint plus the accent on the text — deliberately not
-                // a filled pill, which at this size reads as a selected tab in a
-                // toolbar rather than a hint of where you are.
-                color: active ? m.accent : "rgba(15,23,42,0.62)",
-                ...(active
-                  ? { background: `color-mix(in srgb, ${m.accent} 10%, transparent)` }
-                  : null),
-              }}
-            >
-              {inner}
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={id}
+                    href={m.href}
+                    title={
+                      shortcutLabel ? `${m.label} — ${shortcutLabel}` : m.label
+                    }
+                    aria-current={active ? "page" : undefined}
+                    // Resting state is a dark neutral so ten labels do not glare on the
+                    // light glass; the module's own accent appears on hover/focus, and
+                    // stays on for the room you are already in.
+                    className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+                    style={{
+                      ["--mod-accent" as string]: m.accent,
+                      // ACTIVE is a tint plus the accent on the text — deliberately not
+                      // a filled pill, which at this size reads as a selected tab in a
+                      // toolbar rather than a hint of where you are.
+                      color: active ? m.accent : "rgba(15,23,42,0.62)",
+                      ...(active
+                        ? {
+                            background: `color-mix(in srgb, ${m.accent} 10%, transparent)`,
+                          }
+                        : null),
+                    }}
+                  >
+                    {inner}
+                  </Link>
+                );
+              })}
 
-        {/* THE ADMIN PANEL — the standalone entry, admins only.
+              {/* THE ADMIN PANEL — the standalone entry, admins only.
             Last in the row and after the modules, because it is not one of them:
             `/admin` belongs to no workspace, so it is never `active` here and
             never tints the dock. Same href, same guard, same panel as the
             user-menu link — see ADMIN_PANEL_ENTRY in lib/module-theme.ts.
             "⌥A" rather than a bare "A": inside a room the letter alone is
             typing, exactly as for every other entry on this dock. */}
-        {access.isAdmin && (
-          <Link
-            href={ADMIN_PANEL_ENTRY.href}
-            title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
-            className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
-            style={{
-              ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
-              color: "rgba(15,23,42,0.62)",
-            }}
-          >
-            <ADMIN_PANEL_ENTRY.Icon size={15} strokeWidth={2.3} aria-hidden />
-            <span aria-hidden className="opacity-55">{`⌥${ADMIN_PANEL_ENTRY.shortcut}`}</span>
-            <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
-          </Link>
-        )}
+              {access.isAdmin && (
+                <Link
+                  href={ADMIN_PANEL_ENTRY.href}
+                  title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
+                  className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+                  style={{
+                    ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
+                    color: "rgba(15,23,42,0.62)",
+                  }}
+                >
+                  <ADMIN_PANEL_ENTRY.Icon
+                    size={15}
+                    strokeWidth={2.3}
+                    aria-hidden
+                  />
+                  <span
+                    aria-hidden
+                    className="opacity-55"
+                  >{`⌥${ADMIN_PANEL_ENTRY.shortcut}`}</span>
+                  <span className="whitespace-nowrap">
+                    {ADMIN_PANEL_ENTRY.label}
+                  </span>
+                </Link>
+              )}
+            </div>
+          </div>
 
-        {/* Dismiss. Separated by a hairline so it reads as a control on the dock
+          {/* Dismiss. Separated by a hairline so it reads as a control on the dock
             rather than an eleventh module. The dock can always be summoned again
             by hovering the strip, so this hides rather than disables anything.
             `stopPropagation` because the wrapper's own onClick re-reveals —
             without it the X would hide and instantly show again. */}
-        <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-[rgba(15,23,42,0.12)]" />
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setVisible(false);
-          }}
-          aria-label="Hide module bar"
-          title="Hide — hover the strip at the end of the page to bring it back"
-          className="inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 outline-none transition-colors hover:bg-[rgba(15,23,42,0.06)] focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
-          style={{ color: "rgba(15,23,42,0.45)" }}
-        >
-          <X size={14} strokeWidth={2.6} />
-        </button>
-      </nav>
+          <span
+            aria-hidden
+            className="mx-1 h-5 w-px shrink-0 bg-[rgba(15,23,42,0.12)]"
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setVisible(false);
+            }}
+            aria-label="Hide module bar"
+            title="Hide — hover the strip at the end of the page to bring it back"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 outline-none transition-colors hover:bg-[rgba(15,23,42,0.06)] focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
+            style={{ color: "rgba(15,23,42,0.45)" }}
+          >
+            <X size={14} strokeWidth={2.6} />
+          </button>
+        </nav>
       </div>
     </div>
   );

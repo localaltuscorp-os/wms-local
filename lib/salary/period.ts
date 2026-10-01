@@ -43,6 +43,20 @@ export function currentMonthKeyOf(now: Date = new Date()): string {
 }
 
 /**
+ * Places the active payroll month first without disturbing the remaining
+ * newest-first history. This keeps future-dated payroll rows selectable while
+ * preventing them from becoming a self-service page's default.
+ */
+export function prioritizeActiveSalaryMonth<T extends { month: string }>(
+  months: readonly T[],
+  activeMonth: string,
+): T[] {
+  const activeIndex = months.findIndex((month) => month.month === activeMonth);
+  if (activeIndex <= 0) return [...months];
+  return [months[activeIndex]!, ...months.slice(0, activeIndex), ...months.slice(activeIndex + 1)];
+}
+
+/**
  * Every month a dated change touches, in order, de-duplicated.
  *
  * A leave, a remote-work block or an attendance correction can span a month

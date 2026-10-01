@@ -44,7 +44,7 @@ describe("the Incentive room", () => {
   });
 
   it("leaves the rest of the Employees room alone", () => {
-    for (const p of ["/attendance", "/my-salary", "/reimbursements", "/dcc", "/queries"]) {
+    for (const p of ["/attendance", "/my-salary", "/reimbursements", "/queries"]) {
       expect(workspaceForPath(p), p).toBe("employees");
     }
   });
@@ -159,8 +159,9 @@ describe("the Incentive module's internal navigation", () => {
   });
 
   it("keeps Entries admin-only", () => {
-    const line = railBlock.split("\n").find((l) => l.includes('tab: "entries"'));
-    expect(line).toContain("adminOnly: true");
+    const entryStart = railBlock.indexOf('tab: "entries"');
+    const entry = railBlock.slice(entryStart, railBlock.indexOf("},", entryStart));
+    expect(entry).toContain("adminOnly: true");
   });
 
   it("keeps the rail hrefs bare, so the permission node still resolves", () => {

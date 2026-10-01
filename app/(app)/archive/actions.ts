@@ -216,7 +216,7 @@ function refreshRecordReaders(kind: ArchiveRecordKind): void {
       revalidatePath("/goals");
       break;
     case "dcc-item":
-      revalidatePath("/dcc");
+      revalidatePath("/employees/cc");
       break;
     case "module-submission":
       revalidatePath("/reimbursements");

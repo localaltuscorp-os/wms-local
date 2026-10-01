@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Clock,
+  Copy,
   GripVertical,
   Loader2,
   Lock,
@@ -58,6 +59,7 @@ import {
   compliancePeriodKey,
   compliancePeriodTone,
   type CompliancePeriodColumn,
+  type CompliancePeriodKind,
 } from "@/lib/compliance/period-checks";
 import {
   DEADLINES_PER_MONTH,
@@ -100,12 +102,13 @@ import {
   archiveComplianceItem,
   archiveComplianceItems,
   bulkSetComplianceStatus,
+  duplicateComplianceItems,
   saveComplianceItem,
   setComplianceApprover,
   setComplianceDoer,
   setComplianceMinutes,
   setCompliancePeriodCheck,
-} from "@/app/(app)/dcc/compliance-actions";
+} from "@/app/(app)/employees/cc/actions";
 import { useAutoHeight } from "@/components/ui/use-auto-height";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -178,6 +181,10 @@ export interface ComplianceBoardProps {
   /** Accounts-style Wk1–Wk5 / Apr–Mar period columns. */
   periodColumns?: readonly CompliancePeriodColumn[];
   periodChecks?: readonly CompliancePeriodCheck[];
+  /** Separates Employees CC tracking from the legacy WCC/MCC cells. */
+  periodKind?: CompliancePeriodKind;
+  /** Active Admin → Subjects choices, stored in the established section field. */
+  subjects?: readonly string[];
 }
 
 /** A heading pinned to the top of the scroll box, as the Tasks table's read:
@@ -259,6 +266,8 @@ export function ComplianceBoard({
   initialQuery,
   periodColumns = [],
   periodChecks = [],
+  periodKind = kind,
+  subjects = [],
 }: ComplianceBoardProps) {
   const router = useRouter();
   const [q, setQ] = React.useState(initialQuery ?? "");
@@ -309,7 +318,7 @@ export function ComplianceBoard({
   };
   const [dragCol, setDragCol] = React.useState<ColKey | null>(null);
   const [dropCol, setDropCol] = React.useState<ColKey | null>(null);
-  const periodOrderKey = `altus.compliance.periodColumnOrder.v1:${kind}:${viewerId}`;
+  const periodOrderKey = `altus.compliance.periodColumnOrder.v1:${periodKind}:${viewerId}`;
   const periodKeyList = periodColumns.map((period) => period.key).join("|");
   const [periodOrder, setPeriodOrder] = React.useState<string[]>(() =>
     periodColumns.map((period) => period.key),
@@ -335,7 +344,11 @@ export function ComplianceBoard({
       /* preference remains for this visit */
     }
   };
-  const cols = visibleColumns(order, multiPerson, kind);
+  // Employees CC always places the timeframe tracking cells immediately after
+  // Mins. The old MCC deadline is therefore omitted in that consolidated grid.
+  const cols = visibleColumns(order, multiPerson, kind).filter(
+    (column) => !(periodColumns.length > 0 && column === "deadline"),
+  );
   const bodyCols = cols.filter((col) => col !== "delete");
   const hasDelete = cols.includes("delete");
   const orderedPeriodColumns = React.useMemo(() => {
@@ -349,6 +362,9 @@ export function ComplianceBoard({
     cols.reduce((n, k) => n + columnDef(k, kind).width, 0) +
     orderedPeriodColumns.length * (kind === "wcc" ? 108 : 92);
   const frozenLeft = frozenLeftOffsets(cols, kind);
+  const frozenLeftEdge = [...cols]
+    .reverse()
+    .find((column) => frozenLeft[column] !== undefined);
   const [periodOverrides, setPeriodOverrides] = React.useState<
     Map<string, string>
   >(() => new Map());
@@ -406,6 +422,7 @@ export function ComplianceBoard({
       selectedRows.filter((row) => row.canManage).map((row) => row.itemId),
     ),
   ];
+  const selectedDuplicableIds = selectedRemovableIds;
   const allVisibleSelected =
     selectableKeys.length > 0 &&
     selectedVisible.length === selectableKeys.length;
@@ -438,6 +455,21 @@ export function ComplianceBoard({
       return;
     const ok = await run("bulk-delete", () =>
       archiveComplianceItems(selectedRemovableIds),
+    );
+    if (ok) setSelected(new Set());
+  };
+  const duplicateSelected = async () => {
+    if (selectedDuplicableIds.length === 0) return;
+    const noun =
+      selectedDuplicableIds.length === 1 ? "compliance" : "compliances";
+    if (
+      !window.confirm(
+        `Duplicate ${selectedDuplicableIds.length} selected ${noun}? Their checklist setup will be copied without any completion history.`,
+      )
+    )
+      return;
+    const ok = await run("bulk-duplicate", () =>
+      duplicateComplianceItems(selectedDuplicableIds),
     );
     if (ok) setSelected(new Set());
   };
@@ -537,7 +569,7 @@ export function ComplianceBoard({
     const ok = await run(`period:${key}`, () =>
       setCompliancePeriodCheck({
         itemId,
-        kind,
+        kind: periodKind,
         periodYear: period.periodYear,
         periodMonth: period.periodMonth,
         weekNo: period.weekNo,
@@ -729,6 +761,22 @@ export function ComplianceBoard({
           )}
           <button
             type="button"
+            disabled={busy !== null || selectedDuplicableIds.length === 0}
+            onClick={() => void duplicateSelected()}
+            title={
+              selectedDuplicableIds.length > 0
+                ? "Duplicate selected compliance setups"
+                : "You can duplicate compliances you are allowed to manage."
+            }
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-3 text-[12.5px] font-bold text-ink-strong hover:border-altus-red/40 hover:bg-surface-soft disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Copy size={13} aria-hidden /> Duplicate
+            {selectedDuplicableIds.length > 0
+              ? ` ${selectedDuplicableIds.length}`
+              : ""}
+          </button>
+          <button
+            type="button"
             disabled={busy !== null || selectedRemovableIds.length === 0}
             onClick={() => void removeSelected()}
             title={
@@ -759,6 +807,7 @@ export function ComplianceBoard({
           onOpenChange={setBulkOpen}
           kind={kind}
           people={manageable}
+          subjects={subjects}
         />
       )}
 
@@ -769,6 +818,7 @@ export function ComplianceBoard({
         row={editing === "new" ? null : editing}
         manageable={manageable}
         defaultOwnerId={defaultOwnerId}
+        subjects={subjects}
         onImport={() => {
           setEditing(null);
           setBulkOpen(true);
@@ -812,22 +862,24 @@ export function ComplianceBoard({
           style={{ tableLayout: "fixed", width: tableWidth }}
         >
           <colgroup>
-            {bodyCols.map((k) => (
-              <col key={k} style={{ width: columnDef(k, kind).width }} />
-            ))}
-            {orderedPeriodColumns.map((period) => (
-              <col
-                key={period.key}
-                style={{ width: kind === "wcc" ? 108 : 92 }}
-              />
-            ))}
+            {bodyCols.flatMap((k) => [
+              <col key={k} style={{ width: columnDef(k, kind).width }} />,
+              ...(k === "mins"
+                ? orderedPeriodColumns.map((period) => (
+                    <col
+                      key={period.key}
+                      style={{ width: kind === "wcc" ? 108 : 92 }}
+                    />
+                  ))
+                : []),
+            ])}
             {hasDelete && (
               <col style={{ width: columnDef("delete", kind).width }} />
             )}
           </colgroup>
           <thead>
             <tr>
-              {bodyCols.map((k) => (
+              {bodyCols.flatMap((k) => [
                 <HeadCell
                   key={k}
                   col={k}
@@ -854,51 +906,54 @@ export function ComplianceBoard({
                     setDropCol(null);
                   }}
                   frozenLeft={frozenLeft[k]}
+                  frozenLeftEdge={k === frozenLeftEdge}
                   selected={k === "select" ? allVisibleSelected : undefined}
                   indeterminate={
                     k === "select" ? someVisibleSelected : undefined
                   }
                   onSelectAll={k === "select" ? toggleAllVisible : undefined}
-                />
-              ))}
-              {orderedPeriodColumns.map((period) => (
-                <PeriodHead
-                  key={period.key}
-                  period={period}
-                  dragging={dragPeriod === period.key}
-                  dropTarget={
-                    dropPeriod === period.key && dragPeriod !== period.key
-                  }
-                  fromLeft={
-                    dragPeriod !== null &&
-                    periodOrder.indexOf(dragPeriod) <
-                      periodOrder.indexOf(period.key)
-                  }
-                  onDragStart={() => setDragPeriod(period.key)}
-                  onDragEnd={() => {
-                    setDragPeriod(null);
-                    setDropPeriod(null);
-                  }}
-                  onDragOver={() => setDropPeriod(period.key)}
-                  onDragLeave={() =>
-                    setDropPeriod((current) =>
-                      current === period.key ? null : current,
-                    )
-                  }
-                  onDrop={() => {
-                    if (dragPeriod)
-                      savePeriodOrder(
-                        movePeriodColumn(
-                          reconcilePeriodOrder(periodOrder, periodColumns),
-                          dragPeriod,
-                          period.key,
-                        ),
-                      );
-                    setDragPeriod(null);
-                    setDropPeriod(null);
-                  }}
-                />
-              ))}
+                />,
+                ...(k === "mins"
+                  ? orderedPeriodColumns.map((period) => (
+                      <PeriodHead
+                        key={period.key}
+                        period={period}
+                        dragging={dragPeriod === period.key}
+                        dropTarget={
+                          dropPeriod === period.key && dragPeriod !== period.key
+                        }
+                        fromLeft={
+                          dragPeriod !== null &&
+                          periodOrder.indexOf(dragPeriod) <
+                            periodOrder.indexOf(period.key)
+                        }
+                        onDragStart={() => setDragPeriod(period.key)}
+                        onDragEnd={() => {
+                          setDragPeriod(null);
+                          setDropPeriod(null);
+                        }}
+                        onDragOver={() => setDropPeriod(period.key)}
+                        onDragLeave={() =>
+                          setDropPeriod((current) =>
+                            current === period.key ? null : current,
+                          )
+                        }
+                        onDrop={() => {
+                          if (dragPeriod)
+                            savePeriodOrder(
+                              movePeriodColumn(
+                                reconcilePeriodOrder(periodOrder, periodColumns),
+                                dragPeriod,
+                                period.key,
+                              ),
+                            );
+                          setDragPeriod(null);
+                          setDropPeriod(null);
+                        }}
+                      />
+                    ))
+                  : []),
+              ])}
               {hasDelete && (
                 <HeadCell
                   col="delete"
@@ -1095,6 +1150,7 @@ function HeadCell({
   onDragLeave,
   onDrop,
   frozenLeft,
+  frozenLeftEdge,
   frozenRight,
   selected,
   indeterminate,
@@ -1114,6 +1170,7 @@ function HeadCell({
   onDragLeave: () => void;
   onDrop: () => void;
   frozenLeft?: number;
+  frozenLeftEdge?: boolean;
   frozenRight?: boolean;
   selected?: boolean;
   indeterminate?: boolean;
@@ -1122,7 +1179,6 @@ function HeadCell({
   const dir = sort?.key === col ? sort.dir : null;
   const movable = def.movable;
   const frozen = frozenLeft !== undefined || frozenRight;
-  const isLeftEdge = col === "section";
   return (
     <th
       scope="col"
@@ -1154,10 +1210,23 @@ function HeadCell({
         // utility-rule ordering can otherwise let it win over z-40.
         zIndex: frozen ? 40 : 20,
         background: "var(--color-surface-card)",
+        // `col` sizing alone is not enough for sticky cells in every browser.
+        // Pin the rendered cell to the same width used when calculating `left`
+        // so frozen columns cannot slide over the next column.
+        width: frozen ? def.width : undefined,
+        minWidth: frozen ? def.width : undefined,
+        maxWidth: frozen ? def.width : undefined,
+        boxSizing: frozen ? "border-box" : undefined,
+        // A one-pixel gridline marks the frozen rail without the broad drop
+        // shadow that made this one table read as two separate tables.
+        borderRight: frozenLeftEdge
+          ? "1px solid var(--color-hairline-strong)"
+          : undefined,
+        borderLeft: frozenRight
+          ? "1px solid var(--color-hairline-strong)"
+          : undefined,
         boxShadow: [
           "inset 0 -1px 0 var(--color-hairline-strong)",
-          isLeftEdge ? "10px 0 14px -10px rgba(15,23,42,0.24)" : "",
-          frozenRight ? "-10px 0 14px -10px rgba(15,23,42,0.24)" : "",
           // Where the column will land — the edge it would arrive on.
           dropTarget
             ? `inset ${fromLeft ? "-3px" : "3px"} 0 0 var(--color-altus-red)`
@@ -1710,12 +1779,15 @@ function Row({
     r.doerStatus === "done" &&
     r.canFill &&
     busy === null;
+  const frozenLeftEdge = [...cols]
+    .reverse()
+    .find((column) => frozenLeft[column] !== undefined);
   const pinnedClass = (key: ColKey) => {
     if (frozenLeft[key] !== undefined) {
-      return `sticky z-10 bg-surface-card group-hover/row:bg-surface-soft ${key === "section" ? "shadow-[10px_0_14px_-10px_rgba(15,23,42,0.18)]" : ""}`;
+      return "sticky z-10 bg-surface-card group-hover/row:bg-surface-soft";
     }
     return key === "delete"
-      ? "sticky right-0 z-10 bg-surface-card shadow-[-10px_0_14px_-10px_rgba(15,23,42,0.18)] group-hover/row:bg-surface-soft"
+      ? "sticky right-0 z-10 bg-surface-card group-hover/row:bg-surface-soft"
       : "";
   };
   const pinnedStyle = (key: ColKey): React.CSSProperties => ({
@@ -1724,6 +1796,30 @@ function Row({
     // Keep both frozen rails above scrolling cells. Header cells use 40; body
     // cells use 30, so the Delete column stays visible at the right edge.
     zIndex: frozenLeft[key] !== undefined || key === "delete" ? 30 : undefined,
+    width:
+      frozenLeft[key] !== undefined || key === "delete"
+        ? columnDef(key, r.kind).width
+        : undefined,
+    minWidth:
+      frozenLeft[key] !== undefined || key === "delete"
+        ? columnDef(key, r.kind).width
+        : undefined,
+    maxWidth:
+      frozenLeft[key] !== undefined || key === "delete"
+        ? columnDef(key, r.kind).width
+        : undefined,
+    boxSizing:
+      frozenLeft[key] !== undefined || key === "delete"
+        ? "border-box"
+        : undefined,
+    borderRight:
+      key === frozenLeftEdge
+        ? "1px solid var(--color-hairline-strong)"
+        : undefined,
+    borderLeft:
+      key === "delete"
+        ? "1px solid var(--color-hairline-strong)"
+        : undefined,
   });
 
   const cell = (k: ColKey): React.ReactNode => {
@@ -2115,8 +2211,12 @@ function Row({
       className={`group/row align-top transition-colors hover:bg-surface-soft ${ruledOut ? "opacity-60" : ""}`}
       style={{ borderBottom: "1px solid var(--color-hairline)" }}
     >
-      {cols.filter((col) => col !== "delete").map(cell)}
-      {periodColumns.map(periodCell)}
+      {cols
+        .filter((col) => col !== "delete")
+        .flatMap((col) => [
+          cell(col),
+          ...(col === "mins" ? periodColumns.map(periodCell) : []),
+        ])}
       {cols.includes("delete") && cell("delete")}
     </tr>
   );
@@ -2963,6 +3063,7 @@ function ItemDialog({
   row,
   manageable,
   defaultOwnerId,
+  subjects,
   onImport,
 }: {
   open: boolean;
@@ -2971,6 +3072,7 @@ function ItemDialog({
   row: ComplianceRow | null;
   manageable: ManageablePerson[];
   defaultOwnerId: string;
+  subjects: readonly string[];
   onImport: () => void;
 }) {
   return (
@@ -3001,6 +3103,7 @@ function ItemDialog({
               row={row}
               manageable={manageable}
               defaultOwnerId={defaultOwnerId}
+              subjects={subjects}
               onDone={() => onOpenChange(false)}
               onImport={onImport}
             />
@@ -3016,6 +3119,7 @@ function ItemFormBody({
   row,
   manageable,
   defaultOwnerId,
+  subjects,
   onDone,
   onImport,
 }: {
@@ -3023,6 +3127,7 @@ function ItemFormBody({
   row: ComplianceRow | null;
   manageable: ManageablePerson[];
   defaultOwnerId: string;
+  subjects: readonly string[];
   onDone: () => void;
   onImport: () => void;
 }) {
@@ -3234,15 +3339,22 @@ function ItemFormBody({
             ))}
           </select>
         </DialogField>
-        <DialogField id="cc-section" label="Section">
-          <input
-            id="cc-section"
+        <DialogField id="cc-subject" label="Subject">
+          <select
+            id="cc-subject"
             value={section}
             onChange={(e) => setSection(e.target.value)}
-            placeholder="e.g. Calls, Reporting"
             className="nt-input"
-            maxLength={120}
-          />
+          >
+            <option value="">No subject</option>
+            {[...new Set([...subjects, ...(section ? [section] : [])])].map(
+              (subject) => (
+                <option key={subject} value={subject}>
+                  {subject}
+                </option>
+              ),
+            )}
+          </select>
         </DialogField>
 
         <DialogField
@@ -3411,7 +3523,7 @@ function ItemFormBody({
               className="col-span-2 max-md:col-span-1"
             >
               <div
-                className="grid grid-cols-3 gap-2 max-md:grid-cols-1"
+                className="grid grid-cols-4 gap-2 max-md:grid-cols-1"
                 role="group"
                 aria-label="Deadline days"
               >
@@ -3419,14 +3531,14 @@ function ItemFormBody({
                   <label key={i} className="flex flex-col gap-0.5">
                     {mccDays.length > 1 && (
                       <span className="text-[11.5px] font-bold text-ink-subtle">
-                        {["1st", "2nd", "3rd"][i]} deadline
+                        {["1st", "2nd", "3rd", "4th"][i]} deadline
                       </span>
                     )}
                     <select
                       value={Math.min(d, MONTH_END)}
                       aria-label={
                         mccDays.length > 1
-                          ? `${["1st", "2nd", "3rd"][i]} deadline day`
+                          ? `${["1st", "2nd", "3rd", "4th"][i]} deadline day`
                           : "Deadline day"
                       }
                       onChange={(e) => {

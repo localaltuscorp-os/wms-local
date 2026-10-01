@@ -81,7 +81,7 @@ describe("the filter bar at its default scope", () => {
     expect(clearAll()).toBeNull();
     // The pill answers "whose numbers am I looking at" — not the viewer's own
     // name, which would read as a filter somebody else applied.
-    expect(screen.getByText("Only Me")).toBeTruthy();
+    expect(screen.getAllByText("My Tasks").length).toBeGreaterThan(0);
   });
 
   it("shows no chips and no Clear All for an ADMIN on their own work", () => {
@@ -199,7 +199,7 @@ describe("whose work you are reading is asked in ONE place", () => {
   beforeEach(() => push.mockReset());
   afterEach(cleanup);
 
-  it("has no Scope segmented control, for any role", () => {
+  it("shows Scope only when the viewer can widen their task view", () => {
     /* Removed 2026-09-12. A "Scope: My Tasks | All Tasks" toggle sat beside the
        Assignee pill and asked the same question that pill asks, which meant the
        two could disagree — and they did: "My Tasks" wrote an empty selection
@@ -223,9 +223,10 @@ describe("whose work you are reading is asked in ONE place", () => {
           initial={initialFor(opensOnEveryone ? "everyone" : "me")}
         />,
       );
-      expect(screen.queryByText("Scope"), JSON.stringify(me)).toBeNull();
-      expect(screen.queryByText("My Tasks"), JSON.stringify(me)).toBeNull();
-      expect(screen.queryByText("All Tasks"), JSON.stringify(me)).toBeNull();
+      const canWidenWithFallback = !me.isAdmin;
+      expect(screen.queryByText("Scope") !== null, JSON.stringify(me)).toBe(canWidenWithFallback);
+      expect(screen.queryAllByText("My Tasks").length > 0, JSON.stringify(me)).toBe(canWidenWithFallback);
+      expect(screen.queryAllByText("All Tasks").length > 0, JSON.stringify(me)).toBe(canWidenWithFallback);
       // The one control that does ask it is still there. (Its name is a
       // `title`, not visible text — the pill shows the VALUE and names itself
       // on hover.)
