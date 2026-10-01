@@ -62,6 +62,7 @@ export async function getPersonFiles(personId: string): Promise<PersonFiles> {
           formName: hrFormSubmissions.formName,
           section: hrFormSubmissions.section,
           status: hrFormSubmissions.status,
+          responses: hrFormSubmissions.responses,
           submittedAt: hrFormSubmissions.submittedAt,
           updatedAt: hrFormSubmissions.updatedAt,
         })
@@ -88,6 +89,7 @@ export async function getPersonFiles(personId: string): Promise<PersonFiles> {
       sectionLabel: hrSectionLabel(r.section),
       status: asHrFormStatus(r.status),
       dateIso: (r.submittedAt ?? r.updatedAt)?.toISOString() ?? null,
+      responses: r.responses ?? [],
       viewHref: `/hr/forms/${r.id}`,
       // Employee-scoped or nothing — see employeeFormEditHref for why a link
       // that omits the id is worse than no link at all.

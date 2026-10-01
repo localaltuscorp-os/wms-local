@@ -10,6 +10,8 @@ import { BulkAddQuickAction } from "@/components/header/bulk-add-quick-action";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
+import { navTitleFor } from "@/components/layout/main-nav";
+import { locateHrRoute } from "@/lib/hr/console-nav";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import { tabsAndMore, type AuraRoom } from "@/lib/aura-rooms";
@@ -218,6 +220,20 @@ export function AuraTopBar({
      first page landed. */
   const onDashboard = pathname === "/hub";
 
+  // Aura replaced AppTopBar but initially kept only its portal mount points.
+  // That left the header blank on every page that did not explicitly provide a
+  // title. Keep the established resolution order so every route has the same
+  // title treatment, while a page's own precise title still wins via the slot.
+  const moduleLabel = ws ? MODULE_THEME[ws].label : undefined;
+  const hrTitle = React.useMemo(() => {
+    if (!pathname.startsWith("/hr")) return null;
+    const at = locateHrRoute(pathname);
+    return at.subModule?.title ?? at.module?.title ?? null;
+  }, [pathname]);
+  const routeTitle = onDashboard
+    ? null
+    : hrTitle ?? navTitleFor(pathname) ?? moduleLabel ?? "Altus";
+
   /* The tab rooms — WMS, Goals, Project, those this person may enter — and the
      rest, which are always under More. */
   const all = React.useMemo(() => tabsAndMore(rooms), [rooms]);
@@ -247,6 +263,9 @@ export function AuraTopBar({
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
       <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center empty:hidden" />
+      {!slots?.hasPageTitle && routeTitle ? (
+        <h1 className="topbar-heading min-w-0 shrink truncate">{routeTitle}</h1>
+      ) : null}
 
       <nav className="aura-tabs" aria-label="Workspaces">
         {tabs.map((r) => (
