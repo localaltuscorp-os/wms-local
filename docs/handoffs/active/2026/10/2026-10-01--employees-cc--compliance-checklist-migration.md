@@ -105,8 +105,12 @@ compliance data and server-side authorization rules.
 
 ## Final verification update
 
-- Passed: `npm test`
-  - 392 test files passed, 5 skipped; 5,287 tests passed, 34 skipped.
+- Passed after synchronizing `origin/main`: `npm test`
+  - 393 test files passed, 5 skipped; 5,290 tests passed, 34 skipped.
+- Integrated the latest upstream reimbursement and global top-bar fixes. The
+  reimbursement merge preserves the shared three-field claim contract
+  (purpose, amount, date) while continuing to restore the canonical form for
+  incomplete saved overrides.
 - Passed: `NEXT_DIST_DIR=.next-build-test npm run build` completed optimized
   compilation, TypeScript validation, and full route generation. The isolated
   output directory was intentionally not committed.

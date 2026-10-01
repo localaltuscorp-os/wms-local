@@ -32,8 +32,8 @@ initial ledger selection and after any refresh-induced reload.
 - Passed: `npm test -- --run tests/unit/my-salary.test.ts tests/unit/salary-period.test.ts tests/unit/salary-compute.test.ts`
   - 3 files, 36 tests passed.
 - Passed: `git diff --check`.
-- The repository-wide `npm test` run also passed: 392 test files passed, 5
-  skipped; 5,287 tests passed, 34 skipped.
+- The repository-wide post-sync `npm test` run also passed: 393 test files
+  passed, 5 skipped; 5,290 tests passed, 34 skipped.
 
 ## Follow-up
 
