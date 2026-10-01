@@ -3,7 +3,7 @@
 import * as React from "react";
 import { fireToast } from "@/lib/toast";
 import { ceAssignAccount } from "@/app/(app)/operations/client-engagement/actions";
-import { accountLabel, CE_CATEGORIES } from "@/lib/client-engagement/constants";
+import { accountLabel, CE_CATEGORIES, type CeProductOption } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
 import { AccountDialog } from "./account-dialog";
@@ -36,6 +36,7 @@ export function AccountsBoard({
   focusMember,
   query,
   addRequest,
+  productOptions,
 }: {
   accounts: CeAccountRow[];
   members: CeMemberRow[];
@@ -70,6 +71,7 @@ export function AccountsBoard({
    * component's own idea of which category tab is active.
    */
   addRequest?: { nonce: number } | null;
+  productOptions: CeProductOption[];
 }) {
   const [tab, setTab] = React.useState<Tab | "references">(
     initialTab === "references" || CE_CATEGORIES.some((c) => c.code === initialTab) ? (initialTab as Tab) : "ps",
@@ -205,6 +207,7 @@ export function AccountsBoard({
           defaultCategory={category?.code}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           batches={batches}
+          productOptions={productOptions}
           canManage={canManage}
           canEdit={editing === "new" ? true : canEdit(editing)}
           onClose={() => setEditing(null)}

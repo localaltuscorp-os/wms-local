@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Chevroned } from "@/components/ui/chevroned-select";
 import { hhStatusMeta } from "@/lib/client-engagement/status";
@@ -165,6 +166,12 @@ export function statusEdge(status: string): string {
   return hhStatusMeta(status).bg ?? "var(--color-hairline-strong)";
 }
 
+const subscribeToPortalReady = (callback: () => void) => {
+  const timer = window.setTimeout(callback, 0);
+  return () => window.clearTimeout(timer);
+};
+const getPortalReady = () => true;
+const getPortalServerSnapshot = () => false;
 
 /** Centered modal frame: Esc and the backdrop close it. */
 export function CeDialog({
@@ -174,6 +181,7 @@ export function CeDialog({
   children,
   footer,
   width = 560,
+  portal = false,
 }: {
   title: string;
   subtitle?: React.ReactNode;
@@ -181,7 +189,16 @@ export function CeDialog({
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: number;
+  /** Isolate account forms from transformed and clipped page ancestors. */
+  portal?: boolean;
 }) {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const portalReady = React.useSyncExternalStore(
+    subscribeToPortalReady,
+    getPortalReady,
+    getPortalServerSnapshot,
+  );
+
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -190,11 +207,56 @@ export function CeDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center" role="dialog" aria-modal aria-label={title}>
-      <button type="button" aria-label="Close" onClick={onClose} className="fixed inset-0 cursor-default bg-[rgba(15,23,42,0.32)]" />
+  React.useEffect(() => {
+    if (!portal || !portalReady) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = "hidden";
+    const dialog = dialogRef.current;
+    const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    const initial = dialog?.querySelector<HTMLElement>("[autofocus]") ?? focusables()[0];
+    initial?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const controls = focusables();
+      if (!controls.length) { event.preventDefault(); dialog?.focus(); return; }
+      const first = controls[0]!;
+      const last = controls[controls.length - 1]!;
+      if (event.shiftKey && (document.activeElement === first || !dialog?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    dialog?.addEventListener("keydown", onKeyDown);
+    return () => {
+      dialog?.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [portal, portalReady]);
+
+  const frame = (
+    <div className={`fixed inset-0 ${portal ? "z-[10000] grid place-items-center overflow-hidden p-3 sm:p-5" : "z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center"}`}>
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className={`${portal ? "absolute bg-[rgba(15,23,42,0.48)]" : "fixed bg-[rgba(15,23,42,0.32)]"} inset-0 cursor-default`}
+      />
       <div
-        className="relative my-6 w-full rounded-[20px] border border-hairline bg-surface-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={portal ? dialogRef : undefined}
+        tabIndex={portal ? -1 : undefined}
+        className={portal
+          ? "relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-2xl border border-hairline bg-surface-card sm:max-h-[calc(100dvh-2.5rem)]"
+          : "relative my-6 w-full rounded-[20px] border border-hairline bg-surface-card"}
         style={{ maxWidth: width, boxShadow: "0 30px 80px -30px rgba(15,23,42,0.45)" }}
       >
         <div className="flex items-start gap-3 border-b border-hairline px-5 py-4">
@@ -213,11 +275,13 @@ export function CeDialog({
             <X size={16} strokeWidth={2.4} />
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
-        {footer ? <div className="flex flex-wrap items-center justify-end gap-2 border-t border-hairline px-5 py-3">{footer}</div> : null}
+        <div className={`px-5 py-4 ${portal ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : ""}`}>{children}</div>
+        {footer ? <div className={`flex flex-wrap items-center justify-end gap-2 border-t border-hairline px-5 py-3 ${portal ? "shrink-0 bg-surface-card" : ""}`}>{footer}</div> : null}
       </div>
     </div>
   );
+
+  return portal && portalReady ? createPortal(frame, document.body) : frame;
 }
 
 /** The inline error line forms show above their buttons. */
