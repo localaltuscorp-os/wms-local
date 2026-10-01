@@ -11,6 +11,7 @@ type Props = {
   canSeeAccounts: boolean;
   /** Not an admin — only here for the Subjects and Clients lists. */
   rosterOnly?: boolean;
+  hierarchyOnly?: boolean;
 };
 
 /**
@@ -26,6 +27,7 @@ export async function AdminShell({
   avatarUrl,
   canSeeAccounts,
   rosterOnly = false,
+  hierarchyOnly = false,
 }: Props) {
   // Consistent with every other module: the Hub (the workspace switchboard)
   // is where the brand mark leads. On desktop the sidebar LOGO is that link;
@@ -35,10 +37,10 @@ export async function AdminShell({
   return (
     <div className="min-h-screen">
       {/* Phone-only top bar + drawer (unchanged) */}
-      <AdminMobileBar adminName={adminName} adminEmail={adminEmail} backHref={backHref} canSeeAccounts={canSeeAccounts} rosterOnly={rosterOnly} />
+      <AdminMobileBar adminName={adminName} adminEmail={adminEmail} backHref={backHref} canSeeAccounts={canSeeAccounts} rosterOnly={rosterOnly} hierarchyOnly={hierarchyOnly} />
       {/* Desktop: left rail + main column */}
       <div className="flex min-h-screen">
-        <AdminSidebar adminName={adminName} adminEmail={adminEmail} avatarUrl={avatarUrl} backHref={backHref} rosterOnly={rosterOnly} />
+        <AdminSidebar adminName={adminName} adminEmail={adminEmail} avatarUrl={avatarUrl} backHref={backHref} rosterOnly={rosterOnly} hierarchyOnly={hierarchyOnly} />
         {/* Matches COMMAND_PAGE_CLASS's rhythm (pt-6 pb-8) so the admin room
             sits at the same vertical scale as every other module now that it
             shares their header. */}

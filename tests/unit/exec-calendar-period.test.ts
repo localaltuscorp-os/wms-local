@@ -4,22 +4,26 @@ import {
   periodLabel,
   periodRange,
   stepPeriod,
-  yearChoices,
 } from "@/lib/exec-calendar/period";
 
 /** Thursday 17 September 2026 — the day the toolbar was specified against. */
 const TODAY = "2026-09-17";
 
 describe("what each view loads", () => {
-  it("loads exactly the day, the week, the month or the year", () => {
+  it("loads day, week, month, Month at a Glance and quarter ranges", () => {
     expect(periodRange("day", TODAY)).toEqual({ from: TODAY, to: TODAY });
     expect(periodRange("week", TODAY)).toEqual({ from: "2026-09-14", to: "2026-09-20" });
     expect(periodRange("month", TODAY)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
-    expect(periodRange("year", TODAY)).toEqual({ from: "2026-01-01", to: "2026-12-31" });
+    expect(periodRange("monthgrid", TODAY)).toEqual({ from: "2026-08-31", to: "2026-10-04" });
+    expect(periodRange("quarter", TODAY)).toEqual({ from: "2026-07-01", to: "2026-09-30" });
   });
 
   it("gets February right in a leap year", () => {
     expect(periodRange("month", "2028-02-10").to).toBe("2028-02-29");
+  });
+
+  it("includes adjacent-month dates across six calendar weeks", () => {
+    expect(periodRange("monthgrid", "2026-08-12")).toEqual({ from: "2026-07-27", to: "2026-09-06" });
   });
 });
 
@@ -28,7 +32,9 @@ describe("where the arrows go", () => {
     expect(stepPeriod("day", TODAY, 1)).toBe("2026-09-18");
     expect(stepPeriod("week", TODAY, -1)).toBe("2026-09-10");
     expect(stepPeriod("month", TODAY, 1)).toBe("2026-10-01");
-    expect(stepPeriod("year", TODAY, -1)).toBe("2025-09-17");
+    expect(stepPeriod("monthgrid", TODAY, 1)).toBe("2026-10-01");
+    expect(stepPeriod("quarter", TODAY, 1)).toBe("2026-10-01");
+    expect(stepPeriod("quarter", "2027-01-31", -1)).toBe("2026-10-01");
   });
 
   it("crosses the year boundary by month", () => {
@@ -65,8 +71,9 @@ describe("what the button says", () => {
     expect(periodLabel("month", "2027-03-02", TODAY)).toBe("March 2027");
   });
 
-  it("names the year", () => {
-    expect(periodLabel("year", "2027-05-01", TODAY)).toBe("2027");
+  it("labels the quarter", () => {
+    expect(periodLabel("quarter", "2026-07-01", TODAY)).toBe("This quarter");
+    expect(periodLabel("quarter", "2026-10-01", TODAY)).toBe("Q4 2026");
   });
 });
 
@@ -77,13 +84,6 @@ describe("knowing when you are already on now", () => {
     expect(isNow("week", "2026-09-14", TODAY)).toBe(true);
     expect(isNow("month", "2026-09-01", TODAY)).toBe(true);
     expect(isNow("month", "2026-10-01", TODAY)).toBe(false);
-    expect(isNow("year", "2026-01-01", TODAY)).toBe(true);
-  });
-});
-
-describe("the year jump strip", () => {
-  it("offers this year and the next ones, never the past", () => {
-    expect(yearChoices(TODAY, 4)).toEqual([2026, 2027, 2028, 2029]);
-    expect(yearChoices(TODAY, 2)).toEqual([2026, 2027]);
+    expect(isNow("quarter", "2026-07-01", TODAY)).toBe(true);
   });
 });

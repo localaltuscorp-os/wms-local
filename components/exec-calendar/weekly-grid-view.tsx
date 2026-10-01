@@ -24,9 +24,9 @@ import { useEventContextMenu } from "./event-context-menu";
  *
  * Eight columns (time, then Monday → Sunday), and the chosen week plus the
  * three after it stacked down the page. A dark banner names the month where a
- * new one starts; each week opens with a dark row carrying its number, its
- * dates and that day's Day Markers. Below, one row per half hour across the
- * calendar's window (06:30–23:00, the same as Day and Week), white cells with a
+ * new one starts; each week header aligns its number with weekday names, then
+ * shows dates and that day's Day Markers below. One row per hour spans the
+ * calendar's window (07:00–23:00, the same as Day and Week), white cells with a
  * light grey rule, and every block filled in its category's colour with black
  * text that wraps. Blocks that overlap split the cell side by side - a sheet has
  * no layers, so there is no nesting here.
@@ -143,23 +143,6 @@ export function ExecWeeklyGridView({
     // back, so the box never traps it.
     <div className="max-h-[78vh] overflow-auto border border-hairline bg-white" style={{ overscrollBehaviorX: "contain" }}>
       <div style={{ minWidth: TIME_COL + 7 * 96 }}>
-        {/* Day names, pinned while the weeks scroll under them. The height is
-            STATED (HEAD_H) because each week's bar sticks directly beneath it —
-            see the constant. */}
-        <div
-          className="sticky top-0 z-30 grid text-white"
-          style={{ gridTemplateColumns: cols, background: HEADER_BG, height: HEAD_H }}
-        >
-          <div className="sticky left-0 z-10 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: HEADER_BG }}>
-            Time
-          </div>
-          {DAY_NAMES.map((d) => (
-            <div key={d} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
-              {d}
-            </div>
-          ))}
-        </div>
-
         {weeks.map((wk, wi) => {
           const days = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
           const banner = bannerFor(wk, wi);
@@ -176,8 +159,22 @@ export function ExecWeeklyGridView({
                 </div>
               )}
 
-              {/* The week's own dark row: number, dates, and each day's markers.
-                  STICKY, directly under the column header.
+              {/* Week number and weekday names share this header row. */}
+              <div
+                className="sticky top-0 z-30 grid text-white"
+                style={{ gridTemplateColumns: cols, background: weekBg, height: HEAD_H }}
+              >
+                <div className="sticky left-0 z-40 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: weekBg }}>
+                  WK {weekOfMonth(wk)}
+                </div>
+                {DAY_NAMES.map((name) => (
+                  <div key={name} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
+                    {name}
+                  </div>
+                ))}
+              </div>
+
+              {/* Date row and day markers stick directly beneath weekday names.
 
                   It needs no scroll listener and no observer: a sticky element
                   is clipped by its PARENT, and each week is already its own
@@ -193,8 +190,8 @@ export function ExecWeeklyGridView({
                 className="sticky z-20 grid border-t border-white/10 text-white"
                 style={{ top: HEAD_H, gridTemplateColumns: cols, background: weekBg }}
               >
-                <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: weekBg }}>
-                  Week {weekOfMonth(wk)}
+                <div className="sticky left-0 z-10 flex items-start justify-end px-2 py-1.5 text-[10px] font-bold uppercase text-white/75" style={{ background: weekBg }}>
+                  Time
                 </div>
                 {days.map((d) => {
                   const date = parseDay(d);
@@ -242,7 +239,7 @@ export function ExecWeeklyGridView({
                 })}
               </div>
 
-              {/* Half-hour rows. */}
+              {/* Hourly rows. */}
               <div className="grid" style={{ gridTemplateColumns: cols }}>
                 {/* z-10, lowered from z-20 when the week bar above became sticky
                     at z-20: this gutter is sticky horizontally and would
@@ -316,6 +313,11 @@ export function ExecWeeklyGridView({
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="grid" style={{ gridTemplateColumns: cols }}>
+                <div className="sticky left-0 z-10 flex h-4 items-start justify-end bg-white pr-1.5 text-[10px] font-medium tabular-nums text-ink-muted">{minToLabel(cfg.endMin)}</div>
+                {days.map((d) => <div key={d} className="h-4 border-l" style={{ borderColor: RULE }} />)}
               </div>
             </section>
           );

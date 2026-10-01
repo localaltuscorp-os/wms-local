@@ -87,7 +87,7 @@ interface ColumnDef {
   /** Hidden entirely when the viewer may not see pay. */
   pay?: boolean;
   value: (r: EmployeeMasterRow) => string;
-  sort?: (r: EmployeeMasterRow) => string | number;
+  sort?: (r: EmployeeMasterRow) => string | number | null;
   /**
    * Overrides what the cell PRINTS while `value` stays what the cell MEANS —
    * the CSV export, the search haystack and the sort all keep reading `value`.
@@ -99,6 +99,10 @@ interface ColumnDef {
 }
 
 const DASH = "—";
+const EMPLOYEE_SELECT_WIDTH = 36;
+const EMPLOYEE_DETAILS_WIDTH = 220;
+const EMPLOYEE_CODE_WIDTH = 140;
+const EMPLOYEE_CODE_LEFT = EMPLOYEE_SELECT_WIDTH + EMPLOYEE_DETAILS_WIDTH;
 const t = (v: string | null | undefined) => (v == null || v === "" ? DASH : v);
 const yn = (v: boolean) => (v ? "Yes" : "No");
 
@@ -121,6 +125,14 @@ function ymd(v: string | Date | null): string {
   return formatDate(d);
 }
 
+function dateSortValue(value: string | Date | null): number | null {
+  if (!value) return null;
+  const timestamp = value instanceof Date
+    ? value.getTime()
+    : Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 /**
  * THE DEFAULT ORDER IS THE BRIEF'S (§2), exactly: Employee Details, Function,
  * Entity, Designation, CTC, DOJ, Probation Ends On, Shift Type, Status.
@@ -129,7 +141,7 @@ function ymd(v: string | Date | null): string {
  * but it IS available under Columns, because it is a thing people filter on.
  */
 const COLUMNS: ColumnDef[] = [
-  { key: "employee", label: "Employee Details", default: true, value: (r) => r.name, sort: (r) => r.name.toLowerCase() },
+  { key: "employee", label: "Employee Details", default: true, value: (r) => r.name, sort: (r) => r.name },
   /**
    * EMPLOYEE CODE — its own column now, not a line inside Employee Details.
    *
@@ -137,7 +149,7 @@ const COLUMNS: ColumnDef[] = [
    * K-101. `codeSortValue` pads the number; a plain string sort on "A-101" is
    * lexicographic and puts A-1000 between A-100 and A-101.
    */
-  { key: "employeeCode", label: "Employee Code", default: true, value: (r) => t(r.employeeCode), sort: (r) => codeSortValue(r.employeeCode) },
+  { key: "employeeCode", label: "Employee Code", default: true, value: (r) => t(r.employeeCode), sort: (r) => r.employeeCode ? codeSortValue(r.employeeCode) : null },
   /**
    * FUNCTION.
    *
@@ -151,11 +163,11 @@ const COLUMNS: ColumnDef[] = [
    * points there. So `departmentName` below is the Function, not a stand-in for
    * it. The old empty `functionName` field is gone entirely.
    */
-  { key: "function", label: "Function", default: true, value: (r) => t(r.departmentName), sort: (r) => (r.departmentName ?? "").toLowerCase() },
-  { key: "entity", label: "Entity", default: true, value: (r) => t(r.entityName), sort: (r) => (r.entityName ?? "").toLowerCase() },
-  { key: "designation", label: "Designation", default: true, value: (r) => t(r.designationName), sort: (r) => (r.designationName ?? "").toLowerCase() },
-  { key: "ctc", label: "CTC", default: true, numeric: true, pay: true, value: (r) => (r.monthlyCtc == null ? DASH : `${inr(r.monthlyCtc)}/mo`), sort: (r) => r.monthlyCtc ?? -1 },
-  { key: "doj", label: "DOJ", default: true, value: (r) => ymd(r.joinedAt), sort: (r) => (r.joinedAt ? new Date(r.joinedAt).getTime() : 0) },
+  { key: "function", label: "Function", default: true, value: (r) => t(r.departmentName), sort: (r) => r.departmentName },
+  { key: "entity", label: "Entity", default: true, value: (r) => t(r.entityName), sort: (r) => r.entityName },
+  { key: "designation", label: "Designation", default: true, value: (r) => t(r.designationName), sort: (r) => r.designationName },
+  { key: "ctc", label: "CTC", default: true, numeric: true, pay: true, value: (r) => (r.monthlyCtc == null ? DASH : `${inr(r.monthlyCtc)}/mo`), sort: (r) => r.monthlyCtc },
+  { key: "doj", label: "DOJ", default: true, value: (r) => ymd(r.joinedAt), sort: (r) => dateSortValue(r.joinedAt) },
   {
     key: "probationEnds",
     label: "Probation Ends",
@@ -164,7 +176,7 @@ const COLUMNS: ColumnDef[] = [
     // has passed (0244). The date is never replaced by the word "Completed" —
     // it is historical HR data and it is what an audit asks for.
     value: (r) => ymd(r.probationEnd),
-    sort: (r) => r.probationEnd ?? "",
+    sort: (r) => dateSortValue(r.probationEnd),
     render: (r) => <ProbationCell probationEnd={r.probationEnd} today={istToday()} />,
   },
   /**
@@ -179,23 +191,23 @@ const COLUMNS: ColumnDef[] = [
    * rest are hourly. The workspace states that beside the field; here it is
    * only displayed.
    */
-  { key: "shift", label: "Shift Type", default: true, value: (r) => t(workerTypeLabel(r.workerType)), sort: (r) => r.workerType ?? "" },
-  { key: "status", label: "Status", default: true, value: (r) => r.status, sort: (r) => r.status },
+  { key: "shift", label: "Shift Type", default: true, value: (r) => t(workerTypeLabel(r.workerType)), sort: (r) => workerTypeLabel(r.workerType) },
+  { key: "status", label: "Status", default: true, value: (r) => r.status, sort: (r) => r.status.replace(/_/g, " ") },
   // Optional — available under Columns, off by default so the table stays compact.
-  { key: "manager", label: "Manager", default: false, value: (r) => t(r.managerName), sort: (r) => (r.managerName ?? "").toLowerCase() },
+  { key: "manager", label: "Manager", default: false, value: (r) => t(r.managerName), sort: (r) => r.managerName },
   { key: "teamLead", label: "Team Lead", default: false, value: (r) => yn(r.isTeamLead), sort: (r) => (r.isTeamLead ? 1 : 0) },
   { key: "trainPass", label: "Train Pass", default: false, value: (r) => yn(r.trainPass), sort: (r) => (r.trainPass ? 1 : 0) },
-  { key: "doc", label: "DOC", default: false, value: (r) => ymd(r.dateOfCompletion), sort: (r) => r.dateOfCompletion ?? "" },
-  { key: "personalEmail", label: "Personal Mail", default: false, value: (r) => t(r.personalEmail), sort: (r) => (r.personalEmail ?? "").toLowerCase() },
-  { key: "phone", label: "Personal Cell", default: false, value: (r) => t(r.phone), sort: (r) => r.phone ?? "" },
-  { key: "tds", label: "Monthly TDS", default: false, numeric: true, pay: true, value: (r) => inr(r.tdsMonthly), sort: (r) => r.tdsMonthly ?? -1 },
-  { key: "ptExempt", label: "PT Exempt", default: false, value: (r) => (r.ptExempt == null ? DASH : yn(r.ptExempt)), sort: (r) => r.ptExempt == null ? -1 : r.ptExempt ? 1 : 0 },
+  { key: "doc", label: "DOC", default: false, value: (r) => ymd(r.dateOfCompletion), sort: (r) => dateSortValue(r.dateOfCompletion) },
+  { key: "personalEmail", label: "Personal Mail", default: false, value: (r) => t(r.personalEmail), sort: (r) => r.personalEmail },
+  { key: "phone", label: "Personal Cell", default: false, value: (r) => t(r.phone), sort: (r) => r.phone },
+  { key: "tds", label: "Monthly TDS", default: false, numeric: true, pay: true, value: (r) => inr(r.tdsMonthly), sort: (r) => r.tdsMonthly },
+  { key: "ptExempt", label: "PT Exempt", default: false, value: (r) => (r.ptExempt == null ? DASH : yn(r.ptExempt)), sort: (r) => r.ptExempt == null ? null : r.ptExempt ? 1 : 0 },
   {
     key: "backgroundCheck",
     label: "Background Check",
     default: false,
     value: (r) => (r.backgroundCheck === "yes" ? "Done" : r.backgroundCheck === "no" ? "Not Done" : DASH),
-    sort: (r) => r.backgroundCheck ?? "",
+    sort: (r) => r.backgroundCheck,
   },
 ];
 
@@ -303,7 +315,7 @@ export function EmployeeMasterTable({
   const [kpiFilter, setKpiFilter] = React.useState<KpiFilter | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [columnsOpen, setColumnsOpen] = React.useState(false);
-  const [sortKey, setSortKey] = React.useState<ColumnKey>("employee");
+  const [sortKey, setSortKey] = React.useState<ColumnKey | null>(null);
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set());
   const [openId, setOpenId] = React.useState<string | null>(null);
@@ -435,17 +447,22 @@ export function EmployeeMasterTable({
       return true;
     });
 
-    const col = COLUMNS.find((c) => c.key === sortKey);
+    const col = sortKey ? COLUMNS.find((c) => c.key === sortKey) : undefined;
     if (col?.sort) {
       const get = col.sort;
       out = [...out].sort((a, b) => {
         const av = get(a), bv = get(b);
-        const cmp = typeof av === "number" && typeof bv === "number"
-          ? av - bv
-          : String(av).localeCompare(String(bv));
+        const aEmpty = av == null || av === "";
+        const bEmpty = bv == null || bv === "";
+        const cmp = aEmpty || bEmpty
+          ? aEmpty === bEmpty ? 0 : aEmpty ? 1 : -1
+          : typeof av === "number" && typeof bv === "number"
+            ? av - bv
+            : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
         // Name is the tie-break on every ordering, so rows that compare equal
         // never reshuffle between renders.
-        return (sortDir === "asc" ? cmp : -cmp) || a.name.localeCompare(b.name);
+        const ordered = aEmpty || bEmpty ? cmp : sortDir === "asc" ? cmp : -cmp;
+        return ordered || a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
       });
     }
     return out;
@@ -691,7 +708,11 @@ export function EmployeeMasterTable({
         <table className="min-w-[1450px] border-collapse">
           <thead>
             <tr className="border-b border-hairline bg-surface-soft">
-              <th className="sticky left-0 z-20 w-9 bg-surface-soft px-2 py-2">
+              <th
+                scope="col"
+                className="sticky left-0 z-30 w-9 bg-surface-soft px-2 py-2"
+                style={{ width: EMPLOYEE_SELECT_WIDTH, minWidth: EMPLOYEE_SELECT_WIDTH, maxWidth: EMPLOYEE_SELECT_WIDTH }}
+              >
                 <input
                   type="checkbox"
                   aria-label="Select all visible employees"
@@ -705,7 +726,19 @@ export function EmployeeMasterTable({
                   key={c.key}
                   scope="col"
                   onClick={() => sortBy(c.key)}
-                  className={`select-none px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted ${c.key === "employee" ? "sticky left-9 z-20 min-w-[220px] bg-surface-soft" : ""} ${c.numeric ? "text-right" : "text-left"} ${c.sort ? "cursor-pointer hover:text-ink-strong" : ""}`}
+                  aria-sort={sortKey === c.key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+                  className={`select-none px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted ${c.key === "employee" ? "sticky left-9 z-30 min-w-[220px] bg-surface-soft" : c.key === "employeeCode" ? "sticky z-30 border-r border-hairline bg-surface-soft shadow-[4px_0_7px_-4px_rgba(15,23,42,0.22)]" : ""} ${c.numeric ? "text-right" : "text-left"} ${c.sort ? "cursor-pointer hover:text-ink-strong" : ""}`}
+                  style={c.key === "employee" ? {
+                    left: EMPLOYEE_SELECT_WIDTH,
+                    width: EMPLOYEE_DETAILS_WIDTH,
+                    minWidth: EMPLOYEE_DETAILS_WIDTH,
+                    maxWidth: EMPLOYEE_DETAILS_WIDTH,
+                  } : c.key === "employeeCode" ? {
+                    left: EMPLOYEE_CODE_LEFT,
+                    width: EMPLOYEE_CODE_WIDTH,
+                    minWidth: EMPLOYEE_CODE_WIDTH,
+                    maxWidth: EMPLOYEE_CODE_WIDTH,
+                  } : undefined}
                 >
                   {c.label}
                   {sortKey === c.key && <span aria-hidden className="ml-1">{sortDir === "asc" ? "▲" : "▼"}</span>}
@@ -728,7 +761,11 @@ export function EmployeeMasterTable({
                 onClick={() => setOpenId(r.id)}
                 className="group cursor-pointer border-b border-hairline/60 transition-colors hover:bg-surface-soft"
               >
-                <td className="sticky left-0 z-10 bg-white px-2 py-1.5 group-hover:bg-surface-soft" onClick={(e) => e.stopPropagation()}>
+                <td
+                  className="sticky left-0 z-10 w-9 bg-white px-2 py-1.5 group-hover:bg-surface-soft"
+                  style={{ width: EMPLOYEE_SELECT_WIDTH, minWidth: EMPLOYEE_SELECT_WIDTH, maxWidth: EMPLOYEE_SELECT_WIDTH }}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <input
                     type="checkbox"
                     aria-label={`Select ${r.name}`}
@@ -739,8 +776,30 @@ export function EmployeeMasterTable({
                 </td>
                 {columns.map((c) =>
                   c.key === "employee" ? (
-                    <td key={c.key} className="sticky left-9 z-10 min-w-[220px] bg-white px-2.5 py-1.5 group-hover:bg-surface-soft">
+                    <td
+                      key={c.key}
+                      className="sticky left-9 z-20 min-w-[220px] bg-white px-2.5 py-1.5 group-hover:bg-surface-soft"
+                      style={{
+                        left: EMPLOYEE_SELECT_WIDTH,
+                        width: EMPLOYEE_DETAILS_WIDTH,
+                        minWidth: EMPLOYEE_DETAILS_WIDTH,
+                        maxWidth: EMPLOYEE_DETAILS_WIDTH,
+                      }}
+                    >
                       <EmployeeCell row={r} />
+                    </td>
+                  ) : c.key === "employeeCode" ? (
+                    <td
+                      key={c.key}
+                      className="sticky z-20 border-r border-hairline bg-white px-2.5 py-1.5 text-[12.5px] text-ink-soft shadow-[4px_0_7px_-4px_rgba(15,23,42,0.22)] group-hover:bg-surface-soft"
+                      style={{
+                        left: EMPLOYEE_CODE_LEFT,
+                        width: EMPLOYEE_CODE_WIDTH,
+                        minWidth: EMPLOYEE_CODE_WIDTH,
+                        maxWidth: EMPLOYEE_CODE_WIDTH,
+                      }}
+                    >
+                      {c.value(r)}
                     </td>
                   ) : c.key === "status" ? (
                     <td key={c.key} className="px-2.5 py-1.5">

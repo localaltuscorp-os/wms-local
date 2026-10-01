@@ -21,17 +21,22 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // boundary that leaves them stuck with no way out.
   const me = await requireUser();
   const rosterManager = canManageTaskRosters(me.email);
-  if (!me.isAdmin && !rosterManager) {
+  const path = (await headers()).get("x-pathname") ?? "";
+  const hierarchyPath = path === "/admin/hierarchy" || path.startsWith("/admin/hierarchy/");
+  const hierarchyViewer = hierarchyPath && me.accountType === "employee" && me.isActive && me.employmentStatus === "active";
+  if (!me.isAdmin && !rosterManager && !hierarchyViewer) {
     redirect("/hub");
   }
-  // Not an admin: here for Subjects and Clients ONLY. Any other Admin Panel
-  // address — typed, bookmarked or linked — goes back to Subjects. The header is
-  // set by the proxy on every request; without it there is no path to judge, and
-  // the pages' own guards still apply.
+  // Non-admins may view only Reporting Hierarchy (active employee accounts),
+  // plus Subjects/Clients for roster managers. Every other Admin address is
+  // rejected here; page-level guards remain in place as well.
   const rosterOnly = !me.isAdmin;
   if (rosterOnly) {
-    const path = (await headers()).get("x-pathname") ?? "";
-    if (path && !isRosterOnlyPath(path)) redirect("/admin/subjects");
+    if (hierarchyViewer) {
+      // Signed-in employees may view only the active reporting hierarchy here.
+    } else if (path && !isRosterOnlyPath(path)) {
+      redirect(rosterManager ? "/admin/subjects" : "/hub");
+    }
   }
   // The "acting as" banner, for the same reason the (app) layout carries it: a
   // delegated session must never look like an ordinary one, and the Admin Panel
@@ -56,6 +61,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         avatarUrl={me.avatarUrl}
         canSeeAccounts={isSuperAdmin(me.email)}
         rosterOnly={rosterOnly}
+        hierarchyOnly={rosterOnly && hierarchyPath}
       >
         {children}
       </AdminShell>

@@ -22,9 +22,10 @@ import type { AllocationReport } from "@/lib/exec-calendar/analytics";
 const VIEW_WORD: Record<string, string> = {
   day: "this day",
   week: "this week",
-  grid: "these 4 weeks",
+  grid: "these weeks",
   month: "this month",
-  year: "this year",
+  monthgrid: "this month",
+  quarter: "this quarter",
 };
 
 export function ExecAllocationPanel({
