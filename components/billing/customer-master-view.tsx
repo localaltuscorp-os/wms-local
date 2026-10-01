@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   CheckCircle2,
+  BookUser,
   Download,
   Eye,
   FileDown,
@@ -131,6 +132,19 @@ export function CustomerMasterView({
   const [pageIndex, setPageIndex] = React.useState(0);
   const { hidden, toggle: toggleColumn } = useHiddenColumns<ColKey>();
   const visibleCols = COLUMNS.filter((c) => !hidden.has(c.key));
+  // Keep a customer's identity visible while the wider KYC detail columns
+  // scroll. These offsets close up when one of the pinned columns is hidden.
+  const pinnedColumnOffsets = React.useMemo(() => {
+    const offsets = new Map<ColKey, number>();
+    let left = CUSTOMER_SELECTION_COLUMN_WIDTH;
+    for (const column of visibleCols) {
+      const width = PINNED_CUSTOMER_COLUMN_WIDTHS[column.key];
+      if (width === undefined) break;
+      offsets.set(column.key, left);
+      left += width;
+    }
+    return offsets;
+  }, [visibleCols]);
 
   // Grouped lists are ordered by group first, so a group's rows sit together
   // across page boundaries rather than being scattered over every page.
@@ -233,9 +247,8 @@ export function CustomerMasterView({
     <>
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
           <h1
-            className="mt-1 text-ink-strong"
+            className="text-ink-strong"
             style={{
               fontFamily: "var(--font-display), system-ui, sans-serif",
               fontWeight: 900,
@@ -243,10 +256,24 @@ export function CustomerMasterView({
               letterSpacing: "-0.025em",
             }}
           >
-            Customer Master
+            Customer
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={"/billing/customers/new" as Route}
+            className="inline-flex h-10 items-center gap-2 rounded-chip px-4 text-[13px] font-bold text-white"
+            style={{ background: `linear-gradient(135deg, ${BILLING_PURPLE}, ${BILLING_PURPLE_DEEP})` }}
+          >
+            <Plus size={15} /> New client
+          </Link>
+          <Link
+            href={"/billing/customers/addresses" as Route}
+            className="inline-flex h-10 items-center gap-2 rounded-chip px-4 text-[13px] font-bold text-ink-muted"
+            style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+          >
+            <BookUser size={15} /> Customer Address Book
+          </Link>
           <button
             type="button"
             onClick={exportCsv}
@@ -255,13 +282,6 @@ export function CustomerMasterView({
           >
             <Download size={14} /> Export to Excel
           </button>
-          <Link
-            href={"/billing/customers/new" as Route}
-            className="inline-flex h-10 items-center gap-2 rounded-chip px-4 text-[13px] font-bold text-white"
-            style={{ background: `linear-gradient(135deg, ${BILLING_PURPLE}, ${BILLING_PURPLE_DEEP})` }}
-          >
-            <Plus size={15} /> New client
-          </Link>
         </div>
       </header>
 
@@ -274,7 +294,7 @@ export function CustomerMasterView({
           <p className="text-[13px] font-semibold" style={{ color: "#064E3B" }}>
             <b>{justAdded.name}</b> is onboarded
             {justAdded.clientCode ? <> as <b>{justAdded.clientCode}</b></> : null} and is in the
-            Customer Master — the table below is filtered to it.
+            Customer — the table below is filtered to it.
           </p>
           <div className="ml-auto flex items-center gap-2">
             <Link
@@ -300,7 +320,7 @@ export function CustomerMasterView({
         </div>
       ) : null}
 
-      <section className="grid grid-cols-3 gap-3 max-md:grid-cols-2">
+      <section className="hidden">
         {/* CLICKABLE — each tile filters the table to what it counts, and the
             one in force is outlined. Total clears both filters. */}
         <Tile
@@ -463,7 +483,15 @@ export function CustomerMasterView({
         <table className="w-full border-collapse text-[13px]" style={{ minWidth: 120 + visibleCols.length * 80 }}>
           <thead>
             <tr className="bg-[#EEF1F5] text-[10.5px] uppercase tracking-[0.1em] text-ink-muted">
-              <th className="w-10 py-2.5 pl-4 pr-1 text-left align-middle">
+              <th
+                className="sticky left-0 z-30 py-2.5 pl-4 pr-1 text-left align-middle"
+                style={{
+                  zIndex: 40,
+                  width: CUSTOMER_SELECTION_COLUMN_WIDTH,
+                  minWidth: CUSTOMER_SELECTION_COLUMN_WIDTH,
+                  background: "var(--table-head-bg, var(--color-surface-card))",
+                }}
+              >
                 <Checkbox
                   checked={sel.allOn}
                   indeterminate={sel.someOn}
@@ -471,11 +499,30 @@ export function CustomerMasterView({
                   ariaLabel="Select all clients"
                 />
               </th>
-              {visibleCols.map((c) => (
-                <th key={c.key} className={`${CELL} font-bold`}>
-                  {c.label}
-                </th>
-              ))}
+              {visibleCols.map((c) => {
+                const left = pinnedColumnOffsets.get(c.key);
+                const pinned = left !== undefined;
+                const width = PINNED_CUSTOMER_COLUMN_WIDTHS[c.key];
+                return (
+                  <th
+                    key={c.key}
+                    className={`${CELL} font-bold ${pinned ? "sticky z-30" : ""}`}
+                    style={
+                      pinned
+                        ? {
+                            left,
+                            zIndex: 40,
+                            width,
+                            minWidth: width,
+                            background: "var(--table-head-bg, var(--color-surface-card))",
+                          }
+                        : undefined
+                    }
+                  >
+                    {c.label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -484,6 +531,11 @@ export function CustomerMasterView({
               const key = g && groupBy !== "none" ? g.get(r) : null;
               const prevKey = key !== null && idx > 0 ? g!.get(pageRows[idx - 1]!) : null;
               const startsGroup = key !== null && (idx === 0 || key !== prevKey);
+              const rowBackground = sel.selected.has(r.id)
+                ? "rgba(225, 6, 0, 0.06)"
+                : justAdded?.id === r.id
+                  ? "rgba(16, 185, 129, 0.10)"
+                  : undefined;
               return (
                 <React.Fragment key={r.id}>
                   {startsGroup ? (
@@ -498,23 +550,42 @@ export function CustomerMasterView({
                   ) : null}
                   <tr
                     className="border-t border-hairline align-middle transition-colors"
-                    style={
-                      sel.selected.has(r.id)
-                        ? { background: "rgba(225,6,0,0.06)" }
-                        : justAdded?.id === r.id
-                          ? { background: "rgba(16,185,129,0.10)" }
-                          : undefined
-                    }
+                    style={rowBackground ? { background: rowBackground } : undefined}
                   >
-                    <td className="py-2.5 pl-4 pr-1 align-middle">
+                    <td
+                      className="sticky left-0 z-10 py-2.5 pl-4 pr-1 align-middle"
+                      style={{
+                        width: CUSTOMER_SELECTION_COLUMN_WIDTH,
+                        minWidth: CUSTOMER_SELECTION_COLUMN_WIDTH,
+                        background: rowBackground ?? "var(--color-surface-card)",
+                      }}
+                    >
                       <Checkbox
                         checked={sel.selected.has(r.id)}
                         onChange={(on) => sel.toggle(r.id, on)}
                         ariaLabel={`Select ${r.name}`}
                       />
                     </td>
-                    {visibleCols.map((c) => (
-                      <td key={c.key} className={`${CELL} ${c.cellClass ?? ""}`} style={c.cellStyle}>
+                    {visibleCols.map((c) => {
+                      const left = pinnedColumnOffsets.get(c.key);
+                      const pinned = left !== undefined;
+                      const width = PINNED_CUSTOMER_COLUMN_WIDTHS[c.key];
+                      return (
+                      <td
+                        key={c.key}
+                        className={`${CELL} ${c.cellClass ?? ""} ${pinned ? "sticky z-10" : ""}`}
+                        style={
+                          pinned
+                            ? {
+                                ...c.cellStyle,
+                                left,
+                                width,
+                                minWidth: width,
+                                background: rowBackground ?? "var(--color-surface-card)",
+                              }
+                            : c.cellStyle
+                        }
+                      >
                         {/* ONE LINE PER ROW. The cell caps its own width and
                             clips rather than wrapping, so a long client note
                             cannot make its row five lines tall and knock every
@@ -525,7 +596,8 @@ export function CustomerMasterView({
                           {c.render ? c.render(r) : c.text(r) || "–"}
                         </span>
                       </td>
-                    ))}
+                      );
+                    })}
                   </tr>
                 </React.Fragment>
               );
@@ -541,7 +613,7 @@ export function CustomerMasterView({
             </p>
             <p className="mx-auto mt-1 max-w-[46ch] text-[13px] text-ink-muted">
               {rows.length === 0
-                ? "Onboard one from New Customer KYC and it will appear here — and be billable straight away."
+                ? "Use New client to open the KYC form. Once onboarded, the customer will appear here and be billable straight away."
                 : "Clear a filter or two and they will come back."}
             </p>
           </div>
@@ -643,13 +715,21 @@ function Tile({
 
 type ColKey =
   | "company" | "code" | "sales" | "industry" | "ptype" | "bizcat" | "nature" | "tags"
-  | "gstin" | "pan" | "msme" | "gsttype" | "currency"
+  | "gstin" | "pan" | "gsttype" | "currency"
   | "contact" | "dept" | "phone" | "whatsapp" | "email"
   | "terms" | "creditdays" | "otherrefs" | "notes"
   | "linkedin" | "instagram" | "subscription" | "emi" | "modulewise"
   | "introWebsite" | "introName" | "introSocial" | "introCity" | "introEmail" | "introWhatsapp"
   | "introCompany" | "introDesignation" | "introNature" | "introCategory" | "introCameThrough" | "introBy"
   | "status" | "created";
+
+const CUSTOMER_SELECTION_COLUMN_WIDTH = 56;
+const PINNED_CUSTOMER_COLUMN_WIDTHS: Partial<Record<ColKey, number>> = {
+  company: 168,
+  code: 122,
+  sales: 138,
+  industry: 160,
+};
 
 type Col = {
   key: ColKey;
@@ -723,7 +803,6 @@ const COLUMNS: Col[] = [
   },
   { key: "gstin", label: "GSTIN", text: (r) => t(r.gstin), cellClass: "whitespace-nowrap px-3 py-3 font-mono text-[12px]" },
   { key: "pan", label: "PAN", text: (r) => t(r.pan), cellClass: "whitespace-nowrap px-3 py-3 font-mono text-[12px]" },
-  { key: "msme", label: "MSME / Udyam No", text: (r) => t(r.msmeNo) },
   { key: "gsttype", label: "GST Registration Type", text: (r) => t(r.gstRegType) },
   { key: "currency", label: "Currency", text: (r) => r.currency },
   {
@@ -836,4 +915,3 @@ const GROUPS: { key: GroupKey; label: string; get: (r: CustomerMasterRow) => str
   { key: "bizcat", label: "Business category", get: (r) => r.businessCategory ?? "No business category" },
   { key: "status", label: "Status", get: (r) => (r.isActive ? "Active" : "Inactive") },
 ];
-

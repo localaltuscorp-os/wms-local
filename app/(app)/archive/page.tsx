@@ -79,7 +79,7 @@ export default async function ArchiveIndexPage({
             : "The same reading, for people still on the roster — every module's record of them in one place, read-only."
         }
         toolbar={
-          <div className="flex flex-col gap-2.5">
+          <div className="flex w-full flex-wrap items-center gap-2.5">
             <ArchiveScopeSwitch
               scope={scope}
               basePath="/archive"
@@ -89,12 +89,14 @@ export default async function ArchiveIndexPage({
                   : { past: otherCount, present: people.length }
               }
             />
-            <ArchivePeopleFilter
-              people={people}
-              scope={scope}
-              employeeId={employeeId}
-              basePath="/archive"
-            />
+            <div className="ml-auto max-md:ml-0">
+              <ArchivePeopleFilter
+                people={people}
+                scope={scope}
+                employeeId={employeeId}
+                basePath="/archive"
+              />
+            </div>
           </div>
         }
       />

@@ -25,9 +25,8 @@ export default async function BillingRecycleBinPage() {
 
   return (
     <PageShell width="wide">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
       <h1
-        className="mt-1 text-ink-strong"
+        className="text-ink-strong"
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 900,
@@ -37,7 +36,7 @@ export default async function BillingRecycleBinPage() {
       >
         Recycle Bin
       </h1>
-      <p className="mt-1 max-w-[70ch] text-[13.5px] text-ink-muted">
+      <p className="hidden">
         Customers removed from the Billing module. Nothing here has been destroyed — restoring
         puts it back exactly where it was.
       </p>

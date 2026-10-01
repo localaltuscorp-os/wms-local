@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { ExternalLink, FileText, Loader2, Plus, UserPlus, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Loader2, Plus, UserPlus, X } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { BILLING_PURPLE, BILLING_PURPLE_DEEP, CARD_STYLE } from "@/lib/billing/ui";
 import { stateFromGstin } from "@/lib/billing/states";
@@ -187,9 +188,10 @@ export function CustomerKycForm({
       }
       /* Files go up one at a time AFTER the save, against the id it returned.
          A failed file does not undo the client — it is reported by name. */
-      const uploads: { slot: "front" | "back" | "brochure" | "video" | "other"; file: File }[] = [
+      const uploads: { slot: "front" | "back" | "gst_certificate" | "brochure" | "video" | "other"; file: File }[] = [
         ...(docs.front ? [{ slot: "front" as const, file: docs.front }] : []),
         ...(docs.back ? [{ slot: "back" as const, file: docs.back }] : []),
+        ...(docs.gstCertificate ? [{ slot: "gst_certificate" as const, file: docs.gstCertificate }] : []),
         ...docs.brochure.map((file) => ({ slot: "brochure" as const, file })),
         ...docs.videos.map((file) => ({ slot: "video" as const, file })),
         ...docs.other.map((file) => ({ slot: "other" as const, file })),
@@ -244,19 +246,27 @@ export function CustomerKycForm({
         }
       }}
     >
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
-      <h1
-        className="mt-1 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(24px,2.8vw,34px)",
-          letterSpacing: "-0.025em",
-        }}
-      >
-        {editing ? "Edit Customer KYC" : "New Customer KYC"}
-      </h1>
-      <p className="mt-1 text-[13.5px] text-ink-muted">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Link
+          href={"/billing/customers" as Route}
+          className="inline-flex h-9 items-center gap-2 rounded-chip px-3 text-[13px] font-bold text-ink-muted"
+          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+        >
+          <ArrowLeft size={15} /> Back to Customer
+        </Link>
+        <h1
+          className="text-ink-strong"
+          style={{
+            fontFamily: "var(--font-display), system-ui, sans-serif",
+            fontWeight: 900,
+            fontSize: "clamp(24px,2.8vw,34px)",
+            letterSpacing: "-0.025em",
+          }}
+        >
+          {editing ? "Edit Customer KYC" : "New Customer KYC"}
+        </h1>
+      </div>
+      <p className="hidden">
         {editing ? (
           <>
             Editing <span className="font-mono font-bold">{nextCode}</span> — the client code does not change.
@@ -270,8 +280,8 @@ export function CustomerKycForm({
       </p>
 
       {/* ── IDENTITY ─────────────────────────────────────────────── */}
-      <Section title="Identity" hint="Who the client is — type, industry and the products they buy." accent="#E10600">
-        <Grid cols={3}>
+      <Section title="Identity" accent="#E10600">
+        <Grid cols={4}>
           <Field label="GSTIN" hint={gstState ? `Verified · ${gstState.name}` : undefined}>
             <input
               value={f.gstin}
@@ -296,11 +306,10 @@ export function CustomerKycForm({
               ))}
             </Select>
           </Field>
-        </Grid>
         {/* EXPORT and GRADE are no longer asked (Manan, 2026-09-19). An existing
             client keeps whatever it had: the values ride along unchanged in
             the form state, so editing a client never resets them. */}
-        <Grid cols={3}>
+        <div className="contents">
           <Field label="Tags">
             <input
               value={f.tagText}
@@ -313,12 +322,12 @@ export function CustomerKycForm({
             <MultiSelect
               values={f.industryTypes}
               onChange={(v) => set("industryTypes", v)}
-              options={options.industry_type ?? ["Mining", "Pharma", "Petrochem", "Wire Ind.", "Automotive"]}
+              options={options.industry_type ?? []}
               placeholder="Select industry types…"
             />
           </Field>
-        </Grid>
-        <Grid cols={3}>
+        </div>
+        <div className="contents">
           <Field label="Product type">
             <MultiSelect
               values={f.productTypes}
@@ -348,13 +357,36 @@ export function CustomerKycForm({
               className={INPUT}
             />
           </Field>
+        </div>
+        <div className="contents">
+          <Field label="Website">
+            <LinkInput
+              value={intro.website ?? ""}
+              onChange={(v) => setIntro("website", v)}
+              placeholder="www.company.com"
+              href={linkedinHref(intro.website ?? "")}
+            />
+          </Field>
+          <Field label="Introducer first name">
+            <input value={intro.firstName ?? ""} onChange={(e) => setIntro("firstName", e.target.value)} className={INPUT} />
+          </Field>
+          <Field label="Introducer last name">
+            <input value={intro.lastName ?? ""} onChange={(e) => setIntro("lastName", e.target.value)} className={INPUT} />
+          </Field>
+          <Field label="Did you come to know about us through Social Media Post?" labelClass="whitespace-nowrap text-[9px] tracking-tighter">
+            <Select value={intro.cameThrough ?? ""} onChange={(v) => setIntro("cameThrough", v)} placeholder="Select">
+              {["Yes", "No", "Through WhatsApp", "Friend / Colleague", "Other"].map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </Select>
+          </Field>
+        </div>
         </Grid>
       </Section>
 
       {/* ── REGISTRATION & TAX ───────────────────────────────────── */}
       <Section
         title="Registration & Tax"
-        hint="GST, PAN, MSME / Udyam registration and export / currency details."
         accent="#DC2626"
       >
         <Grid cols={3}>
@@ -365,14 +397,6 @@ export function CustomerKycForm({
               placeholder="ACPPV1393L"
               maxLength={10}
               className={INPUT + " font-mono"}
-            />
-          </Field>
-          <Field label="MSME / Udyam No">
-            <input
-              value={f.msmeNo}
-              onChange={(e) => set("msmeNo", e.target.value)}
-              placeholder="e.g. UDYAM-MH-00-0000000"
-              className={INPUT}
             />
           </Field>
           <Field label="GST registration type">
@@ -415,13 +439,12 @@ export function CustomerKycForm({
       {/* ── CONTACT PERSON ───────────────────────────────────────── */}
       <Section
         title="Contact Person"
-        hint="The first contact is saved as the client's primary — auto-fetched on enquiries."
         accent="#059669"
       >
         {contacts.map((c, i) => (
           <div key={i} className="mb-4 border-b border-hairline pb-4 last:mb-0 last:border-0 last:pb-0">
             <RowHead n={i + 1} label="Contact" onRemove={contacts.length > 1 ? () => setContacts((p) => p.filter((_, j) => j !== i)) : undefined} />
-            <Grid cols={3}>
+            <Grid cols={4}>
               <Field label="First name" required>
                 <input value={c.firstName} onChange={(e) => setContacts((p) => p.map((x, j) => (j === i ? { ...x, firstName: e.target.value } : x)))} className={INPUT} />
               </Field>
@@ -444,9 +467,22 @@ export function CustomerKycForm({
                   className={INPUT}
                 />
               </Field>
-            </Grid>
-            <Grid cols={3}>
-              <Field label="WhatsApp no">
+              <div className="block">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <span className="text-[12px] font-bold text-ink-strong">WhatsApp No</span>
+                  <label className="flex items-center gap-2 text-[12px] font-semibold text-ink-muted">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(sameWa[i])}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setSameWa((m) => ({ ...m, [i]: on }));
+                        if (on) setContacts((p) => p.map((x, j) => (j === i ? { ...x, whatsapp: x.phone } : x)));
+                      }}
+                    />
+                    Same As Contact No
+                  </label>
+                </div>
                 <input
                   value={c.whatsapp}
                   disabled={Boolean(sameWa[i])}
@@ -454,21 +490,9 @@ export function CustomerKycForm({
                   placeholder="WhatsApp number"
                   className={INPUT + " disabled:bg-[rgba(15,23,42,0.03)]"}
                 />
-                <span className="mt-1.5 flex items-center gap-2 text-[12px] font-semibold text-ink-muted">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(sameWa[i])}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      setSameWa((m) => ({ ...m, [i]: on }));
-                      if (on) setContacts((p) => p.map((x, j) => (j === i ? { ...x, whatsapp: x.phone } : x)));
-                    }}
-                  />
-                  Same As Contact No
-                </span>
-              </Field>
+              </div>
             </Grid>
-            <Grid cols={3}>
+            <Grid cols={4}>
               <Field label="Email" required>
                 <input type="email" value={c.email} onChange={(e) => setContacts((p) => p.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} className={INPUT} />
               </Field>
@@ -498,7 +522,6 @@ export function CustomerKycForm({
       {/* ── ADDRESSES ────────────────────────────────────────────── */}
       <Section
         title="Billing Address"
-        hint="Where this client is billed."
         accent="#EA580C"
       >
         {/* BILLING ADDRESS ONLY (Manan, 2026-09-19). A shipping address saved
@@ -506,9 +529,6 @@ export function CustomerKycForm({
             so editing a client never deletes it. */}
         {addresses.map((a, i) => a.kind !== "billing" ? null : (
           <div key={i} className="mb-4 border-b border-hairline pb-4 last:mb-0 last:border-0 last:pb-0">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <RowHead n={1} label="Billing address" />
-            </div>
             <Grid cols={2}>
               <Field label="Address line 1" required>
                 <input value={a.line1} placeholder="Unit No./Block No., Floor, Building Name" onChange={(e) => setAddresses((p) => p.map((x, j) => (j === i ? { ...x, line1: e.target.value } : x)))} className={INPUT} />
@@ -550,7 +570,7 @@ export function CustomerKycForm({
       </Section>
 
       {/* ── COMMERCIAL & CREDIT ──────────────────────────────────── */}
-      <Section title="Commercial & Credit" hint="Payment terms and credit." accent="#2563EB">
+      <Section title="Commercial & Credit" accent="#2563EB">
         <Grid cols={3}>
           <Field label="Payment terms" required>
             <Select value={f.paymentTerms} onChange={(v) => set("paymentTerms", v)} placeholder="Select payment terms">
@@ -587,87 +607,11 @@ export function CustomerKycForm({
       </Section>
 
       {/* ── INTRODUCER ───────────────────────────────────────────── */}
-      <Section title="Introducer" hint="Who introduced this client to us." accent="#B45309">
-        <Grid cols={3}>
-          <Field label="Website">
-            <LinkInput
-              value={intro.website ?? ""}
-              onChange={(v) => setIntro("website", v)}
-              placeholder="www.company.com"
-              href={linkedinHref(intro.website ?? "")}
-            />
-          </Field>
-          <Field label="Introducer first name">
-            <input value={intro.firstName ?? ""} onChange={(e) => setIntro("firstName", e.target.value)} className={INPUT} />
-          </Field>
-          <Field label="Introducer last name">
-            <input value={intro.lastName ?? ""} onChange={(e) => setIntro("lastName", e.target.value)} className={INPUT} />
-          </Field>
-        </Grid>
-        <Grid cols={3}>
-          <Field label="Social media">
-            <Select value={intro.socialMedia ?? ""} onChange={(v) => setIntro("socialMedia", v as "Yes" | "No" | "")} placeholder="Select">
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </Select>
-          </Field>
-          <Field label="City">
-            <input value={intro.city ?? ""} onChange={(e) => setIntro("city", e.target.value)} className={INPUT} />
-          </Field>
-          <Field label="Email">
-            <input type="email" value={intro.email ?? ""} onChange={(e) => setIntro("email", e.target.value)} className={INPUT} />
-          </Field>
-        </Grid>
-        <Grid cols={3}>
-          <Field label="WhatsApp number">
-            <input value={intro.whatsapp ?? ""} onChange={(e) => setIntro("whatsapp", e.target.value)} className={INPUT} />
-          </Field>
-          <Field label="Company / organisation">
-            <input value={intro.company ?? ""} onChange={(e) => setIntro("company", e.target.value)} className={INPUT} />
-          </Field>
-          <Field label="Designation / role">
-            <Select value={intro.designation ?? ""} onChange={(v) => setIntro("designation", v)} placeholder="Select designation">
-              {(options.designation ?? []).map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </Select>
-          </Field>
-        </Grid>
-        <Grid cols={3}>
-          <Field label="Nature of business / work">
-            <input value={intro.natureOfWork ?? ""} onChange={(e) => setIntro("natureOfWork", e.target.value)} className={INPUT} />
-          </Field>
-          <Field label="Business category">
-            <Select value={intro.businessCategory ?? ""} onChange={(v) => setIntro("businessCategory", v)} placeholder="Select a category…">
-              {(options.business_category ?? []).map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Did you come to know about us through Social Media Post?">
-            <Select value={intro.cameThrough ?? ""} onChange={(v) => setIntro("cameThrough", v)} placeholder="Select">
-              {["Yes", "No", "Through WhatsApp", "Friend / Colleague", "Other"].map((o) => (
-                <option key={o} value={o}>{o}</option>
-              ))}
-            </Select>
-          </Field>
-        </Grid>
-        <Grid cols={3}>
-          <Field label="Name of the person who introduced you">
-            <input value={intro.introducedBy ?? ""} onChange={(e) => setIntro("introducedBy", e.target.value)} className={INPUT} />
-          </Field>
-        </Grid>
-      </Section>
-
       {/* ── DOCUMENTS ────────────────────────────────────────────── */}
       <Section
         title="Documents"
-        hint="Attach any document, image, audio, or video to this client record - plus scans of the contact's business card."
         accent="#E10600"
       >
-        <p className="mb-4 text-[13px] text-ink-muted">
-          Pick the files now — they upload the moment the client is saved.
-        </p>
         {savedDocs.length > 0 ? (
           <div className="mb-4">
             <p className="mb-1.5 text-[12px] font-bold text-ink-strong">Already Attached</p>
@@ -679,7 +623,7 @@ export function CustomerKycForm({
                   style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
                 >
                   <span className="font-semibold text-ink-strong">
-                    {d.slot === "front" ? "Card front · " : d.slot === "back" ? "Card back · " : d.slot === "brochure" ? "Brochure · " : d.slot === "video" ? "Video · " : ""}
+                    {d.slot === "front" ? "Card front · " : d.slot === "back" ? "Card back · " : d.slot === "gst_certificate" ? "GST Certificate · " : d.slot === "brochure" ? "Brochure · " : d.slot === "video" ? "Video · " : ""}
                     {d.fileName}
                   </span>
                   {d.url ? (
@@ -731,7 +675,6 @@ export function CustomerKycForm({
       ) : null}
 
       <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-        <span className="text-[12px] text-ink-muted">Ctrl / ⌘ + Enter to save</span>
         <button
           type="button"
           onClick={() =>
@@ -774,6 +717,7 @@ export function CustomerKycForm({
                 ...(initial?.documents.map((d) => d.fileName) ?? []),
                 ...(docs.front ? [`Business card (front): ${docs.front.name}`] : []),
                 ...(docs.back ? [`Business card (back): ${docs.back.name}`] : []),
+                ...(docs.gstCertificate ? [`GST Certificate: ${docs.gstCertificate.name}`] : []),
                 ...docs.brochure.map((d) => `Brochure: ${d.name}`),
                 ...docs.videos.map((d) => `Video: ${d.name}`),
                 ...docs.other.map((d) => d.name),
@@ -914,7 +858,7 @@ function Section({
   children,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   accent: string;
   children: React.ReactNode;
 }) {
@@ -923,10 +867,10 @@ function Section({
       className="mt-4 rounded-[22px] p-5 max-md:p-4"
       style={{ ...CARD_STYLE, borderLeft: `3px solid ${accent}` }}
     >
-      <h2 className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: accent }}>
+      <h2 className="text-[14px] font-black uppercase tracking-[0.14em]" style={{ color: accent }}>
         {title}
       </h2>
-      <p className="mb-3 mt-0.5 text-[12.5px] text-ink-muted">{hint}</p>
+      {hint ? <p className="mb-3 mt-0.5 text-[12.5px] text-ink-muted">{hint}</p> : null}
       {children}
     </section>
   );
@@ -949,18 +893,20 @@ function titleCase(label: string): string {
 
 function Field({
   label,
+  labelClass,
   hint,
   required,
   children,
 }: {
   label: string;
+  labelClass?: string;
   hint?: string;
   required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[12px] font-bold text-ink-strong">
+      <span className={`mb-1 block text-[12px] font-bold text-ink-strong ${labelClass ?? ""}`}>
         {titleCase(label)}
         {required ? <span style={{ color: "#DC2626" }}> *</span> : null}
       </span>

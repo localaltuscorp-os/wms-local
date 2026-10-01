@@ -11,7 +11,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Mic, Square } from "lucide-react";
 import type { ReviewItem } from "@/app/(app)/goals/review/review-data";
 import { submitReview } from "@/app/(app)/goals/review/actions";
 import { setGoalCategory } from "@/app/(app)/goals/cascade/actions";
@@ -19,6 +19,8 @@ import { GoalLookupSelect } from "@/components/goals/board/goal-lookup-select";
 import { pctTone } from "@/components/goals/cascade/util";
 import { fireToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { useDictation } from "@/components/ui/use-dictation";
+import { InteractiveTableHeaderCell } from "@/components/ui/interactive-table-header-cell";
 
 const FOCUS_RING =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/60 focus-visible:ring-offset-1";
@@ -27,6 +29,16 @@ const redTint = (p: number) => `color-mix(in srgb, var(--color-altus-red) ${p}%,
 
 const TH =
   "px-3 py-3.5 text-left text-[11.5px] font-black uppercase tracking-[0.07em] text-ink-strong whitespace-nowrap";
+
+type ReviewColumnId = "code" | "title" | "category" | "self" | "approved" | "notes";
+const REVIEW_COLUMNS: { id: ReviewColumnId; label: string; className: string }[] = [
+  { id: "code", label: "Code", className: "w-16" },
+  { id: "title", label: "Goal", className: "min-w-[220px]" },
+  { id: "category", label: "Category", className: "min-w-[120px]" },
+  { id: "self", label: "Self %", className: "" },
+  { id: "approved", label: "Approved %", className: "" },
+  { id: "notes", label: "Approver Notes", className: "min-w-[200px]" },
+];
 
 /** Small tone-coloured % pill. */
 function PctPill({ pct, label }: { pct: number; label?: string }) {
@@ -38,6 +50,62 @@ function PctPill({ pct, label }: { pct: number; label?: string }) {
     >
       {pct}%{label ? <span className="text-[9px] font-bold uppercase opacity-70">{label}</span> : null}
     </span>
+  );
+}
+
+/** Dictation appends final speech to the same editable approver-note draft. */
+function ApproverNotesInput({
+  value,
+  disabled,
+  placeholder,
+  required,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  placeholder: string;
+  required: boolean;
+  onChange: (value: string) => void;
+}) {
+  const dictation = useDictation({ value, onChange });
+  const displayValue = dictation.recording && dictation.interim
+    ? `${value}${value && !/\s$/.test(value) ? " " : ""}${dictation.interim}`
+    : value;
+
+  return (
+    <div className="relative min-w-[180px]">
+      <textarea
+        value={displayValue}
+        disabled={disabled}
+        readOnly={dictation.recording}
+        rows={2}
+        maxLength={4000}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label="Approver notes"
+        aria-required={required}
+        className={cn(
+          "w-full resize-y rounded-md border bg-white px-2 py-1.5 pb-9 text-[12.5px] leading-snug text-ink-strong focus:border-altus-red",
+          FOCUS_RING,
+        )}
+        style={{ borderColor: required ? "var(--color-altus-red)" : "var(--color-hairline-strong)" }}
+      />
+      {dictation.supported && (
+        <button
+          type="button"
+          onClick={dictation.toggle}
+          disabled={disabled && !dictation.recording}
+          aria-pressed={dictation.recording}
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-1 text-[10.5px] font-bold text-altus-red shadow-sm ring-1 ring-[var(--color-hairline-strong)] transition hover:bg-red-50 disabled:opacity-60"
+        >
+          {dictation.recording ? (
+            <><Square size={10} fill="currentColor" className="animate-pulse" /> Stop dictation</>
+          ) : (
+            <><Mic size={12} strokeWidth={2.5} /> Dictate with Voice</>
+          )}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -177,7 +245,7 @@ function ReviewRow({
       style={{ borderBottom: "1px solid var(--color-hairline)" }}
       className="align-middle transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_2.5%,transparent)]"
     >
-      {/* # code */}
+      {/* Goal code, with its row position as the fallback. */}
       <td className="px-3 py-3.5">
         <span className="whitespace-nowrap text-[12.5px] font-bold text-ink-soft tabular-nums" style={{ fontFamily: "var(--font-display)" }}>
           {item.code ?? index + 1}
@@ -278,24 +346,12 @@ function ReviewRow({
       {/* Approver notes */}
       <td className="px-3 py-3.5">
         {canApprove ? (
-          <textarea
+          <ApproverNotesInput
             value={notes}
             disabled={pending}
-            rows={2}
-            onChange={(e) => setNotes(e.target.value)}
             placeholder={needsNote ? "Required — why under 100%?" : "Feedback for the owner…"}
-            aria-label="Approver notes"
-            aria-required={needsNote}
-            className={cn(
-              "w-full min-w-[180px] resize-y rounded-md border bg-white px-2 py-1.5 text-[12.5px] leading-snug text-ink-strong focus:border-altus-red",
-              FOCUS_RING,
-            )}
-            style={{
-              // Red while the score is under 100 and nothing is written: the
-              // rule is enforced on save either way, and a field that shows it
-              // is about to block you beats a toast that tells you afterwards.
-              borderColor: needsNote ? "var(--color-altus-red)" : "var(--color-hairline-strong)",
-            }}
+            required={needsNote}
+            onChange={setNotes}
           />
         ) : item.reviewNotes ? (
           <p className="max-w-[280px] text-[12.5px] text-ink-soft">{item.reviewNotes}</p>
@@ -345,6 +401,9 @@ export function ReviewTable({
   customTypes: string[];
 }) {
   const [sort, setSort] = React.useState<{ key: "code" | "title" | "category" | "self" | "approved" | "notes"; dir: "asc" | "desc" }>({ key: "title", dir: "asc" });
+  const [columnOrder, setColumnOrder] = React.useState<ReviewColumnId[]>(() => REVIEW_COLUMNS.map((column) => column.id));
+  const [dragColumn, setDragColumn] = React.useState<ReviewColumnId | null>(null);
+  const [dropColumn, setDropColumn] = React.useState<ReviewColumnId | null>(null);
   const sortedItems = React.useMemo(() => [...items].sort((a, b) => {
     const value = (item: ReviewItem) =>
       sort.key === "code" ? item.code ?? "" :
@@ -355,11 +414,22 @@ export function ReviewTable({
     const result = typeof value(a) === "string" ? String(value(a)).localeCompare(String(value(b))) : Number(value(a)) - Number(value(b));
     return sort.dir === "asc" ? result : -result;
   }), [items, sort]);
+  const orderedColumns = columnOrder.map((id) => REVIEW_COLUMNS.find((column) => column.id === id)!);
+  const moveColumn = (source: ReviewColumnId, target: ReviewColumnId) => {
+    if (source === target) return;
+    setColumnOrder((current) => {
+      const next = current.filter((id) => id !== source);
+      next.splice(next.indexOf(target), 0, source);
+      return next;
+    });
+  };
   const sortButton = (key: "code" | "title" | "category" | "self" | "approved" | "notes", label: string) => (
     <button type="button" onClick={() => setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" })} className="inline-flex items-center gap-1 hover:text-altus-red">
       {label}<span aria-hidden>{sort.key === key ? (sort.dir === "asc" ? "↑" : "↓") : "↕"}</span>
     </button>
   );
+  // Kept only until the next review-table cleanup; headers below use the shared adapter.
+  void sortButton;
   return (
     <div
       className="table-scroll wg-rise max-h-[72vh] overflow-auto rounded-2xl border"
@@ -372,27 +442,40 @@ export function ReviewTable({
       <style>{`
         /* Frozen header - stays put while the rows scroll. */
         .rvw-table thead th {
-          position: sticky; top: 0; z-index: 6;
-          background-image: linear-gradient(120deg,
-            color-mix(in srgb, var(--color-altus-red) 16%, var(--color-surface-card)),
-            color-mix(in srgb, var(--color-altus-red) 8%, var(--color-surface-card)));
-          box-shadow: 0 2px 0 color-mix(in srgb, var(--color-altus-red) 34%, var(--color-hairline-strong));
+          position: sticky;
+          top: 0;
+          z-index: 6;
+          background-image: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(244,246,249,0.90));
+          backdrop-filter: blur(10px) saturate(140%);
+          -webkit-backdrop-filter: blur(10px) saturate(140%);
+          box-shadow: inset 0 -1px 0 var(--color-hairline-strong);
+          font-size: 11px;
+          padding-top: 6px;
+          padding-bottom: 6px;
         }
       `}</style>
       <table className="rvw-table w-full border-collapse text-[13.5px]">
         <thead>
-          <tr
-            style={{
-              background: `linear-gradient(120deg, ${redTint(16)}, ${redTint(8)})`,
-              borderBottom: "2px solid color-mix(in srgb, var(--color-altus-red) 34%, var(--color-hairline-strong))",
-            }}
-          >
-            <th className={cn(TH, "w-16")}>{sortButton("code", "#")}</th>
-            <th className={cn(TH, "min-w-[220px]")}>{sortButton("title", "Goal")}</th>
-            <th className={cn(TH, "min-w-[120px]")}>{sortButton("category", "Category")}</th>
-            <th className={TH}>{sortButton("self", "Self %")}</th>
-            <th className={TH}>{sortButton("approved", "Approved %")}</th>
-            <th className={cn(TH, "min-w-[200px]")}>{sortButton("notes", "Approver Notes")}</th>
+          <tr className="border-b border-hairline-strong">
+            {orderedColumns.map((column) => (
+              <InteractiveTableHeaderCell
+                key={column.id}
+                columnId={column.id}
+                label={column.label}
+                sortable
+                sortDirection={sort.key === column.id ? sort.dir : false}
+                onToggleSort={() => setSort((current) => current.key === column.id ? { key: column.id, dir: current.dir === "asc" ? "desc" : "asc" } : { key: column.id, dir: "asc" })}
+                draggable
+                dragging={dragColumn === column.id}
+                dropTarget={dropColumn === column.id && dragColumn !== column.id}
+                onColumnDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", column.id); setDragColumn(column.id); }}
+                onColumnDragEnd={() => { setDragColumn(null); setDropColumn(null); }}
+                onColumnDragOver={(event) => { event.preventDefault(); setDropColumn(column.id); }}
+                onColumnDragLeave={() => setDropColumn((current) => current === column.id ? null : current)}
+                onColumnDrop={(event) => { event.preventDefault(); const source = event.dataTransfer.getData("text/plain") as ReviewColumnId; if (REVIEW_COLUMNS.some((item) => item.id === source)) moveColumn(source, column.id); setDragColumn(null); setDropColumn(null); }}
+                className={cn(TH, column.className)}
+              />
+            ))}
             <th className={cn(TH, "text-right")} aria-label="Save" />
           </tr>
         </thead>

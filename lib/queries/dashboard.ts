@@ -54,6 +54,7 @@ import {
 } from "@/lib/queries/departments";
 import { unstable_cache } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { computeTaskStatusKpiCounts } from "@/lib/task-status-kpis";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -159,7 +160,7 @@ export async function loadDashboardData(
     // `window` / `changePct` / `trend`, and `wmsSummaryByKpi` was added. A v2
     // entry served after this deploy would hand the card a `trend` of
     // `undefined` and the tooltip would read `.length` off it during render.
-    "dashboard-data:v3",
+    "dashboard-data:v4",
     filters.startDate?.toISOString() ?? "_",
     filters.endDate?.toISOString() ?? "_",
     filters.view,
@@ -328,6 +329,9 @@ export async function loadDashboardDataUncached(
   ]);
 
   const totals = computeKpiTotals(periodTasks);
+  // Keep this compact strip aligned with every dashboard widget: it is derived
+  // from the existing filtered task scan, not from a separate query.
+  const taskStatusCounts = computeTaskStatusKpiCounts(periodTasks);
 
   // ── The six cards, all off ONE classification ────────────────────────────
   //
@@ -737,6 +741,7 @@ export async function loadDashboardDataUncached(
 
   return {
     kpis,
+    taskStatusCounts,
     wmsSummary,
     wmsSummaryByKpi,
     punctuality,

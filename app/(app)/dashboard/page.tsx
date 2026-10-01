@@ -1,7 +1,7 @@
 
 import { DashboardHeader } from "@/components/layout/header";
 import { FilterBar } from "@/components/layout/filter-bar";
-import { KpiStrip } from "@/components/dashboard/kpi-strip";
+import { TaskStatusKpiStrip } from "@/components/tasks/task-status-kpi-strip";
 import { ManagerActivityTable } from "@/components/dashboard/exec/manager-activity-table";
 import { CreatorWorkloadTable } from "@/components/dashboard/exec/creator-workload-table";
 import { SentBackSection } from "@/components/dashboard/sent-back-section";
@@ -235,25 +235,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </div>
             )}
             <div className={mobileToday ? "max-md:hidden" : undefined}>
-              {/* `wmsSummaryByKpi` is optional-chained inside KpiStrip for the
-                  same reason `sentBack` is below: the Data Cache can serve a
-                  payload shaped by the PREVIOUS deploy for the length of its
-                  TTL. */}
-              {/* mb-8 under the whole Task Summary block. The section stack
-                  below starts with its own `mt-6`, and adjacent margins
-                  COLLAPSE — so the gap between the KPI grid and the Overdue
-                  card was 24px, the same as the gap between two ordinary
-                  sections. The summary is a different KIND of thing from the
-                  cards under it and wants to read that way; 32px wins the
-                  collapse and gives it the separation. */}
-              <div className="mb-8">
-                <KpiStrip
-                  kpis={data.kpis}
-                  summary={data.wmsSummary}
-                  summaryByKpi={data.wmsSummaryByKpi}
-                />
-              </div>
-              {/* Fixed vertical order below the Task Summary:
+              <PageShell as="div" width="full" py={false} className="pt-4">
+                <TaskStatusKpiStrip counts={data.taskStatusCounts} view={filters.view} />
+              </PageShell>
+              {/* Fixed vertical order below the compact status summary:
                     1 Overdue Tasks by Person
                     2 Aging Heatmap
                     3 Insights (the tabbed analytics box)
@@ -282,7 +267,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               >
                 {/* ONE column owns the rhythm: gap-6 (24px) between every block,
                     and nothing carries its own top margin. `mt-6` is the column's
-                    own clearance from the KpiStrip above — gap only spaces
+                    own clearance from the status strip above — gap only spaces
                     siblings INSIDE the column. */}
                 {/* ONE gap rule for the whole stack. Sections used to add their own
                     top margins on top of this, so the spacing between any two

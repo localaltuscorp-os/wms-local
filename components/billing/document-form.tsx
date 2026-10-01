@@ -401,7 +401,7 @@ export function BillingDocumentForm({
         ) : null}
 
         {/* 1 — Basics -------------------------------------------------- */}
-        <Section title="Document" hint="What is being issued, by whom, and when.">
+        <Section title="Document">
           <Field label="Document type">
             <div className="flex flex-wrap gap-2" role="group" aria-label="Document type">
               {BILLING_DOC_TYPES.map((t) => {
@@ -480,7 +480,6 @@ export function BillingDocumentForm({
         {/* 2 — Customer ------------------------------------------------ */}
         <Section
           title="Customer"
-          hint="Only customers onboarded in New Customer KYC can be billed. Selecting one fills in everything from their KYC."
         >
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 max-md:grid-cols-1">
             <Field label="Bill to *">
@@ -533,7 +532,7 @@ export function BillingDocumentForm({
                 placeholder="Contact person"
               />
             </Field>
-            <Field label="Email" hint="Pre-fills the recipient when this document is emailed.">
+            <Field label="Email">
               <input
                 className={INPUT}
                 type="email"
@@ -550,7 +549,7 @@ export function BillingDocumentForm({
                 placeholder="+91…"
               />
             </Field>
-            <Field label="Customer GSTIN" hint="Leave blank for an unregistered customer.">
+            <Field label="Customer GSTIN">
               <input
                 className={INPUT}
                 value={form.customerGstin}
@@ -624,7 +623,6 @@ export function BillingDocumentForm({
         {/* 3 — Service + lines ----------------------------------------- */}
         <Section
           title="Products &amp; services"
-          hint="Choose Product or Service for each line. A document of services prints as Service Description / Total Amount Due."
         >
           {/* NO DOCUMENT-LEVEL SERVICE DESCRIPTION FIELD.
               Manan, 2026-09-16, against this textarea and its suggestion chips:
@@ -655,13 +653,13 @@ export function BillingDocumentForm({
                 <div key={line.key} className="rounded-[16px] p-3.5" style={READONLY}>
                   <div className="flex items-center justify-between gap-3 pb-2">
                     <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-                      Line {i + 1}
+                      Item {i + 1}
                     </span>
                     <button
                       type="button"
                       onClick={() => removeLine(i)}
                       disabled={form.lines.length <= 1}
-                      aria-label={`Remove line ${i + 1}`}
+                      aria-label={`Remove item ${i + 1}`}
                       className="rounded-chip p-1.5 text-ink-muted transition hover:text-[#DC2626] disabled:opacity-30"
                     >
                       <Trash2 size={15} />
@@ -938,7 +936,7 @@ export function BillingDocumentForm({
         </Section>
 
         {/* 4 — Tax ----------------------------------------------------- */}
-        <Section title="Tax" hint="Intra-state versus inter-state is derived — never typed.">
+        <Section title="Tax">
           {gstAllowed ? (
             <>
             <div className="flex flex-wrap items-center gap-4">
@@ -994,7 +992,7 @@ export function BillingDocumentForm({
                 ariaLabel="Payment terms"
               />
             </Field>
-            <Field label="Terms as printed" hint="Overrides the label above.">
+            <Field label="Terms as printed">
               <input
                 className={INPUT}
                 value={form.paymentTermsLabel}
@@ -1016,7 +1014,6 @@ export function BillingDocumentForm({
               and left you counting to work out which box became which note. */}
           <Field
             label={remarkCount > 1 ? "Note 1" : "Note"}
-            hint="Optional. Printed on the document when provided."
           >
             <DictateTextarea
               rows={3}
@@ -1060,7 +1057,6 @@ export function BillingDocumentForm({
         {/* 6 — Company details (read-only) ----------------------------- */}
         <Section
           title="Company details"
-          hint="From the Admin Panel — logo, PAN, GSTIN, bank and signatory. Never typed here."
         >
           {seller ? (
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[12.5px] max-md:grid-cols-1">
@@ -1161,7 +1157,7 @@ export function BillingDocumentForm({
               Save draft
             </button>
           </div>
-          <p className="mt-2 text-[11.5px] text-ink-muted">
+          <p className="hidden">
             A number is allocated only when the document is generated — a draft never burns one.
           </p>
         </div>

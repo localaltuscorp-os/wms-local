@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { BookUser } from "lucide-react";
+import { ArrowLeft, BookUser } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
 import { listAddressBook } from "@/lib/queries/billing-customers";
 import { CARD_STYLE, BILLING_PURPLE } from "@/lib/billing/ui";
+import { CustomerAddressBookView } from "@/components/billing/customer-address-book-view";
 
 /** Left-aligned, vertically centred, one line — the same cell shell the
  *  Customer Master uses, so the two tables read as one set. */
@@ -47,18 +48,28 @@ export default async function CustomerAddressBookPage() {
 
   return (
     <PageShell width="wide">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
-      <h1
-        className="mt-1 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(24px,2.8vw,34px)",
-          letterSpacing: "-0.025em",
-        }}
-      >
-        Customer Address Book
-      </h1>
+      <header className="mb-4 flex flex-wrap items-center gap-3">
+        <Link
+          href={"/billing/customers" as Route}
+          className="inline-flex h-9 items-center gap-2 rounded-chip px-3 text-[13px] font-bold text-ink-muted"
+          style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+        >
+          <ArrowLeft size={15} /> Back to Customer
+        </Link>
+        <div>
+          <h1
+            className="text-ink-strong"
+            style={{
+              fontFamily: "var(--font-display), system-ui, sans-serif",
+              fontWeight: 900,
+              fontSize: "clamp(24px,2.8vw,34px)",
+              letterSpacing: "-0.025em",
+            }}
+          >
+            Customer Address Book
+          </h1>
+        </div>
+      </header>
       {rows.length === 0 ? (
         <div className="mt-6 rounded-[22px] p-10 text-center" style={CARD_STYLE}>
           <BookUser size={26} className="mx-auto text-ink-muted" />
@@ -72,7 +83,9 @@ export default async function CustomerAddressBookPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-[22px]" style={CARD_STYLE}>
+        <div className="mt-6">
+          <CustomerAddressBookView rows={rows} />
+          {false && <>
           <table className="w-full border-collapse text-[13px]" style={{ minWidth: 1080 }}>
             <thead>
               <tr className="bg-[#EEF1F5] text-[10.5px] uppercase tracking-[0.1em] text-ink-muted">
@@ -126,6 +139,7 @@ export default async function CustomerAddressBookPage() {
               ))}
             </tbody>
           </table>
+          </>}
         </div>
       )}
 

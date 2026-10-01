@@ -1,8 +1,10 @@
 "use client";
 import { FINE_BUCKET_BY_SLUG } from "@/lib/transforms/aging-buckets-fine";
+import { taskFilterDefaultStart } from "@/lib/task-filters";
 import { TeamFilter } from "./filters/team-filter";
 import { teamLabel } from "@/lib/teams/roster";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import * as Popover from "@radix-ui/react-popover";
@@ -29,6 +31,8 @@ import { SubjectFilter } from "./filters/subject-filter";
 import { ClientFilter } from "./filters/client-filter";
 import { FilterPill, summarizeSelection } from "./filters/filter-pill";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
+import { TaskToolsMenu } from "@/components/tasks/task-tools-menu";
 
 type AssigneeMode = "default" | "all" | "specific";
 
@@ -85,11 +89,17 @@ interface Props {
    *  multi-select already provides both choices. */
   hideScopeToggle?: boolean;
   assigneeMode?: AssigneeMode;
+  /** Locks status filtering to one axis on views such as Kanban. */
+  statusAxis?: "doer" | "initiator";
   /** Number of tasks matching the current filters (shown in the summary row). */
   taskCount?: number;
+  /** Selected team scope, including its owner and every descendant. */
+  teamSummary?: { taskCount: number; peopleCount: number };
+  /** Resolved employee IDs for the current Team selection. */
+  teamEmployeeIds?: string[];
+  /** The Team selection that produced `teamEmployeeIds`. */
+  teamScopeKey?: string;
 }
-
-const ONE_DAY = 24 * 60 * 60 * 1000;
 
 /** Accent dot/badge colors per filter family (Altus palette). */
 const TINT = {
@@ -105,7 +115,7 @@ const TINT = {
   team: "#0d9488",
 } as const;
 
-const DOER_STATUS_VALUES = new Set(["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"]);
+const DOER_STATUS_VALUES = new Set(["dont_know", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned", "approved"]);
 const INITIATOR_STATUS_OPTIONS = [
   { value: "not_applicable", label: "Not Applicable" },
   { value: "pending", label: "Pending" },
@@ -128,11 +138,26 @@ export function FilterBar({
   offersScopeChoice = false,
   hideScopeToggle = false,
   assigneeMode: initialAssigneeMode = "all",
+  statusAxis,
+  taskCount,
+  teamSummary,
+  teamEmployeeIds,
+  teamScopeKey,
 }: Props) {
+  const pageChromeSlots = usePageChromeSlots();
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
+  const autoAppliedTeamScope = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (pathname !== "/tasks" || taskCount == null) return;
+    (window as Window & { __altusTasksFilterCount?: number }).__altusTasksFilterCount = taskCount;
+    window.dispatchEvent(
+      new CustomEvent("altus:tasks-filter-count", { detail: taskCount }),
+    );
+  }, [pathname, taskCount]);
 
   /* The Scope control is shown to EVERYONE who has somewhere to widen to —
      which includes admins and team leaders, and excludes an ordinary employee
@@ -171,6 +196,36 @@ export function FilterBar({
   const [status, setStatus] = React.useState<string[]>(initial.status ?? []);
   const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>(initial.initiatorStatus ?? []);
   const [client, setClient] = React.useState<string[]>(initial.client ?? []);
+
+  React.useEffect(() => {
+    const selectedScopeKey = team.join(",");
+    if (!selectedScopeKey) {
+      if (autoAppliedTeamScope.current !== null) {
+        setEmp(selfScope && selfId ? [selfId] : []);
+        setAssigneeMode(showScopeChip || selfScope ? "default" : "all");
+      }
+      autoAppliedTeamScope.current = null;
+      return;
+    }
+    if (
+      selectedScopeKey !== teamScopeKey ||
+      !teamEmployeeIds ||
+      autoAppliedTeamScope.current === selectedScopeKey
+    ) {
+      return;
+    }
+    autoAppliedTeamScope.current = selectedScopeKey;
+    setEmp(teamEmployeeIds);
+    setAssigneeMode("specific");
+  }, [team, teamEmployeeIds, teamScopeKey, selfId, selfScope, showScopeChip]);
+
+  function handleTeamChange(next: string[]) {
+    setTeam(next);
+    if (next.length > 0) return;
+    autoAppliedTeamScope.current = null;
+    setEmp(selfScope && selfId ? [selfId] : []);
+    setAssigneeMode(showScopeChip || selfScope ? "default" : "all");
+  }
 
   const range: DateRange | undefined = React.useMemo(() => {
     try {
@@ -264,7 +319,7 @@ export function FilterBar({
 
   function reset() {
     const today = new Date();
-    setStart(format(new Date(today.getTime() - 30 * ONE_DAY), "yyyy-MM-dd"));
+    setStart(taskFilterDefaultStart(today));
     setEnd(format(today, "yyyy-MM-dd"));
     setEmp(selfScope && selfId ? [selfId] : []);
     setAssigneeMode(showScopeChip || selfScope ? "default" : "all");
@@ -412,9 +467,12 @@ export function FilterBar({
   for (const t of team)
     activePills.push({
       key: `t-${t}`,
-      label: teamLabel(t),
+      label:
+        team.length === 1 && teamSummary
+          ? `${teamLabel(t)} · ${teamSummary.taskCount} tasks · ${teamSummary.peopleCount} people`
+          : teamLabel(t),
       color: TINT.team,
-      remove: () => setTeam(team.filter((x) => x !== t)),
+      remove: () => handleTeamChange(team.filter((x) => x !== t)),
     });
   if (ageRange)
     activePills.push({
@@ -426,6 +484,68 @@ export function FilterBar({
       color: TINT.ageRange,
       remove: () => setAgeRange(null),
     });
+
+  const activeFilterControls = activePills.length > 0 && (
+    <>
+      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold shrink-0" style={{ color: "var(--color-ink-subtle)" }}>
+        <ListFilter size={15} strokeWidth={2.2} />
+        {activePills.length} active
+      </span>
+      {activePills.map((p) => (
+        <span
+          key={p.key}
+          className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px] font-semibold shrink-0"
+          style={{
+            background: `color-mix(in srgb, ${p.color} 11%, transparent)`,
+            border: `1px solid color-mix(in srgb, ${p.color} 24%, transparent)`,
+            color: "var(--color-ink-strong)",
+          }}
+        >
+          <span className="size-2 rounded-full" style={{ background: p.color }} />
+          {p.label}
+          <button
+            type="button"
+            onClick={p.remove}
+            aria-label={`Remove ${p.label}`}
+            className="inline-flex items-center justify-center rounded-full size-4 text-ink-subtle hover:text-ink-strong hover:bg-black/5 transition-colors"
+          >
+            <X size={12} strokeWidth={2.4} />
+          </button>
+        </span>
+      ))}
+      <button
+        type="button"
+        onClick={reset}
+        className="text-[13px] font-semibold transition-colors hover:underline shrink-0"
+        style={{ color: "var(--color-altus-red)" }}
+      >
+        Clear All
+      </button>
+    </>
+  );
+
+  const viewToggle = (
+    <SegGroup label="View">
+      <SegButton
+        layoutId="view-seg-active"
+        tone="subtle"
+        title="Listing tasks assigned TO the selected people"
+        active={view === "doer"}
+        onClick={() => setView("doer")}
+      >
+        Doer
+      </SegButton>
+      <SegButton
+        layoutId="view-seg-active"
+        tone="subtle"
+        title="Listing tasks these people HANDED OUT to others"
+        active={view === "initiator"}
+        onClick={() => setView("initiator")}
+      >
+        Initiator
+      </SegButton>
+    </SegGroup>
+  );
 
   return (
     <div
@@ -440,6 +560,7 @@ export function FilterBar({
         boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
       }}
     >
+      {pageChromeSlots?.actions && createPortal(viewToggle, pageChromeSlots.actions)}
       <div className="mx-auto max-w-[1600px] px-6 py-2.5 max-md:px-4 flex flex-col gap-2">
         {/* Row 1 — filter pill-cards. WRAPS to a second line when they don't fit
             (instead of cutting off the last filter). Wrapping is popover-safe:
@@ -453,6 +574,7 @@ export function FilterBar({
             viewports — the filter popovers portal to <body> and Radix tracks the
             trigger on scroll, so a scrolled trigger still anchors correctly. */}
         <div className="flex items-center gap-x-1 flex-nowrap overflow-x-auto no-scrollbar min-w-0">
+          {activeFilterControls}
           {/* Date range */}
           <Popover.Root
             open={dateOpen}
@@ -541,14 +663,18 @@ export function FilterBar({
 
           {statusOptions && statusOptions.length > 0 && (
             <>
-              <StatusFilter options={statusOptions.filter((option) => DOER_STATUS_VALUES.has(option.value))} selected={status} onChange={setStatus} name="Doer Status" allLabel="All Doer Status" />
-              <StatusFilter
-                options={INITIATOR_STATUS_OPTIONS}
-                selected={initiatorStatus}
-                onChange={setInitiatorStatus}
-                name="Initiator Status"
-                allLabel="All Initiator Status"
-              />
+              {statusAxis !== "initiator" && (
+                <StatusFilter options={statusOptions.filter((option) => DOER_STATUS_VALUES.has(option.value))} selected={status} onChange={setStatus} name="Doer Status" allLabel="All Doer Status" />
+              )}
+              {statusAxis !== "doer" && (
+                <StatusFilter
+                  options={INITIATOR_STATUS_OPTIONS}
+                  selected={initiatorStatus}
+                  onChange={setInitiatorStatus}
+                  name="Initiator Status"
+                  allLabel="All Initiator Status"
+                />
+              )}
             </>
           )}
           <PriorityFilter selected={prio} onChange={setPrio} />
@@ -559,7 +685,7 @@ export function FilterBar({
               (who owns this work) and reading them side by side is what makes
               the difference between them legible. */}
           <DepartmentFilter selected={dept} onChange={setDept} />
-          <TeamFilter selected={team} onChange={setTeam} />
+          <TeamFilter selected={team} onChange={handleTeamChange} summary={teamSummary} />
 
           {/* Subject — always shown */}
           {subjects && subjects.length > 0 && (
@@ -596,11 +722,10 @@ export function FilterBar({
               the subtle treatment: it narrows one list rather than swapping it
               for a different one, and making every segmented control shout
               would leave none of them emphatic. */}
-          <SegGroup label="View">
+          {!pageChromeSlots?.actions && (<SegGroup label="View">
             <SegButton
               layoutId="view-seg-active"
-              tone="solid"
-              solidColor="var(--color-altus-red)"
+              tone="subtle"
               title="Listing tasks assigned TO the selected people"
               active={view === "doer"}
               onClick={() => setView("doer")}
@@ -609,7 +734,7 @@ export function FilterBar({
             </SegButton>
             <SegButton
               layoutId="view-seg-active"
-              tone="solid"
+              tone="subtle"
               /* THE BRAND RED, same as Doer. It used to be slate-900 so the two
                  sides differed by colour as well as position — but that made
                  "which one is lit" a thing you had to learn, and only one of
@@ -617,14 +742,13 @@ export function FilterBar({
                  pill is always the logo red; WHICH pill is lit is what tells
                  you the view, backed up by the "Viewing as:" caption beside it
                  and by two different icons. */
-              solidColor="var(--color-altus-red)"
               title="Listing tasks these people HANDED OUT to others"
               active={view === "initiator"}
               onClick={() => setView("initiator")}
             >
               Initiator
             </SegButton>
-          </SegGroup>
+          </SegGroup>)}
 
           {/* A "Viewing as: Doer" caption used to sit here, spelling the state
               out in words beside the toggle. Removed on request: the lit red
@@ -642,6 +766,7 @@ export function FilterBar({
               items, and the Tasks header has a "Kanban View" button), so it was
               removed to keep the ribbon to the primary controls. */}
           <div className="flex items-center gap-1.5 ml-auto shrink-0 pl-1.5">
+            {pathname === "/tasks" && me?.isAdmin && <TaskToolsMenu />}
             <span
               aria-live="polite"
               aria-hidden={!isPending}
@@ -662,44 +787,6 @@ export function FilterBar({
             bar stays a single line otherwise. (Result count lives in Row 1.)
             Chips scroll horizontally if many; no popovers here, so the scroll
             container is safe. */}
-        {activePills.length > 0 && (
-          <div className="flex items-center gap-2.5 flex-nowrap min-w-0 overflow-x-auto no-scrollbar">
-            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold shrink-0" style={{ color: "var(--color-ink-subtle)" }}>
-              <ListFilter size={15} strokeWidth={2.2} />
-              {activePills.length} active
-            </span>
-            {activePills.map((p) => (
-              <span
-                key={p.key}
-                className="inline-flex items-center gap-1.5 rounded-full pl-2.5 pr-1.5 py-1 text-[13px] font-semibold shrink-0"
-                style={{
-                  background: `color-mix(in srgb, ${p.color} 11%, transparent)`,
-                  border: `1px solid color-mix(in srgb, ${p.color} 24%, transparent)`,
-                  color: "var(--color-ink-strong)",
-                }}
-              >
-                <span className="size-2 rounded-full" style={{ background: p.color }} />
-                {p.label}
-                <button
-                  type="button"
-                  onClick={p.remove}
-                  aria-label={`Remove ${p.label}`}
-                  className="inline-flex items-center justify-center rounded-full size-4 text-ink-subtle hover:text-ink-strong hover:bg-black/5 transition-colors"
-                >
-                  <X size={12} strokeWidth={2.4} />
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={reset}
-              className="text-[13px] font-semibold transition-colors hover:underline shrink-0"
-              style={{ color: "var(--color-altus-red)" }}
-            >
-              Clear All
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -798,7 +885,7 @@ function SegGroup({ label, children }: { label: string; children: React.ReactNod
     // shrink-0 + nowrap: this is the control that used to get bumped onto a
     // second line, so it must never be squeezed or allowed to break.
     <div className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
-      <span className="text-[9.5px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-subtle)" }}>
+      <span className="text-[11.5px] font-medium tracking-normal" style={{ color: "var(--color-ink-subtle)" }}>
         {label}
       </span>
       <div

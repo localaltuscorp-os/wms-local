@@ -360,6 +360,8 @@ export const BillingListFilterSchema = z.object({
   from: z.string().regex(DATE_RE).nullable().default(null),
   to: z.string().regex(DATE_RE).nullable().default(null),
   q: z.string().trim().max(200).nullable().default(null),
+  /** Derived from due date and document status; never stored on a document. */
+  overdue: z.coerce.boolean().nullable().default(null),
   /** Show the ARCHIVED documents instead of the live ones (migration 0231).
    *  A swap, not a widening — see `whereFromFilters`. */
   archived: z.coerce.boolean().nullable().default(null),

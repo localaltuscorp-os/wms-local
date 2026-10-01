@@ -353,7 +353,7 @@ export const INITIATOR_COLUMN_ORDER: InitiatorColId[] = [
 ];
 
 export const INITIATOR_COLUMN_LABEL: Record<InitiatorColId, string> = {
-  [NO_VERDICT_COL]: "No Verdict",
+  [NO_VERDICT_COL]: "Pending / No Verdict",
   ...INITIATOR_STATUS_LABEL,
 };
 

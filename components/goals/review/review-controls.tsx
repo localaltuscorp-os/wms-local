@@ -56,7 +56,7 @@ export function ReviewControls({
   );
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+    <div className="flex shrink-0 flex-nowrap items-center gap-1.5">
       {/* FY stepper FIRST — [ FY ] [ Reviewing ], same order and same box as
           every other Goals header. */}
       <div className="inline-flex items-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-card">
@@ -64,18 +64,18 @@ export function ReviewControls({
           type="button"
           aria-label="Previous financial year"
           onClick={() => go({ fy: fy - 1 })}
-          className={`cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
+          className={`cursor-pointer px-1.5 py-1 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
         >
           <ChevronLeft size={15} strokeWidth={2.4} />
         </button>
-        <span className="border-x border-hairline-strong px-2.5 py-1.5 text-[12.5px] font-bold tabular-nums text-ink-strong">
+        <span className="border-x border-hairline-strong px-2 py-1 text-[12px] font-bold tabular-nums text-ink-strong">
           {fyLabel(fy)}
         </span>
         <button
           type="button"
           aria-label="Next financial year"
           onClick={() => go({ fy: fy + 1 })}
-          className={`cursor-pointer px-2 py-1.5 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
+          className={`cursor-pointer px-1.5 py-1 text-ink-subtle transition-colors hover:bg-surface-soft hover:text-altus-red ${FOCUS_RING}`}
         >
           <ChevronRight size={15} strokeWidth={2.4} />
         </button>

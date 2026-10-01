@@ -98,18 +98,20 @@ export default async function EditBillingDocumentPage({
 
   return (
     <PageShell width="wide">
-      <BackLink id={id} />
-      <h1
-        className="mb-4 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(22px,2.4vw,30px)",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        Edit {d.docNo ?? BILLING_DOC_TYPE_LABELS[d.docType].toLowerCase()}
-      </h1>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <BackLink id={id} />
+        <h1
+          className="text-ink-strong"
+          style={{
+            fontFamily: "var(--font-display), system-ui, sans-serif",
+            fontWeight: 900,
+            fontSize: "clamp(22px,2.4vw,30px)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          Edit {d.docNo ?? BILLING_DOC_TYPE_LABELS[d.docType].toLowerCase()}
+        </h1>
+      </div>
 
       <BillingDocumentForm
         initial={initial}
@@ -135,7 +137,7 @@ function BackLink({ id }: { id: string }) {
   return (
     <Link
       href={`/billing/documents/${id}` as Route}
-      className="mb-4 inline-flex h-9 items-center gap-1.5 rounded-chip px-3 text-[13px] font-bold text-ink-muted"
+      className="inline-flex h-9 items-center gap-1.5 rounded-chip px-3 text-[13px] font-bold text-ink-muted"
       style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
     >
       <ArrowLeft size={14} /> Back to the document

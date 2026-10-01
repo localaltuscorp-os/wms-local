@@ -5,31 +5,33 @@ import { PageTitle } from "@/components/layout/page-title";
 import { TaskTable } from "./task-table";
 import { SectionErrorBoundary } from "@/components/ui/section-error-boundary";
 import { TaskDetailDrawer } from "./task-detail-drawer";
-import { TaskToolsMenu } from "./task-tools-menu";
-import { TasksFullscreen, FullscreenToggleButton } from "./tasks-fullscreen";
+import { TasksFullscreen } from "./tasks-fullscreen";
 import { WeeklyGoalTaskGroup } from "@/components/weekly-goals/weekly-goal-task-group";
 import type { VirtualTaskRow } from "@/lib/weekly-goals/as-task-row";
 import type { TaskListRow, TaskListFilters } from "@/lib/types";
 import { taskFiltersToSearchString } from "@/lib/task-filters";
-import {
-  PENDING_STATUSES as CANONICAL_PENDING_STATUSES,
-  type TaskStatus,
-  type TaskPriority,
-  type StatusColorToken,
-} from "@/db/enums";
-
-const DONE_STATUSES = new Set<TaskStatus>(["done", "approved"]);
-// Sourced from the canonical export so Tier-3 statuses count correctly.
-const PENDING_STATUSES = new Set<TaskStatus>(CANONICAL_PENDING_STATUSES);
+import { type TaskStatus, type StatusColorToken } from "@/db/enums";
+import { taskDoerShown } from "@/lib/status/approver-status";
 
 export type KpiKey =
-  | "notApproved"
+  | "total"
+  | "notRead"
+  | "notStarted"
+  | "initiated"
+  | "followUp"
+  | "needInfo"
   | "done"
   | "pending"
-  | "critical"
-  | "urgent"
   | "approved"
-  | "notRead";
+  | "notApproved"
+  | "onHold"
+  | "cancelled"
+  | "archived"
+  | "abandoned";
+
+export type TaskKpiView = "doer" | "initiator";
+
+const DONE_STATUSES = new Set<TaskStatus>(["done", "approved"]);
 
 interface KpiSpec {
   key: KpiKey;
@@ -42,14 +44,29 @@ interface KpiSpec {
 // to the Tasks list with the matching status/priority filter applied; the two
 // new ones (notApproved/notRead) are display-only — they don't map to the
 // existing status/priority filter dimensions.
-const KPI_SPECS: KpiSpec[] = [
-  { key: "notApproved", label: "NOT APPROVED", sublabel: "Declined / not approved", tone: "rose"   },
-  { key: "approved",    label: "APPROVED",     sublabel: "Signed off",                    tone: "slate"  },
-  { key: "done",        label: "DONE",         sublabel: "Done + Approved",               tone: "green"  },
-  { key: "pending",     label: "PENDING",      sublabel: "Open work",                     tone: "amber"  },
-  { key: "critical",    label: "CRITICAL",     sublabel: "Important & urgent",            tone: "red"    },
-  { key: "urgent",      label: "URGENT",       sublabel: "Urgent priority",               tone: "orange" },
-  { key: "notRead",     label: "NOT READ",     sublabel: "Unopened pending tasks",        tone: "slate"  },
+const TOTAL_KPI: KpiSpec = {
+  key: "total", label: "TOTAL", sublabel: "Tasks matching the selected filters", tone: "slate",
+};
+
+const DOER_KPI_SPECS: KpiSpec[] = [
+  TOTAL_KPI,
+  { key: "notRead", label: "NOT READ", sublabel: "Doer has not read", tone: "slate" },
+  { key: "notStarted", label: "NOT STARTED", sublabel: "Awaiting work", tone: "slate" },
+  { key: "initiated", label: "INITIATED", sublabel: "Work started", tone: "amber" },
+  { key: "followUp", label: "FOLLOW UP", sublabel: "Needs follow-up", tone: "orange" },
+  { key: "needInfo", label: "NEED INFO", sublabel: "Waiting for info", tone: "amber" },
+  { key: "done", label: "DONE", sublabel: "Work completed", tone: "green" },
+  { key: "abandoned", label: "ABANDONED", sublabel: "Work stopped", tone: "rose" },
+];
+
+const INITIATOR_KPI_SPECS: KpiSpec[] = [
+  TOTAL_KPI,
+  { key: "pending", label: "PENDING / NO VERDICT", sublabel: "Awaiting a verdict", tone: "amber" },
+  { key: "approved", label: "APPROVED", sublabel: "Signed off", tone: "green" },
+  { key: "notApproved", label: "NOT APPROVED", sublabel: "Declined", tone: "rose" },
+  { key: "onHold", label: "ON HOLD", sublabel: "Paused", tone: "slate" },
+  { key: "cancelled", label: "CANCELLED", sublabel: "Cancelled", tone: "orange" },
+  { key: "archived", label: "ARCHIVED", sublabel: "Archived", tone: "slate" },
 ];
 
 /**
@@ -63,6 +80,41 @@ const KPI_SPECS: KpiSpec[] = [
  * distinct rose/red pair specified.
  */
 const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> = {
+  total: {
+    pill: "bg-slate-100 hover:bg-slate-200 text-slate-900",
+    border: "border-slate-300",
+    dot: "bg-slate-500",
+  },
+  notRead: {
+    pill: "bg-slate-100 hover:bg-slate-200 text-slate-900",
+    border: "border-slate-300",
+    dot: "bg-slate-500",
+  },
+  notStarted: {
+    pill: "bg-indigo-50 hover:bg-indigo-100 text-indigo-950",
+    border: "border-indigo-200",
+    dot: "bg-indigo-600",
+  },
+  initiated: {
+    pill: "bg-amber-50 hover:bg-amber-100 text-amber-950",
+    border: "border-amber-200",
+    dot: "bg-amber-500",
+  },
+  followUp: {
+    pill: "bg-orange-50 hover:bg-orange-100 text-orange-950",
+    border: "border-orange-200",
+    dot: "bg-orange-600",
+  },
+  needInfo: {
+    pill: "bg-red-50 hover:bg-red-100 text-red-950",
+    border: "border-red-200",
+    dot: "bg-red-600",
+  },
+  abandoned: {
+    pill: "bg-sky-50 hover:bg-sky-100 text-sky-950",
+    border: "border-sky-200",
+    dot: "bg-sky-500",
+  },
   notApproved: {
     pill: "bg-red-50 hover:bg-red-100 text-red-950",
     border: "border-red-200",
@@ -72,9 +124,9 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
   // sits about where the other five land visually, because purple-50 on this
   // near-white page is barely a colour at all.
   approved: {
-    pill: "bg-purple-100/70 hover:bg-purple-100 text-purple-900",
-    border: "border-purple-200",
-    dot: "bg-purple-500",
+    pill: "bg-emerald-50 hover:bg-emerald-100 text-emerald-950",
+    border: "border-emerald-200",
+    dot: "bg-emerald-600",
   },
   done: {
     pill: "bg-emerald-50 hover:bg-emerald-100 text-emerald-950",
@@ -82,9 +134,9 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
     dot: "bg-emerald-600",
   },
   pending: {
-    pill: "bg-amber-50 hover:bg-amber-100 text-amber-950",
-    border: "border-amber-200",
-    dot: "bg-amber-500",
+    pill: "bg-stone-100 hover:bg-stone-200 text-stone-900",
+    border: "border-stone-300",
+    dot: "bg-stone-500",
   },
   /* RED, NOT ROSE. rose-50/-100 are #fff1f2 / #ffe4e6 — pale pink, and on a
      pill that means "critical" the hue was doing the opposite of its job.
@@ -92,20 +144,20 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
      a `-50` fill with `-950` ink, so moving this one to a `-100` fill would
      make the set look misaligned rather than corrected. Hue fixed, rhythm
      kept. */
-  critical: {
-    pill: "bg-red-50 hover:bg-red-100 text-red-950",
-    border: "border-red-200",
-    dot: "bg-red-600",
+  onHold: {
+    pill: "bg-amber-50 hover:bg-amber-100 text-amber-950",
+    border: "border-amber-200",
+    dot: "bg-amber-700",
   },
-  urgent: {
+  cancelled: {
     pill: "bg-orange-50 hover:bg-orange-100 text-orange-950",
     border: "border-orange-200",
     dot: "bg-orange-600",
   },
-  notRead: {
-    pill: "bg-slate-100 hover:bg-slate-200 text-slate-900",
-    border: "border-slate-300",
-    dot: "bg-slate-500",
+  archived: {
+    pill: "bg-stone-100 hover:bg-stone-200 text-stone-900",
+    border: "border-stone-300",
+    dot: "bg-stone-600",
   },
 };
 
@@ -113,11 +165,18 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
  *  already-filtered rows so every count respects the page filters. */
 export function computeStatCounts(rows: TaskListRow[]): Record<KpiKey, number> {
   return {
+    total: rows.length,
+    notStarted: rows.filter((row) => taskDoerShown(row.status) === "not_started").length,
+    initiated: rows.filter((row) => taskDoerShown(row.status) === "initiated").length,
+    followUp: rows.filter((row) => taskDoerShown(row.status) === "follow_up").length,
+    needInfo: rows.filter((row) => taskDoerShown(row.status) === "need_info").length,
+    abandoned: rows.filter((row) => taskDoerShown(row.status) === "abandoned").length,
+    onHold: rows.filter((row) => row.approvalStatus === "on_hold").length,
+    cancelled: rows.filter((row) => row.approvalStatus === "cancelled").length,
+    archived: rows.filter((row) => row.approvalStatus === "archived").length,
     // ONLY tasks whose status is "Not Approved" — not "done awaiting sign-off"
     // or anything else (per Sir: this card must mean exactly Not-Approved).
-    notApproved: rows.filter(
-      (r) => r.status === "not_approved" || r.approvalStatus === "not_approved",
-    ).length,
+    notApproved: rows.filter((row) => row.approvalStatus === "not_approved").length,
     // EITHER COLUMN, matching how notApproved above counts and how
     // statusFilterCondition in lib/queries/tasks.ts filters — a task approved
     // via approval_status must not be counted here and then missing from the
@@ -128,16 +187,11 @@ export function computeStatCounts(rows: TaskListRow[]): Record<KpiKey, number> {
     // has always meant (its sublabel says "Done + Approved"), and Approved is a
     // subset view of it rather than a sibling. The six pills were never a
     // partition of the roster - Critical and Urgent cut across all of them.
-    approved: rows.filter(
-      (r) => r.status === "approved" || r.approvalStatus === "approved",
-    ).length,
-    done: rows.filter((r) => DONE_STATUSES.has(r.status)).length,
-    pending: rows.filter((r) => PENDING_STATUSES.has(r.status)).length,
-    critical: rows.filter((r) => r.priority === "imp_urgent").length,
-    urgent: rows.filter((r) => r.priority === "not_imp_urgent").length,
-    notRead: rows.filter(
-      (r) => PENDING_STATUSES.has(r.status) && r.firstReadAt == null,
-    ).length,
+    approved: rows.filter((row) => row.approvalStatus === "approved").length,
+    // Legacy Approved / Not Approved rows read as Done on the Doer axis.
+    done: rows.filter((row) => taskDoerShown(row.status) === "done").length,
+    pending: rows.filter((row) => row.approvalStatus == null).length,
+    notRead: rows.filter((row) => taskDoerShown(row.status) === "dont_know").length,
   };
 }
 
@@ -156,6 +210,7 @@ export function TaskListPage({
   basePath = "/tasks",
   selectedTaskId = null,
   detail = null,
+  kpiView = "doer",
 }: {
   title: string;
   rows: TaskListRow[];
@@ -183,6 +238,7 @@ export function TaskListPage({
    *  its own <Suspense>. Passed through rather than fetched here so the inbox
    *  shell can stay a client component. */
   detail?: React.ReactNode;
+  kpiView?: TaskKpiView;
 }) {
   // Weekly goals are surfaced as a pinned group above the table but are
   // deliberately EXCLUDED from the task stat-card counts (design §10) — the
@@ -192,6 +248,7 @@ export function TaskListPage({
   // Counting the filtered set made every unselected pill read 0 the moment one
   // was clicked, which turned a summary bar into a description of itself.
   const counts = computeStatCounts(metricsRows ?? rows);
+  const kpiSpecs = kpiView === "initiator" ? INITIATOR_KPI_SPECS : DOER_KPI_SPECS;
 
   // Each stat card maps to a set of statuses and/or priorities, or to the
   // `unread` cross-cut.
@@ -202,16 +259,20 @@ export function TaskListPage({
   // lib/task-filters.ts). Without one the pill counted 175 tasks and then did
   // nothing when clicked, which reads as a broken control rather than a
   // deliberate one.
-  const CARD_FILTER: Partial<
-    Record<KpiKey, { statuses?: TaskStatus[]; priorities?: TaskPriority[]; unread?: boolean }>
-  > = {
-    notApproved: { statuses: ["not_approved"] },
-    approved: { statuses: ["approved"] },
-    done: { statuses: ["done", "approved"] },
-    pending: { statuses: [...CANONICAL_PENDING_STATUSES] },
-    critical: { priorities: ["imp_urgent"] },
-    urgent: { priorities: ["not_imp_urgent"] },
-    notRead: { unread: true },
+  const CARD_FILTER: Partial<Record<KpiKey, { statuses?: TaskStatus[]; initiatorStatuses?: string[] }>> = {
+    notRead: { statuses: ["dont_know"] },
+    notStarted: { statuses: ["not_started"] },
+    initiated: { statuses: ["initiated"] },
+    followUp: { statuses: ["follow_up"] },
+    needInfo: { statuses: ["need_info"] },
+    done: { statuses: ["done"] },
+    abandoned: { statuses: ["abandoned"] },
+    pending: { initiatorStatuses: ["pending"] },
+    approved: { initiatorStatuses: ["approved"] },
+    notApproved: { initiatorStatuses: ["not_approved"] },
+    onHold: { initiatorStatuses: ["on_hold"] },
+    cancelled: { initiatorStatuses: ["cancelled"] },
+    archived: { initiatorStatuses: ["archived"] },
   };
 
   // SELECTION IS EXCLUSIVE. This used to ACCUMULATE — each click added its set
@@ -229,15 +290,15 @@ export function TaskListPage({
     const cf = CARD_FILTER[key];
     if (!cf) return false;
     const sts = cf.statuses ?? [];
-    const prs = cf.priorities ?? [];
+    const initiatorStatuses = cf.initiatorStatuses ?? [];
     // Exact-match, not superset: with exclusive selection the pill is "on" only
     // when the filter is EXACTLY its set, so two pills can never both look on.
     const sameStatuses =
       filters.statuses.length === sts.length && sts.every((x) => filters.statuses.includes(x));
-    const samePriorities =
-      filters.priorities.length === prs.length &&
-      prs.every((x) => filters.priorities.includes(x));
-    return sameStatuses && samePriorities && filters.unread === Boolean(cf.unread);
+    const sameInitiatorStatuses =
+      filters.initiatorStatuses.length === initiatorStatuses.length &&
+      initiatorStatuses.every((status) => filters.initiatorStatuses.includes(status));
+    return sameStatuses && sameInitiatorStatuses;
   }
 
   function cardHref(key: KpiKey): Route {
@@ -247,17 +308,17 @@ export function TaskListPage({
     const next: TaskListFilters = {
       ...filters,
       statuses: clear ? [] : (cf.statuses ?? []),
-      priorities: clear ? [] : (cf.priorities ?? []),
-      unread: clear ? false : Boolean(cf.unread),
+      initiatorStatuses: clear ? [] : (cf.initiatorStatuses ?? []),
     };
-    const qs = taskFiltersToSearchString(next);
-    return (qs ? `${basePath}?${qs}` : basePath) as Route;
+    const qs = new URLSearchParams(taskFiltersToSearchString(next));
+    qs.set("view", kpiView);
+    return `${basePath}?${qs.toString()}` as Route;
   }
 
   /** The active pill's label, for the table footer's "… (Not Read)" suffix.
    *  Exclusive selection is what makes a single label correct here: at most one
    *  pill can be active, so there is never a set to summarise. */
-  const activeSpec = KPI_SPECS.find((sp) => cardActive(sp.key)) ?? null;
+  const activeSpec = kpiSpecs.find((sp) => cardActive(sp.key)) ?? null;
   const activeCardLabel = activeSpec
     ? activeSpec.label.charAt(0) + activeSpec.label.slice(1).toLowerCase()
     : null;
@@ -298,9 +359,8 @@ export function TaskListPage({
     // column keeps the overflow INSIDE the table's own scroll container, which is
     // what the frozen column pins against.
     <TasksFullscreen className="wms-compact relative mx-auto w-full min-w-0 max-w-[1560px] px-7 max-md:px-4 pt-4 max-md:pt-3 pb-16">
-      {/* Header — the "Tasks" title with the KPI stat chips inline beside it, and
-          Kanban View on the right. (Eyebrow + "N tasks in the current view"
-          subtitle removed per design.) */}
+      {/* Header — the "Tasks" title with the KPI stat chips inline beside it.
+          (Eyebrow + "N tasks in the current view" subtitle removed per design.) */}
       {drillEmployee && (
         <div
           className="wg-rise mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-2.5"
@@ -344,8 +404,16 @@ export function TaskListPage({
           {/* KPI stat chips — inline. Clickable ones toggle the matching
               status/priority filter; `notRead` is display-only. */}
           <div className="flex flex-wrap items-center gap-1.5">
-            {KPI_SPECS.map((spec, i) => {
+            {kpiSpecs.map((spec, i) => {
               const on = cardActive(spec.key);
+              const value = spec.key === "total" ? rows.length : counts[spec.key];
+              if (spec.key === "total") {
+                return (
+                  <div key={spec.key} className="wg-rise block rounded-xl" style={{ animationDelay: `${i * 30}ms` }}>
+                    <StatChip spec={spec} value={value} active={false} />
+                  </div>
+                );
+              }
               return (
                 <Link
                   key={spec.key}
@@ -355,40 +423,13 @@ export function TaskListPage({
                   className="wg-rise block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
                   style={{ animationDelay: `${i * 30}ms` }}
                 >
-                  <StatChip spec={spec} value={counts[spec.key]} active={on} />
+                  <StatChip spec={spec} value={value} active={on} />
                 </Link>
               );
             })}
           </div>
         </div>
-        {/* The ⋯ menu moved up from the FilterBar so the view actions sit
-            together, which also keeps the filter ribbon to filters + search on
-            its single line. Full screen stays OUTSIDE the admin gate —
-            maximising the table is useful to everyone, not just admins. */}
-        {/* Order is [ ••• ] [ Kanban View ] [ Full screen ]: the two admin
-            controls first, then the one control everybody gets, so Full screen
-            is always the rightmost button whether or not the admin pair is
-            rendered. Putting it first meant a non-admin's single button sat
-            where an admin's overflow menu sits. */}
-        <div className="flex items-center gap-2 shrink-0">
-          {me.isAdmin && (
-            <>
-              <TaskToolsMenu />
-              <Link
-                href={"/tasks/kanban" as Route}
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold transition-colors hover:bg-surface-soft shrink-0"
-                style={{
-                  color: "var(--color-altus-red-deep)",
-                  boxShadow: "inset 0 0 0 1px var(--color-hairline-strong)",
-                }}
-              >
-                <LayoutGrid size={14} strokeWidth={2.4} />
-                Kanban View
-              </Link>
-            </>
-          )}
-          <FullscreenToggleButton />
-        </div>
+        {/* Administrative task tools remain available in the overflow menu. */}
       </header>
 
       {/* Pinned "This week's goals" group above the table (design §10). Admins

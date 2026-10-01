@@ -10,9 +10,11 @@ import { BulkAddQuickAction } from "@/components/header/bulk-add-quick-action";
 import { NewTaskQuickAction } from "@/components/header/new-task-quick-action";
 import { FocusModeToggle } from "@/components/layout/focus-mode-toggle";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
+import { navTitleFor } from "@/components/layout/main-nav";
 import { MODULE_THEME } from "@/lib/module-theme";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import { tabsAndMore, type AuraRoom } from "@/lib/aura-rooms";
+import { locateHrRoute } from "@/lib/hr/console-nav";
 
 /**
  * THE APP-WIDE TOP BAR, in the Aura language — one glass strip on every screen
@@ -210,6 +212,12 @@ export function AuraTopBar({
   const pathname = usePathname() ?? "/";
   const ws = workspaceForPath(pathname);
   const slots = usePageChromeSlots();
+  const hrTitle = React.useMemo(() => {
+    if (!pathname.startsWith("/hr")) return null;
+    const at = locateHrRoute(pathname);
+    return at.subModule?.title ?? at.module?.title ?? null;
+  }, [pathname]);
+  const sectionTitle = hrTitle ?? navTitleFor(pathname) ?? (ws ? MODULE_THEME[ws].label : "Altus");
 
   /* The dashboard has no `DashboardSidebar`, so it has no mobile bar of its own
      and this one must show at every width there. Read off the path rather than
@@ -234,6 +242,7 @@ export function AuraTopBar({
     // dashboard this one hides rather than eating a third of a small screen.
     <header className={onDashboard ? "aura-topbar app-topbar" : "aura-topbar app-topbar max-md:hidden"}>
 
+      {onDashboard && (
       <a
         href="/hub"
         aria-label="Altus — back to the dashboard"
@@ -242,32 +251,38 @@ export function AuraTopBar({
         <Image src="/logo.png" alt="" width={170} height={188} priority className="h-8 w-auto" />
         <span className="aura-brand max-lg:hidden">Altus</span>
       </a>
+      )}
 
       {/* A page's OWN title, portaled in (the HR console names itself more
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
-      <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center empty:hidden" />
+      <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center">
+        {!slots?.hasPageTitle && <h1 className="topbar-heading min-w-0 truncate">{sectionTitle}</h1>}
+      </div>
 
-      <nav className="aura-tabs" aria-label="Workspaces">
-        {tabs.map((r) => (
-          <a
-            key={r.id}
-            href={r.href as Route}
-            className="aura-tab"
-            {...(ws === r.id ? { "aria-current": "page" as const } : {})}
-            onClick={() => setActiveWorkspaceCookie(r.id)}
-          >
-            <span className="aura-tab-dot" style={{ background: r.accent }} aria-hidden />
-            {r.label}
-          </a>
-        ))}
-        <MoreMenu rooms={overflow} current={ws} active={inMore} />
-      </nav>
+      {onDashboard && (
+        <nav className="aura-tabs" aria-label="Workspaces">
+          {tabs.map((r) => (
+            <a
+              key={r.id}
+              href={r.href as Route}
+              className="aura-tab"
+              {...(ws === r.id ? { "aria-current": "page" as const } : {})}
+              onClick={() => setActiveWorkspaceCookie(r.id)}
+            >
+              <span className="aura-tab-dot" style={{ background: r.accent }} aria-hidden />
+              {r.label}
+            </a>
+          ))}
+          <MoreMenu rooms={overflow} current={ws} active={inMore} />
+        </nav>
+      )}
 
-      {/* ONE RIGHT-HAND CLUSTER: search, then the page's own controls, then the
+      {/* ONE RIGHT-HAND CLUSTER: page controls, then search, then the
           global ones, then who you are. Search used to grow into the middle of
           the bar, which left the account menu stranded on its own at the end. */}
       <div className="aura-right">
+        <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
         <div className="aura-search-slot">
           <GlobalSearch
             workspace={ws}
@@ -293,8 +308,6 @@ export function AuraTopBar({
         {/* A page's OWN controls (a print button, an edit link) — the same slot
             the previous bar published, so nothing that portals here had to
             change. */}
-        <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
-
         {/* BULK ADD, restored 2026-09-15. The bar this one replaced carried
             "search · bulk add · create · bell · focus", and bulk add was the
             single control that did not make the crossing — it is still rendered

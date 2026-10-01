@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { db, tasks } from "@/lib/db";
 import { withRetry } from "@/lib/db/with-timeout";
 import { taskEvents } from "@/db/schema";
@@ -18,7 +18,8 @@ const UUID_RE =
 /** Optimistic-lock predicate: the row's updatedAt must match what the caller
  *  last saw (millisecond precision — the wire format only carries ms). */
 export function optimisticLockMatches(expectedDate: Date) {
-  return sql`date_trunc('milliseconds', ${tasks.updatedAt}) = ${expectedDate.toISOString()}::timestamptz`;
+  const nextMillisecond = new Date(expectedDate.getTime() + 1);
+  return and(gte(tasks.updatedAt, expectedDate), lt(tasks.updatedAt, nextMillisecond));
 }
 
 /**
