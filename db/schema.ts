@@ -10769,7 +10769,7 @@ export const billingCustomerDocuments = pgTable(
     customerId: uuid("customer_id")
       .notNull()
       .references(() => billingCustomers.id, { onDelete: "cascade" }),
-    slot: text("slot").$type<"front" | "back" | "brochure" | "video" | "other">().notNull().default("other"),
+    slot: text("slot").$type<"front" | "back" | "gst_certificate" | "brochure" | "video" | "other">().notNull().default("other"),
     fileName: text("file_name").notNull(),
     storagePath: text("storage_path").notNull(),
     contentType: text("content_type"),

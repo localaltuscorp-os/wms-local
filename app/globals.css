@@ -2850,6 +2850,20 @@ html {
 .table-scroll {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+  /* Data grids use a consistent rectangular surface across modules. Individual
+     controls inside the grid (badges, inputs and buttons) keep their own
+     rounding; this affects only the table viewport. */
+  border-radius: 0 !important;
+}
+.table-scroll > table,
+table {
+  border-radius: 0 !important;
+}
+/* Most data grids have a separate bordered shell around the scroll viewport.
+   Square that shell too, otherwise a rectangular table still appears rounded
+   at its outer edge (for example, the Tasks register). */
+:where(div, section, article):has(> .table-scroll) {
+  border-radius: 0 !important;
 }
 .table-scroll::-webkit-scrollbar {
   width: 8px;
@@ -3068,6 +3082,46 @@ html {
   /* Rows scroll UNDER this, so it cannot be transparent. A component that
      wants a different colour sets `bg-*` on the <th> — a class beats this. */
   background-color: var(--table-head-bg, var(--color-surface-card));
+}
+
+/* Address Book: keep the customer identity and address type visible while
+   the remaining address columns scroll horizontally. */
+.customer-address-book-view th:nth-child(2),
+.customer-address-book-view td:nth-child(2) {
+  position: sticky;
+  left: 3.5rem;
+  min-width: 27.5rem;
+  background: var(--color-surface-card);
+}
+.customer-address-book-view th:nth-child(3),
+.customer-address-book-view td:nth-child(3) {
+  position: sticky;
+  left: 31rem;
+  min-width: 7.5rem;
+  background: var(--color-surface-card);
+}
+.customer-address-book-view th:nth-child(2),
+.customer-address-book-view th:nth-child(3) {
+  z-index: 40;
+  background: var(--table-head-bg, var(--color-surface-card));
+}
+.customer-address-book-view td:nth-child(2),
+.customer-address-book-view td:nth-child(3) {
+  z-index: 10;
+}
+
+/* Billing uses the same quiet, cool-grey table header as the reference ledger.
+   The variable is inherited by every Billing table, including tables added
+   later, while tables in every other module retain their existing surface. */
+.billing-module {
+  --table-head-bg: #f5f6f8;
+}
+
+/* Keep the Billing table head compact: less side space reduces the total table
+   width, and the tighter vertical rhythm keeps the header row slim. */
+.billing-module :where(thead) > tr > th {
+  padding-block: 0.55rem !important;
+  padding-inline: 0.7rem !important;
 }
 
 /* PRINT: a sheet has no viewport to stick to and no scrollport to cap. Both

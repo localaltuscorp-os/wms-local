@@ -300,10 +300,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         sidebar={<DashboardSidebar />}
         footer={<ModuleFooter access={access} />}
         topBar={
-          /* The Aura bar — one glass strip on every screen in every module, and
-             the app's room switcher. `rooms` is resolved from the SAME `access`
-             the route gate and the module footer already used, so adding the bar
-             cost no extra query. */
           <AuraTopBar
             rooms={roomsFor(listedModules(access))}
             bell={<NotificationBell />}

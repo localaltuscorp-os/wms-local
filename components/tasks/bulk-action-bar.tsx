@@ -73,6 +73,8 @@ const MANAGER_MARK_ACTIONS = [
   | { kind: "approval"; value: ApprovalStatus; label: string; verb: string }
 )[];
 
+const DELETE_REQUEST_BATCH_SIZE = 500;
+
 /**
  * Floating toolbar shown when ≥1 task is selected in the list. Offers the
  * batch actions (status / priority / reassign, plus admin-only archive +
@@ -165,6 +167,28 @@ export function BulkActionBar({
       onClear();
       router.refresh();
     });
+  }
+
+  async function deleteInBatches(): Promise<BulkResult> {
+    let updated = 0;
+    let skipped = 0;
+
+    for (let startAt = 0; startAt < selectedIds.length; startAt += DELETE_REQUEST_BATCH_SIZE) {
+      const result = await bulkDelete(selectedIds.slice(startAt, startAt + DELETE_REQUEST_BATCH_SIZE));
+      if (!result.ok) {
+        return {
+          ok: false,
+          error:
+            updated > 0
+              ? `${result.error} ${updated} task${updated === 1 ? " was" : "s were"} already deleted.`
+              : result.error,
+        };
+      }
+      updated += result.updated;
+      skipped += result.skipped;
+    }
+
+    return { ok: true, updated, skipped };
   }
 
   // The batch twin of the row's inline status chip, and offering the SAME six
@@ -416,10 +440,10 @@ export function BulkActionBar({
               }
               if (
                 confirm(
-                  `Permanently delete ${count} task${count === 1 ? "" : "s"}?\n\nThis removes the tasks and their history and cannot be undone.`,
+                  `Are you sure you want to permanently delete ${count} selected task${count === 1 ? "" : "s"}?\n\nThis removes the tasks and their history and cannot be undone.`,
                 )
               ) {
-                run("Deleted", () => bulkDelete(selectedIds));
+                run("Deleted", deleteInBatches);
               }
             }}
             className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[13px] font-bold text-altus-red bg-surface-card shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:bg-altus-red/8 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"

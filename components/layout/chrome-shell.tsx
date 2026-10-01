@@ -117,7 +117,7 @@ export function ChromeShell({
   // appended after it necessarily sits past the fold — making the OUTER page
   // scrollable purely to reach a strip of chrome. A stray Space keypress
   // scrolled into that dead band and there was nothing above to scroll back to.
-  const dock = isHub || isHrFullBleed ? null : footer;
+  const dock = footer;
   // The dock is `sticky bottom-0` — pinned to the foot of the viewport at any
   // scroll position, but still in flow, so it reserves its own height at the END
   // of the page (see module-footer.tsx). That reserved band is what lets the last
@@ -131,7 +131,7 @@ export function ChromeShell({
   // here is 40px the grid cannot see, so the gap above the cards came out 40px
   // larger than the gap below and the "centred" row sat visibly low. The hub
   // supplies its own breathing room with its py-6.
-  const bottomPad = isHrFullBleed || isHub ? "" : "pb-5";
+  const bottomPad = "pb-5";
 
   // The hub is the module switchboard and renders the full DashboardHeader —
   // which already carries its own search — so a second bar there would stack two

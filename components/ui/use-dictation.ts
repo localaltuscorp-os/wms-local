@@ -70,7 +70,16 @@ export function useDictation({
   const onChangeRef = React.useRef(onChange);
   onChangeRef.current = onChange;
 
-  const [supported] = React.useState(() => getSpeechRecognitionCtor() != null);
+  // The server cannot inspect browser speech-recognition support. useState
+  // would initialise false on the server but true during browser hydration,
+  // changing the host component's first render (for example by adding a mic
+  // button). useSyncExternalStore keeps both snapshots false, then enables the
+  // capability after hydration.
+  const supported = React.useSyncExternalStore(
+    () => () => {},
+    () => getSpeechRecognitionCtor() != null,
+    () => false,
+  );
 
   const stop = React.useCallback(() => {
     try {

@@ -77,18 +77,25 @@ export function InlineStatusCell({
   //
   // `||` (not `??`) on the tone so an empty/blank token also falls back to the
   // canonical per-status colour: every status renders coloured.
+  // Abandoned is the Doer axis's sky-blue terminal state. Keep that visual
+  // meaning in this Tasks-only list even when a legacy admin setting still
+  // supplies its old red token.
+  const toneFor = React.useCallback(
+    (value: TaskStatus) => (value === "abandoned" ? "sky" : tones[value] || STATUS_TONES_FALLBACK[value]),
+    [tones],
+  );
   const options = React.useMemo(
     () =>
       DOER_TASK_STATUSES.map((s) => ({
         value: s,
         label: labels[s] ?? s,
-        style: statusBadgeStyle(tones[s] || STATUS_TONES_FALLBACK[s]),
+        style: statusBadgeStyle(toneFor(s)),
       })),
-    [labels, tones],
+    [labels, toneFor],
   );
 
   const shownLabel = labels[shown] ?? shown;
-  const shownStyle = statusBadgeStyle(tones[shown] || STATUS_TONES_FALLBACK[shown]);
+  const shownStyle = statusBadgeStyle(toneFor(shown));
   // A status the row holds that is no longer offered — shown so the pill
   // reports the row rather than the list.
   const orphan = DOER_TASK_STATUSES.includes(shown as (typeof DOER_TASK_STATUSES)[number])

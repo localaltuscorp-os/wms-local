@@ -1,17 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsUpDown,
-  Search,
-} from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { InteractiveTableHeaderCell } from "@/components/ui/interactive-table-header-cell";
 
 export interface DataTableColumn<T> {
   /** Stable key — also the sort key. */
@@ -84,6 +77,8 @@ export interface DataTableProps<T> {
   stickyFirstColumn?: boolean;
   /** A totals row rendered after the body. Give it the same cell count. */
   footerRow?: ReactNode;
+  /** Stable preference namespace for the user's saved column order. */
+  tableId?: string;
 }
 
 type SortState = { key: string; dir: "asc" | "desc" } | null;
@@ -135,9 +130,14 @@ export function DataTable<T>({
   pageSize,
   stickyFirstColumn = false,
   footerRow,
+  tableId,
 }: DataTableProps<T>) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>(initialSort ?? null);
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => columns.map((column) => column.key));
+  const [dragColumn, setDragColumn] = useState<string | null>(null);
+  const [dropColumn, setDropColumn] = useState<string | null>(null);
+  const [columnPreferenceLoaded, setColumnPreferenceLoaded] = useState(false);
   const [filterValues, setFilterValues] = useState<Record<number, string>>({});
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
@@ -151,6 +151,63 @@ export function DataTable<T>({
     for (const c of columns) m.set(c.key, c);
     return m;
   }, [columns]);
+
+  const columnKeySignature = columns.map((column) => column.key).join("|");
+  const columnOrderStorageKey = `altus.data-table.columnOrder.v1:${tableId ?? columnKeySignature}`;
+  useEffect(() => {
+    setColumnOrder((previous) => {
+      const currentKeys = columns.map((column) => column.key);
+      const retained = previous.filter((key) => currentKeys.includes(key));
+      const next = [...retained, ...currentKeys.filter((key) => !retained.includes(key))];
+      return next.length === previous.length && next.every((key, index) => key === previous[index])
+        ? previous
+        : next;
+    });
+  }, [columnKeySignature, columns]);
+
+  // Match the Tasks-table preference behaviour: load after hydration, reconcile
+  // saved keys with the current schema, then keep future drag changes locally.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(columnOrderStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as string[];
+      const currentKeys = columns.map((column) => column.key);
+      const retained = saved.filter((key) => currentKeys.includes(key));
+      setColumnOrder([...retained, ...currentKeys.filter((key) => !retained.includes(key))]);
+    } catch {
+      // Storage may be unavailable or contain an old malformed preference.
+    } finally {
+      setColumnPreferenceLoaded(true);
+    }
+  }, [columnOrderStorageKey, columns]);
+
+  useEffect(() => {
+    if (!columnPreferenceLoaded) return;
+    try {
+      window.localStorage.setItem(columnOrderStorageKey, JSON.stringify(columnOrder));
+    } catch {
+      // A disabled/private storage area must not prevent the table rendering.
+    }
+  }, [columnOrder, columnOrderStorageKey, columnPreferenceLoaded]);
+
+  const orderedColumns = useMemo(
+    () => columnOrder.map((key) => colByKey.get(key)).filter((column): column is DataTableColumn<T> => Boolean(column)),
+    [columnOrder, colByKey],
+  );
+
+  function moveColumn(source: string, target: string) {
+    if (source === target) return;
+    setColumnOrder((previous) => {
+      const from = previous.indexOf(source);
+      const to = previous.indexOf(target);
+      if (from < 0 || to < 0) return previous;
+      const next = [...previous];
+      next.splice(from, 1);
+      next.splice(to, 0, source);
+      return next;
+    });
+  }
 
   const filtered = useMemo(() => {
     let out = rows;
@@ -426,55 +483,57 @@ export function DataTable<T>({
                   <span className="sr-only">Expand</span>
                 </th>
               ) : null}
-              {columns.map((c, ci) => {
+              {orderedColumns.map((c, ci) => {
                 const sortable = Boolean(c.sortValue);
                 const active = sort?.key === c.key;
                 return (
-                  <th
+                  <InteractiveTableHeaderCell
                     key={c.key}
-                    scope="col"
+                    columnId={c.key}
+                    label={c.label}
+                    sortable={sortable}
+                    sortDirection={active ? sort!.dir : false}
+                    onToggleSort={() => toggleSort(c.key)}
+                    draggable
+                    dragging={dragColumn === c.key}
+                    dropTarget={dropColumn === c.key && dragColumn !== c.key}
+                    dropFromLeft={
+                      dragColumn !== null &&
+                      columnOrder.indexOf(dragColumn) < columnOrder.indexOf(c.key)
+                    }
+                    onColumnDragStart={(event) => {
+                      setDragColumn(c.key);
+                      setDropColumn(null);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", c.key);
+                    }}
+                    onColumnDragEnd={() => {
+                      setDragColumn(null);
+                      setDropColumn(null);
+                    }}
+                    onColumnDragOver={(event) => {
+                      if (!dragColumn) return;
+                      event.preventDefault();
+                      setDropColumn(c.key);
+                    }}
+                    onColumnDragLeave={() =>
+                      setDropColumn((current) => (current === c.key ? null : current))
+                    }
+                    onColumnDrop={(event) => {
+                      event.preventDefault();
+                      if (dragColumn) moveColumn(dragColumn, c.key);
+                      setDragColumn(null);
+                      setDropColumn(null);
+                    }}
                     className={cn(
-                      "sticky top-0 z-10 px-5 py-4 backdrop-blur",
+                      "sticky top-0 z-10 px-5 py-4 text-left backdrop-blur",
                       c.align === "right" && "text-right",
                       stickyCell(ci === 0, true),
                       c.className,
                     )}
                     style={stickyStyle(ci === 0, true) ?? { background: "rgba(248, 250, 252, 0.82)" }}
-                    aria-sort={
-                      active
-                        ? sort!.dir === "asc"
-                          ? "ascending"
-                          : "descending"
-                        : sortable
-                          ? "none"
-                          : undefined
-                    }
-                  >
-                    {sortable ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(c.key)}
-                        className={cn(
-                          "admin-th-btn",
-                          c.align === "right" && "flex-row-reverse",
-                          active && "text-ink-strong",
-                        )}
-                      >
-                        {c.label}
-                        {active ? (
-                          sort!.dir === "asc" ? (
-                            <ArrowUp size={13} strokeWidth={2.6} className="text-altus-red" />
-                          ) : (
-                            <ArrowDown size={13} strokeWidth={2.6} className="text-altus-red" />
-                          )
-                        ) : (
-                          <ChevronsUpDown size={13} strokeWidth={2} className="opacity-45" />
-                        )}
-                      </button>
-                    ) : (
-                      c.label
-                    )}
-                  </th>
+                    align={c.align}
+                  />
                 );
               })}
               {rowActions ? (
@@ -545,7 +604,7 @@ export function DataTable<T>({
                           </button>
                         </td>
                       ) : null}
-                      {columns.map((c, ci) => (
+                      {orderedColumns.map((c, ci) => (
                         <td
                           key={c.key}
                           className={cn(

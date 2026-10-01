@@ -50,6 +50,7 @@ import {
   type StatusColorToken,
 } from "@/db/enums";
 import { ARCHIVE_COL, type ColId } from "@/lib/kanban-columns";
+import { doerColumnFor } from "@/lib/status/axes";
 import { NoResults } from "./task-table";
 import {
   useSectionSearch,
@@ -461,6 +462,10 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  // dnd-kit otherwise derives this from a module-level counter. That counter
+  // can differ between the server render and browser hydration, producing a
+  // mismatched `aria-describedby` on each sortable column handle.
+  const dndId = React.useId();
 
   // Coarse filtering happens server-side via the page's FilterBar. The bar's
   // free-text search is CLIENT-side and lands here: it narrows `items` before
@@ -502,7 +507,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
       const list =
         col === ARCHIVE_COL
           ? items.filter((t) => t.archived)
-          : items.filter((t) => !t.archived && t.status === col);
+          : items.filter((t) => !t.archived && doerColumnFor(t) === col);
       m.set(col, applyBoardOrder(list, order[col]));
     }
     return m;
@@ -893,6 +898,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
   return (
     <Tooltip.Provider delayDuration={550} skipDelayDuration={0}>
       <DndContext
+        id={dndId}
         sensors={sensors}
         collisionDetection={collisionDetection}
         // A little vertical threshold too, so dragging to the top/bottom of a

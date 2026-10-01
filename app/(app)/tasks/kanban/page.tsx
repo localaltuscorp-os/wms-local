@@ -3,7 +3,7 @@ import { FilterBar } from "@/components/layout/filter-bar";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { InitiatorKanbanBoard } from "@/components/tasks/initiator-kanban-board";
 import { KanbanAxisToggle } from "@/components/tasks/kanban-axis-toggle";
-import { isStatusAxis, type StatusAxis } from "@/lib/status/axes";
+import { DOER_STATUSES, isStatusAxis, type StatusAxis } from "@/lib/status/axes";
 import { listBoardTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { listActiveClientNames } from "@/lib/queries/clients";
@@ -88,7 +88,10 @@ export default async function KanbanPage({ searchParams }: PageProps) {
     : USER_COLUMN_ORDER;
 
   const employeeOptions = employees.map((e) => ({ value: e.id, label: e.name }));
-  const statusOptions = TASK_STATUSES.filter((s) => !isDeprecatedStatus(s)).map((s) => ({
+  const statusOptions = (axis === "doer"
+    ? DOER_STATUSES
+    : TASK_STATUSES.filter((s) => !isDeprecatedStatus(s))
+  ).map((s) => ({
     value: s,
     label: labels[s] ?? s,
   }));
@@ -99,6 +102,7 @@ export default async function KanbanPage({ searchParams }: PageProps) {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <FilterBar
+        key={axis}
         employees={employeeOptions}
         subjects={subjects}
         statusOptions={statusOptions}
@@ -106,15 +110,17 @@ export default async function KanbanPage({ searchParams }: PageProps) {
         me={{ id: me.id, isAdmin: me.isAdmin, isSuperAdmin: opensOnEveryone(me) }}
         offersScopeChoice
         assigneeMode={filters.assigneeMode}
+        statusAxis={axis}
         initial={{
           start:  isoDay(filters.startDate),
           end:    isoDay(filters.endDate),
           emp:    filters.doerIds,
-          view:   "doer",
+          view:   axis,
           dept:   filters.departments,
           prio:   filters.priorities,
           subj:   filters.subjects,
           status: filters.statuses,
+          initiatorStatus: filters.initiatorStatuses,
           client: filters.clients,
         }}
       />

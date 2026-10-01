@@ -55,6 +55,7 @@ import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-ce
 import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 
 /**
  * Project Plan — the hierarchy table.
@@ -592,6 +593,7 @@ function initialCollapsed(nodes: PlanRow[]): Set<string> {
 }
 
 export function PlanBoard({ level, tree, employees, canManage, labels, clients, isAdmin, me, downline, initialView = "list" }: Props) {
+  const pageChromeSlots = usePageChromeSlots();
   const router = useRouter();
   const pathname = usePathname();
   /** The viewer's downline as a set — rebuilt only when the list itself does,
@@ -1509,6 +1511,22 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
               tight it is a project name that truncates — not the Rows /
               Columns / Export group dropping to a second line.
           No overflow-x scroll here: it would clip the Rows / Columns menus. */}
+      {view === "kanban" && pageChromeSlots?.actions && createPortal(
+        <div role="group" aria-label="Status axis" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
+          {STATUS_AXES.map((a) => (
+            <ViewTab
+              key={a}
+              active={axis === a}
+              onClick={() => setAxis(a)}
+              activeColor="var(--color-ink-muted)"
+              icon={a === "doer" ? <User size={13} strokeWidth={2.4} /> : <ShieldCheck size={13} strokeWidth={2.4} />}
+            >
+              {STATUS_AXIS_LABEL[a]}
+            </ViewTab>
+          ))}
+        </div>,
+        pageChromeSlots.actions,
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-1 rounded-2xl border border-hairline-strong bg-white px-2 py-1 md:flex-nowrap">
         {/* View toggle — the same List / Kanban pair the Goals board uses. */}
         <div role="group" aria-label="Board view" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
@@ -1522,7 +1540,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
         {/* The axis switch, shown only with the board it re-columns. Same two
             questions, same wording, as the WMS kanban's toggle. */}
-        {view === "kanban" && (
+        {view === "kanban" && !pageChromeSlots?.actions && (
           <div
             role="group"
             aria-label="Status axis"
@@ -1533,6 +1551,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 key={a}
                 active={axis === a}
                 onClick={() => setAxis(a)}
+                activeColor="var(--color-ink-muted)"
                 icon={
                   a === "doer" ? (
                     <User size={13} strokeWidth={2.4} />
@@ -3084,12 +3103,13 @@ function LevelTabs({
 
 /** One tab of the List / Kanban pair. */
 function ViewTab({
-  active, onClick, icon, children,
+  active, onClick, icon, children, activeColor = ACCENT,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   children: React.ReactNode;
+  activeColor?: string;
 }) {
   return (
     <button
@@ -3097,7 +3117,7 @@ function ViewTab({
       aria-pressed={active}
       className="inline-flex h-7 items-center gap-1 whitespace-nowrap px-2 text-[11.5px] font-bold transition-colors"
       style={active
-        ? { background: ACCENT, color: "white" }
+        ? { background: activeColor, color: "white" }
         : { background: "white", color: "var(--color-ink-soft)" }}
     >
       {icon}
