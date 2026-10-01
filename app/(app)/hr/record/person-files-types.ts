@@ -14,6 +14,8 @@ export interface FiledFormRow {
   status: "draft" | "submitted";
   /** ISO. Falls back to last-updated for a draft, which has no submitted_at. */
   dateIso: string | null;
+  /** Complete saved answers, already scoped to the selected person by the HR-only loader. */
+  responses: Array<{ question: string; answer: string; group?: string }>;
   /** The read-only submission page. Always this employee's — keyed by row id. */
   viewHref: string;
   /** Employee-scoped editor, or null when the form has no safe deep link. */

@@ -66,6 +66,13 @@ Available repository commands:
 
 Run only checks appropriate to the change. Do not claim a check is enforced by GitHub unless the repository configuration actually enforces it.
 
+### Maintainer test waivers
+
+- The repository owner or an explicitly authorized maintainer may waive non-security checks when appropriate for the specific change.
+- Every waiver must record which checks were skipped and why; do not infer a waiver from a person's name, email address, commit metadata, login session, or repository ownership alone.
+- Production application changes must still pass `pnpm build` and `pnpm check:leaks`.
+- PII, secret, authentication, authorization, data-integrity, repository-history, and production-safety reviews cannot be waived.
+
 ## Codex behavior
 
 - Inspect before modifying.

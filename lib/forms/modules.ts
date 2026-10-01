@@ -200,7 +200,12 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
  * must not turn the claim into a notes-only submission or drop these values
  * before the shared server validation sees them.
  */
-const REIMBURSEMENT_CORE_REQUEST_FIELDS = ["expense_for", "amount", "expense_date"] as const;
+const REIMBURSEMENT_CORE_REQUEST_FIELDS = [
+  "expense_for",
+  "amount",
+  "expense_date",
+  "product",
+] as const;
 
 /**
  * Keep a complete admin override; recover to the canonical claim form when an
