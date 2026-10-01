@@ -3,7 +3,7 @@
 - **Date:** 2026-10-01
 - **Branch:** `bugfix/hr-form-inline-preview`
 - **Objective:** Open a selected person's complete saved HR form inside the HR Record screen instead of relying on navigation to `/hr/forms/[id]`.
-- **Status:** Implemented and validated locally; not pushed.
+- **Status:** Implemented, validated, and pushed as `1e348cce` on `origin/bugfix/hr-form-inline-preview`; included in the Om + HR integration.
 
 ## Current behavior and root cause
 
