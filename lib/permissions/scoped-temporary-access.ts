@@ -32,7 +32,7 @@ export const activeScopedAccess = cache(async (employeeId: string): Promise<read
           gt(scopedAccessGrants.expiresAt, new Date()),
         ),
       );
-    return rows;
+    return rows.length === 0 ? null : rows;
   } catch (error) {
     // Compatibility window: code may deploy before additive migration. Existing
     // authorization remains authoritative until this table exists.
