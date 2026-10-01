@@ -204,7 +204,6 @@ const REIMBURSEMENT_CORE_REQUEST_FIELDS = [
   "expense_for",
   "amount",
   "expense_date",
-  "product",
 ] as const;
 
 /**
