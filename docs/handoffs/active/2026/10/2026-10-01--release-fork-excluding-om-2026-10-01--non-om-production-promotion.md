@@ -35,6 +35,13 @@ The selected commits applied cleanly to this release candidate. The staged appli
 - Targeted ESLint completed with zero errors. It reports four existing React-hook warnings in unchanged portions of `components/hr/record/hr-record-screen.tsx`; those lines predate the selected HR commit and are outside this release diff.
 - No migration, SQL, authorization, Vercel, or GitHub configuration change is part of this candidate.
 
+## Release evidence
+
+- Candidate application commit: `bc41630e`.
+- The candidate was verified as a direct descendant of the current `fork/main` at `498eaa8c` immediately before promotion preparation.
+- The release diff contains no `lib/permissions/scoped-temporary-access.ts` change and no permission, migration, or deployment configuration path.
+- Production deployment remains pending the authorized `fork/main` promotion and the production deployment process.
+
 ## Next step
 
-Review the staged release diff and commit the candidate. Do not promote to `fork/main` until the release commit, final ancestry check, and release evidence are complete.
+Push the reviewed release candidate to `fork/main` only under the explicit release authorization already received. Afterward, verify the remote SHA and deployment state separately; do not assume deployment succeeded from a Git push alone.
