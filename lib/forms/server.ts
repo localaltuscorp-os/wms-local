@@ -132,5 +132,19 @@ export async function resolveAdminFields(module: ModuleKey): Promise<FormFieldDe
 }
 
 export async function resolveRequestFields(module: ModuleKey): Promise<FormFieldDef[]> {
-  return resolveFields(requestKey(module), MODULES[module].requestFields);
+  const fields = await resolveFields(requestKey(module), MODULES[module].requestFields);
+
+  // A historical admin override on some environments retained only `notes`.
+  // That makes the specialised reimbursement dialog render without its core
+  // expense, amount, date and product inputs, and validation would silently
+  // discard them too. These fields are the module's minimum request contract,
+  // not optional presentation choices, so treat an incomplete saved override
+  // as invalid and fall back to the established definition.
+  if (module === "reimbursement") {
+    const requiredKeys = ["expense_for", "amount", "expense_date", "product"];
+    const keys = new Set(fields.map((field) => field.key));
+    if (requiredKeys.some((key) => !keys.has(key))) return MODULES.reimbursement.requestFields;
+  }
+
+  return fields;
 }
