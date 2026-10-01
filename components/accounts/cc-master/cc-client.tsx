@@ -176,8 +176,9 @@ export function CcMaster({
   }, [cards, q, fEntity]);
 
   const hasFilters = q || fEntity.length > 0;
+  const nextCode = React.useMemo(() => String(cards.reduce((max, card) => /^\d+$/.test(card.code ?? "") ? Math.max(max, Number(card.code)) : max, 0) + 1), [cards]);
   function clearFilters() { setQ(""); setFEntity([]); }
-  function startAdd() { setEditingId(null); setDraft(emptyCard()); setAdding(true); }
+  function startAdd() { setEditingId(null); setDraft({ ...emptyCard(), code: nextCode }); setAdding(true); }
   function startEdit(c: CcCardRow) { setAdding(false); setDraft(toCardDraft(c)); setEditingId(c.id); }
   function cancel() { setAdding(false); setEditingId(null); }
 
@@ -229,16 +230,16 @@ export function CcMaster({
   const totalCols = 11;
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-section border border-hairline bg-surface-card p-2" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
         <CollapsibleSearch scope="cards, entity">
-        <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
+        <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
           <Search size={17} strokeWidth={2.2} style={{ color: "var(--color-ink-subtle)" }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - cards, entity" title="Local search - filters only the list on this page" aria-label="Local search - cards, entity - this page only" className="w-full bg-transparent py-2.5 text-[15px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Local search - cards, entity" title="Local search - filters only the list on this page" aria-label="Local search - cards, entity - this page only" className="w-full bg-transparent py-2 text-[14px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
         </div>
         </CollapsibleSearch>
         <MultiFilter
-          className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
+          className="rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[13px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
           values={fEntity}
           onChange={setFEntity}
           options={entities}
@@ -253,15 +254,15 @@ export function CcMaster({
         <span className="text-[13px] font-bold text-ink-soft">Editing: <span className="text-altus-red">{MONTH_LABELS[month - 1]}</span></span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {cards.length === 0 && prevFyCount > 0 && (
-            <button type="button" onClick={carryForward} disabled={busy} title={`Copy all ${prevFyCount} cards from ${fyLabel(fyStartYear - 1)}`} className="inline-flex items-center gap-2 rounded-xl border border-hairline-strong bg-white py-2.5 px-4 text-[14px] font-bold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)] hover:text-altus-red disabled:opacity-50">
+            <button type="button" onClick={carryForward} disabled={busy} title={`Copy all ${prevFyCount} cards from ${fyLabel(fyStartYear - 1)}`} className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)] hover:text-altus-red disabled:opacity-50">
               {busy ? <Loader2 size={15} className="animate-spin" /> : <CalendarClock size={15} strokeWidth={2.4} />} Start from {fyLabel(fyStartYear - 1)}
             </button>
           )}
-          <a href={`/accounts/cc-tracker/export?fy=${fyStartYear}`} className="inline-flex items-center gap-2 rounded-xl border border-hairline-strong bg-white py-2.5 px-4 text-[14px] font-bold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)] hover:text-altus-red" title="Download this year as an Excel file">
+          <a href={`/accounts/cc-tracker/export?fy=${fyStartYear}`} className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-strong transition-colors hover:border-[color:var(--color-altus-red)] hover:text-altus-red" title="Download this year as an Excel file">
             <Download size={15} strokeWidth={2.4} /> Export
           </a>
-          <button type="button" onClick={startAdd} className="inline-flex items-center gap-2 rounded-xl py-2.5 px-4 text-[14.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 10px 26px -12px rgba(225,6,0,0.6)" }}>
-            <Plus size={16} strokeWidth={2.6} /> Add Card
+          <button type="button" onClick={startAdd} className="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13.5px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 8px 18px -12px rgba(225,6,0,0.55)" }}>
+            <Plus size={15} strokeWidth={2.6} /> Add Card
           </button>
         </div>
       </div>

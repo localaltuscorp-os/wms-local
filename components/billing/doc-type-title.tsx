@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { BILLING_DOC_TYPE_LABELS, type BillingDocType } from "@/db/enums";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 
 /**
  * THE PAGE TITLE AND THE TYPE TOGGLE, KEPT IN STEP.
@@ -60,13 +61,7 @@ export function NewDocumentTitle({ fallback }: { fallback: BillingDocType }) {
   return (
     <>
       <h1
-        className="text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(22px,2.4vw,30px)",
-          letterSpacing: "-0.02em",
-        }}
+        style={PAGE_COMMAND_BAR_TITLE_STYLE}
       >
         New {BILLING_DOC_TYPE_LABELS[docType].toLowerCase()}
       </h1>

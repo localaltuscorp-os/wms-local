@@ -32,6 +32,7 @@
     "seed:reset": "tsx --env-file=.env.local scripts/seed-reset.ts",
     "seed:firebase": "tsx --env-file=.env.local scripts/seed-firebase.ts",
     "sync:departments": "tsx --env-file=.env.local scripts/sync-departments.ts",
+    "employees:backfill-codes": "tsx --env-file=.env.local scripts/backfill-employee-codes.ts",
     "verify:env": "tsx --env-file=.env.local scripts/verify-env.ts",
     "verify:db": "tsx --env-file=.env.local scripts/verify-db-connection.ts",
     "emul": "firebase emulators:start --only auth",

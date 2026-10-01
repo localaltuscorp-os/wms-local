@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Plus, Users, GitBranch, Wallet } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { dashboardMetrics } from "@/lib/queries/ambassadors";
 import { AmbassadorDashboard } from "@/components/ambassadors/dashboard";
@@ -18,28 +19,11 @@ export default async function AmbassadorsPage() {
       <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
         <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <span
-              className="text-[11px] font-bold uppercase tracking-[0.2em]"
-              style={{ color: "var(--color-altus-red-deep)" }}
-            >
-              Ambassadors
-            </span>
             <h1
-              className="text-ink-strong"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(30px, 3.4vw, 44px)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1.04,
-                marginTop: 6,
-              }}
+              style={PAGE_COMMAND_BAR_TITLE_STYLE}
             >
               Partner Intelligence
             </h1>
-            <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              Your referral partners, their pipeline, and the commissions they earn — at a glance.
-            </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <Link

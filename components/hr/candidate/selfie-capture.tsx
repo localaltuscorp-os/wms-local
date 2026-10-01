@@ -90,7 +90,7 @@ export function SelfieCapture({ onCapture }: { onCapture: (f: File) => void }) {
         // (h-10, rounded-lg, px-3.5, 13.5px) — the two are stacked in one column
         // now, and a pill next to a rounded rectangle read as two unrelated
         // controls. Spacing comes from the parent column's gap, not a mt-3 here.
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red"
+        className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red"
       >
         <Camera size={15} strokeWidth={2.3} /> Take selfie
       </button>
@@ -104,7 +104,6 @@ export function SelfieCapture({ onCapture }: { onCapture: (f: File) => void }) {
     <div className="w-[320px] max-w-full overflow-hidden rounded-2xl border-2 border-hairline-strong bg-black">
       <div className="relative">
         {/* Mirror the preview so the selfie reads naturally. */}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video ref={videoRef} playsInline muted className="block h-64 w-full object-cover" style={{ transform: "scaleX(-1)" }} />
         {!ready && (
           <div className="absolute inset-0 grid place-items-center text-[13px] font-semibold text-white/80">

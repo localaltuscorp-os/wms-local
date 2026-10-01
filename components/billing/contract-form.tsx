@@ -6,6 +6,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, FileSignature, Loader2, Paperclip, Plus, Save, Trash2, X } from "lucide-react";
 import { DictateTextarea } from "@/components/billing/dictate-textarea";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { fireToast } from "@/lib/toast";
 import { BILLING_PURPLE, BILLING_PURPLE_DEEP, CARD_STYLE, rupees } from "@/lib/billing/ui";
 import {
@@ -439,22 +440,11 @@ export function ContractForm({
       >
         <ArrowLeft size={14} /> {initial ? "Back to the contract" : "All Contracts"}
       </Link>
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
       <h1
-        className="mt-1 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(24px,2.8vw,34px)",
-          letterSpacing: "-0.025em",
-        }}
+        style={PAGE_COMMAND_BAR_TITLE_STYLE}
       >
         {editing ? "Edit Contract" : "Create Contract"}
       </h1>
-      <p className="mt-1 text-[13.5px] text-ink-muted">
-        Every bill raised under this contract is a tax invoice in Documents. Amounts are before GST.
-      </p>
-
       {/* ── THE CONTRACT ─────────────────────────────────────────── */}
       <Section title="Contract Details" hint="Who it is with, what it is worth and when it runs." accent="#E10600">
         <Grid cols={3}>

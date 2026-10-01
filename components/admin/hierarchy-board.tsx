@@ -52,6 +52,7 @@ export interface BoardPerson {
   department: string | null;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isRoot: boolean;
   managerId: string | null;
   reportCount: number;
 }
@@ -159,7 +160,14 @@ export function HierarchyBoard({
   const [historyFor, setHistoryFor] = useState<BoardPerson | null>(null);
   const [historyRows, setHistoryRows] = useState<HistoryPeriod[]>([]);
   const [historyState, setHistoryState] = useState<"loading" | "ready" | "error">("loading");
-  const [, startTransition] = useTransition();
+  // CAPTURED, not discarded (found 2026-09-29: it used to be `[, startTransition]`)
+  // — with nothing gating the up/down buttons, a second click before
+  // `router.refresh()` landed fired ANOTHER reorder from the same
+  // still-stale order, and only settled a couple of clicks later once the
+  // refreshes caught up. Below, `onReorder` is withheld entirely while a
+  // reorder is in flight, so a click during that window is a no-op instead
+  // of a race.
+  const [isPending, startTransition] = useTransition();
 
   /** Open the history dialog and load that person's periods. The fetch lives in
    *  the click handler, so the dialog itself stays a pure presenter. */
@@ -272,7 +280,7 @@ export function HierarchyBoard({
               onMove={move}
               onHistory={openHistory}
               enableReorder={enableReorder}
-              onReorder={reorder}
+              onReorder={isPending ? undefined : reorder}
             />
           ))}
         </div>
@@ -335,26 +343,34 @@ function Column({
       }}
     >
       <header className="mb-3 px-1">
+        {/* NAME + BADGE ARE ONE GROUP, hugging the left edge; the reorder
+            arrows (a THIRD item some columns don't even have) are the only
+            thing pushed to the far right. `justify-between` treating all
+            three as equal flex items — the previous shape — is what let the
+            badge float in the middle of the header instead of sitting next
+            to the name it counts (found 2026-09-26). */}
         <div className="flex items-center justify-between gap-2">
-          {/* THE NAME IS ALWAYS BLACK; the colour becomes an underline under it
-              (asked for 2026-09-17). A coloured name competed with the red the
-              rest of the app uses for "active", and a pale accent on white made
-              some managers' names harder to read than others — the colour is an
-              identifier, not a legibility choice, so it moved to the rule. */}
-          <h3
-            className="truncate text-[14px] font-semibold text-[#0F172A]"
-            style={
-              accent
-                ? { borderBottom: `2px solid ${accent}`, paddingBottom: 2, alignSelf: "flex-start" }
-                : undefined
-            }
-          >
-            {column.managerName}
-          </h3>
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-[#F1F5F9] px-2 py-0.5 text-[11.5px] font-semibold text-[#64748B]">
-            <Users2 size={11} strokeWidth={2.4} />
-            {column.reports.length}
-          </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {/* THE NAME IS ALWAYS BLACK; the colour becomes an underline under it
+                (asked for 2026-09-17). A coloured name competed with the red the
+                rest of the app uses for "active", and a pale accent on white made
+                some managers' names harder to read than others — the colour is an
+                identifier, not a legibility choice, so it moved to the rule. */}
+            <h3
+              className="truncate text-[14px] font-semibold text-[#0F172A]"
+              style={
+                accent
+                  ? { borderBottom: `2px solid ${accent}`, paddingBottom: 2, alignSelf: "flex-start" }
+                  : undefined
+              }
+            >
+              {column.managerName}
+            </h3>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-pill bg-[#F1F5F9] px-2 py-0.5 text-[11.5px] font-semibold text-[#64748B]">
+              <Users2 size={11} strokeWidth={2.4} />
+              {column.reports.length}
+            </span>
+          </div>
           {enableReorder && column.managerId && (
             <span className="flex shrink-0 flex-col">
               <button
@@ -443,7 +459,7 @@ function Card({
 }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: person.id,
-    disabled: !canEdit,
+    disabled: !canEdit || person.isRoot,
   });
 
   /**
@@ -468,12 +484,12 @@ function Card({
     >
       <div className="flex items-start gap-1.5">
         <div
-          {...(canEdit ? { ...attributes, ...listeners } : {})}
-          className={`min-w-0 flex-1 ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}
+          {...(canEdit && !person.isRoot ? { ...attributes, ...listeners } : {})}
+          className={`min-w-0 flex-1 ${canEdit && !person.isRoot ? "cursor-grab active:cursor-grabbing" : ""}`}
         >
           <CardBody person={person} compact={compact} />
         </div>
-        {enableReorder && (
+        {enableReorder && !person.isRoot && (
           <span className="flex shrink-0 flex-col">
             <button
               type="button"
@@ -501,7 +517,7 @@ function Card({
           history button, since a row holding only one of them looked broken. */}
       {compact ? null : (
       <div className="mt-2 flex items-center gap-1.5">
-        {canEdit && (
+        {canEdit && !person.isRoot && (
           <label className="min-w-0 flex-1">
             <span className="sr-only">Move {person.name} to another manager</span>
             <select

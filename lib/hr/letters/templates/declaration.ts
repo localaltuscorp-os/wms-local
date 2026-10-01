@@ -38,7 +38,7 @@
  * allows exactly that.
  */
 
-import { type LetterTemplate, t, f, para, heading, bullets, spacer, signature } from "../types";
+import { type LetterTemplate, t, f, para, heading, bullets, spacer, signature, term } from "../types";
 import { personSignOff } from "../sign-off";
 import { readyPolicies } from "@/lib/hr/policies/registry";
 
@@ -58,19 +58,16 @@ export const DECLARATION_VERSION = "1.0";
  * The joining documents this declaration covers, by the names people actually
  * use for them in this app.
  *
- * NOT here, deliberately:
- *   - "Acceptance Letter" - unregistered (lib/hr/letters/registry.ts) because it
- *     duplicated the Selection Letter. Nobody can truthfully declare they read a
- *     document the firm never issued.
- *   - The formal title of the Free Training Letter ("Pre-Employment Training &
- *     Evaluation") - one word away from the policy of nearly the same name, so
- *     the list would read as though it named the same thing twice.
+ * NOT the formal title of the Free Training Letter ("Pre-Employment Training &
+ * Evaluation") - one word away from the policy of nearly the same name, so the
+ * list would read as though it named the same thing twice.
  */
 const JOINING_DOCUMENTS = [
-  "the Candidate Interview Form I completed",
-  "the Free Training Letter",
-  "the Assignment Needed Letter",
-  "the Selection Letter (offer letter) issued to me",
+  "Free Training Letter / Pre-Employment Training Letter (if applicable)",
+  "Assignment Needed Letter / Assignment Submission Letter (if applicable)",
+  "Pre-Employment Training Acceptance Letter",
+  "Offer Letter (Selection Letter)",
+  "CTC Breakup Letter",
 ] as const;
 
 const template: LetterTemplate = {
@@ -81,60 +78,55 @@ const template: LetterTemplate = {
   // "acknowledge": the employee signs it, and nothing is e-signed on issue -
   // matching how the other joiner-signed letters in this category behave.
   signature: "acknowledge",
-  blurb: "The employee's own declaration - information given is true, they are free to join, and they will keep the firm's information confidential.",
+  blurb: "The employee's compliance & acknowledgment declaration - that every joining document and firm policy has been read, understood and will be complied with.",
   blocks: [
-    heading("Declaration by the Employee", 1),
+    heading("Employee Compliance & Acknowledgment Declaration", 1),
 
-    para(t("I, "), f("employeeName", "Employee Name", { placeholder: "Full name" }), t(", holding the position of "), f("designation", "Designation", { placeholder: "Designation" }), t(" at {firm}, with effect from "), f("dateOfJoining", "Date of Joining", { date: true }), t(", declare as follows:")),
+    para(
+      t("I, "),
+      f("employeeName", "Employee Name", { placeholder: "Full name" }),
+      t(", hereby confirm that I have fully read, understood, completed, and reviewed all the documents, letters, and policies provided to me by {firm} in connection with my employment, training, onboarding, and responsibilities."),
+    ),
 
     spacer("md"),
 
-    heading("1. Information and documents", 2),
-    bullets(
-      [t("All information I have provided to the firm - in my interview form, my onboarding form and in person - is true and complete to the best of my knowledge.")],
-      [t("Every document and certificate I have submitted is genuine and relates to me.")],
-      [t("I understand that any information found to be false or withheld may lead to withdrawal of my appointment or termination of my employment, at any stage.")],
-    ),
-
-    heading("2. Freedom to take this employment", 2),
-    bullets(
-      [t("I am not under any subsisting contract, bond, non-compete or other obligation to a previous employer that prevents or restricts me from taking up this employment.")],
-      [t("I have no pending criminal proceedings against me that I have not disclosed to the firm.")],
-    ),
-
-    heading("3. Confidentiality", 2),
-    para(
-      t(
-        "I understand that in the course of my employment I will have access to the firm's confidential information - customer data, business processes, pricing, software, intellectual property and internal records. I will not disclose, copy or use any of it for any purpose other than my work for the firm, either during my employment or after it ends.",
-      ),
-    ),
-
-    heading("4. Documents and policies I have read", 2),
-    para(
-      t(
-        "I confirm that I have been given, have fully read and have understood each of the following, and that I hereby agree to abide by them:",
-      ),
-    ),
-    heading("The documents issued to me", 3),
+    heading("Documents Acknowledged", 2),
+    para(t("I confirm that I have submitted correct information in the Onboarding Form.")),
+    para(t("I confirm that I have read, understood, and agree to abide by the following documents:")),
     bullets(...JOINING_DOCUMENTS.map((d) => [t(d)])),
-    heading("The firm's policies", 3),
-    // Derived from the registry - see this file's header.
-    bullets(...readyPolicies().map((p) => [t(p.title)])),
-    para(
-      t(
-        "Where any of these is revised, I understand the revised version applies to me from the date the firm publishes it, and that I am responsible for reading it.",
-      ),
+
+    heading("Policies Acknowledged", 2),
+    para(t("I further confirm that I have read, understood, and agree to comply with all the following {firm} policies:")),
+    // The policy names are DERIVED from the registry, never typed - see this
+    // file's header. "Company Asset Document" is a document, not a
+    // registered policy, so it is appended as one extra fixed item.
+    bullets(...readyPolicies().map((p) => [t(p.title)]), [t("Company Asset Document")]),
+
+    heading("Employee Declaration", 2),
+    para(t("I hereby declare and acknowledge that:")),
+    bullets(
+      [t("I have read and fully understood all the above-mentioned documents, letters, and policies and have had the opportunity to seek clarification wherever required.")],
+      [t("All information, documents, declarations, and details provided by me to {firm} are true, complete, accurate, and genuine to the best of my knowledge.")],
+      [t("I agree to comply with all applicable company policies, procedures, rules, instructions, confidentiality requirements, and professional standards communicated to me by {firm} from time to time.")],
+      [t("I understand that providing false, misleading, inaccurate, incomplete, or fabricated information, or concealing any material information, may constitute a serious violation of company requirements.")],
+      [t("I understand that any violation of the above-mentioned policies, documents, company rules, or other applicable requirements may result in disciplinary action, up to and including termination of employment with immediate effect, where permitted under applicable law.")],
+      [t("I understand that if my actions, misconduct, negligence, misrepresentation, policy violation, or unauthorized use or handling of company assets results in any actual financial loss, damage, or other legally recoverable loss to the Company, I may be held responsible for such loss to the extent permitted under applicable law.")],
+      [t("I acknowledge that all Company assets provided to me, including but not limited to equipment, devices, documents, access credentials, files, materials, and other property, are to be used responsibly and in accordance with the Company's policies and instructions. I agree to return all Company assets upon request or at the time of separation from the Company.")],
+      [t("I understand that the Company reserves the right to take appropriate action in case of any breach of the above documents, policies, or obligations, subject to applicable law.")],
     ),
 
-    heading("5. Conduct", 2),
+    heading("Final Acknowledgment", 2),
     para(
       t(
-        "I will comply with the firm's policies and with the lawful instructions of my reporting manager. I will keep my personal details, contact number and address current in the firm's records.",
+        "By signing below, I confirm that I have voluntarily read, understood, completed, and accepted the above documents and policies and agree to abide by them throughout my association with {firm}. I understand that this acknowledgment forms part of my employment records.",
       ),
     ),
 
     spacer("lg"),
-    para(t("Place: "), f("place", "Place", { placeholder: "City" })),
+    term("Employee ID", f("employeeId", "Employee ID", { placeholder: "e.g. ALT-0042" })),
+    term("Designation", f("designation", "Designation", { placeholder: "e.g. Business Development Manager" })),
+    term("Department", f("department", "Department", { placeholder: "Select a department", optionsKey: "departments" })),
+
     ...personSignOff({ prefix: "employee", who: "Signed by the employee" }),
 
     spacer("lg"),

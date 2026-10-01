@@ -9,6 +9,8 @@ import { LogOut, ShieldCheck, type LucideIcon } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { isAdminNavActive } from "./admin-nav-config";
 import { adminNavFor } from "./roster-nav";
+import { DropDownMasterNavIndex } from "./drop-down-master-explorer";
+import { isDropDownMasterPath } from "@/lib/admin/drop-down-master";
 
 /**
  * Admin panel LEFT SIDEBAR, matching the vertical rail every other module
@@ -36,6 +38,7 @@ export function AdminSidebar({
 }) {
   const pathname = usePathname();
   const nav = adminNavFor(rosterOnly);
+  const dropdownActive = isDropDownMasterPath(pathname);
 
   async function handleSignOut() {
     try {
@@ -103,7 +106,15 @@ export function AdminSidebar({
       {/* ── Grouped vertical nav ── */}
       <nav aria-label="Admin" className="nav-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
         {nav.topLevel.map((it) => (
-          <Pill key={it.href} href={it.href} label={it.label} Icon={it.Icon} active={isAdminNavActive(pathname, it)} />
+          <div key={it.href}>
+            <Pill
+              href={it.href}
+              label={it.label}
+              Icon={it.Icon}
+              active={it.href === "/admin/drop-down-master" ? dropdownActive : isAdminNavActive(pathname, it)}
+            />
+            {it.href === "/admin/drop-down-master" && dropdownActive ? <DropDownMasterNavIndex /> : null}
+          </div>
         ))}
         {nav.groups.map((g) => (
           <div key={g.label} className="mt-2.5">

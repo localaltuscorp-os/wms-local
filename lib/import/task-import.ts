@@ -126,6 +126,7 @@ export async function buildImportPreview(
   file: File,
   roster: RosterEntry[],
   meId?: string,
+  requiredFields: ReadonlySet<string> = new Set(["client", "subject", "description", "doer", "dueDate"]),
 ): Promise<ImportPreview> {
   let matrix: unknown[][];
   try {
@@ -236,6 +237,10 @@ export async function buildImportPreview(
     }
 
     const errors: string[] = [];
+    const builtInRequired = new Set(["client", "subject", "description", "doer", "dueDate"]);
+    for (const field of requiredFields) {
+      if (!builtInRequired.has(field) && !get(field)) errors.push(`${field} is required`);
+    }
     if (!client) errors.push("Client is required");
     if (!subject) errors.push("Subject is required");
     if (!description) errors.push("Description is required");

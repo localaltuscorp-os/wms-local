@@ -55,23 +55,11 @@ export default async function EmployeeMasterPage() {
         ptExempt: null,
       }));
 
-  const onProbation = rows.filter((r) => r.onProbation).length;
-  const withoutCode = rows.filter((r) => !r.employeeCode).length;
-
   return (
     <AdminSection
       title="Employee Master"
       subtitle="Every employee record in one place — employment, payroll, contact, family and documents."
       icon={Users}
-      stats={[
-        { label: "Employees", value: rows.length },
-        { label: "On probation", value: onProbation, tone: onProbation ? "amber" : undefined },
-        {
-          label: "No code",
-          value: withoutCode,
-          tone: withoutCode ? "amber" : undefined,
-        },
-      ]}
       actions={<SalaryProfileImportDialog />}
     >
       <EmployeeMasterTable

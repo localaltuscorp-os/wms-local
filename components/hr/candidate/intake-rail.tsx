@@ -33,7 +33,7 @@ export function IntakeRail({
       {/* ── Desktop vertical rail ── */}
       <nav
         aria-label="Form sections"
-        className="flex h-full w-[292px] shrink-0 flex-col overflow-y-auto border-r border-hairline bg-[#fbfafc] px-3.5 py-6 max-md:hidden"
+        className="flex h-full w-[260px] shrink-0 flex-col overflow-y-auto border-r border-hairline bg-[#fbfafc] px-3 py-5 max-md:hidden"
       >
         <div className="px-2 pb-5">
           <h2
@@ -68,7 +68,7 @@ export function IntakeRail({
                 <button
                   type="button"
                   onClick={() => onSelect(i)}
-                  aria-current={s.status === "active" ? "step" : undefined}
+                  aria-current={i === activeIndex ? "step" : undefined}
                   className="group relative flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
                   style={box}
                 >

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { ArrowLeft } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { listAmbProducts } from "@/lib/queries/ambassadors";
 import { listEmployeeOptions } from "@/lib/queries/employees";
@@ -27,20 +28,10 @@ export default async function NewAmbassadorPage() {
           </Link>
           <header className="mt-3 mb-6">
             <h1
-              className="text-ink-strong"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(28px, 3vw, 40px)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1.04,
-              }}
+              style={PAGE_COMMAND_BAR_TITLE_STYLE}
             >
               New Ambassador
             </h1>
-            <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              Register a referral partner and set their commission terms.
-            </p>
           </header>
 
           <AmbassadorForm mode="create" products={products} employees={employees} />

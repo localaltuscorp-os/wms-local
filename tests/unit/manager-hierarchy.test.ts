@@ -76,6 +76,7 @@ function makeDb() {
     if (table.__name === "employees") {
       return [...managerOf.entries()].map(([id, managerId]) => ({ id, managerId }));
     }
+    if (table.__name === "employee_temporary_breaks") return [];
     throw new Error(`unexpected table ${table.__name}`);
   };
 
@@ -151,6 +152,12 @@ vi.mock("@/db/schema", () => ({
     managerId: "managerId",
     effectiveFrom: "effectiveFrom",
     effectiveTo: "effectiveTo",
+  },
+  employeeTemporaryBreaks: {
+    __name: "employee_temporary_breaks",
+    id: "id",
+    employeeId: "employeeId",
+    endedAt: "endedAt",
   },
 }));
 

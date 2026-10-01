@@ -19,6 +19,7 @@ import { ExecHoverCard } from "./hover-card";
 import { execClient } from "@/lib/exec-calendar/clients";
 import { MARKER_BG, MARKER_FG, markerSpan, markersByDay, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
+import { useEventContextMenu } from "./event-context-menu";
 
 /**
  * Week-at-a-glance (§2A view 2, §4C, §6).
@@ -75,6 +76,11 @@ interface Props {
 
 export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot, onMove, onPickDay, markers = [], onPickMarker }: Props) {
   const markerDays = markersByDay(markers);
+  // Right-click delete — a block for a plain one, "This/Following/All events"
+  // for one a routine stamped. Only wired up when the caller allows edits
+  // (the same signal `onPickEvent` already carries for this view).
+  const { openMenu, node: contextMenuNode } = useEventContextMenu();
+  const canEdit = !!onPickEvent;
   /** The block under the cursor, and where to put its quick-card (§6). */
   const [hover, setHover] = React.useState<{ event: ExecEventRow; x: number; y: number } | null>(null);
   /**
@@ -288,6 +294,7 @@ export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot
                     key={e.id}
                     type="button"
                     onClick={() => { if (!dragging) onPickEvent?.(e); }}
+                    onContextMenu={canEdit ? (ev) => openMenu(ev, e) : undefined}
                     onPointerEnter={(ev) => !dragRef.current && setHover({ event: e, x: ev.clientX, y: ev.clientY })}
                     onPointerMove={(ev) => !dragRef.current && setHover({ event: e, x: ev.clientX, y: ev.clientY })}
                     onPointerLeave={() => setHover(null)}
@@ -361,6 +368,7 @@ export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot
       </div>
 
       {hover && !drag && <ExecHoverCard event={hover.event} x={hover.x} y={hover.y} />}
+      {contextMenuNode}
 
       {untimed.length > 0 && (
         <div className="border-t border-hairline bg-surface-soft px-3 py-2">

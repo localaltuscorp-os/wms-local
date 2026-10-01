@@ -3,12 +3,14 @@
 import * as React from "react";
 import { Check, Loader2, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { CE_CATEGORIES, categoryNeedsBatch } from "@/lib/client-engagement/constants";
+import { CE_CATEGORIES, CE_GROUPS, categoryNeedsBatch, groupOf, type CeGroup } from "@/lib/client-engagement/constants";
 import { CE_HH_STATUSES, CE_LIFECYCLES } from "@/lib/client-engagement/status";
 import { CE_MANAGER_NAMES } from "@/lib/client-engagement/access";
 import { ceAddAccount, ceDeleteAccount, ceUpdateAccount } from "@/app/(app)/operations/client-engagement/actions";
 import type { CeAccountRow } from "@/lib/queries/client-engagement";
-import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Select } from "./ui";
+import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Segmented, Select } from "./ui";
+
+const NAME_LABEL: Record<CeGroup, string> = { P: "Participant name", C: "Client name", A: "Ambassador name" };
 
 export interface MemberOption {
   id: string;
@@ -46,6 +48,7 @@ export function AccountDialog({
 
   const [fullName, setFullName] = React.useState(account?.fullName ?? "");
   const [organization, setOrganization] = React.useState(account?.organization ?? "");
+  const [groupSel, setGroupSel] = React.useState<CeGroup>(groupOf(account?.category ?? defaultCategory));
   const [category, setCategory] = React.useState(account?.category ?? defaultCategory ?? "ps");
   const [batchCode, setBatchCode] = React.useState(account?.batchCode ?? "");
   const [startDate, setStartDate] = React.useState(account?.startDate ?? "");
@@ -53,13 +56,24 @@ export function AccountDialog({
   const [lifecycleStatus, setLifecycle] = React.useState(account?.lifecycleStatus ?? "active");
   const [hhStatus, setHhStatus] = React.useState(account?.hhStatus ?? "standard");
   const [tags, setTags] = React.useState((account?.tags ?? []).join(", "));
-  const [notes, setNotes] = React.useState(account?.notes ?? "");
   const [assignTo, setAssignTo] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const needsBatch = categoryNeedsBatch(category);
+  // Which PRODUCT TYPEs the Type step offers — Participant → PS/BSS/OS,
+  // Client → Retainer/Corporate, Ambassador → the one Ambassador row (asked
+  // 2026-09-28: pick the type first, then a product type that fits it,
+  // rather than one flat list mixing all three together).
+  const categoryOptions = CE_CATEGORIES.filter((c) => c.group === groupSel);
+
+  function pickGroup(g: CeGroup) {
+    setGroupSel(g);
+    const first = CE_CATEGORIES.find((c) => c.group === g);
+    if (first) setCategory(first.code);
+    setBatchCode("");
+  }
 
   async function save() {
     if (busy || readOnly) return;
@@ -75,7 +89,10 @@ export function AccountDialog({
       lifecycleStatus,
       hhStatus,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      notes,
+      // The field is gone from this form (2026-09-28: "keep tags, remove
+      // notes"), but an edit must not silently blank out whatever an account
+      // already had — only a brand-new account has nothing to preserve.
+      notes: account?.notes ?? null,
     };
     const res = isNew ? await ceAddAccount({ ...payload, assignTo: assignTo || null }) : await ceUpdateAccount(account.id, payload);
     setBusy(false);
@@ -140,24 +157,36 @@ export function AccountDialog({
       }
     >
       <fieldset disabled={readOnly} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <span className={LABEL}>Type</span>
+          <Segmented
+            value={groupSel}
+            options={CE_GROUPS.map((g) => ({ value: g.code, label: g.label }))}
+            onChange={pickGroup}
+            ariaLabel="Participant, client or ambassador"
+          />
+        </div>
+
         <label className="sm:col-span-2">
-          <span className={LABEL}>Full name</span>
+          <span className={LABEL}>{NAME_LABEL[groupSel]}</span>
           <input className={FIELD} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. ABC Shah" autoFocus={isNew} />
         </label>
 
-        <label>
-          <span className={LABEL}>Product type</span>
-          <Select value={category} onChange={setCategory} ariaLabel="Product type" disabled={readOnly}>
-            {CE_CATEGORIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.label} — {c.section}
-              </option>
-            ))}
-          </Select>
-        </label>
+        {categoryOptions.length > 1 ? (
+          <label>
+            <span className={LABEL}>Product type</span>
+            <Select value={category} onChange={setCategory} ariaLabel="Product type" disabled={readOnly}>
+              {categoryOptions.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
 
         {needsBatch ? (
-          <label>
+          <label className={categoryOptions.length > 1 ? "" : "sm:col-span-2"}>
             <span className={LABEL}>Batch number</span>
             <input
               className={FIELD}
@@ -173,7 +202,7 @@ export function AccountDialog({
             </datalist>
           </label>
         ) : (
-          <label>
+          <label className={categoryOptions.length > 1 ? "" : "sm:col-span-2"}>
             <span className={LABEL}>Organization</span>
             <input className={FIELD} value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Optional" />
           </label>
@@ -191,7 +220,12 @@ export function AccountDialog({
         <div className="sm:col-span-2">
           <span className={LABEL}>Hand-holding status</span>
           <div className="flex flex-wrap gap-1.5">
-            {CE_HH_STATUSES.map((s) => {
+            {/* "Standard" is deliberately not offered here (2026-09-28: "delete
+                the Standard and do not select anything by default") — a plain
+                account already renders as Standard (see HhStatusPill) whether
+                or not one of these four is picked, so there is nothing to
+                highlight by default and no way to "unpick" once one is set. */}
+            {CE_HH_STATUSES.filter((s) => s.code !== "standard").map((s) => {
               const on = hhStatus === s.code;
               return (
                 <button
@@ -252,16 +286,6 @@ export function AccountDialog({
         <label className="sm:col-span-2">
           <span className={LABEL}>Tags</span>
           <input className={FIELD} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Comma separated, e.g. priority, referral" />
-        </label>
-
-        <label className="sm:col-span-2">
-          <span className={LABEL}>Notes</span>
-          <textarea
-            className={`${FIELD} h-auto min-h-[72px] py-2`}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional"
-          />
         </label>
       </fieldset>
       <FormError message={error} />

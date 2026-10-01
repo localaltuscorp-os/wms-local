@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { holidays, employeeEvents } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canManageHolidays } from "@/lib/hr/holiday-admins";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { refreshMonthAfterCalendarChange } from "@/lib/salary/refresh-run";
 import { publishedHolidaysForYear } from "@/lib/hr/holidays-2026";
 import { rateLimitOrError } from "@/lib/rate-limit";
@@ -26,13 +27,13 @@ import { rateLimitOrError } from "@/lib/rate-limit";
  * during the year, and only those are stored.
  *
  * ── WHO ────────────────────────────────────────────────────────────────────
- * Ruchita and Rutvisha only - see lib/hr/holiday-admins.ts. Every action here
+ * HR staff and super-admins - see lib/hr/holiday-admins.ts. Every action here
  * re-checks; the UI hiding the form is a convenience, never the control.
  */
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
-const REFUSAL = "Only Ruchita and Rutvisha can change the holiday calendar.";
+const REFUSAL = "Only HR staff and super-admins can change the holiday calendar.";
 
 /** Paths whose rendered output changes when the calendar does. */
 const AFFECTED_PATHS = [
@@ -115,7 +116,7 @@ export async function addAdHocHoliday(input: {
   note?: string;
 }): Promise<ActionResult<{ id: string }>> {
   const me = await requireUser();
-  if (!canManageHolidays(me.email)) return { ok: false, error: REFUSAL };
+  if (!(await canManageHolidays(me, DUMMY_MODE))) return { ok: false, error: REFUSAL };
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -199,7 +200,7 @@ export async function editAdHocHoliday(input: {
   note?: string;
 }): Promise<ActionResult> {
   const me = await requireUser();
-  if (!canManageHolidays(me.email)) return { ok: false, error: REFUSAL };
+  if (!(await canManageHolidays(me, DUMMY_MODE))) return { ok: false, error: REFUSAL };
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 
@@ -286,7 +287,7 @@ const RemoveSchema = z.object({ id: z.string().uuid() }).strict();
 /** Withdraw an ad-hoc holiday. The day reverts to a normal working day. */
 export async function removeAdHocHoliday(input: { id: string }): Promise<ActionResult> {
   const me = await requireUser();
-  if (!canManageHolidays(me.email)) return { ok: false, error: REFUSAL };
+  if (!(await canManageHolidays(me, DUMMY_MODE))) return { ok: false, error: REFUSAL };
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
 

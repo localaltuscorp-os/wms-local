@@ -1,4 +1,5 @@
 import { DashboardHeader } from "@/components/layout/header";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import {
   listReferrals,
@@ -27,28 +28,11 @@ export default async function AmbassadorPipelinePage() {
       <DashboardHeader generatedAt={new Date()} />
       <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
         <header className="mb-6">
-          <span
-            className="text-[11px] font-bold uppercase tracking-[0.2em]"
-            style={{ color: "var(--color-altus-red-deep)" }}
-          >
-            Ambassadors
-          </span>
           <h1
-            className="text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(28px, 3.2vw, 42px)",
-              letterSpacing: "-0.025em",
-              lineHeight: 1.04,
-              marginTop: 6,
-            }}
+            style={PAGE_COMMAND_BAR_TITLE_STYLE}
           >
             Pipeline
           </h1>
-          <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Every referral from received to commission paid — drag a card to advance the deal.
-          </p>
         </header>
 
         <PipelineBoard

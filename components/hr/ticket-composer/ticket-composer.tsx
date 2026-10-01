@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Mic, Paperclip, X, ShieldAlert, Send, Inbox } from "lucide-react";
+import { Eye, Loader2, Mic, Paperclip, X, ShieldAlert, Send, Inbox } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
   HR_TICKET_CATEGORIES,
@@ -144,6 +144,21 @@ export function TicketComposer({
   function addFiles(list: FileList | null) {
     if (!list) return;
     setFiles((prev) => [...prev, ...Array.from(list)].slice(0, 8));
+  }
+
+  /** Open the selected local file before the ticket is submitted. */
+  function viewFile(file: File) {
+    const url = URL.createObjectURL(file);
+    const preview = window.open("", "_blank");
+    if (!preview) {
+      URL.revokeObjectURL(url);
+      fireToast({ message: "Your browser blocked the file preview. Allow pop-ups to view it.", type: "error" });
+      return;
+    }
+    preview.opener = null;
+    preview.location.href = url;
+    // Keep the object URL available long enough for large PDFs to load.
+    window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -375,16 +390,26 @@ export function TicketComposer({
           {files.length > 0 && (
             <ul className="mt-2.5 space-y-1.5">
               {files.map((f, i) => (
-                <li key={i} className="flex items-center justify-between rounded-lg border border-hairline bg-surface-card px-3 py-2 text-[13px]">
+                <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-surface-card px-3 py-2 text-[13px]">
                   <span className="truncate font-medium text-ink-strong">{f.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                    className="ml-2 text-ink-muted hover:text-[var(--color-altus-red)]"
-                    aria-label="Remove"
-                  >
-                    <X size={15} />
-                  </button>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => viewFile(f)}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-bold text-ink-muted transition hover:bg-surface-soft hover:text-ink-strong"
+                      aria-label={`View ${f.name}`}
+                    >
+                      <Eye size={14} /> View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                      className="text-ink-muted hover:text-[var(--color-altus-red)]"
+                      aria-label={`Remove ${f.name}`}
+                    >
+                      <X size={15} />
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>

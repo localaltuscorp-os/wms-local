@@ -38,9 +38,9 @@ function ValueSelect({ label, kind, options, value, onChange, placeholder }: { l
 
 const key = (itemId: string, month: number) => `${itemId}:${month}`;
 
-type Draft = { code: string; entity: string | null; agency: string; capital: string };
-function emptyDraft(): Draft { return { code: "", entity: null, agency: "", capital: "" }; }
-function toDraft(r: FnoItemRow): Draft { return { code: r.code ?? "", entity: r.entity, agency: r.agency, capital: r.capital ?? "" }; }
+type Draft = { code: string; entity: string | null; agency: string; capital: string; selectedMonth: number; monthlyIncome: string };
+function emptyDraft(selectedMonth = 4): Draft { return { code: "", entity: null, agency: "", capital: "", selectedMonth, monthlyIncome: "" }; }
+function toDraft(r: FnoItemRow, selectedMonth: number): Draft { return { code: r.code ?? "", entity: r.entity, agency: r.agency, capital: r.capital ?? "", selectedMonth, monthlyIncome: "" }; }
 
 export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, entityOptions, agencyOptions }: {
   fyStartYear: number; cols: FyMonthCol[]; currentMonth: number | null; items: FnoItemRow[]; months: FnoMonthCell[]; entityOptions: LookupOption[]; agencyOptions: LookupOption[];
@@ -81,9 +81,14 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
   const totalCapital = sumAmounts(filtered.map((r) => parseAmount(r.capital)));
 
   const hasFilters = q || fEntity.length > 0;
+  const defaultMonth = currentMonth ?? cols[0]?.month ?? 4;
+  const nextCode = React.useMemo(() => {
+    const highest = items.reduce((max, item) => /^\d+$/.test(item.code ?? "") ? Math.max(max, Number(item.code)) : max, 0);
+    return String(highest + 1);
+  }, [items]);
   function clearFilters() { setQ(""); setFEntity([]); }
-  function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
-  function startEdit(r: FnoItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
+  function startAdd() { setEditingId(null); setDraft({ ...emptyDraft(defaultMonth), code: nextCode }); setAdding(true); }
+  function startEdit(r: FnoItemRow) { setAdding(false); setDraft(toDraft(r, defaultMonth)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
 
   function save() {
@@ -92,7 +97,9 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
     setBusy(true);
     const base = { code: draft.code, entity: draft.entity, agency, capital: draft.capital };
     startTransition(async () => {
-      const res = adding ? await createFnoItem({ ...base, fyStartYear }) : await updateFnoItem({ ...base, id: editingId });
+      const res = adding
+        ? await createFnoItem({ ...base, fyStartYear, selectedMonth: draft.selectedMonth, monthlyIncome: draft.monthlyIncome })
+        : await updateFnoItem({ ...base, id: editingId });
       setBusy(false);
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       fireToast({ message: adding ? "Agency added." : "Saved.", type: "success" });
@@ -153,8 +160,8 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
 
       <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "agency" : "agencies"}{hasFilters ? ` · filtered from ${items.length}` : ""}{totalCapital ? ` · Rs. ${formatINR(totalCapital)} capital` : ""}</div>
 
-      <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-        <table className="w-full border-collapse text-left" style={{ minWidth: 1080 + cols.length * 96 }}>
+      <div className="accounts-inbox-shell table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+        <table className="accounts-inbox-table w-full border-collapse text-left" style={{ minWidth: 560 + cols.length * 92 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--color-hairline)" }}>
               <Th>Agency</Th>
@@ -165,12 +172,12 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                 </th>
               ))}
               <Th className="text-right">YTD</Th>
-              <Th className="text-right">{""}</Th>
+              <Th className="accounts-inbox-actions text-right">{""}</Th>
             </tr>
           </thead>
           <tbody>
             {(adding || (editingId && filtered.every((r) => r.id !== editingId))) && (
-              <EditorRow colSpan={totalCols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} agencyOptions={agencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />
+              <EditorRow colSpan={totalCols} cols={cols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} agencyOptions={agencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />
             )}
             {filtered.length === 0 && !adding ? (
               <tr><td colSpan={totalCols} className="px-5 py-16 text-center"><p className="text-[15px] font-semibold text-ink-muted">{hasFilters ? "No agencies match these filters." : "No FNO agencies for this financial year yet."}</p>{!hasFilters && <button type="button" onClick={startAdd} className="mt-3 inline-flex items-center gap-1.5 text-[14px] font-bold text-altus-red"><Plus size={15} strokeWidth={2.6} /> Add the First Agency</button>}</td></tr>
@@ -178,7 +185,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
               filtered.map((r) => {
                 const capital = parseAmount(r.capital);
                 return editingId === r.id ? (
-                  <EditorRow key={r.id} colSpan={totalCols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} agencyOptions={agencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={false} />
+                  <EditorRow key={r.id} colSpan={totalCols} cols={cols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} agencyOptions={agencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={false} />
                 ) : (
                   <tr key={r.id} className="group transition-colors hover:bg-surface-soft" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                     <Td>
@@ -221,7 +228,7 @@ export function FnoIncome({ fyStartYear, cols, currentMonth, items, months, enti
                         </div>
                       ) : <Dim />}
                     </Td>
-                    <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
+                    <Td className="accounts-inbox-actions text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                   </tr>
                 );
               })
@@ -254,7 +261,7 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   const [confirming, setConfirming] = React.useState(false);
   React.useEffect(() => { if (!confirming) return; const t = setTimeout(() => setConfirming(false), 3500); return () => clearTimeout(t); }, [confirming]);
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="accounts-inbox-action-buttons flex items-center justify-end gap-1">
       <button type="button" onClick={onEdit} disabled={busy} aria-label="Edit agency" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong disabled:opacity-50"><Pencil size={15} strokeWidth={2.2} /></button>
       {confirming ? (
         <button type="button" onClick={onDelete} disabled={busy} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50" style={{ background: "var(--color-altus-red)" }}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.4} />} Confirm</button>
@@ -265,18 +272,22 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   );
 }
 
-function EditorRow({ colSpan, draft, setDraft, entityOptions, agencyOptions, onSave, onCancel, busy, adding }: {
-  colSpan: number; draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; entityOptions: LookupOption[]; agencyOptions: LookupOption[]; onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean;
+function EditorRow({ colSpan, cols, draft, setDraft, entityOptions, agencyOptions, onSave, onCancel, busy, adding }: {
+  colSpan: number; cols: FyMonthCol[]; draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; entityOptions: LookupOption[]; agencyOptions: LookupOption[]; onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean;
 }) {
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   return (
     <tr style={{ borderBottom: "1px solid var(--color-hairline)", background: "color-mix(in srgb, var(--color-altus-red) 3%, var(--color-surface-card))" }}>
       <td colSpan={colSpan} className="px-5 py-5">
         <div className="grid grid-cols-12 gap-4 max-lg:grid-cols-6 max-md:grid-cols-2">
-          <Field label="S. No" className="col-span-2 max-md:col-span-1"><input value={draft.code} onChange={(e) => set({ code: e.target.value })} className={INPUT} placeholder="1" aria-label="S. No" autoFocus /></Field>
+          <Field label="S. No" className="col-span-2 max-md:col-span-1"><input value={draft.code} readOnly={adding} onChange={(e) => set({ code: e.target.value })} className={INPUT + (adding ? " cursor-not-allowed bg-surface-soft" : "")} placeholder="1" aria-label="S. No" autoFocus /></Field>
           <Field label="Entity" className="col-span-4 max-lg:col-span-2 max-md:col-span-1"><ValueSelect label="entity" kind="fno_entity" options={entityOptions} value={draft.entity} onChange={(v) => set({ entity: v })} placeholder="Entity…" /></Field>
           <Field label="Agency" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><ValueSelect label="agency" kind="fno_agency" options={agencyOptions} value={draft.agency || null} onChange={(v) => set({ agency: v ?? "" })} placeholder="Agency…" /></Field>
           <Field label="Capital (Rs.)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.capital} onChange={(e) => set({ capital: e.target.value })} className={INPUT} inputMode="numeric" placeholder="23000000" aria-label="Capital" /></Field>
+          {adding && <>
+            <Field label="Month" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><select value={draft.selectedMonth} onChange={(e) => set({ selectedMonth: Number(e.target.value) })} className={INPUT} aria-label="Month">{cols.map((col) => <option key={col.month} value={col.month}>{col.label} {col.calYear}</option>)}</select></Field>
+            <Field label="Income for selected month (Rs.)" className="col-span-3 max-lg:col-span-3 max-md:col-span-1"><input value={draft.monthlyIncome} onChange={(e) => set({ monthlyIncome: e.target.value })} className={INPUT} inputMode="numeric" placeholder="0" aria-label="Income for selected month" /></Field>
+          </>}
         </div>
         <div className="mt-4 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>

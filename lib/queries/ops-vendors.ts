@@ -1,7 +1,11 @@
 import "server-only";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { opsVendors } from "@/db/schema";
+import { opsVendorCategories, opsVendors } from "@/db/schema";
+import { DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { createSignedObjectUrl } from "@/lib/storage/objects";
+
+const FILE_URL_TTL_SECONDS = 60 * 30;
 
 /** One directory row as the page renders it. */
 export interface VendorRow {
@@ -9,7 +13,9 @@ export interface VendorRow {
   category: string;
   firstName: string;
   lastName: string | null;
+  companyName: string | null;
   cellNo: string | null;
+  whatsappCellNo: string | null;
   email: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
@@ -21,18 +27,29 @@ export interface VendorRow {
   pincode: string | null;
   website: string | null;
   amc: boolean;
+  officeOpenTime: string | null;
+  officeEndTime: string | null;
+  businessCardFrontPath: string | null;
+  businessCardBackPath: string | null;
+  cataloguePath: string | null;
+  businessCardFrontUrl: string | null;
+  businessCardBackUrl: string | null;
+  catalogueUrl: string | null;
+  additionalLinks: string[];
   notes: string | null;
   isActive: boolean;
 }
 
 export async function listVendors(): Promise<VendorRow[]> {
-  return db
+  const rows = await db
     .select({
       id: opsVendors.id,
       category: opsVendors.category,
       firstName: opsVendors.firstName,
       lastName: opsVendors.lastName,
+      companyName: opsVendors.companyName,
       cellNo: opsVendors.cellNo,
+      whatsappCellNo: opsVendors.whatsappCellNo,
       email: opsVendors.email,
       addressLine1: opsVendors.addressLine1,
       addressLine2: opsVendors.addressLine2,
@@ -44,11 +61,51 @@ export async function listVendors(): Promise<VendorRow[]> {
       pincode: opsVendors.pincode,
       website: opsVendors.website,
       amc: opsVendors.amc,
+      officeOpenTime: opsVendors.officeOpenTime,
+      officeEndTime: opsVendors.officeEndTime,
+      businessCardFrontPath: opsVendors.businessCardFrontPath,
+      businessCardBackPath: opsVendors.businessCardBackPath,
+      cataloguePath: opsVendors.cataloguePath,
+      additionalLinks: opsVendors.additionalLinks,
       notes: opsVendors.notes,
       isActive: opsVendors.isActive,
     })
     .from(opsVendors)
     .orderBy(asc(opsVendors.category), asc(opsVendors.firstName));
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const [businessCardFrontUrl, businessCardBackUrl, catalogueUrl] = await Promise.all([
+        row.businessCardFrontPath ? createSignedObjectUrl(DOCUMENTS_BUCKET, row.businessCardFrontPath, FILE_URL_TTL_SECONDS).catch(() => null) : null,
+        row.businessCardBackPath ? createSignedObjectUrl(DOCUMENTS_BUCKET, row.businessCardBackPath, FILE_URL_TTL_SECONDS).catch(() => null) : null,
+        row.cataloguePath ? createSignedObjectUrl(DOCUMENTS_BUCKET, row.cataloguePath, FILE_URL_TTL_SECONDS).catch(() => null) : null,
+      ]);
+      return { ...row, businessCardFrontUrl, businessCardBackUrl, catalogueUrl };
+    }),
+  );
+}
+
+export interface VendorCategoryRow {
+  id: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+/** Active category names drive both Directory selection and the generated workbook. */
+export async function listActiveVendorCategories(): Promise<VendorCategoryRow[]> {
+  return db
+    .select({ id: opsVendorCategories.id, name: opsVendorCategories.name, isActive: opsVendorCategories.isActive, sortOrder: opsVendorCategories.sortOrder })
+    .from(opsVendorCategories)
+    .where(eq(opsVendorCategories.isActive, true))
+    .orderBy(asc(opsVendorCategories.sortOrder), asc(opsVendorCategories.name));
+}
+
+export async function listVendorCategories(): Promise<VendorCategoryRow[]> {
+  return db
+    .select({ id: opsVendorCategories.id, name: opsVendorCategories.name, isActive: opsVendorCategories.isActive, sortOrder: opsVendorCategories.sortOrder })
+    .from(opsVendorCategories)
+    .orderBy(asc(opsVendorCategories.isActive), asc(opsVendorCategories.sortOrder), asc(opsVendorCategories.name));
 }
 
 /**

@@ -49,6 +49,12 @@ export default async function AccountsIndexPage() {
                 <Coins size={14} strokeWidth={2.4} /> Incentive payout
               </Link>
               <Link
+                href={"/accounts/approvals" as Route}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <Coins size={14} strokeWidth={2.4} /> Approved payments
+              </Link>
+              <Link
                 href={"/attendance/dashboard" as Route}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
               >

@@ -146,6 +146,7 @@ export function BankBalance({ fyStartYear, items, weeks, balances, entityOptions
     if (!needle) return items;
     return items.filter((r) => [r.code, r.entity].filter(Boolean).join(" ").toLowerCase().includes(needle));
   }, [items, q]);
+  const nextCode = React.useMemo(() => String(items.reduce((max, item) => /^\d+$/.test(item.code ?? "") ? Math.max(max, Number(item.code)) : max, 0) + 1), [items]);
 
   // Latest = balance of the highest-sort week that has a value for this entity.
   function latest(itemId: string): number | null {
@@ -156,7 +157,7 @@ export function BankBalance({ fyStartYear, items, weeks, balances, entityOptions
     return null;
   }
 
-  function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
+  function startAdd() { setEditingId(null); setDraft({ ...emptyDraft(), code: nextCode }); setAdding(true); }
   function startEdit(r: BankItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
 

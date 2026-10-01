@@ -9,12 +9,12 @@ import { fireToast } from "@/lib/toast";
 import {
   checklistBulkColumns,
   checklistBulkPayload,
-  checklistTemplateMatrix,
   readChecklistMatrix,
   type ChecklistBulkRow,
   type ChecklistBulkTarget,
 } from "@/lib/operations/checklist-bulk";
 import { bulkCreateChecklistRows } from "@/app/(app)/operations/checklist/actions";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
 
 /**
  * BULK UPLOAD — many checklist tasks from one Excel sheet (account holder,
@@ -110,21 +110,8 @@ export function ChecklistBulkUpload({
   }
 
   function downloadTemplate() {
-    const wb = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet(checklistTemplateMatrix(target, isEvent));
-    sheet["!cols"] = columns.map((c) => ({ wch: c.field === "task" ? 46 : c.field === "instructions" ? 32 : 18 }));
-    XLSX.utils.book_append_sheet(wb, sheet, "Tasks");
-    const lists: string[][] = [
-      ["People (Doer / Initiator / Backup)"],
-      ...people.map((p) => [p.name]),
-      [],
-      ["Subjects"],
-      ...subjects.map((s) => [s]),
-      ...(isRun ? [[], ["Clients"], ...clients.map((c) => [c])] : []),
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lists), "Lists");
-    const slug = containerName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "checklist";
-    XLSX.writeFile(wb, `${slug}-tasks-template.xlsx`);
+    const variant = target === "run" ? (isEvent ? "run_event" : "run") : (isEvent ? "master_event" : "master");
+    window.location.assign(templateHref(TEMPLATE_KEYS.operationsChecklist, { variant }));
   }
 
   const shown = rows ?? [];

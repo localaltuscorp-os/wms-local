@@ -13,6 +13,7 @@ import {
   uploadCustomerDocumentAction,
 } from "@/app/(app)/billing/customers/kyc-actions";
 import { DictateTextarea } from "@/components/billing/dictate-textarea";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import {
   CustomerDocumentsPicker,
   emptyStagedDocs,
@@ -244,31 +245,11 @@ export function CustomerKycForm({
         }
       }}
     >
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
       <h1
-        className="mt-1 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(24px,2.8vw,34px)",
-          letterSpacing: "-0.025em",
-        }}
+        style={PAGE_COMMAND_BAR_TITLE_STYLE}
       >
         {editing ? "Edit Customer KYC" : "New Customer KYC"}
       </h1>
-      <p className="mt-1 text-[13.5px] text-ink-muted">
-        {editing ? (
-          <>
-            Editing <span className="font-mono font-bold">{nextCode}</span> — the client code does not change.
-          </>
-        ) : (
-          <>
-            This client will be saved as <span className="font-mono font-bold">{nextCode}</span> and can
-            be invoiced immediately.
-          </>
-        )}
-      </p>
-
       {/* ── IDENTITY ─────────────────────────────────────────────── */}
       <Section title="Identity" hint="Who the client is — type, industry and the products they buy." accent="#E10600">
         <Grid cols={3}>

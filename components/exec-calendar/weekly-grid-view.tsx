@@ -5,17 +5,19 @@ import { categoryColors, execCategory } from "@/lib/exec-calendar/taxonomy";
 import { execClient } from "@/lib/exec-calendar/clients";
 import {
   addDays,
-  clampToWindow,
-  isoWeek,
+  laneDay,
   minToLabel,
+  monthStart,
   parseDay,
   rangeLabel,
   slotMinutes,
+  weekStart,
   type GridConfig,
 } from "@/lib/exec-calendar/grid";
-import { GRID_WEEKS, monthName } from "@/lib/exec-calendar/period";
+import { GRID_WEEKS, monthName, monthSegments } from "@/lib/exec-calendar/period";
 import { markersByDay, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
+import { useEventContextMenu } from "./event-context-menu";
 
 /**
  * WEEKLY GRID — the master sheet as a spreadsheet (asked 2026-09-18).
@@ -52,66 +54,53 @@ const TIME_COL = 64;
  * 30px = py-2 (8+8) + an 11.5px line at leading-tight (~14px).
  */
 const HEAD_H = 30;
+/**
+ * The month band's own stated height, same reasoning as HEAD_H: the week bar
+ * below it sticks at HEAD_H + BANNER_H, so a measured value could judder.
+ * 28px = py-1.5 (6+6) + a 13px line at tight leading (~16px).
+ */
+const BANNER_H = 28;
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const HEADER_BG = "#1A1A1A";
+const HEADER_BG = "#6B7280";
+/** The current week's own bar, in place of HEADER_BG — the one exception to
+ *  "every header cell is gray" (2026-09-26). */
+const HEADER_BG_CURRENT = "var(--color-altus-red)";
 const RULE = "#D3D3D3";
 
-type Placed = { e: ExecEventRow; start: number; end: number; lane: number; lanes: number };
-
-/** Side-by-side lanes for one day: greedy packing, lane count per overlap cluster. */
-function laneDay(events: ExecEventRow[], cfg: GridConfig): Placed[] {
-  const items = events
-    .flatMap((e) => {
-      if (e.allDay) return []; // drawn as a banner in the week row
-      if (e.startMin == null || e.endMin == null || e.endMin <= e.startMin) return [];
-      let start = clampToWindow(e.startMin, cfg);
-      let end = clampToWindow(e.endMin, cfg);
-      // Wholly outside the window: pinned to the nearest edge, one row tall.
-      if (end <= start) {
-        start = e.endMin <= cfg.startMin ? cfg.startMin : cfg.endMin - cfg.slotMin;
-        end = start + cfg.slotMin;
-      }
-      return [{ e, start, end }];
-    })
-    .sort((a, b) => a.start - b.start || b.end - a.end);
-
-  const out: Placed[] = [];
-  let cluster: Placed[] = [];
-  let clusterEnd = -Infinity;
-  const laneEnds: number[] = [];
-  const flush = () => {
-    const lanes = Math.max(1, laneEnds.length);
-    for (const p of cluster) out.push({ ...p, lanes });
-    cluster = [];
-    laneEnds.length = 0;
-  };
-  for (const it of items) {
-    if (it.start >= clusterEnd) {
-      flush();
-      clusterEnd = -Infinity;
-    }
-    let lane = laneEnds.findIndex((end) => end <= it.start);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(it.end);
-    } else laneEnds[lane] = it.end;
-    cluster.push({ ...it, lane, lanes: 1 });
-    clusterEnd = Math.max(clusterEnd, it.end);
-  }
-  flush();
-  return out;
-}
-
-/** "Sep 2026" banner text for a week, or null when no new month starts in it. */
-function bannerFor(monday: string, index: number): string | null {
-  if (index === 0) return monthName(monday, true);
+/**
+ * The day, within `monday`'s week, that is the 1st of a month — or null when
+ * no month starts in this week. Shared by `weekOfMonth` and `monthSegments`
+ * so the two questions "does a new month start here" and "which month owns
+ * this week" can never disagree (they used to: the old banner logic used
+ * THIS rule while `weekOfMonth` asked what its Thursday's month was, so a
+ * week straddling a boundary got a "NOVEMBER 2026" banner over a "Week 5" that was still
+ * counting OCTOBER's weeks — reported live 2026-09-28, "why is there week 5
+ * on first week of november? it should be week 1").
+ */
+function monthStartInWeek(monday: string): string | null {
   for (let i = 0; i < 7; i++) {
     const d = addDays(monday, i);
-    if (d.endsWith("-01")) return monthName(d, true);
+    if (d.endsWith("-01")) return d;
   }
   return null;
 }
+
+/**
+ * Which week of ITS OWN MONTH a Monday starts — Week 1 is whichever week
+ * holds that month's 1st, resetting at every month rather than counting
+ * ISO weeks through the whole year (asked 2026-09-26). A week that CONTAINS
+ * a month's 1st belongs to that new month (matching `monthSegments` below);
+ * otherwise it belongs to its Monday's own month.
+ */
+function weekOfMonth(monday: string): number {
+  const newMonth = monthStartInWeek(monday);
+  const owningMonthFirst = newMonth ?? monthStart(monday);
+  const firstMonday = weekStart(owningMonthFirst);
+  const diffDays = (parseDay(monday).getTime() - parseDay(firstMonday).getTime()) / 86400000;
+  return Math.round(diffDays / 7) + 1;
+}
+
 
 export function ExecWeeklyGridView({
   monday,
@@ -137,6 +126,8 @@ export function ExecWeeklyGridView({
   const height = rows.length * ROW_H;
   const cols = `${TIME_COL}px repeat(7, minmax(96px, 1fr))`;
   const weeks = Array.from({ length: GRID_WEEKS }, (_, i) => addDays(monday, 7 * i));
+  const { openMenu, node: contextMenuNode } = useEventContextMenu();
+  const canEdit = !!onPickEvent;
 
   const byDay = React.useMemo(() => {
     const m = new Map<string, ExecEventRow[]>();
@@ -169,48 +160,72 @@ export function ExecWeeklyGridView({
           ))}
         </div>
 
-        {weeks.map((wk, wi) => {
+        {weeks.map((wk) => {
           const days = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
-          const banner = bannerFor(wk, wi);
+          const isCurrentWeek = !!today && days.includes(today);
+          const weekBg = isCurrentWeek ? HEADER_BG_CURRENT : HEADER_BG;
           return (
-            <section key={wk} aria-label={`Week ${isoWeek(wk).week}`}>
-              {banner && (
-                <div
-                  className="border-t border-white/10 px-3 py-1.5 text-[13px] font-black uppercase tracking-wide text-white"
-                  style={{ background: HEADER_BG }}
-                >
-                  {banner}
-                </div>
-              )}
+            <section key={wk} aria-label={`Week ${weekOfMonth(wk)}`}>
+              {/* The month band — STICKY, directly under the column header, and
+                  ALWAYS rendered (not just on the week a month starts) so it
+                  can stay pinned and hand off to the next month's label the
+                  moment that week's section arrives, same mechanism as the
+                  week bar below it. Split into per-month segments so a week
+                  straddling a boundary shows both months, each over its own
+                  days. */}
+              <div
+                className="sticky z-25 grid border-t border-white/10 text-white"
+                style={{ top: HEAD_H, gridTemplateColumns: cols, background: HEADER_BG, height: BANNER_H }}
+              >
+                <div className="sticky left-0 z-10" style={{ background: HEADER_BG }} />
+                {(() => {
+                  let col = 2;
+                  return monthSegments(days).map((seg) => {
+                    const gridColumn = `${col} / span ${seg.span}`;
+                    col += seg.span;
+                    return (
+                      <div
+                        key={seg.month}
+                        className="flex items-center border-l border-white/15 px-3 text-[13px] font-black uppercase tracking-wide"
+                        style={{ gridColumn }}
+                      >
+                        {monthName(seg.month, true)}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
 
               {/* The week's own dark row: number, dates, and each day's markers.
-                  STICKY, directly under the column header.
+                  STICKY, directly under the month band.
 
                   It needs no scroll listener and no observer: a sticky element
                   is clipped by its PARENT, and each week is already its own
-                  <section>. So week 36's bar pins at HEAD_H while week 36's body
-                  is on screen, and the moment week 37's section arrives its bar
-                  pushes week 36's out and takes the slot — the swap the browser
-                  does for free, which is also why it cannot get stuck.
-
-                  The month band above is deliberately NOT sticky: it renders on
-                  some weeks and not others, so pinning it too would mean a
-                  second offset that changes week to week. */}
+                  <section>. So week 36's bar pins at HEAD_H + BANNER_H while
+                  week 36's body is on screen, and the moment week 37's section
+                  arrives its bar pushes week 36's out and takes the slot — the
+                  swap the browser does for free, which is also why it cannot
+                  get stuck. */}
               <div
                 className="sticky z-20 grid border-t border-white/10 text-white"
-                style={{ top: HEAD_H, gridTemplateColumns: cols, background: HEADER_BG }}
+                style={{ top: HEAD_H + BANNER_H, gridTemplateColumns: cols, background: weekBg }}
               >
-                <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: HEADER_BG }}>
-                  Week {isoWeek(wk).week}
+                <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: weekBg }}>
+                  Week {weekOfMonth(wk)}
                 </div>
                 {days.map((d) => {
                   const date = parseDay(d);
                   const isToday = d === today;
                   return (
                     <div key={d} className="min-w-0 border-l border-white/15 px-1.5 py-1.5">
+                      {/* Always black (asked 2026-09-29) — today used to switch
+                          to white/red depending on the week's own colour,
+                          which made the SAME date marker read differently
+                          from one week to the next. Today still gets an
+                          underline, just no colour swap. */}
                       <div
-                        className="text-center text-[11px] font-bold tabular-nums"
-                        style={isToday ? { color: "#FF6B6B" } : undefined}
+                        className="text-center text-[11px] font-bold tabular-nums text-black"
+                        style={isToday ? { textDecoration: "underline" } : undefined}
                       >
                         {date.getUTCDate()} {MON_SHORT[date.getUTCMonth()]}
                       </div>
@@ -223,6 +238,7 @@ export function ExecWeeklyGridView({
                               key={e.id}
                               type="button"
                               onClick={() => onPickEvent?.(e)}
+                              onContextMenu={canEdit ? (ev) => openMenu(ev, e) : undefined}
                               title={`${e.title} · ${cat.label} · All day`}
                               className="mt-1 block w-full rounded-[3px] px-1 py-[1px] text-center text-[10.5px] font-bold leading-snug text-[#111]"
                               style={{ background: `color-mix(in srgb, ${cat.hex} 55%, white)`, cursor: onPickEvent ? "pointer" : "default" }}
@@ -289,6 +305,7 @@ export function ExecWeeklyGridView({
                             key={e.id}
                             type="button"
                             onClick={() => onPickEvent?.(e)}
+                            onContextMenu={canEdit ? (ev) => openMenu(ev, e) : undefined}
                             className="absolute z-10 flex flex-col justify-start overflow-hidden border px-1 py-0.5 text-left text-[10.5px] leading-tight text-[#111]"
                             style={{
                               top,
@@ -326,6 +343,7 @@ export function ExecWeeklyGridView({
           );
         })}
       </div>
+      {contextMenuNode}
     </div>
   );
 }

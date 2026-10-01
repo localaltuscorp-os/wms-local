@@ -20,11 +20,12 @@ export default async function ControlPanelPermissionsPage() {
       label: n.label,
       depth: n.depth,
       module: n.ancestors[0] ?? n.key,
+      ancestors: [...n.ancestors],
     }));
 
   return (
     <main className="w-full px-8 pt-6 pb-8 max-md:px-4 max-md:pt-5 max-md:pb-6">
-      <PageCommandBar title="Permissions" hint="Employee Show, View and Edit access." />
+      <PageCommandBar title="Permissions" hint="Set module access. Customize only when needed." />
       <PermissionsClient
         users={users.map((u) => ({ id: u.id, name: u.name }))}
         nodes={nodes}

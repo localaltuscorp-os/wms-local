@@ -22,8 +22,8 @@ import { addDays, addMonths, monthStart, parseDay, weekStart } from "./grid";
 
 export type CalendarView = "day" | "grid" | "week" | "month" | "monthgrid" | "year";
 
-/** Weeks the Weekly Grid shows: the chosen one and the three after it. */
-export const GRID_WEEKS = 4;
+/** Weeks the Weekly Grid shows: the chosen one and the five after it (2026-09-26: was 4). */
+export const GRID_WEEKS = 6;
 
 export const CALENDAR_VIEWS: { key: CalendarView; label: string }[] = [
   { key: "day", label: "Day" },
@@ -55,8 +55,14 @@ export function periodRange(view: CalendarView, day: string): { from: string; to
       const monday = weekStart(day);
       return { from: monday, to: addDays(monday, 7 * GRID_WEEKS - 1) };
     }
-    case "month":
+    // Rolling, not month-bounded (2026-09-26): one week before the selected
+    // week through four weeks after it — six weeks total, same as Grid, just
+    // shifted so the selected week isn't the very first one shown.
     case "monthgrid": {
+      const from = addDays(weekStart(day), -7);
+      return { from, to: addDays(from, 7 * 6 - 1) };
+    }
+    case "month": {
       const first = monthStart(day);
       return { from: first, to: addDays(addMonths(first, 1), -1) };
     }
@@ -72,9 +78,9 @@ export function stepPeriod(view: CalendarView, day: string, dir: -1 | 1): string
       return addDays(day, dir);
     case "week":
     case "grid": // same week-by-week navigation as Week
+    case "monthgrid": // rolling window, so it steps by week too, not by month
       return addDays(day, 7 * dir);
     case "month":
-    case "monthgrid":
       return addMonths(day, dir);
     case "year":
       return `${Number(day.slice(0, 4)) + dir}${day.slice(4)}`;
@@ -112,7 +118,8 @@ export function periodLabel(view: CalendarView, day: string, today: string): str
       return DMY(day, day.slice(0, 4) !== today.slice(0, 4));
     }
     case "week":
-    case "grid": {
+    case "grid":
+    case "monthgrid": {
       const monday = weekStart(day);
       const thisMonday = weekStart(today);
       if (monday === thisMonday) return "This week";
@@ -122,8 +129,7 @@ export function periodLabel(view: CalendarView, day: string, today: string): str
       const sameYear = monday.slice(0, 4) === today.slice(0, 4);
       return `${DMY(monday)} – ${DMY(sunday, !sameYear)}`;
     }
-    case "month":
-    case "monthgrid": {
+    case "month": {
       const sameYear = day.slice(0, 4) === today.slice(0, 4);
       const d = parseDay(monthStart(day));
       const name = MONTHS_LONG[d.getUTCMonth()]!;
@@ -141,9 +147,9 @@ export function isNow(view: CalendarView, day: string, today: string): boolean {
       return day === today;
     case "week":
     case "grid":
+    case "monthgrid":
       return weekStart(day) === weekStart(today);
     case "month":
-    case "monthgrid":
       return day.slice(0, 7) === today.slice(0, 7);
     case "year":
       return day.slice(0, 4) === today.slice(0, 4);
@@ -167,4 +173,22 @@ export function monthName(ymd: string, withYear = false): string {
   const d = parseDay(monthStart(ymd));
   const name = MONTHS_LONG[d.getUTCMonth()]!;
   return withYear ? `${name} ${d.getUTCFullYear()}` : name;
+}
+
+/**
+ * A week's 7 days, grouped into one segment per distinct month — one segment
+ * covering all 7 for a normal week, two when the week straddles a boundary
+ * (asked 2026-09-29, Weekly Grid and Monthly Grid both: a week half September
+ * half October should not be labelled by only one of them). Shared by both
+ * grids' sticky month band.
+ */
+export function monthSegments(days: readonly string[]): { month: string; span: number }[] {
+  const segs: { month: string; span: number }[] = [];
+  for (const d of days) {
+    const m = monthStart(d);
+    const last = segs[segs.length - 1];
+    if (last && last.month === m) last.span += 1;
+    else segs.push({ month: m, span: 1 });
+  }
+  return segs;
 }

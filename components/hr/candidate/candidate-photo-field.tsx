@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Camera, Upload, Loader2, Check, Trash2 } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase/browser";
 import { fireToast } from "@/lib/toast";
 import { SelfieCapture } from "@/components/hr/candidate/selfie-capture";
 
@@ -11,7 +10,12 @@ export type PhotoUploadUrlFn = (input: {
   mime?: string | null;
   size?: number | null;
 }) => Promise<
-  { ok: true; path: string; token: string; bucket: string } | { ok: false; error: string }
+  { ok: true; path: string; token: string; bucket: string; signedUrl: string } | { ok: false; error: string }
+>;
+
+/** Mints a short-lived URL for rendering a private candidate photo. */
+export type PhotoReadUrlFn = (path: string) => Promise<
+  { ok: true; url: string } | { ok: false; error: string }
 >;
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
@@ -43,15 +47,19 @@ export function CandidatePhotoField({
   value,
   onChange,
   uploadUrl,
+  readUrl,
 }: {
   /** The stored storage key, or "" when none. */
   value: string;
   onChange: (path: string) => void;
   uploadUrl: PhotoUploadUrlFn;
+  readUrl?: PhotoReadUrlFn;
 }) {
   const [busy, setBusy] = React.useState(false);
   const [preview, setPreview] = React.useState<string | null>(null);
+  const [storedPreview, setStoredPreview] = React.useState({ path: "", url: "" });
   const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const resolvedStoredPreview = storedPreview.path === value ? storedPreview.url : "";
 
   // An object URL is a document-lifetime handle; revoke the previous one rather
   // than leaking one per re-pick.
@@ -60,6 +68,17 @@ export function CandidatePhotoField({
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  React.useEffect(() => {
+    let live = true;
+    if (!value || preview || !readUrl) return;
+    void readUrl(value).then((result) => {
+      if (live && result.ok) setStoredPreview({ path: value, url: result.url });
+    });
+    return () => {
+      live = false;
+    };
+  }, [value, preview, readUrl]);
 
   const upload = React.useCallback(
     async (file: File) => {
@@ -71,13 +90,16 @@ export function CandidatePhotoField({
           fireToast({ message: signed.error, type: "error" });
           return;
         }
-        const { error } = await getSupabaseClient()
-          .storage.from(signed.bucket)
-          .uploadToSignedUrl(signed.path, signed.token, file, {
-            contentType: file.type || "image/jpeg",
-          });
-        if (error) {
-          fireToast({ message: `Upload failed: ${error.message}`, type: "error" });
+        const response = await fetch(signed.signedUrl, {
+          method: "PUT",
+          headers: {
+            "content-type": file.type || "image/jpeg",
+            "x-upsert": "false",
+          },
+          body: file,
+        });
+        if (!response.ok) {
+          fireToast({ message: `Upload failed: storage returned ${response.status}.`, type: "error" });
           return;
         }
         setPreview((old) => {
@@ -86,6 +108,11 @@ export function CandidatePhotoField({
         });
         onChange(signed.path);
         fireToast({ message: "Photo attached.", type: "success" });
+      } catch (error) {
+        fireToast({
+          message: `Upload failed: ${error instanceof Error ? error.message : "Please retry."}`,
+          type: "error",
+        });
       } finally {
         setBusy(false);
       }
@@ -121,7 +148,7 @@ export function CandidatePhotoField({
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-start gap-4">
+      <div className="mt-4 flex items-center gap-4 max-sm:items-start">
         {/* The tile: the local preview, or a plain "saved" state for a resumed
             draft whose photo lives in a private bucket. */}
         <div
@@ -130,9 +157,9 @@ export function CandidatePhotoField({
         >
           {busy ? (
             <Loader2 size={20} className="animate-spin text-ink-subtle" />
-          ) : preview ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a blob: URL from the picked File; next/image cannot optimise it.
-            <img src={preview} alt="The photo you just attached" className="h-full w-full object-cover" />
+          ) : preview || resolvedStoredPreview ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a blob or short-lived signed Storage URL; next/image cannot optimise either.
+            <img src={preview ?? resolvedStoredPreview} alt="Candidate photo" className="h-full w-full object-cover" />
           ) : has ? (
             <span className="px-2 text-[11.5px] font-semibold text-ink-muted">Photo on file</span>
           ) : (
@@ -140,11 +167,9 @@ export function CandidatePhotoField({
           )}
         </div>
 
-        {/* A COLUMN, not a row: Upload photo sits directly above Take selfie.
-            items-stretch + min-w keeps the two the same width so they read as one
-            stack; the group still sizes to its widest child, which is how the
-            open camera preview (320px) is allowed to widen it. */}
-        <div className="flex min-w-[190px] flex-col items-stretch gap-2">
+        {/* Standard actions share the photo's horizontal line. An open camera
+            preview may use a second line; narrow screens wrap without overlap. */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <input
             ref={fileRef}
             type="file"
@@ -159,7 +184,7 @@ export function CandidatePhotoField({
             type="button"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-ink-strong disabled:opacity-60"
           >
             <Upload size={15} strokeWidth={2.3} /> {has ? "Replace photo" : "Upload photo"}
           </button>
@@ -171,7 +196,7 @@ export function CandidatePhotoField({
               type="button"
               disabled={busy}
               onClick={clear}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-altus-red disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-3.5 text-[13.5px] font-bold text-altus-red disabled:opacity-60"
             >
               <Trash2 size={15} strokeWidth={2.3} /> Remove
             </button>

@@ -59,8 +59,8 @@ describe("the Weekly Grid view", () => {
     expect(isCalendarView("grid")).toBe(true);
   });
 
-  it("loads the chosen week and the three after it", () => {
-    expect(periodRange("grid", "2026-09-18")).toEqual({ from: "2026-09-14", to: "2026-10-11" });
+  it("loads the chosen week and the five after it", () => {
+    expect(periodRange("grid", "2026-09-18")).toEqual({ from: "2026-09-14", to: "2026-10-25" });
   });
 
   it("navigates week by week, labelled like Week", () => {

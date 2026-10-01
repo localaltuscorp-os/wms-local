@@ -360,7 +360,7 @@ export function HrRecordScreen({
   return (
     <>
       <style>{CSS}</style>
-      <PageShell width="narrow" py={false} className="pt-7 pb-24">
+      <PageShell width="full" py={false} className="pt-7 pb-24">
         {/* The "HR · Record" eyebrow + "HR Record" heading that used to open
             this page now live in the frozen HrTitleBar (see page.tsx). */}
 

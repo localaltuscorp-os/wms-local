@@ -2,7 +2,7 @@ import "server-only";
 import { desc, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
-import { delegatedAccessEvents, delegatedAccessGrants, employees } from "@/db/schema";
+import { delegatedAccessEvents, delegatedAccessGrants, employees, scopedAccessGrants, scopedAccessRecipients, scopedAccessScopes } from "@/db/schema";
 import { delegationState } from "@/lib/auth/delegated-expiry";
 
 /**
@@ -122,4 +122,29 @@ export async function listDelegatedAccessEvents(limit = 200): Promise<AccessEven
     .leftJoin(actor, eq(actor.id, delegatedAccessEvents.actorEmployeeId))
     .orderBy(desc(delegatedAccessEvents.occurredAt))
     .limit(limit);
+}
+
+export interface ScopedGrantRow {
+  recipientId: string;
+  grantId: string;
+  employeeName: string;
+  modules: { moduleKey: string; accessLevel: "full" | "viewing" | "custom" }[];
+  expiresAt: Date;
+  revokedAt: Date | null;
+}
+
+export async function listScopedAccessGrants(limit = 100): Promise<ScopedGrantRow[]> {
+  const rows = await db.select({ recipientId: scopedAccessRecipients.id, grantId: scopedAccessGrants.id, employeeName: employees.name, moduleKey: scopedAccessScopes.moduleKey, accessLevel: scopedAccessScopes.accessLevel, expiresAt: scopedAccessGrants.expiresAt, revokedAt: scopedAccessRecipients.revokedAt })
+    .from(scopedAccessRecipients)
+    .innerJoin(scopedAccessGrants, eq(scopedAccessGrants.id, scopedAccessRecipients.grantId))
+    .innerJoin(employees, eq(employees.id, scopedAccessRecipients.employeeId))
+    .innerJoin(scopedAccessScopes, eq(scopedAccessScopes.recipientId, scopedAccessRecipients.id))
+    .orderBy(desc(scopedAccessGrants.startsAt)).limit(limit * 20);
+  const grouped = new Map<string, ScopedGrantRow>();
+  for (const row of rows) {
+    const item = grouped.get(row.recipientId) ?? { recipientId: row.recipientId, grantId: row.grantId, employeeName: row.employeeName, modules: [], expiresAt: row.expiresAt, revokedAt: row.revokedAt };
+    item.modules.push({ moduleKey: row.moduleKey, accessLevel: row.accessLevel });
+    grouped.set(row.recipientId, item);
+  }
+  return [...grouped.values()].slice(0, limit);
 }

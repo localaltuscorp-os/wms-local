@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { DashboardHeader } from "@/components/layout/header";
@@ -22,7 +22,6 @@ import { listActiveProductCodes, listActiveProductNames } from "@/lib/queries/pr
 import { listActiveShiftTypeNames, shiftTypeNameFor } from "@/lib/queries/shift-types";
 import { formatInr } from "@/lib/format";
 import { getProfile } from "@/lib/queries/salary";
-import { getIncentiveStatusReport, listIncentiveEntriesStatus } from "@/lib/queries/incentive-status";
 import {
   incentiveLeaders,
   loadIncentiveAnalytics,
@@ -43,8 +42,6 @@ import {
   viewedEmployeeName,
 } from "@/lib/incentive/analytics/viewer";
 import { EmployeeViewer } from "@/components/incentive/analytics/employee-viewer";
-import { incentiveStatusUiEnabled } from "@/lib/incentive/status-flag";
-import { IncentiveStatusTab } from "@/components/incentive/incentive-status-tab";
 import { withRetry } from "@/lib/db/with-timeout";
 import { IncentiveCatalogDialog } from "@/components/incentive/incentive-catalog-dialog";
 import { PageShell } from "@/components/layout/page-shell";
@@ -53,7 +50,7 @@ import { getTargetBoard, listTargetProducts, listTeams } from "@/lib/queries/inc
 export const dynamic = "force-dynamic";
 
 /** The areas whose DATA is a calendar year, and so need the year picker. */
-const YEAR_SCOPED = new Set(["targets", "entries", "status", "billing"]);
+const YEAR_SCOPED = new Set(["targets", "entries", "billing"]);
 
 export default async function IncentivePage({ searchParams }: PageProps) {
   const me = await requireUser();
@@ -225,36 +222,6 @@ export default async function IncentivePage({ searchParams }: PageProps) {
     ),
   ]);
 
-  // WS-6 — incentive 3-status (Booked/Accrued/Paid) tab: admin-only + flag-gated
-  // (INCENTIVE_STATUS_UI, default on). Only fetched when shown, so non-admins pay
-  // no query cost.
-  //
-  // ORGANISATION-WIDE ONLY. This tab is a company roll-up: its report aggregates
-  // by person across the whole roster, so there is no honest way to show part of
-  // it. A viewer whose scope is narrower than the organisation therefore does not
-  // get the tab at all — the same rule the dashboard already follows ("what is
-  // never loaded can never be serialised into their page"). Its sibling ledger
-  // below IS scoped, because it is a list of rows and can be filtered.
-  const showStatus = me.isAdmin && scope.all && incentiveStatusUiEnabled();
-  let statusTab: ReactNode = null;
-  if (showStatus) {
-    const istNow = new Date(Date.now() + 5.5 * 3_600_000);
-    const refMonth = `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, "0")}`;
-    const [statusReport, statusEntries] = await Promise.all([
-      r("incentive:status-report", () => getIncentiveStatusReport(refMonth)),
-      r("incentive:status-entries", () => listIncentiveEntriesStatus(year, { visibleNames })),
-    ]);
-    statusTab = (
-      <IncentiveStatusTab
-        report={statusReport}
-        entries={statusEntries}
-        employees={employees}
-        year={year}
-        isAdmin={me.isAdmin}
-      />
-    );
-  }
-
   // Deep links from incentive notifications. `?request=<id>` opens the Requests
   // tab with that request expanded — only when it is already in this viewer's
   // own list, so a link to someone else's request opens nothing. `?view=table`
@@ -275,7 +242,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
    * THE YEAR PICKER IS NOT A GLOBAL CONTROL ANY MORE.
    *
    * It only ever moved the areas whose DATA is a calendar year — Targets,
-   * Entries, Status and Billing. On the Dashboard it moved nothing at all: that
+   * Entries and Billing. On the Dashboard it moved nothing at all: that
    * area is driven by its own period control (Current Month / Specific Month /
    * Last 3 / Last 6 / YTD), which is why two time controls sat on one screen
    * with the strip above them obeying one and the cards below obeying the
@@ -403,8 +370,6 @@ export default async function IncentivePage({ searchParams }: PageProps) {
           me={{ id: me.id, name: me.name }}
           isAdmin={me.isAdmin}
           canReview={canReview}
-          showStatus={showStatus}
-          statusTab={statusTab}
         />
       </PageShell>
     </>

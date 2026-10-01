@@ -523,8 +523,8 @@ describe("integration points", () => {
     const payout = src("app/(app)/salary/incentive-payout/actions.ts");
     expect(payout.indexOf("afterResponse(() => notifyIncentivesPaid(")).toBeGreaterThan(payout.indexOf("db.transaction("));
     expect(payout).toMatch(/versionKey: `payout-event:\$\{audit\.id\}`/);
-    const status = src("app/(app)/incentive/status-actions.ts");
-    expect(status.match(/notifyIfPaidIncreased\(\{/g)?.length).toBe(3); // entry + project leg + split
+    const entries = src("app/(app)/incentive/admin-actions.ts");
+    expect(entries.match(/notifyIfPaidIncreased\(\{/g)?.length).toBe(2); // entry + split
   });
 
   it("the notification service is server-only and not a server action", () => {

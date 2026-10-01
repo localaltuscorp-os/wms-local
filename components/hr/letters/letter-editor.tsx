@@ -118,11 +118,12 @@ function swapSignatoryInRichHtml(
   to: LetterSignatory,
   directorName: string,
   directorDesignation: string,
+  directorImage: string,
 ): string {
   if (!html || typeof window === "undefined" || typeof DOMParser === "undefined") return html;
   const toHr = to === "hr";
-  const fromImg = toHr ? PROPRIETOR_SIGNATURE_IMAGE : HR_SIGNATURE_IMAGE;
-  const toImg = toHr ? HR_SIGNATURE_IMAGE : PROPRIETOR_SIGNATURE_IMAGE;
+  const fromImg = toHr ? directorImage : HR_SIGNATURE_IMAGE;
+  const toImg = toHr ? HR_SIGNATURE_IMAGE : directorImage;
   const fromName = toHr ? directorName : HR_SIGNATORY.name;
   const toName = toHr ? HR_SIGNATORY.name : directorName;
   const fromDesig = toHr ? directorDesignation : HR_SIGNATORY.designation;
@@ -145,6 +146,47 @@ function swapSignatoryInRichHtml(
     for (const el of Array.from(doc.querySelectorAll("p"))) {
       if ((el.textContent ?? "").trim() === fromDesig) el.textContent = toDesig;
     }
+  }
+  // Older saved free-edit letters can have their signature mark after the
+  // place/date paragraphs. Keep the visual sign-off in the conventional order:
+  // For entity → signature mark → name → designation → date/place.
+  const signatoryName = Array.from(doc.querySelectorAll("strong")).find(
+    (element) => (element.textContent ?? "").trim() === toName,
+  );
+  const signatureImage = Array.from(doc.querySelectorAll("img")).find((image) => {
+    const src = image.getAttribute("src") ?? "";
+    return src === toImg || src.endsWith(toImg);
+  });
+  const nameLine = signatoryName?.closest("p");
+  const imageLine = signatureImage?.closest("p");
+  const imageFollowsName = Boolean(
+    nameLine && imageLine &&
+      (nameLine.compareDocumentPosition(imageLine) & Node.DOCUMENT_POSITION_FOLLOWING),
+  );
+  if (nameLine && imageLine && imageFollowsName) {
+    nameLine.parentElement?.insertBefore(imageLine, nameLine);
+  }
+  return doc.body.innerHTML;
+}
+
+/** Keep only picker-generated values in a free-edit document in sync without
+ * regenerating the rest of a person's manual edits. */
+function replacePickerValuesInRichHtml(
+  html: string,
+  changes: ReadonlyArray<{ from: string; to: string }>,
+): string {
+  if (!html || typeof window === "undefined" || typeof DOMParser === "undefined") return html;
+  const safeChanges = changes.filter(({ from, to }) => from && from !== to);
+  if (safeChanges.length === 0) return html;
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    let text = node.textContent ?? "";
+    for (const { from, to } of safeChanges) text = text.split(from).join(to);
+    node.textContent = text;
+    node = walker.nextNode();
   }
   return doc.body.innerHTML;
 }
@@ -265,7 +307,8 @@ export function LetterEditor({
   initialEmployeeId?: string;
 }) {
   const fields = useMemo(() => collectFields(template), [template]);
-  const [values, setValues] = useState<Record<string, string>>(() => initialValues(template));
+  const templateDefaults = useMemo(() => initialValues(template), [template]);
+  const [values, setValues] = useState<Record<string, string>>(() => templateDefaults);
   const [entity, setEntity] = useState<EntityId>(template.entityDefault ?? "altus-corp");
   const [employeeId, setEmployeeId] = useState<string>("");
   // Candidate gender → resolves gendered tokens ({title}/{he}/{his}/…) live.
@@ -327,6 +370,23 @@ export function LetterEditor({
     () => template.signature ?? "none",
   );
 
+  /** Picker changes must also update the live rich document. The structured
+   * mode already renders directly from `values`; rich mode is HTML and needs
+   * this narrow in-place sync to avoid leaving a cleared employee behind. */
+  const syncPickerValuesInRichHtml = useCallback(
+    (nextValues: Record<string, string>) => {
+      if (!richMode) return;
+      const changes = Object.entries(nextValues).map(([key, to]) => ({ from: values[key] ?? "", to }));
+      const current = richGetHtmlRef.current?.() ?? richHtmlRef.current;
+      const synced = replacePickerValuesInRichHtml(current, changes);
+      if (synced === current) return;
+      richHtmlRef.current = synced;
+      setRichSeed(synced);
+      setRichDirty(synced !== richSavedRef.current);
+    },
+    [richMode, values],
+  );
+
   // ── The editing bar's live height, published as a CSS var ─────────
   // The "Edit freely" formatting bar (.rle-toolbar, rendered by
   // RichLetterEditor) pins DIRECTLY BELOW this one, in the same scroll
@@ -353,16 +413,51 @@ export function LetterEditor({
 
   const firstFieldId = fields[0]?.id;
 
-  // The field a picked candidate's name seeds: prefer "candidateName", then
-  // "name", else the first field in the template.
-  const nameFieldId = useMemo(() => {
-    const byId = (id: string) => fields.find((fld) => fld.id === id)?.id;
-    return byId("candidateName") ?? byId("name") ?? fields[0]?.id;
-  }, [fields]);
+  // Templates name a recipient differently (candidate, intern, recipient).
+  // Never fall back to the first field: that may be an unrelated date or role.
+  const candidateNameFieldIds = useMemo(
+    () =>
+      ["candidateName", "internName", "recipientName", "name"].filter((id) =>
+        fields.some((field) => field.id === id),
+      ),
+    [fields],
+  );
+  const isInternCandidateLetter =
+    template.key === "intern-appointment" || template.key === "minor-internship-undertaking";
+  const isEmployeeOnlyLetter = candidateNameFieldIds.length === 0;
 
   const setValue = useCallback((id: string, v: string) => {
     setValues((prev) => (prev[id] === v ? prev : { ...prev, [id]: v }));
   }, []);
+
+  /** Keep entity words inside a letter in sync with the selected letterhead. */
+  const setLetterEntity = useCallback((nextEntity: EntityId) => {
+    const displayName = getEntity(nextEntity).displayName;
+    setEntity(nextEntity);
+    setValues((previous) => {
+      const next = { ...previous };
+      for (const fieldId of ["company", "offerEntity"]) {
+        if (fields.some((field) => field.id === fieldId)) next[fieldId] = displayName;
+      }
+      return next;
+    });
+  }, [fields]);
+
+  /** A letterhead always needs an entity. Clearing the picker therefore restores
+   * the template default instead of leaving the previous company in the body. */
+  const resetLetterEntity = useCallback(() => {
+    const fallback = template.entityDefault ?? "altus-corp";
+    setEntity(fallback);
+    setValues((previous) => {
+      const next = { ...previous };
+      for (const fieldId of ["company", "offerEntity"]) {
+        if (fields.some((field) => field.id === fieldId)) {
+          next[fieldId] = templateDefaults[fieldId] ?? "";
+        }
+      }
+      return next;
+    });
+  }, [fields, template.entityDefault, templateDefaults]);
 
   /** Write several field values at once (used by the CTC calculator). No-ops
    *  when nothing actually changed, so it is safe to call from an effect. */
@@ -407,13 +502,31 @@ export function LetterEditor({
    *  inclusive "Mr./Ms." forms. There is no manual gender override. */
   const onPickCandidate = useCallback(
     (id: string) => {
+      // A candidate must override any earlier employee attachment; otherwise
+      // export/email would still use that employee after the visible name changed.
+      const previousEmployee = roster.find((employee) => employee.id === employeeId);
+      const employeeKeys = previousEmployee
+        ? Object.keys(employeeFieldValues(previousEmployee, getEntity(previousEmployee.payingEntity ?? entity).displayName))
+        : [];
+      setEmployeeId("");
+      if (previousEmployee) setEntity(template.entityDefault ?? "altus-corp");
       setCandidateId(id);
       const cand = candidates.find((c) => c.id === id);
-      if (!cand) return;
-      if (nameFieldId) setValue(nameFieldId, cand.name);
-      setGender(normalizeGender(cand.gender));
+      const next = { ...values };
+      for (const fieldId of employeeKeys) {
+        if (fields.some((field) => field.id === fieldId)) next[fieldId] = templateDefaults[fieldId] ?? "";
+      }
+      if (previousEmployee) {
+        for (const fieldId of ["company", "offerEntity"]) {
+          if (fields.some((field) => field.id === fieldId)) next[fieldId] = templateDefaults[fieldId] ?? "";
+        }
+      }
+      for (const fieldId of candidateNameFieldIds) next[fieldId] = cand?.name ?? templateDefaults[fieldId] ?? "";
+      setValues(next);
+      syncPickerValuesInRichHtml(next);
+      setGender(cand ? normalizeGender(cand.gender) : "neutral");
     },
-    [candidates, nameFieldId, setValue],
+    [candidateNameFieldIds, candidates, employeeId, entity, fields, roster, syncPickerValuesInRichHtml, template.entityDefault, templateDefaults, values],
   );
 
   // Pre-seed from `?candidate=<id>` exactly once, when that candidate is loaded.
@@ -435,12 +548,16 @@ export function LetterEditor({
       const emp = roster.find((r) => r.id === id);
       if (!emp) return;
       setEmployeeId(id);
+      // A letter is attached to one recipient. Retaining a prior candidate id
+      // made the picker and issued-document metadata disagree with the body.
+      setCandidateId("");
+      setGender("neutral");
       const prefill = readCtcLetterPrefill();
       const applyPrefill = prefill && prefill.employeeId === id;
       const compValues = applyPrefill ? ctcComponentsToLetterValues(prefill.components) : {};
-      const autoFill = employeeFieldValues(emp, getEntity(emp.payingEntity ?? entity).displayName);
-      setValues((prev) => {
-        const next = { ...prev };
+      const recipientEntity = emp.payingEntity ?? entity;
+      const autoFill = employeeFieldValues(emp, getEntity(recipientEntity).displayName);
+      const next = { ...values };
         // Fill EVERY field the employee can answer, not just the first name-ish
         // one. Only ids the template actually declares are written, and only
         // when the employee has a value — see employeeFieldValues.
@@ -450,20 +567,38 @@ export function LetterEditor({
         for (const [k, v] of Object.entries(compValues)) {
           if (fields.some((fl) => fl.id === k)) next[k] = v;
         }
-        return next;
-      });
+      setValues(next);
+      syncPickerValuesInRichHtml(next);
       // Auto-select the letterhead from the employee's paying entity (set on
       // their salary profile). A CTC-letter prefill, if present, overrides below.
-      if (emp.payingEntity) setEntity(emp.payingEntity);
+      if (emp.payingEntity) setLetterEntity(emp.payingEntity);
       if (applyPrefill && prefill) {
-        setEntity(prefill.entity);
+        setLetterEntity(prefill.entity);
         clearCtcLetterPrefill();
       }
     },
     // `entity` is read only as the fallback for the "company" field when the
     // employee has no paying entity of their own.
-    [roster, fields, entity],
+    [roster, fields, entity, setLetterEntity, syncPickerValuesInRichHtml, values],
   );
+
+  const clearEmployee = useCallback(() => {
+    const selected = roster.find((employee) => employee.id === employeeId);
+    const populatedKeys = selected
+      ? Object.keys(employeeFieldValues(selected, getEntity(selected.payingEntity ?? entity).displayName))
+      : [];
+    const next = { ...values };
+    for (const key of populatedKeys) {
+      if (fields.some((field) => field.id === key)) next[key] = templateDefaults[key] ?? "";
+    }
+    for (const key of ["company", "offerEntity"]) {
+      if (fields.some((field) => field.id === key)) next[key] = templateDefaults[key] ?? "";
+    }
+    setValues(next);
+    syncPickerValuesInRichHtml(next);
+    setEmployeeId("");
+    resetLetterEntity();
+  }, [employeeId, entity, fields, resetLetterEntity, roster, syncPickerValuesInRichHtml, templateDefaults, values]);
 
   // Pre-select from `?employee=<id>` exactly once, when the roster is loaded.
   const seededEmpRef = useRef(false);
@@ -500,12 +635,14 @@ export function LetterEditor({
       const directorDesignation = sigBlock?.designation
         ? resolveSpans(sigBlock.designation, values).trim()
         : "Proprietor";
+      const directorImage = sigBlock?.imageSrc ?? PROPRIETOR_SIGNATURE_IMAGE;
       const current = richGetHtmlRef.current?.() ?? richHtmlRef.current;
       const swapped = swapSignatoryInRichHtml(
         current,
         next,
         directorName,
         directorDesignation,
+        directorImage,
       );
       if (swapped === current) return; // nothing matched — leave the doc alone
       richHtmlRef.current = swapped;
@@ -583,7 +720,14 @@ export function LetterEditor({
   const headerDate = formatDateHr(new Date());
   const today = headerDate;
 
-  const recipientName = (values.candidateName ?? values.name ?? "").trim();
+  const recipientName = (
+    values.candidateName ??
+    values.internName ??
+    values.recipientName ??
+    values.employeeName ??
+    values.name ??
+    ""
+  ).trim();
   const recipientEmail = (values.candidateEmail ?? values.email ?? "").trim();
 
 
@@ -779,14 +923,20 @@ export function LetterEditor({
 
       {/* ── Toolbar (does not print) ─────────────────────────────── */}
       <div className="alw-toolbar no-print" ref={toolbarRef}>
+        <div className="alw-picks">
         <label className="alw-pick">
           <Building2 size={15} strokeWidth={2.2} aria-hidden />
           <span className="alw-pick-label">Paying Entity</span>
           <select
             value={entity}
-            onChange={(e) => setEntity(e.target.value as EntityId)}
+            onChange={(e) => {
+              const next = e.target.value as EntityId | "";
+              if (next) setLetterEntity(next);
+              else resetLetterEntity();
+            }}
             aria-label="Paying entity"
           >
+            <option value="">- default entity -</option>
             {ENTITY_LIST.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.displayName}
@@ -803,17 +953,14 @@ export function LetterEditor({
             and attaches the letter to that employee. An employee is never
             offered in the candidate list — they are already on staff, so a
             Selection letter cannot go to them. */}
-        {isAdmin && candidates.length > 0 && (
+        {isAdmin && candidates.length > 0 && candidateNameFieldIds.length > 0 && (
           <label className="alw-pick">
             <ContactRound size={15} strokeWidth={2.2} aria-hidden />
             <span className="alw-pick-label">Candidate</span>
             <CompactSelect
               value={candidateId}
               onChange={(id) => {
-                if (id) onPickCandidate(id);
-                else {
-                  setCandidateId("");
-                }
+                onPickCandidate(id);
               }}
               aria-label="Pick the candidate this letter is for"
               placeholder="- pick a candidate -"
@@ -822,17 +969,15 @@ export function LetterEditor({
             />
           </label>
         )}
-        {isAdmin && roster.length > 0 && (
+        {!isInternCandidateLetter && isAdmin && roster.length > 0 && (
           <label className="alw-pick">
             <UserRound size={15} strokeWidth={2.2} aria-hidden />
-            <span className="alw-pick-label">Employee</span>
+            <span className="alw-pick-label">{isEmployeeOnlyLetter ? "Employee recipient" : "Employee"}</span>
             <CompactSelect
               value={employeeId}
               onChange={(id) => {
                 if (id) onSeedEmployee(id);
-                else {
-                  setEmployeeId("");
-                }
+                else clearEmployee();
               }}
               aria-label="Pick the employee this letter is for"
               placeholder="- pick an employee -"
@@ -893,6 +1038,7 @@ export function LetterEditor({
           </label>
         )}
 
+        </div>
         <div className="alw-actions">
           {!usingRich && (
             <button
@@ -1550,7 +1696,7 @@ function SignatureView({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           className="alw-sign-img"
-          src={isHr ? HR_SIGNATURE_IMAGE : "/signatures/proprietor-signature.jpg"}
+          src={isHr ? HR_SIGNATURE_IMAGE : PROPRIETOR_SIGNATURE_IMAGE}
           alt="Signature"
         />
       )}
@@ -1800,13 +1946,18 @@ const EDITOR_CSS = `
      next when there is no room, nothing overlapping at any width. flex-start
      rather than the old safe-center, because .alw-actions is pushed right by an
      auto margin now, which consumes the free space centring used to take. */
-  display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px 7px;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px 12px;
   padding:9px 12px;margin-bottom:20px;
   background:color-mix(in srgb, var(--color-surface-soft, #f8fafc) 92%, transparent);
   backdrop-filter:blur(8px);
   border:1px solid var(--color-hairline, #e2e8f0);
   border-radius:16px;
 }
+/* The settings group and actions are deliberately separate: the settings wrap
+   among themselves while the action buttons keep one tidy, baseline-aligned
+   cluster. This prevents the free-edit bar from interleaving controls at medium
+   widths. */
+.alw-picks{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 7px;min-width:0;}
 /* flex:0 0 auto - NEVER shrinkable. Shrinking this box does not shrink the
    <select> inside it (that has its own min-width:150px), so the select escapes
    the box and lands on the picker beside it. Sized to its content, the picker
@@ -1847,11 +1998,15 @@ const EDITOR_CSS = `
    divide. Separation here is positional, so it survives the wrap; a border
    cannot. */
 .alw-actions{
-  margin-left:auto;
+  margin-left:0;
   /* stretch = the cluster spans the row's full height; flex-end = the BUTTONS
      still sit on the selects' baseline rather than centred against the
      caption+select pair, which is what read as misaligned. */
-  display:flex;flex-wrap:nowrap;flex-shrink:0;gap:5px;align-items:flex-end;align-self:stretch;
+  display:flex;flex-wrap:nowrap;flex-shrink:0;gap:5px;align-items:flex-end;align-self:end;
+}
+@media (max-width:1180px){
+  .alw-toolbar{grid-template-columns:1fr;}
+  .alw-actions{justify-self:start;flex-wrap:wrap;}
 }
 .alw-btn{
   display:inline-flex;align-items:center;gap:4px;white-space:nowrap;

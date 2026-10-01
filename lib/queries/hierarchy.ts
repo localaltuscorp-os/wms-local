@@ -1,8 +1,10 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
+import { employeeTemporaryBreaks, employees } from "@/db/schema";
 import { loadSortOrders } from "@/lib/employees/sort-order";
+import { loadManagerFlags } from "@/lib/employees/is-manager";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 
 /**
  * THE REPORTING HIERARCHY, read for the Kanban org view.
@@ -39,9 +41,18 @@ export interface HierarchyPerson {
   managerId: string | null;
   /** How many people report to THEM — what makes somebody a column. */
   reportCount: number;
+  /** Everyone below them at every level, not just direct reports — "who has
+   *  how many people below them" (2026-09-26). */
+  totalDownline: number;
   /** Manual position among siblings sharing the same manager (0251), or null
    *  for "no manual order yet" / the database doesn't have 0251. */
   sortOrder: number | null;
+  /** Explicit "Add Manager" flag (0253) — false on a database without it.
+   *  A person is treated as a manager if EITHER this is true OR they have
+   *  reports; see `getHierarchy`'s tree-column rule. */
+  isManager: boolean;
+  /** Root hierarchy users are never draggable/subordinate candidates. */
+  isRoot: boolean;
 }
 
 export interface HierarchyColumn {
@@ -55,6 +66,7 @@ export interface HierarchyColumn {
 export interface HierarchySnapshot {
   people: HierarchyPerson[];
   columns: HierarchyColumn[];
+  temporaryBreak: HierarchyPerson[];
   /** Ids with no manager AND no reports — listed so nobody is invisible. */
   unassignedCount: number;
 }
@@ -100,6 +112,7 @@ export async function getHierarchy(
     .orderBy(asc(employees.name));
 
   const sortOrders = await loadSortOrders();
+  const managerFlags = await loadManagerFlags();
 
   // Candidates and system accounts are excluded here rather than in the WHERE
   // clause: candidates are always `is_active = false` (so the filter above
@@ -107,9 +120,22 @@ export async function getHierarchy(
   // and the isActive filter would let a future active one through. Filtering on
   // the archetype states the intent.
   const staff = rows.filter((r) => r.accountType === "employee");
+  const activeBreakRows = staff.length
+    ? await db
+      .select({ employeeId: employeeTemporaryBreaks.employeeId })
+      .from(employeeTemporaryBreaks)
+      .where(and(inArray(employeeTemporaryBreaks.employeeId, staff.map((row) => row.id)), isNull(employeeTemporaryBreaks.endedAt)))
+    : [];
+  const temporaryBreakIds = new Set(activeBreakRows.map((row) => row.employeeId));
+  const activeStaff = staff
+    .filter((row) => !temporaryBreakIds.has(row.id))
+    .map((row) => ({
+      ...row,
+      managerId: row.managerId && temporaryBreakIds.has(row.managerId) ? null : row.managerId,
+    }));
 
   const reportsByManager = new Map<string, typeof staff>();
-  for (const r of staff) {
+  for (const r of activeStaff) {
     const key = r.managerId;
     if (!key) continue;
     const list = reportsByManager.get(key);
@@ -117,7 +143,22 @@ export async function getHierarchy(
     else reportsByManager.set(key, [r]);
   }
 
-  const people: HierarchyPerson[] = staff.map((r) => ({
+  // Recursive, not just direct reports — walked once per person with memoisation
+  // rather than per-render on the client, and guarded against a cycle (should
+  // never exist — `setReportingManager` refuses one — but a memo that can loop
+  // forever on bad data is worse than one that stops early).
+  const downlineMemo = new Map<string, number>();
+  function totalDownlineOf(id: string, seen: Set<string> = new Set()): number {
+    if (downlineMemo.has(id)) return downlineMemo.get(id)!;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const direct = reportsByManager.get(id) ?? [];
+    const total = direct.length + direct.reduce((sum, r) => sum + totalDownlineOf(r.id, seen), 0);
+    downlineMemo.set(id, total);
+    return total;
+  }
+
+  const people: HierarchyPerson[] = activeStaff.map((r) => ({
     id: r.id,
     name: r.name,
     email: r.email,
@@ -128,7 +169,10 @@ export async function getHierarchy(
     isAdmin: r.isAdmin,
     managerId: r.managerId,
     reportCount: reportsByManager.get(r.id)?.length ?? 0,
+    totalDownline: totalDownlineOf(r.id),
     sortOrder: sortOrders.get(r.id) ?? null,
+    isManager: managerFlags.get(r.id) ?? false,
+    isRoot: isSuperAdmin(r.email),
   }));
 
   const byId = new Map(people.map((p) => [p.id, p]));
@@ -158,7 +202,7 @@ export async function getHierarchy(
    * the order they joined. The id breaks ties for rows inserted in the same
    * instant (a bulk import), so the board never reshuffles between renders.
    */
-  const joinedAt = new Map(staff.map((r) => [r.id, r.createdAt.getTime()]));
+  const joinedAt = new Map(activeStaff.map((r) => [r.id, r.createdAt.getTime()]));
   const byJoin = (a: HierarchyPerson, b: HierarchyPerson) =>
     (joinedAt.get(a.id) ?? 0) - (joinedAt.get(b.id) ?? 0) || a.id.localeCompare(b.id);
   const byName = (a: HierarchyPerson, b: HierarchyPerson) => a.name.localeCompare(b.name);
@@ -183,8 +227,10 @@ export async function getHierarchy(
      * A second-level person is a column even with nobody under them yet: on an
      * org chart they are a manager slot that is simply empty today, and hiding
      * the column until somebody is moved in made the chart disagree with the
-     * org it is drawing. Below the second level a column still needs reports -
-     * otherwise every individual contributor would become an empty column.
+     * org it is drawing. Below the second level a column still needs reports —
+     * OR the explicit `isManager` flag (0253), which is exactly what that flag
+     * is for: an empty manager slot anywhere in the tree, not just the second
+     * level, without shuffling somebody under them first.
      */
     const roots = people.filter((p) => !p.managerId).sort(byManualThenJoin);
     const rootIds = new Set(roots.map((p) => p.id));
@@ -197,7 +243,7 @@ export async function getHierarchy(
       walked.add(person.id);
       const reports = reportsOf(person.id).sort(byManualThenJoin);
       const secondLevel = person.managerId !== null && rootIds.has(person.managerId);
-      if (reports.length > 0 || secondLevel) columns.push(toColumn(person.id, reports));
+      if (reports.length > 0 || secondLevel || person.isManager) columns.push(toColumn(person.id, reports));
       queue.push(...reports);
     }
     // A team whose manager has left the active roster is unreachable from any
@@ -205,7 +251,11 @@ export async function getHierarchy(
     for (const managerId of reportsByManager.keys()) {
       if (!walked.has(managerId)) columns.push(toColumn(managerId, reportsOf(managerId).sort(byManualThenJoin)));
     }
-    unassigned = roots;
+    // `roots` (unfiltered) is what the walk above needs — a super-admin's OWN
+    // reports still have to be reached. The DISPLAYED bucket is narrower: a
+    // super-admin having no manager is by design, not a gap to flag, so they
+    // don't show up as if they were (2026-09-26).
+    unassigned = roots.filter((p) => !isSuperAdmin(p.email));
   } else {
     // SIZE (unchanged): a column for every person who HAS reports, biggest
     // team first, so the founder's column leads and the board does not
@@ -213,7 +263,7 @@ export async function getHierarchy(
     columns = [...reportsByManager.keys()]
       .map((managerId) => toColumn(managerId, reportsOf(managerId).sort(byName)))
       .sort((a, b) => b.reports.length - a.reports.length || a.managerName.localeCompare(b.managerName));
-    unassigned = people.filter((p) => !p.managerId).sort(byName);
+    unassigned = people.filter((p) => !p.managerId && !isSuperAdmin(p.email)).sort(byName);
   }
 
   // THE UNASSIGNED COLUMN, always present even when empty, and LEADS the
@@ -237,5 +287,24 @@ export async function getHierarchy(
     people,
     columns,
     unassignedCount: unassigned.filter((p) => p.reportCount === 0).length,
+    temporaryBreak: staff
+      .filter((row) => temporaryBreakIds.has(row.id))
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        role: row.role,
+        department: row.department,
+        designationId: row.designationId,
+        avatarUrl: row.avatarUrl,
+        isAdmin: row.isAdmin,
+        managerId: null,
+        reportCount: 0,
+        totalDownline: 0,
+        sortOrder: sortOrders.get(row.id) ?? null,
+        isManager: false,
+        isRoot: isSuperAdmin(row.email),
+      }))
+      .sort(byName),
   };
 }

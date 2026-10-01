@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import {
   Check,
   ChevronDown,
@@ -135,36 +136,15 @@ export function DropdownMasterView({ lists }: { lists: LookupListState[] }) {
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <p
-          className="uppercase font-bold tracking-[0.14em] text-ink-subtle"
-          style={{ fontSize: 10.5 }}
-        >
-          Customer KYC · Configuration
-        </p>
         <div className="flex items-center gap-3 flex-wrap">
           <h1
-            className="mt-1 flex-1 min-w-0 font-bold text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontSize: "clamp(19px, 1.9vw, 26px)",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.1,
-            }}
+            className="flex-1 min-w-0"
+            style={PAGE_COMMAND_BAR_TITLE_STYLE}
           >
             Customer Master DD
           </h1>
           <FullscreenToggle />
         </div>
-        {/* One line on a desktop width. Still wraps below md — forcing nowrap
-            on a phone would push the page sideways, and a subtitle is not
-            worth a horizontal scrollbar. */}
-        <p
-          className="mt-1.5 text-ink-muted whitespace-nowrap max-md:whitespace-normal"
-          style={{ fontSize: 13.5 }}
-        >
-          Every editable dropdown on the Customer KYC form — add, rename, reorder or remove
-          options, bulk-paste, or reset a list to its defaults. Changes appear instantly.
-        </p>
       </header>
 
       <div

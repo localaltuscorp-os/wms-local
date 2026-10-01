@@ -310,11 +310,12 @@ export function AmbassadorForm({ mode, initial, products, employees }: Props) {
             <input
               id="phone"
               className={FIELD}
+              type="tel"
               value={phone}
-              maxLength={40}
-              onChange={(e) => setPhone(e.target.value)}
+              maxLength={10}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
               placeholder="Optional"
-              inputMode="tel"
+              inputMode="numeric"
             />
           </Field>
         </div>

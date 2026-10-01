@@ -2,7 +2,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { templateFiles } from "@/db/schema";
+import { templateFieldConfigs, templateFiles } from "@/db/schema";
 import { TEMPLATE_REGISTRY } from "@/lib/templates/registry";
 
 /** The override record for one template key, or null when it is still built-in. */
@@ -46,6 +46,7 @@ export interface TemplateMasterRow {
   lastEdited: Date | null;
   overridden: boolean;
   fileSize: number | null;
+  variants: Array<{ id: string; label: string; fields: Array<{ id: string; label: string }>; requiredFields: string[] }>;
 }
 
 /**
@@ -65,8 +66,12 @@ export async function listTemplateFiles(): Promise<TemplateMasterRow[]> {
       fileSize: templateFiles.fileSize,
     })
     .from(templateFiles);
+  const configs = await db
+    .select({ key: templateFieldConfigs.key, variant: templateFieldConfigs.variant, requiredFields: templateFieldConfigs.requiredFields })
+    .from(templateFieldConfigs);
 
   const byKey = new Map(overrides.map((o) => [o.key, o]));
+  const configByVariant = new Map(configs.map((c) => [`${c.key}:${c.variant}`, c.requiredFields]));
 
   return TEMPLATE_REGISTRY.map((t) => {
     const ov = byKey.get(t.key);
@@ -79,6 +84,12 @@ export async function listTemplateFiles(): Promise<TemplateMasterRow[]> {
       lastEdited: ov ? ov.updatedAt : null,
       overridden: Boolean(ov),
       fileSize: ov ? ov.fileSize : null,
+      variants: (t.variants ?? []).map((variant) => ({
+        id: variant.id,
+        label: variant.label,
+        fields: [...variant.fields],
+        requiredFields: configByVariant.get(`${t.key}:${variant.id}`) ?? [...variant.defaultRequired],
+      })),
     };
   });
 }

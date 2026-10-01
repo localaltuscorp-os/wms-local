@@ -1,14 +1,14 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { CalendarDays, AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isManager, listTcSubjects } from "@/lib/queries/training";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { getScoreConfig } from "@/lib/queries/pms";
 import { listSessions, upcomingAlert } from "@/lib/queries/training-calendar";
-import { MODULE_THEME } from "@/lib/module-theme";
 import { CalendarBoard } from "@/components/training/calendar/calendar-board";
 import { CalendarGrid, type GridView } from "@/components/training/calendar/calendar-grid";
 import { addSessionSubject } from "./actions";
@@ -17,6 +17,18 @@ export const dynamic = "force-dynamic";
 
 const ACCENT = "#E10600";
 const ACCENT_DEEP = "#A80400";
+
+function singleParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function isYmd(value: string | undefined): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+function istYmd(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
 
 export default async function TrainingCalendarPage({
   searchParams,
@@ -27,7 +39,9 @@ export default async function TrainingCalendarPage({
   const canManage = me.isAdmin || isSuperAdmin(me.email) || (await isManager(me.id));
 
   const sp = await searchParams;
-  const view = (Array.isArray(sp.view) ? sp.view[0] : sp.view) ?? "list";
+  const view = singleParam(sp.view) ?? "list";
+  const selectedDate = singleParam(sp.date);
+  const selectedCreator = singleParam(sp.createdBy) ?? "";
   const gridView: GridView | null = view === "month" || view === "week" || view === "day" ? view : null;
 
   const scope = me.isAdmin || isSuperAdmin(me.email) ? ({ kind: "all", meId: me.id } as const) : ({ kind: "downline", meId: me.id } as const);
@@ -43,7 +57,7 @@ export default async function TrainingCalendarPage({
   const maxSessionMinutes = cfg.thresholds.maxSessionMinutes || 90;
   const alertDays = cfg.thresholds.noScheduleAlertDays || 6;
 
-  const now = Date.now();
+  const now = new Date().getTime();
 
   // Month / Week / Day views filter the visible sessions to that window.
   const inView = (iso: string): boolean => {
@@ -69,7 +83,11 @@ export default async function TrainingCalendarPage({
     return true;
   };
 
-  const filtered = sessions.filter((s) => inView(s.scheduledAt));
+  const filtered = sessions.filter((s) => {
+    if (!inView(s.scheduledAt)) return false;
+    if (isYmd(selectedDate) && istYmd(s.scheduledAt) !== selectedDate) return false;
+    return !selectedCreator || s.createdById === selectedCreator;
+  });
   const upcoming = filtered
     .filter((s) => s.status === "scheduled" && new Date(s.scheduledAt).getTime() >= now)
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
@@ -81,63 +99,59 @@ export default async function TrainingCalendarPage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
-        <Link href={"/training" as Route} className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-ink-soft hover:text-[var(--tc-deep)]" style={{ ["--tc-deep" as string]: ACCENT_DEEP }}>
-          <ArrowLeft size={15} strokeWidth={2.4} /> Training Centre
-        </Link>
-
-        <header className="mt-3 mb-6">
-          <span
-            className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
-          >
-            <CalendarDays size={13} strokeWidth={2.6} /> Training Calendar
-          </span>
-          <h1
-            className="text-ink-strong"
-            style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(28px, 3.4vw, 44px)", letterSpacing: "-0.025em", lineHeight: 1.04, marginTop: 8 }}
-          >
-            Training Calendar
-          </h1>
-          <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Schedule sessions, mark attendance, gather feedback and assess. {canManage ? "Prefer Fridays / Saturdays." : "Your sessions and your team's."}
-          </p>
-          <div className="mt-4 flex gap-2">
-            {(["list", "day", "week", "month"] as const).map((v) => (
-              <Link
-                key={v}
-                href={`/training/calendar?view=${v}` as Route}
-                className="rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold capitalize transition-colors"
-                style={view === v ? { background: ACCENT, color: "#fff" } : { background: "var(--color-surface-track)", color: "var(--color-ink-soft)" }}
-              >
-                {v}
-              </Link>
-            ))}
-          </div>
-        </header>
+      <main className="w-full px-8 max-md:px-4 pt-6 pb-8">
+        <PageCommandBar
+          title="Training Calendar"
+          toolbar={
+            <div className="flex w-full flex-wrap items-center gap-2">
+              <div className="flex gap-1">
+                {(["list", "day", "week", "month"] as const).map((v) => (
+                  <Link
+                    key={v}
+                    href={`/training/calendar?view=${v}` as Route}
+                    className="rounded-lg px-3 py-1.5 text-[12.5px] font-bold capitalize transition-colors"
+                    style={view === v ? { background: ACCENT, color: "#fff" } : { background: "var(--color-surface-track)", color: "var(--color-ink-soft)" }}
+                  >
+                    {v}
+                  </Link>
+                ))}
+              </div>
+              <form className="ml-auto flex flex-wrap items-center gap-2 max-md:ml-0" action="/training/calendar">
+                <input type="hidden" name="view" value={view} />
+                <label className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-strong"><span className="text-ink-soft">Any Date</span><input className="min-w-0 bg-transparent outline-none" type="date" name="date" defaultValue={isYmd(selectedDate) ? selectedDate : ""} aria-label="Any Date" /></label>
+                <select className="rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-semibold text-ink-strong" name="createdBy" defaultValue={selectedCreator} aria-label="Created By">
+                  <option value="">Created By</option>
+                  {employeeOptions.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+                </select>
+                <button type="submit" className="wg-btn rounded-lg px-3 py-1.5 text-[12.5px] font-bold">Filter</button>
+                {(selectedDate || selectedCreator) && <Link href={`/training/calendar?view=${view}` as Route} className="px-1 text-[12.5px] font-bold text-ink-soft hover:text-altus-red">Clear</Link>}
+              </form>
+            </div>
+          }
+        />
 
         {showAlert && (
           <div
-            className="wg-rise mb-6 flex items-start gap-3 rounded-2xl border p-4"
+            className="wg-rise mb-4 flex items-center gap-2.5 rounded-xl border px-3 py-2.5"
             style={{ background: "rgba(245,158,11,0.10)", borderColor: "rgba(245,158,11,0.45)" }}
           >
-            <AlertTriangle size={20} className="mt-0.5 shrink-0" style={{ color: "#b45309" }} />
-            <div>
-              <p className="text-[15px] font-bold" style={{ color: "#92400e" }}>
+            <AlertTriangle size={17} className="shrink-0" style={{ color: "#b45309" }} />
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-[13.5px] font-bold" style={{ color: "#92400e" }}>
                 No training scheduled
                 {alert.daysSinceLast != null ? ` — ${alert.daysSinceLast} day${alert.daysSinceLast === 1 ? "" : "s"} since the last session.` : "."}
               </p>
-              <p className="mt-0.5 text-[13.5px] font-semibold" style={{ color: "#a16207" }}>
+              <p className="text-[12.5px] font-medium" style={{ color: "#a16207" }}>
                 {canManage
-                  ? `Aim for a session at least every ${alertDays} days. Schedule one below.`
-                  : `Ask a manager to schedule the next session (target: every ${alertDays} days).`}
+                  ? `Target: every ${alertDays} days.`
+                  : "Ask a manager to schedule next session."}
               </p>
             </div>
           </div>
         )}
 
         {gridView ? (
-          <CalendarGrid view={gridView} sessions={sessions} />
+          <CalendarGrid view={gridView} sessions={filtered} />
         ) : (
           <CalendarBoard
             upcoming={upcoming}

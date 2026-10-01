@@ -86,6 +86,9 @@ export const DECISION_LABELS: Record<DecisionAction, string> = {
   revise: "Revise",
 };
 
+/** Stored on an append-only submission when a pending request is amended. */
+export const PENDING_REQUEST_EDIT_NOTE = "Updated before review.";
+
 export function isDecisionAction(v: unknown): v is DecisionAction {
   return typeof v === "string" && (DECISION_ACTIONS as readonly string[]).includes(v);
 }

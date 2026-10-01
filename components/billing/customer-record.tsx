@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { ArrowLeft, FileDown, FileText, Paperclip, Pencil } from "lucide-react";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { BILLING_PURPLE, BILLING_PURPLE_DEEP, CARD_STYLE } from "@/lib/billing/ui";
 import { customerToPrintData, openKycPrintView } from "@/lib/billing/kyc-print";
 import type { CustomerDetail } from "@/lib/queries/billing-customers";
@@ -29,13 +30,7 @@ export function CustomerRecord({ customer: c }: { customer: CustomerDetail }) {
             Full Record · <span className="font-mono">{c.clientCode ?? "—"}</span>
           </p>
           <h1
-            className="mt-1 text-ink-strong"
-            style={{
-              fontFamily: "var(--font-display), system-ui, sans-serif",
-              fontWeight: 900,
-              fontSize: "clamp(24px,2.8vw,34px)",
-              letterSpacing: "-0.025em",
-            }}
+            style={PAGE_COMMAND_BAR_TITLE_STYLE}
           >
             {c.name}
           </h1>

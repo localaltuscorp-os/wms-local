@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { PLAN_KINDS, KIND_LABEL, type PlanKind } from "@/lib/project-plan/levels";
 import { columnsFor } from "@/lib/project-plan/bulk";
+import { requiredHeader } from "./field-config";
 
 /**
  * The Project Plan bulk-upload workbook — the built-in served by
@@ -41,7 +42,7 @@ export function isPlanKind(raw: string | null | undefined): raw is PlanKind {
   return Boolean(raw) && (PLAN_KINDS as readonly string[]).includes(String(raw));
 }
 
-export async function buildProjectsTemplate(kind: string): Promise<Buffer> {
+export async function buildProjectsTemplate(kind: string, requiredFields: ReadonlySet<string> = new Set()): Promise<Buffer> {
   const safeKind: PlanKind = isPlanKind(kind) ? kind : "project";
   const cols = columnsFor(safeKind);
   const label = KIND_LABEL[safeKind];
@@ -63,7 +64,7 @@ export async function buildProjectsTemplate(kind: string): Promise<Buffer> {
     views: [{ state: "frozen", ySplit: HEADER_ROW }],
   });
   sheet.columns = cols.map((c) => ({
-    header: c.header,
+    header: requiredHeader(c.header, c.field, requiredFields),
     key: c.header,
     width: c.field === "description" ? 42 : c.field === "name" ? 38 : 16,
   }));
@@ -105,7 +106,7 @@ export async function buildProjectsTemplate(kind: string): Promise<Buffer> {
   // A worked example, on its OWN sheet — a filled row on sheet 0 would import
   // as a real plan node.
   const example = wb.addWorksheet("Example");
-  example.columns = cols.map((c) => ({ header: c.header, key: c.header, width: 22 }));
+  example.columns = cols.map((c) => ({ header: requiredHeader(c.header, c.field, requiredFields), key: c.header, width: 22 }));
   example.getRow(1).font = { bold: true, color: { argb: "FF1F2937" } };
   example.addRow(
     cols.map((c) => {

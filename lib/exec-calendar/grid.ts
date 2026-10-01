@@ -30,8 +30,8 @@ export interface GridConfig {
   startMin: number;
   /** Minutes from midnight where the grid ends. Default 22:00. */
   endMin: number;
-  /** Row height in minutes: 60 for hourly, 30 for half-hourly (§2A). */
-  slotMin: 30 | 60;
+  /** Row height in minutes: 60 for hourly, 30 for half-hourly, 15 for quarter-hourly. */
+  slotMin: 15 | 30 | 60;
 }
 
 /** The calendar's window: 06:30 → 23:00 in half-hour rows (fixed, 2026-09-18). */
@@ -214,6 +214,74 @@ export function monthWeeks(ymd: string, padTo = 0): MonthWeek[] {
       days: weekDays(monday).map((d) => ({ ymd: d, inMonth: parseDay(d).getUTCMonth() === month })),
     });
   }
+  return out;
+}
+
+/* ── Blocks: flat side-by-side lanes, for the sheet views ────────────────── */
+
+export interface LaneBlockInput {
+  id: string;
+  day: string;
+  startMin: number | null;
+  endMin: number | null;
+  allDay: boolean;
+}
+
+export interface LanedBlock<T> {
+  e: T;
+  start: number;
+  end: number;
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Side-by-side lanes for one day's timed blocks: greedy packing, lane count
+ * per overlap cluster. No nesting and no cascade, unlike `layoutDay` below —
+ * a flat sheet (Weekly Grid, Monthly Grid) has no layers for a block to sit
+ * on top of another, so an overlap always widens the row into another lane
+ * instead. All-day blocks are excluded; the caller draws those as banners.
+ */
+export function laneDay<T extends LaneBlockInput>(events: T[], cfg: GridConfig): LanedBlock<T>[] {
+  const items = events
+    .flatMap((e) => {
+      if (e.allDay) return [];
+      if (e.startMin == null || e.endMin == null || e.endMin <= e.startMin) return [];
+      let start = clampToWindow(e.startMin, cfg);
+      let end = clampToWindow(e.endMin, cfg);
+      // Wholly outside the window: pinned to the nearest edge, one row tall.
+      if (end <= start) {
+        start = e.endMin <= cfg.startMin ? cfg.startMin : cfg.endMin - cfg.slotMin;
+        end = start + cfg.slotMin;
+      }
+      return [{ e, start, end }];
+    })
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const out: LanedBlock<T>[] = [];
+  let cluster: (LanedBlock<T> & { end: number })[] = [];
+  let clusterEnd = -Infinity;
+  const laneEnds: number[] = [];
+  const flush = () => {
+    const lanes = Math.max(1, laneEnds.length);
+    for (const p of cluster) out.push({ ...p, lanes });
+    cluster = [];
+    laneEnds.length = 0;
+  };
+  for (const it of items) {
+    if (it.start >= clusterEnd) {
+      flush();
+      clusterEnd = -Infinity;
+    }
+    let lane = laneEnds.findIndex((end) => end <= it.start);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(it.end);
+    } else laneEnds[lane] = it.end;
+    cluster.push({ ...it, lane, lanes: 1 });
+    clusterEnd = Math.max(clusterEnd, it.end);
+  }
+  flush();
   return out;
 }
 

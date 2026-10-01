@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useRouter } from "next/navigation";
 import { Plus, Search, X, Pencil, Trash2, Check, Loader2 } from "lucide-react";
 import { LookupSelect, type LookupOption } from "@/components/ui/lookup-select";
 import { fireToast } from "@/lib/toast";
@@ -9,6 +11,7 @@ import type { DueItemRow } from "@/lib/queries/accounts-due";
 import { createDueItem, updateDueItem, deleteDueItem } from "@/app/(app)/accounts/due-dates/actions";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { MultiFilter } from "@/components/ui/multi-filter";
+import { ChecklistKanban, ChecklistSummary, ChecklistTableToolbar, type ChecklistView } from "@/components/accounts/checklist-table-toolbar";
 
 const INPUT =
   "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14.5px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle placeholder:font-normal focus:border-[color:var(--color-altus-red)]";
@@ -112,9 +115,15 @@ export function DueDatesChecklist({
 }: {
   items: DueItemRow[]; areaOptions: LookupOption[]; frequencyOptions: LookupOption[];
 }) {
+  const router = useRouter();
   const [q, setQ] = React.useState("");
   const [fArea, setFArea] = React.useState<string[]>([]);
   const [fFreq, setFFreq] = React.useState<string[]>([]);
+  const [view, setView] = React.useState<ChecklistView>("list");
+  const [sort, setSort] = React.useState<"position" | "compliance" | "due" | "area">("position");
+  const [rowsPerPage, setRowsPerPage] = React.useState<number | "all">(25);
+  const [fullscreen, setFullscreen] = React.useState(false);
+  const [visibleColumns, setVisibleColumns] = React.useState<Set<string>>(() => new Set(["code", "area", "compliance", "frequency", "period", "due", "tallyEntry", "balanceTally", "paidDate", "paidAmount", "notes"]));
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
@@ -146,9 +155,25 @@ export function DueDatesChecklist({
   }, [items, q, fArea, fFreq]);
 
   const hasFilters = q || fArea.length > 0 || fFreq.length > 0;
+  const sorted = React.useMemo(() => {
+    if (sort === "position") return filtered;
+    return [...filtered].sort((a, b) => {
+      const value = (row: DueItemRow) => sort === "compliance" ? row.compliance : sort === "due" ? (row.dueDate ?? "") : (row.area ?? "");
+      return value(a).localeCompare(value(b), undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [filtered, sort]);
+  const listed = React.useMemo(() => rowsPerPage === "all" ? sorted : sorted.slice(0, rowsPerPage), [sorted, rowsPerPage]);
+  const show = (column: string) => visibleColumns.has(column);
+  const nextSerial = React.useMemo(() => {
+    const highest = items.reduce((max, item) => {
+      const value = (item.code ?? "").trim();
+      return /^\d+$/.test(value) ? Math.max(max, Number(value)) : max;
+    }, 0);
+    return String(highest + 1);
+  }, [items]);
   function clearFilters() { setQ(""); setFArea([]); setFFreq([]); }
 
-  function startAdd() { setEditingId(null); setDraft(emptyDraft()); setAdding(true); }
+  function startAdd() { setEditingId(null); setDraft({ ...emptyDraft(), code: nextSerial }); setAdding(true); }
   function startEdit(r: DueItemRow) { setAdding(false); setDraft(toDraft(r)); setEditingId(r.id); }
   function cancel() { setAdding(false); setEditingId(null); }
 
@@ -163,6 +188,7 @@ export function DueDatesChecklist({
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       fireToast({ message: adding ? "Item added." : "Item saved.", type: "success" });
       cancel();
+      router.refresh();
     });
   }
 
@@ -176,10 +202,27 @@ export function DueDatesChecklist({
     });
   }
 
-  const totalCols = 9;
+  function exportCsv() {
+    const header = ["S. No", "Area", "Compliance", "Frequency", "Statement Period", "Due Date", "Tally Entry", "Balance Tally", "Paid Date", "Paid Amount", "Notes"];
+    const escape = (value: string | null) => { const v = value ?? ""; return /[\",\n]/.test(v) ? `\"${v.replace(/\"/g, '\"\"')}\"` : v; };
+    const csv = [header, ...sorted.map((item) => [item.code, item.area, item.compliance, item.frequency, item.statementPeriod, item.dueDate, item.tallyEntry, item.balanceTally, item.paidDate, item.paidAmt, item.notes].map(escape))].map((row) => row.join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "due-dates-master.csv"; link.click(); URL.revokeObjectURL(url);
+  }
+
+  async function importRows(rows: Array<Record<string, string>>) {
+    const valid = rows.filter((row) => (row.compliance ?? "").trim());
+    if (!valid.length) { fireToast({ message: "The CSV needs a Compliance column.", type: "error" }); return; }
+    const results = await Promise.all(valid.map((row) => createDueItem({ code: row.sno ?? row.code ?? null, area: row.area ?? null, compliance: row.compliance, frequency: row.frequency ?? row.freq ?? null, statementPeriod: row.statementperiod ?? null, dueDate: row.duedate ?? row.due ?? null, tallyEntry: row.tallyentry ?? null, balanceTally: row.balancetally ?? null, paidDate: row.paiddate ?? null, paidAmt: row.paidamount ?? row.paidamt ?? null, notes: row.notes ?? null })));
+    const failed = results.filter((result) => !result.ok);
+    if (failed.length) { fireToast({ message: `${valid.length - failed.length} imported; ${failed.length} could not be added.`, type: "error" }); return; }
+    fireToast({ message: `${valid.length} due-date items imported.`, type: "success" });
+  }
+
+  const totalCols = visibleColumns.size + 1;
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className={fullscreen ? "fixed inset-0 z-[80] overflow-auto bg-surface-page p-4" : "flex flex-col gap-4"}>
       <div className="flex flex-wrap items-center gap-3">
         <CollapsibleSearch scope="bills, area, notes">
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3">
@@ -213,23 +256,24 @@ export function DueDatesChecklist({
         </button>
       </div>
 
+      <ChecklistTableToolbar view={view} onViewChange={setView} fullscreen={fullscreen} onFullscreenChange={setFullscreen} rowsPerPage={rowsPerPage} onRowsPerPageChange={setRowsPerPage} sort={sort} sortOptions={[{ value: "position", label: "S. No" }, { value: "compliance", label: "Compliance" }, { value: "due", label: "Due date" }, { value: "area", label: "Area" }]} onSortChange={(value) => setSort(value as typeof sort)} columns={[{ id: "code", label: "S. No" }, { id: "area", label: "Area" }, { id: "compliance", label: "Compliance" }, { id: "frequency", label: "Frequency" }, { id: "period", label: "Statement period" }, { id: "due", label: "Due date" }, { id: "tallyEntry", label: "Tally entry" }, { id: "balanceTally", label: "Balance tally" }, { id: "paidDate", label: "Paid date" }, { id: "paidAmount", label: "Paid amount" }, { id: "notes", label: "Notes" }]} visibleColumns={visibleColumns} onVisibleColumnsChange={setVisibleColumns} onExport={exportCsv} onUpload={importRows} />
+
       <div className="text-[13px] font-semibold text-ink-subtle">
         {filtered.length} {filtered.length === 1 ? "item" : "items"}{hasFilters ? ` · filtered from ${items.length}` : ""}
       </div>
 
-      <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-        <table className="w-full border-collapse text-left" style={{ minWidth: 1100 }}>
+      {(adding || editingId) && <EditorDialog draft={draft} setDraft={setDraft} areaOptions={areaOptions} frequencyOptions={frequencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />}
+
+      {view === "dashboard" ? <ChecklistSummary title="due-date items" groups={areas.map((label) => ({ label, count: sorted.filter((item) => item.area === label).length })).filter((group) => group.count > 0)} /> : view === "kanban" ? <ChecklistKanban items={sorted.map((item) => ({ id: item.id, title: item.compliance, group: item.area ?? "Unassigned", detail: `Due ${item.dueDate ?? "not set"}`, onEdit: () => startEdit(item) }))} /> : <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+        <table className="w-full border-collapse text-left" style={{ minWidth: 1350 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--color-hairline)" }}>
-              <Th>S. No</Th><Th>Area</Th><Th>Compliance</Th><Th>Freq</Th>
-              <Th>Stmt Period</Th><Th>Due</Th><Th>Payment</Th><Th>Notes</Th><Th className="text-right">{""}</Th>
+              {show("code") && <Th>S. No</Th>}{show("area") && <Th>Area</Th>}{show("compliance") && <Th>Compliance</Th>}{show("frequency") && <Th>Freq</Th>}
+              {show("period") && <Th>Stmt Period</Th>}{show("due") && <Th>Due</Th>}{show("tallyEntry") && <Th>Tally Entry</Th>}{show("balanceTally") && <Th>Balance Tally</Th>}{show("paidDate") && <Th>Paid Date</Th>}{show("paidAmount") && <Th>Paid Amount</Th>}{show("notes") && <Th>Notes</Th>}<Th className="text-right">{""}</Th>
             </tr>
           </thead>
           <tbody>
-            {(adding || (editingId && filtered.every((r) => r.id !== editingId))) && (
-              <EditorRow colSpan={totalCols} draft={draft} setDraft={setDraft} areaOptions={areaOptions} frequencyOptions={frequencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />
-            )}
-            {filtered.length === 0 && !adding ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td colSpan={totalCols} className="px-5 py-16 text-center">
                   <p className="text-[15px] font-semibold text-ink-muted">{hasFilters ? "No items match these filters." : "No due-date items yet."}</p>
@@ -241,31 +285,19 @@ export function DueDatesChecklist({
                 </td>
               </tr>
             ) : (
-              filtered.map((r) =>
-                editingId === r.id ? (
-                  <EditorRow key={r.id} colSpan={totalCols} draft={draft} setDraft={setDraft} areaOptions={areaOptions} frequencyOptions={frequencyOptions} onSave={save} onCancel={cancel} busy={busy} adding={false} />
-                ) : (
+              listed.map((r) => (
                   <tr key={r.id} className="group transition-colors hover:bg-surface-soft" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
-                    <Td className="font-bold text-ink-strong whitespace-nowrap">{r.code || <Dim />}</Td>
-                    <Td><StatusChipNeutral value={r.area} /></Td>
-                    <Td><span className="block max-w-[280px] whitespace-pre-wrap break-words font-semibold text-ink-strong">{r.compliance}</span></Td>
-                    <Td className="whitespace-nowrap text-[13px]">{r.frequency || <Dim />}</Td>
-                    <Td className="whitespace-nowrap text-[13px] text-ink-soft">{r.statementPeriod || <Dim />}</Td>
-                    <Td className="whitespace-nowrap font-bold text-ink-strong">{r.dueDate || <Dim />}</Td>
-                    <Td>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <StatusChip value={r.tallyEntry} />
-                          <StatusChip value={r.balanceTally} />
-                        </div>
-                        {(r.paidDate || r.paidAmt) && (
-                          <div className="text-[12px] font-semibold text-ink-soft whitespace-nowrap">
-                            {r.paidDate ?? ""}{r.paidAmt ? ` · Rs. ${r.paidAmt}` : ""}
-                          </div>
-                        )}
-                      </div>
-                    </Td>
-                    <Td>{r.notes ? <p className="max-w-[220px] whitespace-pre-wrap break-words text-[13px] text-ink-soft" title={r.notes}>{r.notes}</p> : <Dim />}</Td>
+                    {show("code") && <Td className="font-bold text-ink-strong whitespace-nowrap">{r.code || <Dim />}</Td>}
+                    {show("area") && <Td><StatusChipNeutral value={r.area} /></Td>}
+                    {show("compliance") && <Td><span className="block max-w-[280px] whitespace-pre-wrap break-words font-semibold text-ink-strong">{r.compliance}</span></Td>}
+                    {show("frequency") && <Td className="whitespace-nowrap text-[13px]">{r.frequency || <Dim />}</Td>}
+                    {show("period") && <Td className="whitespace-nowrap text-[13px] text-ink-soft">{r.statementPeriod || <Dim />}</Td>}
+                    {show("due") && <Td className="whitespace-nowrap font-bold text-ink-strong">{r.dueDate || <Dim />}</Td>}
+                    {show("tallyEntry") && <Td><StatusChip value={r.tallyEntry} /></Td>}
+                    {show("balanceTally") && <Td><StatusChip value={r.balanceTally} /></Td>}
+                    {show("paidDate") && <Td className="whitespace-nowrap font-semibold text-ink-soft">{r.paidDate || <Dim />}</Td>}
+                    {show("paidAmount") && <Td className="whitespace-nowrap font-semibold text-ink-soft">{r.paidAmt ? `Rs. ${r.paidAmt}` : <Dim />}</Td>}
+                    {show("notes") && <Td>{r.notes ? <p className="max-w-[220px] whitespace-pre-wrap break-words text-[13px] text-ink-soft" title={r.notes}>{r.notes}</p> : <Dim />}</Td>}
                     <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                   </tr>
                 ),
@@ -273,7 +305,7 @@ export function DueDatesChecklist({
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
     </section>
   );
 }
@@ -319,26 +351,33 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   );
 }
 
-function EditorRow({
-  colSpan, draft, setDraft, areaOptions, frequencyOptions, onSave, onCancel, busy, adding,
+function EditorDialog({
+  draft, setDraft, areaOptions, frequencyOptions, onSave, onCancel, busy, adding,
 }: {
-  colSpan: number; draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>;
+  draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>;
   areaOptions: LookupOption[]; frequencyOptions: LookupOption[];
   onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean;
 }) {
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   return (
-    <tr style={{ borderBottom: "1px solid var(--color-hairline)", background: "color-mix(in srgb, var(--color-altus-red) 3%, var(--color-surface-card))" }}>
-      <td colSpan={colSpan} className="px-5 py-5">
+    <Dialog.Root open onOpenChange={(open) => { if (!open && !busy) onCancel(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/35 backdrop-blur-[1px]" />
+        <Dialog.Content className="fixed inset-x-3 top-1/2 z-[91] max-h-[88vh] w-auto max-w-5xl -translate-y-1/2 overflow-hidden rounded-2xl border border-hairline bg-surface-card shadow-2xl outline-none md:left-1/2 md:right-auto md:w-[min(94vw,1080px)] md:-translate-x-1/2">
+          <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+            <div><Dialog.Title className="text-[20px] font-extrabold text-ink-strong">{adding ? "New Due Date Item" : "Edit Due Date Item"}</Dialog.Title><Dialog.Description className="sr-only">Update due-date details.</Dialog.Description></div>
+            <Dialog.Close asChild><button type="button" disabled={busy} className="inline-flex size-9 items-center justify-center rounded-lg text-ink-muted hover:bg-surface-soft" aria-label="Cancel editing"><X size={19} /></button></Dialog.Close>
+          </div>
+          <div className="max-h-[calc(88vh-156px)] overflow-y-auto px-5 py-5">
         <div className="grid grid-cols-12 gap-4 max-lg:grid-cols-6 max-md:grid-cols-2">
           <Field label="S. No" className="col-span-2 max-md:col-span-1">
-            <input value={draft.code ?? ""} onChange={(e) => set({ code: e.target.value })} className={INPUT} placeholder="1" aria-label="S. No" autoFocus />
+            <input value={draft.code ?? ""} onChange={(e) => set({ code: e.target.value })} className={INPUT} placeholder="Auto-numbered" aria-label="S. No" readOnly={adding} title={adding ? "Automatically assigned from the last S. No." : "S. No"} />
           </Field>
           <Field label="Area" className="col-span-4 max-lg:col-span-2 max-md:col-span-1">
             <ValueSelect label="area" kind="due_area" options={areaOptions} value={draft.area} onChange={(v) => set({ area: v })} placeholder="Area…" />
           </Field>
           <Field label="Compliance / bill" className="col-span-6 max-lg:col-span-6 max-md:col-span-2">
-            <input value={draft.compliance} onChange={(e) => set({ compliance: e.target.value })} className={INPUT} placeholder="e.g. Yashodhan Electricity" aria-label="Compliance" />
+            <input value={draft.compliance} onChange={(e) => set({ compliance: e.target.value })} className={INPUT} placeholder="e.g. Yashodhan Electricity" aria-label="Compliance" autoFocus />
           </Field>
           <Field label="Frequency" className="col-span-3 max-lg:col-span-2 max-md:col-span-1">
             <ValueSelect label="frequency" kind="due_frequency" options={frequencyOptions} value={draft.frequency} onChange={(v) => set({ frequency: v })} placeholder="Frequency…" />
@@ -389,7 +428,8 @@ function EditorRow({
             <textarea value={draft.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} className={INPUT + " min-h-[52px] resize-y"} placeholder="Notes" aria-label="Notes" />
           </Field>
         </div>
-        <div className="mt-4 flex items-center justify-end gap-2">
+          </div>
+        <div className="flex items-center justify-end gap-2 border-t border-hairline bg-surface-soft px-5 py-4">
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50">
             <X size={16} strokeWidth={2.4} /> Cancel
           </button>
@@ -397,8 +437,9 @@ function EditorRow({
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={2.6} />} {adding ? "Add Item" : "Save Changes"}
           </button>
         </div>
-      </td>
-    </tr>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

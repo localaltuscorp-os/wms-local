@@ -1,9 +1,10 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { FileSignature, Paperclip, ReceiptIndianRupee } from "lucide-react";
+import { FileSignature, Paperclip } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { listBillingEntities } from "@/lib/billing/entities";
 import { CONTRACT_PAYMENT_TYPE_LABELS, CONTRACT_STATUS_LABELS, type ContractStatus } from "@/db/enums";
 import { listContracts } from "@/lib/queries/billing-contracts";
@@ -51,21 +52,8 @@ export default async function ContractsPage() {
       >
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="min-w-0">
-            <span
-              className="inline-flex items-center gap-2 rounded-pill px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white"
-              style={{ background: `linear-gradient(135deg, ${BILLING_PURPLE}, ${BILLING_PURPLE_DEEP})` }}
-            >
-              <ReceiptIndianRupee size={13} strokeWidth={2.6} /> Billing
-            </span>
             <h1
-              className="mt-3 text-ink-strong"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(28px,3.4vw,42px)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.02,
-              }}
+              style={PAGE_COMMAND_BAR_TITLE_STYLE}
             >
               All Contracts View
             </h1>

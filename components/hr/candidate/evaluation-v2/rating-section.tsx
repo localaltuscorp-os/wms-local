@@ -57,8 +57,8 @@ export function RatingSection({
                 const muted = instance.cantSay.includes(item.id);
                 const value = instance.ratings[item.id] ?? 0;
                 return (
-                  <div key={item.id} className="flex flex-col gap-2 border-b border-hairline px-4 py-3 last:border-b-0">
-                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <div key={item.id} className="flex flex-col gap-3 border-b border-hairline px-5 py-4 last:border-b-0">
+                    <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-3">
                       <span className="min-w-[140px] flex-1 text-[14px] font-semibold leading-snug text-ink-strong">
                         {item.label}
                       </span>

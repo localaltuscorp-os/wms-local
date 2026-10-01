@@ -157,17 +157,17 @@ export function RowNotes({
       </button>
 
       {open && (
-        <div id={id} className="ev2-collapse mt-2">
-          <div className="mb-1.5 flex justify-end">
+        <div id={id} className="ev2-collapse mt-2.5 rounded-xl bg-surface-soft p-2.5">
+          <div className="mb-2 flex justify-end">
             <MicButton recording={dict.recording} supported={dict.supported} onToggle={dict.toggle} size="sm" />
           </div>
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Add a note for this line…"
-            rows={2}
+            rows={3}
             maxLength={4000}
-            className="w-full rounded-xl border px-3 py-2 text-[13.5px] leading-relaxed text-ink-strong outline-none transition-colors focus:border-altus-red"
+            className="min-h-[88px] w-full rounded-xl border bg-white px-3.5 py-2.5 text-[13.5px] leading-relaxed text-ink-strong outline-none transition-colors focus:border-altus-red"
             style={{ resize: "vertical", borderColor: "var(--color-hairline-strong)" }}
           />
           {dict.recording && (

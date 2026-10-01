@@ -1,17 +1,19 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Pencil, Plus, Search, Trash2, Upload, UserCheck, UserX, X } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Mic, Pencil, Plus, Search, Trash2, Upload, UserCheck, UserX, X } from "lucide-react";
+import { getSupabaseClient } from "@/lib/supabase/browser";
 import { fireToast } from "@/lib/toast";
 import {
   EMPTY_VENDOR,
-  VENDOR_CATEGORIES,
   vendorFullName,
   type VendorFields,
 } from "@/lib/operations/directory";
 import type { VendorRow } from "@/lib/queries/ops-vendors";
-import { deleteVendor, saveVendor, setVendorActive } from "@/app/(app)/operations/directory/actions";
+import { createVendorUploadUrl, deleteVendor, saveVendor, setVendorActive, uploadVendorFileDirect } from "@/app/(app)/operations/directory/actions";
+import { useDictation } from "@/components/ui/use-dictation";
 import {
   FILTER,
   Field,
@@ -36,7 +38,9 @@ function toDraft(v: VendorRow): Draft {
     category: v.category,
     firstName: v.firstName,
     lastName: v.lastName ?? "",
+    companyName: v.companyName ?? "",
     cellNo: v.cellNo ?? "",
+    whatsappCellNo: v.whatsappCellNo ?? "",
     email: v.email ?? "",
     addressLine1: v.addressLine1 ?? "",
     addressLine2: v.addressLine2 ?? "",
@@ -48,6 +52,12 @@ function toDraft(v: VendorRow): Draft {
     pincode: v.pincode ?? "",
     website: v.website ?? "",
     amc: v.amc,
+    officeOpenTime: v.officeOpenTime ?? "",
+    officeEndTime: v.officeEndTime ?? "",
+    businessCardFrontPath: v.businessCardFrontPath ?? "",
+    businessCardBackPath: v.businessCardBackPath ?? "",
+    cataloguePath: v.cataloguePath ?? "",
+    additionalLinks: v.additionalLinks.join("\n"),
     notes: v.notes ?? "",
   };
 }
@@ -58,7 +68,7 @@ function toDraft(v: VendorRow): Draft {
  * (grid → review → create). Editing is Ruchita, Rutvisha and Manan only; the
  * server actions enforce it, this only hides the controls.
  */
-export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; canEdit: boolean }) {
+export function VendorDirectory({ vendors, categories, canEdit }: { vendors: VendorRow[]; categories: string[]; canEdit: boolean }) {
   const router = useRouter();
   const [tab, setTab] = React.useState<"active" | "inactive">("active");
   const [q, setQ] = React.useState("");
@@ -66,10 +76,11 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
   const [draft, setDraft] = React.useState<Draft | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState<VendorRow | null>(null);
 
-  const categories = React.useMemo(
-    () => Array.from(new Set([...VENDOR_CATEGORIES, ...vendors.map((v) => v.category)])).sort((a, b) => a.localeCompare(b)),
-    [vendors],
+  const filterCategories = React.useMemo(
+    () => Array.from(new Set([...categories, ...vendors.map((v) => v.category)])).sort((a, b) => a.localeCompare(b)),
+    [categories, vendors],
   );
 
   const needle = q.trim().toLowerCase();
@@ -80,7 +91,7 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
     .filter(
       (v) =>
         !needle ||
-        [v.category, v.firstName, v.lastName, v.cellNo, v.email, v.addressLine1, v.addressLine2, v.addressLine3, v.addressLine4, v.landmark, v.city, v.state, v.pincode, v.website, v.notes]
+        [v.category, v.firstName, v.lastName, v.companyName, v.cellNo, v.whatsappCellNo, v.email, v.addressLine1, v.addressLine2, v.addressLine3, v.addressLine4, v.landmark, v.city, v.state, v.pincode, v.website, v.additionalLinks.join(" "), v.notes]
           .some((s) => (s ?? "").toLowerCase().includes(needle)),
     );
   const activeCount = vendors.filter((v) => v.isActive).length;
@@ -106,6 +117,20 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
   }
 
   const set = (patch: Partial<VendorFields>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const setCellNo = (rawCellNo: string) =>
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            cellNo: rawCellNo.replace(/\D/g, "").slice(0, 10),
+            // Copy the first value, then preserve an explicitly edited WhatsApp number.
+            whatsappCellNo:
+              !d.whatsappCellNo || d.whatsappCellNo === d.cellNo
+                ? rawCellNo.replace(/\D/g, "").slice(0, 10)
+                : d.whatsappCellNo,
+          }
+        : d,
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,7 +155,7 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
         </div>
         <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category" className={FILTER}>
           <option value="all">All categories</option>
-          {categories.map((c) => (
+          {filterCategories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
@@ -138,6 +163,9 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
         </NativeSelect>
         {canEdit ? (
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Link href="/operations/directory/categories" className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[13px] font-bold text-ink-strong hover:bg-surface-soft">
+              Manage categories
+            </Link>
             <button
               type="button"
               onClick={() => setBulkOpen(true)}
@@ -168,17 +196,21 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
           {/* min-w: 16 columns in a 1120px shell squeezed Email down to one
               character per line ("cool.a / ir@ex / ampl / e.inva / lid").
               A floor makes the box scroll sideways instead of crushing cells. */}
-          <table className="w-full min-w-[1180px] border-collapse">
+          <table className="w-full min-w-[1680px] border-collapse">
             <thead className="bg-surface-soft">
               <tr>
                 <th className={TH}>Sr. No.</th>
                 <th className={TH}>Category</th>
                 <th className={TH}>Name</th>
+                <th className={TH}>Company</th>
                 <th className={TH}>Cell No</th>
+                <th className={TH}>WhatsApp</th>
                 <th className={TH}>Email</th>
                 <th className={TH}>Postal Address</th>
                 <th className={TH}>City / State</th>
                 <th className={TH}>Website</th>
+                <th className={TH}>Office hours</th>
+                <th className={TH}>Files / links</th>
                 <th className={TH}>AMC</th>
                 <th className={TH}><span className="sr-only">Actions</span></th>
               </tr>
@@ -197,8 +229,12 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                       {name}
                       {v.notes ? <span className="mt-0.5 block text-[12px] font-medium text-ink-muted">{v.notes}</span> : null}
                     </td>
+                    <td className={`${TD} min-w-[160px] font-semibold`}>{v.companyName || "-"}</td>
                     <td className={`${TD} whitespace-nowrap tabular-nums`}>
                       {v.cellNo ? <a href={`tel:${v.cellNo}`} className="hover:underline">{v.cellNo}</a> : "-"}
+                    </td>
+                    <td className={`${TD} whitespace-nowrap tabular-nums`}>
+                      {v.whatsappCellNo ? <a href={`https://wa.me/${v.whatsappCellNo.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{v.whatsappCellNo}</a> : "-"}
                     </td>
                     <td className={`${TD} whitespace-nowrap`}>{v.email ? <a href={`mailto:${v.email}`} className="hover:underline">{v.email}</a> : "-"}</td>
                     <td className={`${TD} min-w-[220px] text-[13px]`}>
@@ -227,6 +263,16 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                         "-"
                       )}
                     </td>
+                    <td className={`${TD} whitespace-nowrap text-[12.5px]`}>{[v.officeOpenTime, v.officeEndTime].filter(Boolean).join(" – ") || "-"}</td>
+                    <td className={`${TD} min-w-[150px]`}>
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 text-[12px] font-semibold">
+                        {v.businessCardFrontUrl ? <a href={v.businessCardFrontUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Card front</a> : null}
+                        {v.businessCardBackUrl ? <a href={v.businessCardBackUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Card back</a> : null}
+                        {v.catalogueUrl ? <a href={v.catalogueUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Catalogue</a> : null}
+                        {v.additionalLinks.map((link) => <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="hover:underline">Link</a>)}
+                        {!v.businessCardFrontUrl && !v.businessCardBackUrl && !v.catalogueUrl && v.additionalLinks.length === 0 ? "-" : null}
+                      </div>
+                    </td>
                     <td className={TD}>
                       <span
                         className="rounded-pill px-2 py-0.5 text-[12px] font-bold"
@@ -236,10 +282,14 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                       </span>
                     </td>
                     <td className={`${TD} whitespace-nowrap`}>
-                      <div className="flex items-center justify-end gap-1.5">
-                        <WhatsAppButton phone={v.cellNo} name={name} />
+                      {/* Edit/active/delete STACKED (asked 2026-09-29: the
+                          Postal Address column already eats the row's
+                          horizontal room, so these three no longer compete
+                          for it side by side). */}
+                      <div className="flex items-start justify-end gap-1.5">
+                        <WhatsAppButton phone={v.whatsappCellNo || v.cellNo} name={name} />
                         {canEdit ? (
-                          <>
+                          <div className="flex flex-col gap-1">
                             <IconBtn label="Edit" onClick={() => setDraft(toDraft(v))}>
                               <Pencil size={14} />
                             </IconBtn>
@@ -252,19 +302,10 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
                             >
                               {v.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
                             </IconBtn>
-                            <IconBtn
-                              label="Delete"
-                              danger
-                              busy={busy === `del-${v.id}`}
-                              onClick={() => {
-                                if (window.confirm(`Delete ${name} from the Directory? This can't be undone.`)) {
-                                  void run(`del-${v.id}`, () => deleteVendor(v.id), "Vendor deleted");
-                                }
-                              }}
-                            >
+                            <IconBtn label="Delete" danger onClick={() => setConfirmDelete(v)}>
                               <Trash2 size={14} />
                             </IconBtn>
-                          </>
+                          </div>
                         ) : null}
                       </div>
                     </td>
@@ -285,7 +326,7 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
         <Modal title={draft.id ? "Edit vendor" : "Add vendor"} onClose={() => setDraft(null)} wide>
           <form onSubmit={save} className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
             <Field label="Category" required>
-              <CategoryInput value={draft.category} onChange={(v) => set({ category: v })} options={categories} placeholder="AC, Electrician…" className={INPUT} required />
+              <CategoryInput value={draft.category} onChange={(v) => set({ category: v })} options={categories} placeholder="Choose a managed category" className={INPUT} required />
             </Field>
             <Field label="AMC">
               <div className="flex gap-2">
@@ -310,11 +351,17 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
             <Field label="First Name" required>
               <input value={draft.firstName} onChange={(e) => set({ firstName: e.target.value })} required className={INPUT} autoFocus />
             </Field>
-            <Field label="Last Name">
-              <input value={draft.lastName} onChange={(e) => set({ lastName: e.target.value })} className={INPUT} />
+            <Field label="Last Name" required>
+              <input value={draft.lastName} onChange={(e) => set({ lastName: e.target.value })} required className={INPUT} />
             </Field>
-            <Field label="Cell No">
-              <input value={draft.cellNo} onChange={(e) => set({ cellNo: e.target.value })} type="tel" inputMode="tel" className={INPUT} />
+            <Field label="Company Name" required>
+              <input value={draft.companyName} onChange={(e) => set({ companyName: e.target.value })} required className={INPUT} />
+            </Field>
+            <Field label="Cell No" required>
+              <input value={draft.cellNo} onChange={(e) => setCellNo(e.target.value)} type="tel" inputMode="numeric" maxLength={10} required className={INPUT} />
+            </Field>
+            <Field label="WhatsApp Cell No" required>
+              <input value={draft.whatsappCellNo} onChange={(e) => set({ whatsappCellNo: e.target.value.replace(/\D/g, "").slice(0, 10) })} type="tel" inputMode="numeric" maxLength={10} required className={INPUT} />
             </Field>
             <Field label="Email Address">
               <input value={draft.email} onChange={(e) => set({ email: e.target.value })} type="email" className={INPUT} />
@@ -346,8 +393,26 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
             <Field label="Website" className="col-span-2 max-sm:col-span-1">
               <input value={draft.website} onChange={(e) => set({ website: e.target.value })} placeholder="www.example.com" className={INPUT} />
             </Field>
+            <Field label="Vendor Office Open Time">
+              <input value={draft.officeOpenTime} onChange={(e) => set({ officeOpenTime: e.target.value })} type="time" className={INPUT} />
+            </Field>
+            <Field label="Vendor Office End Time">
+              <input value={draft.officeEndTime} onChange={(e) => set({ officeEndTime: e.target.value })} type="time" className={INPUT} />
+            </Field>
+            <Field label="Business Card - Front">
+              <VendorAttachmentField kind="business-card-front" path={draft.businessCardFrontPath} onChange={(path) => set({ businessCardFrontPath: path })} />
+            </Field>
+            <Field label="Business Card - Back">
+              <VendorAttachmentField kind="business-card-back" path={draft.businessCardBackPath} onChange={(path) => set({ businessCardBackPath: path })} />
+            </Field>
+            <Field label="PPT / Catalogue" className="col-span-2 max-sm:col-span-1">
+              <VendorAttachmentField kind="catalogue" path={draft.cataloguePath} onChange={(path) => set({ cataloguePath: path })} />
+            </Field>
+            <Field label="Additional links" className="col-span-2 max-sm:col-span-1">
+              <textarea value={draft.additionalLinks} onChange={(e) => set({ additionalLinks: e.target.value })} rows={2} placeholder="One https:// link per line" className={INPUT} />
+            </Field>
             <Field label="Notes" className="col-span-2 max-sm:col-span-1">
-              <textarea value={draft.notes} onChange={(e) => set({ notes: e.target.value })} rows={3} className={INPUT} />
+              <DictatedNotes value={draft.notes} onChange={(notes) => set({ notes })} />
             </Field>
             <div className="col-span-2 flex justify-end gap-2 max-sm:col-span-1">
               <button type="button" onClick={() => setDraft(null)} className="rounded-lg border border-hairline-strong px-4 py-2 text-[13.5px] font-bold text-ink-strong">
@@ -358,6 +423,36 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
               </button>
             </div>
           </form>
+        </Modal>
+      ) : null}
+
+      {confirmDelete ? (
+        <Modal title="Delete vendor" onClose={() => setConfirmDelete(null)}>
+          <p className="text-[14px] text-ink-strong">
+            Are you sure you want to delete {vendorFullName(confirmDelete)}? This can&apos;t be undone.
+          </p>
+          <div className="mt-5 flex justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(null)}
+              className="pastel-cta wg-btn rounded-lg px-4 py-2 text-[13.5px] font-bold"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy === `del-${confirmDelete.id}`}
+              onClick={async () => {
+                const id = confirmDelete.id;
+                const ok = await run(`del-${id}`, () => deleteVendor(id), "Vendor deleted");
+                if (ok) setConfirmDelete(null);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg px-5 py-2 text-[13.5px] font-bold text-white disabled:opacity-60"
+              style={{ background: `linear-gradient(135deg, ${RED}, var(--color-altus-red-deep))` }}
+            >
+              {busy === `del-${confirmDelete.id}` ? <Loader2 size={15} className="animate-spin" /> : null} Delete
+            </button>
+          </div>
         </Modal>
       ) : null}
 
@@ -375,7 +470,7 @@ export function VendorDirectory({ vendors, canEdit }: { vendors: VendorRow[]; ca
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-[17px] font-black text-ink-strong">Bulk upload vendors</h2>
-                <p className="text-[12.5px] font-medium text-ink-muted">First Name and Category are required. Everything else is optional.</p>
+                <p className="text-[12.5px] font-medium text-ink-muted">First Name, Last Name, Company Name, Cell No., WhatsApp Cell No. and Vendor Category are required.</p>
               </div>
               <button type="button" onClick={() => setBulkOpen(false)} aria-label="Close" className="text-ink-muted hover:text-ink-strong">
                 <X size={18} />
@@ -413,5 +508,88 @@ function IconBtn({
     >
       {busy ? <Loader2 size={14} className="animate-spin" /> : children}
     </button>
+  );
+}
+
+type VendorUploadKind = "business-card-front" | "business-card-back" | "catalogue";
+
+/** One private document slot. The browser uploads straight to the server-minted Storage target. */
+function VendorAttachmentField({ kind, path, onChange }: { kind: VendorUploadKind; path: string; onChange: (path: string) => void }) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = React.useState(false);
+  const name = path.split("/").at(-1) || "";
+
+  async function pick(file: File) {
+    setBusy(true);
+    try {
+      const signed = await createVendorUploadUrl({ kind, fileName: file.name, size: file.size, mime: file.type });
+      if (!signed.ok) throw new Error(signed.error);
+      if (signed.direct && signed.token) {
+        const { error } = await getSupabaseClient()
+          .storage.from(signed.bucket)
+          .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type || "application/octet-stream" });
+        if (error) throw new Error(error.message);
+      } else {
+        const fd = new FormData();
+        fd.set("file", file);
+        fd.set("kind", kind);
+        fd.set("path", signed.path);
+        const uploaded = await uploadVendorFileDirect(fd);
+        if (!uploaded.ok) throw new Error(uploaded.error);
+      }
+      onChange(signed.path);
+    } catch (error) {
+      fireToast({ message: error instanceof Error ? error.message : "Could not upload the file.", type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-10 items-center gap-2 rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5">
+      <FileText size={15} className="shrink-0 text-ink-subtle" />
+      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink-soft">{name || "No file selected"}</span>
+      {path ? (
+        <button type="button" onClick={() => onChange("")} className="text-[12px] font-bold text-altus-red hover:underline">
+          Remove
+        </button>
+      ) : null}
+      <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="rounded-md bg-surface-soft px-2 py-1 text-[12px] font-bold text-ink-strong disabled:opacity-60">
+        {busy ? "Uploading…" : path ? "Replace" : "Upload"}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void pick(file);
+        }}
+      />
+    </div>
+  );
+}
+
+function DictatedNotes({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const dictation = useDictation({ value, onChange: (next) => onChange(next.slice(0, 2000)) });
+  return (
+    <div className="relative">
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={3} className={`${INPUT} ${dictation.supported ? "pr-10" : ""}`} />
+      {dictation.supported ? (
+        <button
+          type="button"
+          onClick={dictation.toggle}
+          aria-pressed={dictation.recording}
+          aria-label={dictation.recording ? "Stop dictation" : "Dictate notes with voice"}
+          title={dictation.recording ? "Stop dictation" : "Dictate with voice"}
+          className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-ink-subtle hover:bg-surface-soft"
+          style={dictation.recording ? { color: "var(--color-altus-red)" } : undefined}
+        >
+          <Mic size={15} />
+        </button>
+      ) : null}
+      {dictation.recording && dictation.interim ? <p className="mt-1 text-[12px] italic text-ink-subtle">{dictation.interim}</p> : null}
+    </div>
   );
 }

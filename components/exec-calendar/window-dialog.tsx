@@ -38,7 +38,7 @@ export function ExecWindowDialog({ current, onClose }: { current: GridConfig; on
   const router = useRouter();
   const [startMin, setStartMin] = React.useState(current.startMin);
   const [endMin, setEndMin] = React.useState(current.endMin);
-  const [slotMin, setSlotMin] = React.useState<30 | 60>(current.slotMin);
+  const [slotMin, setSlotMin] = React.useState<15 | 30 | 60>(current.slotMin);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 

@@ -196,7 +196,7 @@ export function CredentialDialog({
 
               <label className="block">
                 <span className="mb-1 block text-[12px] font-bold text-ink-soft">Phone No.</span>
-                <input value={draft.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="Registered mobile" className={field} inputMode="tel" />
+                <input type="tel" value={draft.phone} onChange={(e) => set({ phone: e.target.value.replace(/\D/g, "").slice(0, 10) })} placeholder="Registered mobile" maxLength={10} className={field} inputMode="numeric" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[12px] font-bold text-ink-soft">Default Email</span>

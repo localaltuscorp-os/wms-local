@@ -9,7 +9,7 @@ import {
   Lock,
   MessageSquare,
   StickyNote,
-  Download,
+  Eye,
   RotateCcw,
   CheckCircle2,
 } from "lucide-react";
@@ -411,7 +411,8 @@ export function TicketThread(props: TicketThreadProps) {
             className="inline-flex items-center gap-2 rounded-lg border border-hairline bg-surface-card px-2.5 py-1.5 text-[12.5px] font-medium text-ink-strong transition hover:border-[var(--color-altus-red)]"
             aria-disabled={!a.signedUrl}
           >
-            <Download size={13} className="text-ink-muted" />
+            <Eye size={13} className="text-ink-muted" />
+            <span className="font-bold text-ink-muted">View</span>
             <span className="max-w-[180px] truncate">{a.fileName}</span>
             {a.sizeBytes ? <span className="text-ink-muted">{fmtSize(a.sizeBytes)}</span> : null}
           </a>

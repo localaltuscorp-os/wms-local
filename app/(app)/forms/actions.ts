@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { moduleSubmissions, moduleSubmissionAttachments, formConfigs, productOptions } from "@/db/schema";
 import { requireUser, requireAdmin } from "@/lib/auth/current";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { validateFields, type FormFieldDef, type FormFieldType } from "@/lib/forms/field-types";
 import { MODULES, MODULE_KEYS, type ModuleKey } from "@/lib/forms/modules";
@@ -18,6 +19,8 @@ import {
   buildClaimAttachmentRows,
   type ClaimUploadRef,
 } from "@/lib/reimbursements/attachment-rows";
+import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
+import { afterResponse } from "@/lib/after";
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -90,6 +93,9 @@ export async function submitModule(input: {
     });
 
     revalidateModule(input.module);
+    if (input.module === "reimbursement") {
+      afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "reimbursement", actorId: me.id, employeeName: me.name }));
+    }
     return { ok: true, id };
   } catch (err) {
     if (err instanceof AttachmentError) return { ok: false, error: err.message };
@@ -112,6 +118,9 @@ export async function setModuleAdminFields(input: {
 
   const [sub] = await db.select().from(moduleSubmissions).where(eq(moduleSubmissions.id, input.id)).limit(1);
   if (!sub || !isModule(sub.module)) return { ok: false, error: "Not found" };
+  if (sub.module === "reimbursement" && (input.adminFields?.payment_date ?? "") !== (sub.adminFields?.payment_date ?? "")) {
+    return { ok: false, error: "Record reimbursement payments from Accounts → Approved payments after super-admin approval." };
+  }
 
   const fields = await resolveAdminFields(sub.module);
   const validated = validateFields(fields, input.adminFields ?? {}, []);
@@ -144,6 +153,10 @@ export async function decideModule(input: { id: string; status: "approved" | "re
 
   const [sub] = await db.select({ module: moduleSubmissions.module }).from(moduleSubmissions).where(eq(moduleSubmissions.id, parsed.data.id)).limit(1);
   if (!sub) return { ok: false, error: "Not found" };
+  if (sub.module === "reimbursement") {
+    if (!isSuperAdmin(me.email)) return { ok: false, error: "Reimbursement decisions are made in People → Approvals by a super-admin." };
+    return { ok: false, error: "Use People → Approvals to record the reimbursement decision." };
+  }
 
   await db
     .update(moduleSubmissions)

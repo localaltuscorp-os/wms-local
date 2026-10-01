@@ -11,6 +11,7 @@ import { InviteCandidateDialog } from "@/components/hr/candidate/invite-candidat
 import { fireToast } from "@/lib/toast";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { MultiFilter } from "@/components/ui/multi-filter";
+import { matchesCandidateSearch } from "@/lib/hr/candidate/candidate-search";
 
 /** The candidate's intake photo, falling back to their initials. Kept small and
  *  local — this is the only table that shows it. */
@@ -129,10 +130,7 @@ export function BasicDetailsScreen({
     if (position.length > 0 && !position.includes(c.positionApplied ?? "")) return false;
     if (form === "complete" && !c.submitted) return false;
     if (form === "draft" && c.submitted) return false;
-    if (q.trim()) {
-      const s = `${c.fullName} ${c.positionApplied ?? ""} ${c.mobile ?? ""} ${c.email ?? ""}`.toLowerCase();
-      if (!s.includes(q.trim().toLowerCase())) return false;
-    }
+    if (!matchesCandidateSearch(c, q)) return false;
     return true;
   });
 
@@ -356,10 +354,10 @@ export function BasicDetailsScreen({
                     <td className="whitespace-nowrap py-3 pl-2 pr-4">
                       <span className="inline-flex items-center gap-1.5">
                         <Link
-                          href={`/hr/candidates/${c.id}/evaluation` as Route}
+                          href={`/hr/evaluation?candidate=${encodeURIComponent(c.id)}` as Route}
                           className={ROW_BTN}
-                          title="Evaluation Record"
-                          aria-label={`Evaluation record for ${c.fullName || "candidate"}`}
+                          title="Open Evaluation Checklist"
+                          aria-label={`Open Evaluation Checklist for ${c.fullName || "candidate"}`}
                         >
                           <ClipboardCheck size={15} style={{ color: RED }} />
                         </Link>

@@ -1,4 +1,4 @@
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
 
 /**
  * WHO MAY DECIDE AN INCENTIVE REQUEST — Manan Vasa, and nobody else.
@@ -13,11 +13,11 @@ import { isFounderEmail } from "@/lib/auth/founder";
  * A hidden button is presentation.
  */
 export function canReviewIncentives(email: string | null | undefined): boolean {
-  return isFounderEmail(email);
+  return isSuperAdmin(email);
 }
 
 /** How the reviewer is named on screens and in messages. */
-export const INCENTIVE_REVIEWER_NAME = "Manan Vasa";
+export const INCENTIVE_REVIEWER_NAME = "a super-admin";
 
 /**
  * WHO MAY ADD, EDIT OR DELETE AN INCENTIVE TABLE RECORD.
@@ -35,5 +35,5 @@ export const INCENTIVE_REVIEWER_NAME = "Manan Vasa";
  * so hiding the buttons is presentation, not the lock.
  */
 export function canEditIncentiveTable(email: string | null | undefined): boolean {
-  return isFounderEmail(email);
+  return isSuperAdmin(email);
 }

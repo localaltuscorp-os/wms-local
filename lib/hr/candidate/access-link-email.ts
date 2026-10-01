@@ -96,14 +96,17 @@ export async function sendCandidateAccessLink(
         `— Altus Corp HR`,
       ].join("\n"),
     });
-    if (res.error) {
+    // A provider response without an id is not a dispatch receipt. Treat it
+    // exactly like an error so the HR dialog never promises a sent email when
+    // there is no accepted message to deliver.
+    if (res.error || !res.id) {
       // LOG THE REAL REASON. HR's screen says only "couldn't email" — correct,
       // because the reason is server configuration and no candidate-facing
       // surface should narrate it. But swallowing it entirely meant a dead
       // RESEND_API_KEY looked identical to a bad address, and the only way to
       // tell them apart was to probe the Resend API by hand. One line here
       // turns that investigation into reading the log.
-      console.warn(`[candidate-link] email not sent (${purpose}): ${res.error}`);
+      console.warn(`[candidate-link] email not sent (${purpose}): ${res.error ?? "provider returned no message id"}`);
       return false;
     }
     return true;

@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth/current";
 import { loadManageablePeople } from "@/lib/queries/compliance-board";
 import { buildComplianceTemplate } from "./bulk-template";
 import type { ComplianceKind } from "./schedule";
+import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 /**
  * GET /dcc/wcc/template.xlsx and /dcc/mcc/template.xlsx — the bulk-upload
@@ -13,7 +15,9 @@ import type { ComplianceKind } from "./schedule";
 export async function complianceTemplateResponse(kind: ComplianceKind): Promise<Response> {
   const me = await requireUser();
   const people = await loadManageablePeople(me);
-  const buffer = await buildComplianceTemplate({ kind, people });
+  const key = kind === "wcc" ? TEMPLATE_KEYS.wcc : TEMPLATE_KEYS.mcc;
+  const required = new Set(await requiredFieldsForTemplate(key, "default"));
+  const buffer = await buildComplianceTemplate({ kind, people, required });
   return new Response(new Uint8Array(buffer), {
     status: 200,
     headers: {

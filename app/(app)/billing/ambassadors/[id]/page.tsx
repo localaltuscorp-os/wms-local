@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { notFound } from "next/navigation";
 import { Pencil, Plus, Mail, Phone, Building2 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { getAmbassador } from "@/lib/queries/ambassadors";
 import { isWonStage } from "@/lib/ambassadors/stages";
@@ -76,8 +77,7 @@ export default async function AmbassadorWorkspacePage({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h1
-                    className="text-ink-strong"
-                    style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(26px,2.8vw,38px)", letterSpacing: "-0.025em", lineHeight: 1.05 }}
+                    style={PAGE_COMMAND_BAR_TITLE_STYLE}
                   >
                     {a.name}
                   </h1>

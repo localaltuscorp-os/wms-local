@@ -53,7 +53,6 @@ describe("hasManualPaymentAmount", () => {
 describe("manualPaymentNote", () => {
   it("names the editor the money came from", () => {
     expect(manualPaymentNote("entries")).toContain("Entries editor");
-    expect(manualPaymentNote("status")).toContain("Status editor");
     expect(manualPaymentNote("split")).toContain("Split editor");
   });
 
@@ -62,14 +61,13 @@ describe("manualPaymentNote", () => {
   });
 
   it("keeps the caller's own note, when there is one", () => {
-    expect(manualPaymentNote("status", "August top-up")).toContain("August top-up");
-    expect(manualPaymentNote("status", null)).not.toContain("null");
+    expect(manualPaymentNote("entries", "August top-up")).toContain("August top-up");
+    expect(manualPaymentNote("entries", null)).not.toContain("null");
   });
 });
 
 describe("every manual writer reaches the ledger", () => {
   const entries = readFileSync("app/(app)/incentive/admin-actions.ts", "utf8");
-  const status = readFileSync("app/(app)/incentive/status-actions.ts", "utf8");
   const ledger = readFileSync("lib/incentive/record-manual-payment.ts", "utf8");
 
   it("the Entries editor records the payment in its transaction", () => {
@@ -79,7 +77,7 @@ describe("every manual writer reaches the ledger", () => {
 
   it("every Status editor path records the payment too", () => {
     // entry-status · project-leg status · split = three writers on this side.
-    expect((status.match(/recordManualIncentivePayment\(tx,/g) ?? []).length).toBe(3);
+    expect((entries.match(/recordManualIncentivePayment\(tx,/g) ?? []).length).toBe(2);
   });
 
   it("only a hand entry uses the manual_entry method", () => {

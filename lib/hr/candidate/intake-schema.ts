@@ -1,10 +1,11 @@
 import { visibleFields, type FormFieldDef } from "@/lib/forms/field-types";
 import { RESUME_KEY } from "./resume";
+import { INDIAN_STATES } from "./aadhaar-kyc";
 
 /**
  * Wizard schema for the Candidate Interview Form — restructured into rail
  * sections on top of the existing FormFieldDef renderer. Repeated blocks
- * (Education, Previous Work, Family) become "add another" repeaters so the rail
+ * (Previous Work and Family) become "add another" repeaters so the rail
  * stays short.
  *
  * Runtime values are a flat Record<string,string> keyed:
@@ -43,6 +44,7 @@ export function isRequiredField(f: FormFieldDef): boolean {
 }
 
 const YN: string[] = ["Yes", "No"];
+const CITY_OPTIONS = ["Ahmedabad", "Bengaluru", "Bhopal", "Chandigarh", "Chennai", "Delhi", "Goa", "Gurugram", "Hyderabad", "Indore", "Jaipur", "Kanpur", "Kochi", "Kolkata", "Lucknow", "Mumbai", "Nagpur", "Noida", "Patna", "Pune", "Rajkot", "Surat", "Thane", "Vadodara", "Visakhapatnam", "Other"];
 
 /** Seed list for the Interview Positions master (admins add/remove live). */
 export const DEFAULT_POSITIONS: string[] = [
@@ -62,31 +64,46 @@ export const DEFAULT_POSITIONS: string[] = [
 ];
 
 const EDU_FIELDS: FormFieldDef[] = [
-  { key: "degree", label: "Degree / Diploma", type: "text", placeholder: "e.g. 10th / 12th / B.Com" },
-  { key: "school", label: "Name of School / College", type: "text" },
-  { key: "board", label: "Board / University", type: "text" },
+  { key: "tenthSchool", label: "Name of School", type: "text", groupLabel: "10th Standard" },
+  { key: "tenthBoard", label: "Board", type: "text", groupLabel: "10th Standard" },
+  { key: "tenthPassingYear", label: "Year of Passing", type: "text", placeholder: "e.g. 2019", groupLabel: "10th Standard" },
   {
-    key: "passingMonth",
+    key: "tenthPassingMonth",
     label: "Month of Passing",
     type: "select",
+    groupLabel: "10th Standard",
     options: [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December",
     ],
   },
-  { key: "passingYear", label: "Year of Passing", type: "text", placeholder: "e.g. 2019" },
-  { key: "attempts", label: "Number of Attempts", type: "number" },
-  { key: "percentage", label: "Percentage / CGPA", type: "text", placeholder: "e.g. 78% / 8.2" },
+  { key: "tenthAttempts", label: "Number of Attempts", type: "number", groupLabel: "10th Standard" },
+  { key: "tenthPercentage", label: "Percentage / CGPA", type: "text", placeholder: "e.g. 78%", groupLabel: "10th Standard" },
   // Backlogs / ATKTs now sit UNDER each qualification (was the "Academic Summary"
   // section). Optional — many qualifications have none.
-  { key: "backlogs", label: "Backlogs / ATKTs (if any)", type: "text", optional: true, placeholder: "e.g. 0 / None / 2" },
+  { key: "tenthBacklogs", label: "Backlogs / ATKTs (if any)", type: "text", optional: true, placeholder: "e.g. 0 / None / 2", groupLabel: "10th Standard" },
   // Academic gap now sits UNDER each qualification (was a separate section).
-  { key: "gap", label: "Academic Gap after this?", type: "buttons", options: YN },
+  { key: "tenthGap", label: "Academic Gap after 10th?", type: "buttons", options: YN, optional: true, groupLabel: "10th Standard" },
+  { key: "hasTwelfth", label: "Have you completed 12th?", type: "buttons", options: YN, groupLabel: "12th Standard" },
+  { key: "twelfthSchool", label: "Name of School", type: "text", showIf: { key: "hasTwelfth", value: "Yes" }, groupLabel: "12th Standard" },
+  { key: "twelfthBoard", label: "Board", type: "text", showIf: { key: "hasTwelfth", value: "Yes" }, groupLabel: "12th Standard" },
+  { key: "twelfthPassingMonth", label: "Month of Passing", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], showIf: { key: "hasTwelfth", value: "Yes" }, groupLabel: "12th Standard" },
+  { key: "twelfthPassingYear", label: "Year of Passing", type: "text", placeholder: "e.g. 2021", showIf: { key: "hasTwelfth", value: "Yes" }, groupLabel: "12th Standard" },
+  { key: "twelfthAttempts", label: "Number of Attempts", type: "number", showIf: { key: "hasTwelfth", value: "Yes" }, groupLabel: "12th Standard" },
+  { key: "twelfthPercentage", label: "Percentage / CGPA", type: "text", placeholder: "e.g. 78%", showIf: { key: "hasTwelfth", value: "Yes" }, groupLabel: "12th Standard" },
+  { key: "hasDegree", label: "Have you completed a Degree or Diploma?", type: "buttons", options: YN, groupLabel: "Degree / Diploma" },
+  { key: "degreeName", label: "Degree / Diploma", type: "text", placeholder: "e.g. B.Com / Diploma in Design", showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
+  { key: "degreeCollege", label: "Name of College", type: "text", showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
+  { key: "degreeUniversity", label: "University / Board", type: "text", showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
+  { key: "degreePassingMonth", label: "Month of Passing", type: "select", options: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
+  { key: "degreePassingYear", label: "Year of Passing", type: "text", placeholder: "e.g. 2024", showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
+  { key: "degreeAttempts", label: "Number of Attempts", type: "number", showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
+  { key: "degreePercentage", label: "Percentage / CGPA", type: "text", placeholder: "e.g. 8.2", showIf: { key: "hasDegree", value: "Yes" }, groupLabel: "Degree / Diploma" },
 ];
 
 const FAMILY_FIELDS: FormFieldDef[] = [
-  { key: "name", label: "Name", type: "text", required: true, span: 6 },
-  { key: "relationship", label: "Relationship", type: "text", required: true, span: 6 },
+  { key: "name", label: "Name", type: "text", optional: true, span: 6 },
+  { key: "relationship", label: "Relationship", type: "text", optional: true, span: 6 },
   { key: "phone", label: "Phone Number", type: "tel", optional: true, span: 6 },
   { key: "email", label: "Email Address", type: "email", optional: true, span: 6 },
 ];
@@ -135,9 +152,10 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
       { key: "addressLine3", label: "Address Line 3", type: "text", optional: true },
       { key: "addressLine4", label: "Address Line 4", type: "text", optional: true },
       { key: "landmark", label: "Nearby Landmark", type: "text", optional: true },
-      { key: "city", label: "City", type: "text", required: true },
+      { key: "city", label: "City", type: "select", options: CITY_OPTIONS, required: true },
+      { key: "cityOther", label: "Enter City", type: "text", required: true, showIf: { key: "city", value: "Other" } },
       { key: "pincode", label: "Pincode", type: "text", required: true, placeholder: "6-digit PIN" },
-      { key: "state", label: "State", type: "text", required: true },
+      { key: "state", label: "State", type: "select", options: [...INDIAN_STATES], required: true },
       { key: "interviewed6mo", label: "Interviewed by us in the last six months?", type: "buttons", options: YN, required: true },
       { key: "differentlyAbled", label: "Differently abled?", type: "buttons", options: YN, required: true },
       // ── Health & Habits — grouped block (contiguous, shared sub-heading) ──
@@ -166,8 +184,7 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
   {
     id: "education",
     title: "Education",
-    subtitle: "Add each qualification — 10th, 12th and beyond.",
-    repeat: { min: 1, max: 5, seed: 2, itemLabel: "Qualification" },
+    subtitle: "Start with 10th, then add 12th and Degree / Diploma only when completed.",
     fields: EDU_FIELDS,
   },
   {
@@ -204,8 +221,8 @@ export const INTAKE_SECTIONS: IntakeSection[] = [
   {
     id: "family",
     title: "Family Details",
-    subtitle: "Add each family member.",
-    repeat: { min: 2, max: 6, seed: 2, itemLabel: "Member" },
+    subtitle: "Optional — add family details only when applicable.",
+    repeat: { min: 0, max: 6, seed: 0, itemLabel: "Member" },
     fields: FAMILY_FIELDS,
   },
   {
@@ -315,6 +332,17 @@ export function intakeRequiredKeys(
   return INTAKE_SECTIONS.flatMap((s) => sectionRequiredKeys(s, values, instances));
 }
 
+/** Required keys that remain blank for the person filling this mode of the form. */
+export function missingIntakeRequiredKeys(
+  mode: IntakeMode,
+  values: Record<string, string>,
+  instances: Record<string, string[]>,
+): string[] {
+  return sectionsForMode(mode)
+    .flatMap((s) => sectionRequiredKeys(s, values, instances))
+    .filter((key) => (values[key] ?? "").trim() === "");
+}
+
 /**
  * 0-100 completion %, counting the required value keys.
  *
@@ -336,6 +364,11 @@ export function intakeProgress(
 /** True once the form has ANY real content — the trigger to create the draft row. */
 export function hasAnyContent(values: Record<string, string>): boolean {
   return Object.values(values).some((v) => (v ?? "").trim() !== "");
+}
+
+/** Candidate mobile numbers are stored as exactly ten digits. */
+export function isValidCandidateMobile(value: string | null | undefined): boolean {
+  return /^\d{10}$/.test(value ?? "");
 }
 
 /** Whole years between a yyyy-mm-dd date string and today; "" if unparseable. */

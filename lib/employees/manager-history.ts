@@ -1,8 +1,9 @@
 import "server-only";
 import { and, asc, desc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { employeeManagerHistory, employees } from "@/db/schema";
+import { employeeManagerHistory, employeeTemporaryBreaks, employees } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isManagerFlagOf } from "@/lib/employees/is-manager";
 
 /**
  * REPORTING-MANAGER HISTORY.
@@ -171,6 +172,19 @@ export async function setReportingManager(input: {
           "That would create a loop in the reporting chain — the chosen manager already reports to this employee.",
       };
     }
+
+    // A manager can't be placed under somebody who isn't one themselves
+    // (Team Reporting, 2026-09-26 — "Jeevan cannot be moved under Rudra").
+    // "Manager" here is the same either/or `getHierarchy` uses: has at least
+    // one direct report right now, OR carries the explicit 0253 flag.
+    if (await isManagerOf(input.employeeId)) {
+      if (!(await isManagerOf(input.managerId))) {
+        return {
+          ok: false,
+          error: "A manager can't be moved to report to someone who isn't a manager themselves.",
+        };
+      }
+    }
   }
 
   const [current] = await db
@@ -186,8 +200,15 @@ export async function setReportingManager(input: {
   // Vasa is super admin so he cannot be unassigned to any team" (2026-09-24).
   // Their own manager_id must stay null; they can still be `null`'d to no
   // manager freely (that's already true today, not what this refuses).
-  if (next !== null && isSuperAdmin(current.email)) {
-    return { ok: false, error: "A super-admin can't be assigned to report to anyone." };
+  if (isSuperAdmin(current.email)) {
+    return { ok: false, error: "A hierarchy root cannot be moved or assigned a manager." };
+  }
+
+  if (await hasActiveTemporaryBreak(input.employeeId)) {
+    return { ok: false, error: "An employee on Temporary Break cannot be assigned to a manager." };
+  }
+  if (next !== null && await hasActiveTemporaryBreak(next)) {
+    return { ok: false, error: "A Temporary Break employee cannot be selected as a manager." };
   }
 
   if ((current.managerId ?? null) === next) {
@@ -205,6 +226,26 @@ export async function setReportingManager(input: {
 
   const { changed } = await recordManagerChange({ ...input, managerId: next });
   return { ok: true, changed };
+}
+
+async function hasActiveTemporaryBreak(employeeId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: employeeTemporaryBreaks.id })
+    .from(employeeTemporaryBreaks)
+    .where(and(eq(employeeTemporaryBreaks.employeeId, employeeId), isNull(employeeTemporaryBreaks.endedAt)))
+    .limit(1);
+  return Boolean(row);
+}
+
+/** Has at least one direct report, or carries the explicit 0253 flag. */
+async function isManagerOf(employeeId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(eq(employees.managerId, employeeId))
+    .limit(1);
+  if (row) return true;
+  return isManagerFlagOf(employeeId);
 }
 
 /**

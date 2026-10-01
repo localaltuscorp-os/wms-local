@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { candidateIntake } from "@/db/schema";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { RECRUITER_ONLY_KEYS } from "@/lib/hr/candidate/intake-schema";
+import { isValidCandidateMobile, missingIntakeRequiredKeys, RECRUITER_ONLY_KEYS } from "@/lib/hr/candidate/intake-schema";
 import { requireCandidateOwner } from "@/lib/hr/candidate/candidate-owner";
 import { disableCandidateAccountByIntakeId } from "@/lib/hr/candidate/account-lifecycle";
 import { notifyCandidateForm } from "@/lib/hr/candidate/form-notify";
@@ -19,6 +19,7 @@ import {
   workFileProblem,
   workSamplesUnder,
 } from "@/lib/hr/candidate/work-samples";
+import { isCandidatePhotoPath } from "@/lib/hr/candidate/photo";
 
 /**
  * OWNER-SCOPED candidate self-fill actions. Every write authenticates via
@@ -59,7 +60,8 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
   if (submitted && !viaLink) return { ok: false, error: "Your form is already submitted." };
 
   const prefix = `candidate-intake/${me.id}/`;
-  if (!ownsPath(input.photoPath, prefix) || !ownsPath(input.signaturePath, prefix)) {
+  const photoPath = input.photoPath ?? input.values?.["personal.photo"] ?? null;
+  if (!ownsPath(photoPath, prefix) || !ownsPath(input.signaturePath, prefix)) {
     return { ok: false, error: "Invalid file reference." };
   }
 
@@ -95,7 +97,7 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
         data: values,
         instances: (input.instances ?? {}) as Record<string, unknown>,
         // Mirrors the HR path: the wizard stores the key in the answers blob.
-        photoPath: input.photoPath ?? values["personal.photo"] ?? null,
+        photoPath,
         signaturePath: input.signaturePath ?? null,
         updatedAt: new Date(),
         // status / submittedAt / evaluation / evaluationV2 are NEVER set here.
@@ -117,7 +119,7 @@ export async function saveOwnCandidateDraft(input: DraftInput): Promise<R<{ id: 
 export async function createOwnCandidatePhotoUploadUrl(input: {
   mime?: string | null;
   size?: number | null;
-}): Promise<R<{ path: string; token: string; bucket: string }>> {
+}): Promise<R<{ path: string; token: string; bucket: string; signedUrl: string }>> {
   const { me, submitted, viaLink } = await requireCandidateOwner();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -134,7 +136,7 @@ export async function createOwnCandidatePhotoUploadUrl(input: {
       .storage.from(DOCUMENTS_BUCKET)
       .createSignedUploadUrl(path);
     if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
-    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET, signedUrl: data.signedUrl };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
   }
@@ -149,7 +151,7 @@ export async function createOwnCandidateWorkUploadUrl(input: {
   fileName: string;
   mime?: string | null;
   size?: number | null;
-}): Promise<R<{ path: string; token: string; bucket: string }>> {
+}): Promise<R<{ path: string; token: string; bucket: string; signedUrl: string }>> {
   const { me, submitted, viaLink } = await requireCandidateOwner();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -162,7 +164,7 @@ export async function createOwnCandidateWorkUploadUrl(input: {
   try {
     const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path);
     if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
-    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET, signedUrl: data.signedUrl };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
   }
@@ -176,6 +178,17 @@ export async function getOwnCandidateWorkFileUrl(path: string): Promise<R<{ url:
   }
   const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
   if (error || !data) return { ok: false, error: error?.message ?? "Could not open the file." };
+  return { ok: true, url: data.signedUrl };
+}
+
+/** Short-lived read URL for the caller's own intake photo in Review & Submit. */
+export async function getOwnCandidatePhotoUrl(path: string): Promise<R<{ url: string }>> {
+  const { me } = await requireCandidateOwner();
+  if (!isCandidatePhotoPath(path) || !path.startsWith(`candidate-intake/${me.id}/`)) {
+    return { ok: false, error: "Not your photo." };
+  }
+  const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not open the photo." };
   return { ok: true, url: data.signedUrl };
 }
 
@@ -232,6 +245,23 @@ export async function submitOwnCandidateForm(
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
   if (submitted && !viaLink) return { ok: true }; // already sealed — idempotent
+
+  const [draft] = await db
+    .select({ data: candidateIntake.data, instances: candidateIntake.instances })
+    .from(candidateIntake)
+    .where(eq(candidateIntake.id, rowId))
+    .limit(1);
+  if (!draft) return { ok: false, error: "Your candidate record could not be found." };
+  if (!isValidCandidateMobile((draft.data as Record<string, string>)["personal.mobile"])) {
+    return { ok: false, error: "Enter a valid 10-digit mobile number." };
+  }
+  if (missingIntakeRequiredKeys(
+    "candidate",
+    draft.data as Record<string, string>,
+    (draft.instances ?? {}) as Record<string, string[]>,
+  ).length > 0) {
+    return { ok: false, error: "Complete every required section before submitting the form." };
+  }
 
   await db
     .update(candidateIntake)

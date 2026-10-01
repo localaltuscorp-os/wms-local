@@ -45,7 +45,7 @@ export function canViewClaimDocuments(
 /**
  * May this person ADD or REMOVE the claim's documents?
  *
- * The claimant, and ONLY while the claim is still pending.
+ * The claimant or an administrator, and ONLY while the claim is still pending.
  *
  * ── WHY NOT ADMINS ─────────────────────────────────────────────────────────
  * Narrower than viewing, deliberately, and narrower in a way that is easy to
@@ -58,12 +58,16 @@ export function canViewClaimDocuments(
  * A receipt exchanged after approval changes the evidence behind a verdict
  * already given, and after payment it changes the evidence behind money already
  * moved. Both are things an audit has to be able to rely on.
+ *
+ * Current policy: Administrators may also change documents while a claim is
+ * pending. Once a claim is decided, documents remain fixed for every role.
  */
 export function canChangeClaimDocuments(
   claim: ClaimOwnership,
   viewer: ClaimViewer,
 ): boolean {
-  return claim.employeeId === viewer.id && claim.status === "pending";
+  if (claim.status !== "pending") return false;
+  return viewer.isAdmin === true || claim.employeeId === viewer.id;
 }
 
 /**
@@ -76,6 +80,11 @@ export function claimChangeRefusal(
   claim: ClaimOwnership,
   viewer: ClaimViewer,
 ): string | null {
+  if (viewer.isAdmin === true) {
+    return claim.status === "pending"
+      ? null
+      : "This claim has already been decided — its documents are fixed.";
+  }
   if (claim.employeeId !== viewer.id) {
     return "You can only change the documents on your own claim.";
   }

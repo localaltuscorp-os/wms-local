@@ -10,6 +10,9 @@ import {
   CalendarX2,
   SearchX,
   ChevronRight,
+  SlidersHorizontal,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { animate, useReducedMotion } from "motion/react";
 import type { DashboardRow, MonthSummary } from "@/lib/queries/attendance-status";
@@ -91,6 +94,7 @@ const LEGEND: { label: string; tone: Tone; desc: string }[] = [
 ];
 
 type SortDir = "asc" | "desc";
+type SignalFilter = "all" | "attention" | "absent" | "late" | "leave";
 
 /** Per-person attendance rate: present + half-day (½) + HP + paid leave, over
  *  the gradeable working days (present+absent+half+HP+leaves). Pure read of the
@@ -128,12 +132,22 @@ export function AttendanceDashboardTable({
   const [sortKey, setSortKey] = React.useState<SummaryKey | "name" | "rate" | "payableDays">("name");
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
   const [legendOpen, setLegendOpen] = React.useState(false);
+  const [signalFilter, setSignalFilter] = React.useState<SignalFilter>("all");
+  const [fullView, setFullView] = React.useState(false);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => r.name.toLowerCase().includes(q));
-  }, [rows, query]);
+    return rows.filter((r) => {
+      const s = r.summary;
+      const matchesSignal =
+        signalFilter === "all" ||
+        (signalFilter === "attention" && (s.absent > 0 || s.late > 0 || s.unpaidLeave > 0)) ||
+        (signalFilter === "absent" && s.absent > 0) ||
+        (signalFilter === "late" && s.late > 0) ||
+        (signalFilter === "leave" && s.paidLeave + s.unpaidLeave > 0);
+      return matchesSignal && (!q || r.name.toLowerCase().includes(q));
+    });
+  }, [rows, query, signalFilter]);
 
   const sorted = React.useMemo(() => {
     const arr = [...filtered];
@@ -187,9 +201,9 @@ export function AttendanceDashboardTable({
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       {/* ── KPI strip — glass stat cards with aurora washes ──────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         <KpiCard
           index={0}
           label="Present %"
@@ -231,7 +245,7 @@ export function AttendanceDashboardTable({
 
       {/* ── Report panel — frosted shell, toolbar, frozen-header grid ────── */}
       <section
-        className="admin-panel wg-rise"
+        className={`admin-panel wg-rise ${fullView ? "fixed inset-3 z-[70] flex flex-col overflow-hidden bg-surface-card shadow-2xl" : ""}`}
         style={{ animationDelay: "120ms" }}
         aria-label="Per-employee month attendance"
       >
@@ -252,10 +266,35 @@ export function AttendanceDashboardTable({
             />
           </div>
           </CollapsibleSearch>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex flex-wrap items-center gap-2.5 max-md:ml-0">
+            <label className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 px-3 py-2 text-[13px] font-semibold text-ink-soft">
+              <SlidersHorizontal size={14} strokeWidth={2.2} aria-hidden />
+              <span className="sr-only">Filter attendance report</span>
+              <select
+                value={signalFilter}
+                onChange={(event) => setSignalFilter(event.target.value as SignalFilter)}
+                className="min-w-0 bg-transparent outline-none"
+                aria-label="Filter attendance report"
+              >
+                <option value="all">All records</option>
+                <option value="attention">Needs attention</option>
+                <option value="absent">Has absence</option>
+                <option value="late">Has late mark</option>
+                <option value="leave">On leave</option>
+              </select>
+            </label>
             <span className="text-[13px] font-semibold text-ink-subtle tabular-nums whitespace-nowrap">
               {sorted.length} {sorted.length === 1 ? "person" : "people"}
             </span>
+            <button
+              type="button"
+              onClick={() => setFullView((value) => !value)}
+              aria-pressed={fullView}
+              className={`wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white/75 py-2 px-3.5 text-[13px] font-semibold text-ink-soft hover:text-ink-strong hover:border-hairline-strong ${FOCUS_RING}`}
+            >
+              {fullView ? <Minimize2 size={14} strokeWidth={2.2} /> : <Maximize2 size={14} strokeWidth={2.2} />}
+              {fullView ? "Exit full view" : "Full view"}
+            </button>
             <button
               type="button"
               onClick={() => setLegendOpen((o) => !o)}
@@ -278,13 +317,13 @@ export function AttendanceDashboardTable({
         {sorted.length === 0 ? (
           <EmptyState
             noData={rows.length === 0}
-            onClear={query ? () => setQuery("") : undefined}
+            onClear={query || signalFilter !== "all" ? () => { setQuery(""); setSignalFilter("all"); } : undefined}
           />
         ) : (
           // SINGLE scroll container: both the header row (sticky top) and the
           // first column (sticky left) pin within THIS one overflow box. No
           // nested overflow ancestor between the sticky cells and this box.
-          <div className="overflow-auto" style={{ maxHeight: "70vh" }}>
+          <div className={`overflow-auto ${fullView ? "flex-1" : ""}`} style={{ maxHeight: fullView ? undefined : "70vh" }}>
             <table className="border-collapse w-full" style={{ minWidth: 1240 }}>
               <thead>
                 <tr>
@@ -471,7 +510,7 @@ function KpiCard({
   const deep = TONE[tone].fg;
   return (
     <div
-      className="wg-rise relative overflow-hidden rounded-section px-5 py-4.5 max-md:px-4"
+      className="wg-rise relative overflow-hidden rounded-xl px-3.5 py-3 max-md:px-3"
       style={{
         animationDelay: `${index * 70}ms`,
         background:
@@ -502,13 +541,13 @@ function KpiCard({
             {label}
           </span>
         </div>
-        <div className="mt-1.5 flex items-center justify-between gap-3">
+        <div className="mt-1 flex items-center justify-between gap-3">
           <span
             className="tabular-nums leading-none"
             style={{
               fontFamily: "var(--font-display), system-ui, sans-serif",
               fontWeight: 800,
-              fontSize: 34,
+              fontSize: 28,
               letterSpacing: "-0.02em",
               color: deep,
             }}
@@ -517,7 +556,7 @@ function KpiCard({
           </span>
           {ring != null && <MiniRing pct={ring} color={deep} />}
         </div>
-        <p className="mt-1.5 text-[12px] font-semibold text-ink-subtle leading-snug">{caption}</p>
+        <p className="mt-1 text-[11px] font-semibold text-ink-subtle leading-snug">{caption}</p>
       </div>
     </div>
   );

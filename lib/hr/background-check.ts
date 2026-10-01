@@ -63,3 +63,19 @@ export async function setBackgroundCheck(employeeId: string, status: "yes" | "no
     return false;
   }
 }
+
+/**
+ * Every current status in one round trip, for list/table views (Employee
+ * Master) that would otherwise pay one query per row. Same 42703 guard as
+ * above: an empty map on a database without 0248, never a thrown error.
+ */
+export async function backgroundCheckStatusesAll(): Promise<Map<string, BackgroundCheckStatus>> {
+  try {
+    const rows = (await db.execute(sql`
+      SELECT id, background_check_status AS status FROM employees
+    `)) as unknown as Array<{ id: string; status: BackgroundCheckStatus }>;
+    return new Map(rows.map((r) => [r.id, r.status]));
+  } catch {
+    return new Map();
+  }
+}

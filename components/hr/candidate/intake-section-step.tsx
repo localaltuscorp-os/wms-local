@@ -7,7 +7,7 @@ import { vkey, ageFromDob, expFromRange, monthlyFromCtc, type IntakeSection } fr
 import { fireToast } from "@/lib/toast";
 import { IntakePositionSelect } from "@/components/hr/candidate/intake-position-select";
 import { IntakeField, IntakeReadonlyField } from "@/components/hr/candidate/intake-field";
-import { CandidatePhotoField, type PhotoUploadUrlFn } from "@/components/hr/candidate/candidate-photo-field";
+import { CandidatePhotoField, type PhotoReadUrlFn, type PhotoUploadUrlFn } from "@/components/hr/candidate/candidate-photo-field";
 import {
   CandidateWorkSamplesField,
   type WorkFileUrlFn,
@@ -48,6 +48,7 @@ export function IntakeSectionStep({
   departments,
   canManagePositions,
   photoUploadUrl,
+  photoReadUrl,
   workUploadUrl,
   workFileUrl,
 }: {
@@ -62,6 +63,7 @@ export function IntakeSectionStep({
   departments: string[];
   canManagePositions: boolean;
   photoUploadUrl: PhotoUploadUrlFn;
+  photoReadUrl?: PhotoReadUrlFn;
   workUploadUrl: WorkUploadUrlFn;
   workFileUrl: WorkFileUrlFn;
 }) {
@@ -118,6 +120,7 @@ export function IntakeSectionStep({
           value={values[vkey(section.id, "photo")] ?? ""}
           onChange={(path) => set(vkey(section.id, "photo"), path)}
           uploadUrl={photoUploadUrl}
+          readUrl={photoReadUrl}
         />
       )}
 
@@ -139,7 +142,7 @@ export function IntakeSectionStep({
         />
       ) : /* Repeater sections */
       section.repeat ? (
-        <div className="mt-8 space-y-5">
+        <div className="mt-6 space-y-4">
           {instances.map((uid, idx) => (
             <div
               key={uid}
@@ -212,7 +215,7 @@ export function IntakeSectionStep({
           )}
         </div>
       ) : (
-        <div className="mt-8 grid grid-cols-1 gap-x-5 gap-y-6 md:grid-cols-12">
+        <div className="mt-6 grid grid-cols-1 gap-x-5 gap-y-5 md:grid-cols-12">
           {(() => {
             const out: React.ReactNode[] = [];
             let lastGroup: string | undefined;

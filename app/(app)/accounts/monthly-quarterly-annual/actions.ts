@@ -121,6 +121,36 @@ export async function updateMonthlyItem(input: unknown): Promise<ActionResult> {
   }
 }
 
+const FileLinkSchema = z.object({
+  id: z.string().uuid(),
+  fileLink: z
+    .string()
+    .url("Enter a valid link starting with http:// or https://.")
+    .refine((value) => /^https?:\/\//i.test(value), "Enter a valid link starting with http:// or https://.")
+    .nullable(),
+});
+
+/** Replace or clear a linked file without reopening the full checklist editor. */
+export async function setMonthlyItemFileLink(input: unknown): Promise<ActionResult> {
+  const { me } = await requireAccountsAccess();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = FileLinkSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid file link.");
+
+  try {
+    await db
+      .update(accountsMonthlyItems)
+      .set({ fileLink: parsed.data.fileLink, updatedAt: new Date() })
+      .where(eq(accountsMonthlyItems.id, parsed.data.id));
+    revalidatePath(PATH);
+    return { ok: true };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
+}
+
 export async function deleteMonthlyItem(id: string): Promise<ActionResult> {
   const { me } = await requireAccountsAccess();
   const limited = rateLimitOrError(me.id, "write");

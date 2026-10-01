@@ -22,6 +22,7 @@ import {
   type PermissionAction,
 } from "./catalog";
 import { auditAccessDenied } from "@/lib/logs/audit";
+import { activeScopedAccess, applyScopedAccess } from "./scoped-temporary-access";
 
 /**
  * THE SERVER SIDE OF THE PERMISSION MATRIX.
@@ -108,9 +109,15 @@ async function governedByMatrix(me: Employee): Promise<boolean> {
 export async function modulePermission(nodeKey: string): Promise<EffectivePermission> {
   const me = await getCurrentEmployee();
   if (!me) return allowAll();
-  if (!(await governedByMatrix(me))) return allowAll();
-  if (!isPermissionNodeKey(nodeKey)) return allowAll();
-  return effectiveFor(nodeKey, await loadOverrides(me.id));
+  const scoped = await activeScopedAccess(me.id);
+  // An active restrictive session never gets a free pass through an unknown
+  // node. Before a scoped grant exists, preserve the catalogue's historic
+  // fail-open behaviour for unclassified routes.
+  if (!isPermissionNodeKey(nodeKey)) return scoped === null ? allowAll() : { show: false, view: false, edit: false };
+  const existing = (await governedByMatrix(me))
+    ? effectiveFor(nodeKey, await loadOverrides(me.id))
+    : allowAll();
+  return applyScopedAccess(existing, nodeKey, scoped);
 }
 
 /** For an arbitrary employee — the Master Admin screen reads this to render the
@@ -231,7 +238,12 @@ async function logAccessDenied(nodeKey: string, action: string): Promise<void> {
  */
 export async function requirePathView(pathname: string): Promise<void> {
   const key = nodeKeyForPath(pathname);
-  if (key) await requireModuleView(key);
+  if (key) return await requireModuleView(key);
+  const me = await getCurrentEmployee();
+  if (me && (await activeScopedAccess(me.id)) !== null) {
+    await logAccessDenied(`unclassified:${pathname}`, "view");
+    throw forbiddenError();
+  }
 }
 
 /**
@@ -245,12 +257,17 @@ export async function requirePathView(pathname: string): Promise<void> {
  */
 export async function hiddenModuleKeys(): Promise<ReadonlySet<string> | null> {
   const me = await getCurrentEmployee();
-  if (!me || !(await governedByMatrix(me))) return null;
-  const overrides = await loadOverrides(me.id);
-  if (overrides.size === 0) return new Set();
+  if (!me) return null;
+  const scoped = await activeScopedAccess(me.id);
+  if (!(await governedByMatrix(me)) && scoped === null) return null;
+  const overrides = (await governedByMatrix(me)) ? await loadOverrides(me.id) : new Map();
   const hidden = new Set<string>();
-  for (const key of overrides.keys()) {
-    if (!effectiveFor(key, overrides).show) hidden.add(key);
+  // Include every catalogue node during an overlay: absence is a denial, not a
+  // missing stored override. This keeps rail visibility identical to URL access.
+  const keys = scoped === null ? overrides.keys() : (await import("./catalog")).allPermissionNodes().map((n) => n.key);
+  for (const key of keys) {
+    const base = effectiveFor(key, overrides);
+    if (!applyScopedAccess(base, key, scoped).show) hidden.add(key);
   }
   return hidden;
 }

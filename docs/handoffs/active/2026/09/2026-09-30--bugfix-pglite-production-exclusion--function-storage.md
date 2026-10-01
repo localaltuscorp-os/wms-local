@@ -12,9 +12,10 @@
 
 ## Status
 
-Implemented and verified locally in commit `d39dc150`. The branch is current
-with `origin/main` and approved for feature-branch push. It has not been merged,
-deployed, or verified on the Vercel Usage dashboard.
+Implemented and verified locally in commit `d39dc150`; the production-safety
+policy is recorded in `193c3f69`. Current `origin/main` was integrated without
+conflicts in `157c5418`, and an authorized direct development push is ready. It
+has not been deployed or verified on the Vercel Usage dashboard.
 
 ## Root cause
 
@@ -67,6 +68,13 @@ values are unchanged.
   - Could not start because the host returned `uv_os_get_passwd ENOMEM` after
     the large production build. This was an operating-system memory failure
     before the setup script or PGlite initialized, not a code diagnostic.
+- After integrating current `origin/main`:
+  - `pnpm.cmd exec vitest run tests/unit/db-trace-leaks.test.ts`
+    - PASS: 18 tests.
+  - `pnpm.cmd exec eslint next.config.ts scripts/measure-functions-storage.mjs tests/unit/db-trace-leaks.test.ts`
+    - PASS: no errors or warnings.
+  - `node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit --pretty false`
+    - PASS: zero TypeScript errors.
 
 ## Remaining work and deployment verification
 

@@ -3,6 +3,9 @@
 import * as React from "react";
 import { ArrowRight, Download, FileSpreadsheet, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
+import { downloadTemplateFile } from "@/lib/templates/client-download";
+import { fireToast } from "@/lib/toast";
 import {
   EMPTY_VENDOR,
   VENDOR_COLUMNS,
@@ -32,7 +35,9 @@ const MIN_W: Record<keyof VendorFields, number> = {
   category: 160,
   firstName: 140,
   lastName: 130,
+  companyName: 180,
   cellNo: 130,
+  whatsappCellNo: 150,
   email: 200,
   addressLine1: 200,
   addressLine2: 180,
@@ -44,29 +49,16 @@ const MIN_W: Record<keyof VendorFields, number> = {
   pincode: 100,
   website: 180,
   amc: 84,
+  officeOpenTime: 160,
+  officeEndTime: 160,
+  businessCardFrontPath: 220,
+  businessCardBackPath: 220,
+  cataloguePath: 220,
+  additionalLinks: 220,
   notes: 220,
 };
 
-const REQUIRED = new Set<keyof VendorFields>(["category", "firstName"]);
-
-const TEMPLATE_EXAMPLE = [
-  "Electrician",
-  "Ramesh",
-  "Yadav",
-  "9800000000",
-  "ramesh@example.com",
-  "Shop 12, Station Road",
-  "Thane West",
-  "",
-  "",
-  "Opp. SBI Bank",
-  "Thane",
-  "Maharashtra",
-  "400601",
-  "www.example.com",
-  "Yes",
-  "Available 9am-7pm",
-];
+const REQUIRED = new Set<keyof VendorFields>(["category", "firstName", "lastName", "companyName", "cellNo", "whatsappCellNo"]);
 
 function isBlank(d: VendorFields): boolean {
   return VENDOR_COLUMNS.every((c) => (c.key === "amc" ? !d.amc : !d[c.key as VendorTextKey].trim()));
@@ -74,12 +66,8 @@ function isBlank(d: VendorFields): boolean {
 
 /** Download the upload template — one header row + one example, built in the browser. */
 export async function downloadVendorTemplate() {
-  const XLSX = await import("xlsx");
-  const ws = XLSX.utils.aoa_to_sheet([VENDOR_COLUMNS.map((c) => c.label), TEMPLATE_EXAMPLE]);
-  ws["!cols"] = VENDOR_COLUMNS.map((c) => ({ wch: Math.max(14, c.label.length + 4) }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Vendors");
-  XLSX.writeFile(wb, "vendor-directory-template.xlsx");
+  const result = await downloadTemplateFile(templateHref(TEMPLATE_KEYS.vendors), "Vendor-Directory-Template.xlsx");
+  if (!result.ok) fireToast({ message: result.error, type: "error" });
 }
 
 /**

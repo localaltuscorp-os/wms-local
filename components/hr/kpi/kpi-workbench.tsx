@@ -8,7 +8,7 @@ import {
   Pencil,
   History as HistoryIcon,
   Power,
-  Trash2,
+  Archive,
   X,
   Target,
   ChevronDown,
@@ -28,6 +28,7 @@ import {
   type KpiCatalogEntry,
 } from "@/lib/hr/kpi/catalog";
 import { LookupSelect } from "@/components/ui/lookup-select";
+import { Select } from "@/components/ui/select";
 import { formatDateHr, localDateString } from "@/lib/format";
 import { quarterWindow } from "@/lib/hr/kpi/quarter";
 
@@ -43,6 +44,8 @@ import {
   setKpiApplicable,
   setKpiStatus,
   removeKpiAssignment,
+  archiveInheritedKpi,
+  restoreKpiAssignment,
   type KpiRosterOption,
   type KpiAssignmentDTO,
   type KpiHistoryDTO,
@@ -109,6 +112,7 @@ export function KpiWorkbench({
   const [editing, setEditing] = React.useState<KpiAssignmentDTO | "new" | null>(null);
   const [historyFor, setHistoryFor] = React.useState<KpiAssignmentDTO | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = React.useState<"all" | "appraisal" | "assigned" | "archived">("all");
   const [, startTransition] = React.useTransition();
 
   const employee = React.useMemo(
@@ -138,8 +142,17 @@ export function KpiWorkbench({
   }, [refresh]);
 
   const totalWeight = rows
-    .filter((r) => r.applicable && r.status === "active")
+    .filter((r) => !r.archived && r.applicable && r.status === "active")
     .reduce((s, r) => s + r.weightage, 0);
+  const visibleRows = rows.filter((row) =>
+    sourceFilter === "all"
+      ? !row.archived
+      : sourceFilter === "appraisal"
+        ? row.source === "dictionary"
+        : sourceFilter === "assigned"
+          ? row.source === "assigned" && !row.archived
+          : row.archived,
+  );
 
   return (
     <div className="kpi-in">
@@ -149,6 +162,20 @@ export function KpiWorkbench({
           <EmployeePicker roster={roster} value={employeeId} onChange={setEmployeeId} />
         </div>
         <QuarterSelect value={quarter} years={years} onChange={setQuarter} />
+        <Select
+          value={sourceFilter}
+          onValueChange={(value) => setSourceFilter(value as typeof sourceFilter)}
+          ariaLabel="Filter KPI source"
+          searchable={false}
+          unstyled
+          className="h-[46px] min-w-[150px] rounded-xl border border-hairline bg-white px-3 text-[13px] font-bold text-ink-strong"
+          options={[
+            { value: "all", label: "Active KPIs" },
+            { value: "appraisal", label: "From appraisal" },
+            { value: "assigned", label: "Assigned here" },
+            { value: "archived", label: "Archived" },
+          ]}
+        />
         <button
           type="button"
           disabled={!employeeId}
@@ -192,7 +219,9 @@ export function KpiWorkbench({
             </span>
           </div>
           <div className="grid gap-3">
-            {rows.map((r) => (
+            {visibleRows.length === 0 ? (
+              <EmptyState title="No KPIs match this filter" sub="Choose another filter to see active, appraisal, assigned or archived KPIs." />
+            ) : visibleRows.map((r) => (
               <AssignmentCard
                 key={r.id}
                 row={r}
@@ -218,6 +247,29 @@ export function KpiWorkbench({
                 onRemove={() =>
                   startTransition(async () => {
                     const res = await removeKpiAssignment({ id: r.id });
+                    if (!res.ok) setError(res.error);
+                    refresh();
+                  })
+                }
+                onArchiveInherited={() =>
+                  startTransition(async () => {
+                    const res = await archiveInheritedKpi({
+                      employeeId: r.employeeId,
+                      kpiKey: r.kpiKey ?? "",
+                      kpiName: r.kpiName,
+                      category: r.category,
+                      frequency: r.frequency as KpiFrequency,
+                      weightage: r.weightage,
+                      effectiveQuarter: r.effectiveQuarter,
+                      targetValue: r.targetValue,
+                    });
+                    if (!res.ok) setError(res.error);
+                    refresh();
+                  })
+                }
+                onRestore={() =>
+                  startTransition(async () => {
+                    const res = await restoreKpiAssignment(r.id);
                     if (!res.ok) setError(res.error);
                     refresh();
                   })
@@ -385,6 +437,8 @@ function AssignmentCard({
   onToggleApplicable,
   onToggleStatus,
   onRemove,
+  onArchiveInherited,
+  onRestore,
 }: {
   row: KpiAssignmentDTO;
   onEdit: () => void;
@@ -392,10 +446,12 @@ function AssignmentCard({
   onToggleApplicable: (next: boolean) => void;
   onToggleStatus: () => void;
   onRemove: () => void;
+  onArchiveInherited: () => void;
+  onRestore: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = React.useState(false);
   const pct = achievement(row.currentValue, row.targetValue);
-  const inactive = row.status !== "active";
+  const inactive = row.archived || row.status !== "active";
   const isDict = row.source === "dictionary";
 
   return (
@@ -423,7 +479,11 @@ function AssignmentCard({
               </span>
             ) : (
               <>
-                {row.kpiKey ? (
+                {row.archived ? (
+                  <span className="inline-flex items-center gap-1 rounded-pill bg-black/[0.06] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-soft">
+                    <Archive size={10} /> Archived
+                  </span>
+                ) : row.kpiKey ? (
                   <span className="inline-flex items-center gap-1 rounded-pill bg-black/[0.04] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-soft">
                     <Sparkles size={10} /> Dictionary
                   </span>
@@ -432,7 +492,7 @@ function AssignmentCard({
                     Manual
                   </span>
                 )}
-                <span
+                {!row.archived && <span
                   className="inline-flex items-center rounded-pill px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider"
                   style={
                     inactive
@@ -441,7 +501,7 @@ function AssignmentCard({
                   }
                 >
                   {inactive ? "Inactive" : "Active"}
-                </span>
+                </span>}
               </>
             )}
           </div>
@@ -472,8 +532,28 @@ function AssignmentCard({
             >
               <Pencil size={14} /> Adopt &amp; edit
             </button>
+            <button
+              type="button"
+              onClick={onArchiveInherited}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-3 text-[12px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong"
+            >
+              <Archive size={13} /> Archive
+            </button>
             <span className="max-w-[190px] text-right text-[11px] font-medium leading-snug text-ink-subtle max-md:max-w-none">
               Set in the appraisal - adopt to manage &amp; track it here.
+            </span>
+          </div>
+        ) : row.archived ? (
+          <div className="flex shrink-0 flex-col items-end gap-2 max-md:w-full max-md:items-stretch">
+            <button
+              type="button"
+              onClick={onRestore}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 text-[13px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            >
+              <Power size={14} /> Restore
+            </button>
+            <span className="max-w-[190px] text-right text-[11px] font-medium leading-snug text-ink-subtle max-md:max-w-none">
+              Archived KPIs are hidden from the active view but kept in history.
             </span>
           </div>
         ) : (
@@ -495,12 +575,12 @@ function AssignmentCard({
                   onClick={onRemove}
                   className="inline-flex h-8 items-center gap-1 rounded-lg bg-red-600 px-2.5 text-[12px] font-bold text-white"
                 >
-                  <Trash2 size={14} /> Confirm
+                  <Archive size={14} /> Confirm archive
                 </button>
               ) : (
-                <IconBtn label="Remove" danger onClick={() => { setConfirmRemove(true); setTimeout(() => setConfirmRemove(false), 3500); }}>
-                  <Trash2 size={15} />
-                </IconBtn>
+                <button type="button" onClick={() => { setConfirmRemove(true); setTimeout(() => setConfirmRemove(false), 3500); }} className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[12px] font-bold text-red-600 transition-colors hover:bg-red-50">
+                  <Archive size={14} /> Archive
+                </button>
               )}
             </div>
           </div>
