@@ -70,7 +70,8 @@ modified by this work.
   `origin/main` has occurred.
 
 The integration branch has not been pushed or promoted. Full-suite validation
-is pending until all approved active branches are integrated.
+passed after all approved active branches were integrated. The branch has not
+yet been pushed or promoted.
 
 ### Validation
 
@@ -80,3 +81,5 @@ is pending until all approved active branches are integrated.
   - PASS: 12 files, 240 tests.
 - `pnpm.cmd exec vitest run tests/unit/device-access.test.ts tests/unit/device-exemption-login.test.ts tests/unit/device-registration-flow.test.ts tests/unit/device-self-registration.test.ts tests/unit/attendance-authorization.test.ts tests/unit/punch-no-task-prerequisite.test.ts`
   - PASS: 6 files, 121 tests.
+- `pnpm.cmd test`
+  - PASS: 393 test files, 5 skipped; 5,292 tests passed, 34 skipped.
