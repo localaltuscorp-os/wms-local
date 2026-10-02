@@ -117,8 +117,7 @@ const optNote = z
   .transform((v) => (v ? v : null));
 
 function revalidateCompliance() {
-  revalidatePath("/dcc/wcc");
-  revalidatePath("/dcc/mcc");
+  revalidatePath("/employees/cc");
 }
 
 type Item = {
@@ -630,7 +629,7 @@ const ItemInput = z.object({
   mccDays: z
     .array(z.number().int().min(1).max(31).nullable())
     .min(1)
-    .max(3)
+    .max(4)
     .optional(),
   /** MCC: a month it is due in, for Alternate Month, Quarterly, Half Yearly, Annually. */
   mccStartMonth: z.number().int().min(1).max(12).nullable().optional(),
@@ -849,7 +848,6 @@ export async function saveComplianceItem(
   }
 
   revalidateCompliance();
-  revalidatePath("/dcc/masters");
   return { ok: true };
 }
 
@@ -892,7 +890,69 @@ export async function archiveComplianceItems(
   for (const owner of new Set(approved.map((guard) => guard.owner)))
     scheduleDccCalendarSync(owner);
   revalidateCompliance();
-  revalidatePath("/dcc/masters");
+  return { ok: true };
+}
+
+/** Clone selected checklist setups without copying any completed history. */
+export async function duplicateComplianceItems(
+  rawItemIds: string[],
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = z
+    .array(z.string().uuid())
+    .min(1)
+    .max(100)
+    .safeParse(rawItemIds);
+  if (!parsed.success)
+    return fail("Choose between 1 and 100 valid compliances to duplicate.");
+  const itemIds = [...new Set(parsed.data)];
+  const guards = await Promise.all(
+    itemIds.map((itemId) => guardItemWrite(itemId, me)),
+  );
+  if (guards.some((guard) => !guard.ok))
+    return guards.find((guard) => !guard.ok)!;
+
+  const source = await db
+    .select({
+      ownerEmployeeId: dccKpiItems.ownerEmployeeId,
+      section: dccKpiItems.section,
+      code: dccKpiItems.code,
+      title: dccKpiItems.title,
+      frequency: dccKpiItems.frequency,
+      weekdays: dccKpiItems.weekdays,
+      scheduleKind: dccKpiItems.scheduleKind,
+      isParticipantList: dccKpiItems.isParticipantList,
+      clientId: dccKpiItems.clientId,
+      templateCode: dccKpiItems.templateCode,
+      needsReview: dccKpiItems.needsReview,
+      targetNumber: dccKpiItems.targetNumber,
+      unit: dccKpiItems.unit,
+      monthDay: dccKpiItems.monthDay,
+      mccFrequency: dccKpiItems.mccFrequency,
+      mccDays: dccKpiItems.mccDays,
+      mccStartMonth: dccKpiItems.mccStartMonth,
+      minutes: dccKpiItems.minutes,
+      sortOrder: dccKpiItems.sortOrder,
+    })
+    .from(dccKpiItems)
+    .where(and(inArray(dccKpiItems.id, itemIds), eq(dccKpiItems.archived, false)));
+  if (source.length !== itemIds.length)
+    return fail("One or more compliances are no longer available.");
+
+  await db.insert(dccKpiItems).values(
+    source.map((item) => ({
+      ...item,
+      title: `${item.title} (copy)`,
+      createdById: me.id,
+      archived: false,
+    })),
+  );
+  for (const owner of new Set(source.map((item) => item.ownerEmployeeId)))
+    scheduleDccCalendarSync(owner);
+  revalidateCompliance();
   return { ok: true };
 }
 
@@ -956,12 +1016,23 @@ export async function setComplianceMinutes(
 }
 
 /** Remove a compliance. Archived, never deleted — its fills are the record. */
+const PERIOD_CHECK_KINDS = [
+  "wcc",
+  "mcc",
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+  "half_yearly",
+  "yearly",
+] as const;
+
 const PeriodCheckInput = z.object({
   itemId: z.string().uuid(),
-  kind: z.enum(["wcc", "mcc"]),
+  kind: z.enum(PERIOD_CHECK_KINDS),
   periodYear: z.number().int().min(2000).max(2100),
   periodMonth: z.number().int().min(1).max(12),
-  weekNo: z.number().int().min(0).max(5),
+  weekNo: z.number().int().min(0).max(31),
   status: z
     .string()
     .trim()
@@ -986,7 +1057,13 @@ export async function setCompliancePeriodCheck(
   const v = parsed.data;
   if (
     (v.kind === "wcc" && (v.weekNo < 1 || v.weekNo > 5)) ||
-    (v.kind === "mcc" && v.weekNo !== 0)
+    (v.kind === "mcc" && v.weekNo !== 0) ||
+    (v.kind === "daily" && (v.weekNo < 1 || v.weekNo > 31)) ||
+    (v.kind === "weekly" && (v.weekNo < 1 || v.weekNo > 7)) ||
+    (v.kind === "monthly" && v.weekNo !== 0) ||
+    (v.kind === "quarterly" && (v.weekNo < 1 || v.weekNo > 4)) ||
+    (v.kind === "half_yearly" && (v.weekNo < 1 || v.weekNo > 2)) ||
+    (v.kind === "yearly" && v.weekNo !== 0)
   )
     return fail("That checklist period is invalid.");
 
@@ -1061,7 +1138,6 @@ export async function archiveComplianceItem(
     .where(and(eq(dccKpiItems.id, itemId), eq(dccKpiItems.archived, false)));
   scheduleDccCalendarSync(guard.owner);
   revalidateCompliance();
-  revalidatePath("/dcc/masters");
   return { ok: true };
 }
 
@@ -1228,6 +1304,5 @@ export async function bulkAddCompliances(
   for (const owner of new Set(values.map((v) => v.ownerEmployeeId)))
     scheduleDccCalendarSync(owner);
   revalidateCompliance();
-  revalidatePath("/dcc/masters");
   return { ok: true, dryRun: false, created: values.length };
 }

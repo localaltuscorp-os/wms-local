@@ -5,8 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees, modulePermissionEvents, modulePermissions } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/current";
+import { forbiddenError, getSignedInEmployee } from "@/lib/auth/current";
 import { isPermissionNodeKey } from "@/lib/permissions/catalog";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 import { isMeaningfulOverride } from "@/lib/permissions/effective";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { auditAction } from "@/lib/logs/audit";
@@ -51,8 +52,10 @@ export type MatrixResult = { ok: true } | { ok: false; error: string };
 /** The one authorization gate for this module. Throws 403 rather than
  *  redirecting: these are actions, and a redirect out of an action body
  *  silently discards the caller's error handling. */
-async function requireAdminAccess() {
-  return requireAdmin();
+async function requireMasterAdmin() {
+  const me = await getSignedInEmployee();
+  if (!me || !(await isMasterAdmin(me.email))) throw forbiddenError();
+  return me;
 }
 
 /**
@@ -70,7 +73,7 @@ async function requireAdminAccess() {
  * different fact from `prev_* = false`.
  */
 export async function setModulePermission(input: ToggleInput): Promise<MatrixResult> {
-  const me = await requireAdminAccess();
+  const me = await requireMasterAdmin();
 
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -189,7 +192,7 @@ export async function setModulePermission(input: ToggleInput): Promise<MatrixRes
  * people reach for is a hand-written DELETE against production.
  */
 export async function resetEmployeePermissions(employeeId: string): Promise<MatrixResult> {
-  const me = await requireAdminAccess();
+  const me = await requireMasterAdmin();
 
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -241,7 +244,7 @@ export async function fetchEmployeeMatrix(employeeId: string): Promise<
   | { ok: true; overrides: Record<string, { show: boolean; view: boolean; edit: boolean }> }
   | { ok: false; error: string }
 > {
-  await requireAdminAccess();
+  await requireMasterAdmin();
   if (!z.string().uuid().safeParse(employeeId).success) {
     return { ok: false, error: "Invalid id" };
   }

@@ -80,7 +80,7 @@ describe.each(["wcc", "mcc"] as const)("the %s workbook", (kind) => {
     expect(listed(String(freq.formulae![0]))).toEqual(
       kind === "wcc"
         ? ["Mon to Sat", "Mon to Sun", "Each Day of the Week"]
-        : ["Monthly", "2 times/month", "3 times/month", "Alternate Month", "Quarterly", "Half Yearly", "Annually"],
+        : ["Monthly", "2 times/month", "3 times/month", "4 times/month", "Alternate Month", "Quarterly", "Quarterly — multiple due dates", "Half Yearly", "Half Yearly — multiple due dates", "Annually"],
     );
     const who = sheet.getRow(4).getCell(1).dataValidation;
     expect(listed(String(who.formulae![0]))).toEqual(["Priya Shah", "Ravi Rao"]);
@@ -100,7 +100,7 @@ describe.each(["wcc", "mcc"] as const)("the %s workbook", (kind) => {
       if (n > 1) reads.push(String(row.getCell(cols.length + 1).value));
     });
     expect(reads.length).toBeGreaterThanOrEqual(kind === "wcc" ? 5 : 8);
-    for (const r of reads) expect(r).toMatch(kind === "wcc" ? /^(Mon to Sat|Mon to Sun|Each Day of the Week) — / : /^(Monthly|2 times\/month|3 times\/month|Alternate Month|Quarterly|Half Yearly|Annually) — /);
+    for (const r of reads) expect(r).toMatch(kind === "wcc" ? /^(Mon to Sat|Mon to Sun|Each Day of the Week) — / : /^(Monthly|2 times\/month|3 times\/month|4 times\/month|Alternate Month|Quarterly|Quarterly — multiple due dates|Half Yearly|Half Yearly — multiple due dates|Annually) — /);
     // Every WCC example says how long it takes.
     if (kind === "wcc") for (const r of reads) expect(r).toMatch(/ · \d+ mins/);
   });
@@ -117,8 +117,8 @@ describe("a filled template, uploaded", () => {
     const sheet = wb.getWorksheet("MCC")!;
     sheet.getRow(4).values = ["Priya Shah", "Accounts", "Pay the GST", "Monthly", 20];
     sheet.getRow(5).values = ["Ravi Rao", "", "Send the MIS", "2 times/month", 15, "Last day"];
-    sheet.getRow(7).values = ["Priya Shah", "Statutory", "File the TDS return", "Quarterly", "Last day", null, null, "July"];
-    sheet.getRow(8).values = ["Priya Shah", "", "Visit 12 client sites", "Monthly", 5, null, null, null, 12, "visits"];
+    sheet.getRow(7).values = ["Priya Shah", "Statutory", "File the TDS return", "Quarterly", "Last day", null, null, null, "July"];
+    sheet.getRow(8).values = ["Priya Shah", "", "Visit 12 client sites", "Monthly", 5, null, null, null, null, 12, "visits"];
     const out = readLikeTheDialog(Buffer.from(await wb.xlsx.writeBuffer()), "mcc");
     expect(out.error).toBeUndefined();
     expect(out.rows.map((r) => [r.line, r.ownerName, r.frequency, r.when, r.counts, r.errors])).toEqual([

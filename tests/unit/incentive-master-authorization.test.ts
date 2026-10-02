@@ -60,14 +60,13 @@ describe("changing eligibility is Manan's alone", () => {
     expect(canManageIncentiveEligibility(MANAN)).toBe(true);
   });
 
-  it("holds through the Incentive page's own dialog too, not just the Master", () => {
-    /* Rohan's Incentive Table dialog writes the SAME table (it is his), through
-       setIncentiveEligibility, and it was admin-only. Once the two met, that
-       dialog was a way round "Manan alone" for any admin. */
+  it("keeps the Incentive page from exposing a second eligibility writer", () => {
+    /* The quick Incentive editor now changes catalogue rows only. Eligibility
+       lives in the Incentive Master, so this check prevents a parallel action
+       from quietly bypassing the master capability. */
     const src = codeOf("app/(app)/incentive/catalog-actions.ts");
-    const at = src.indexOf("export async function setIncentiveEligibility");
-    const body = src.slice(at, src.indexOf("saveEligibility(", at));
-    expect(body).toMatch(/mayManageIncentiveEligibility\(\)/);
+    expect(src).not.toContain("setIncentiveEligibility");
+    expect(src).not.toContain("saveEligibility(");
   });
 
   it("exactly ONE address holds the capability", () => {
@@ -418,7 +417,7 @@ describe("nothing was duplicated", () => {
     expect(migration).not.toMatch(/\bdelete from\b|\btruncate\b|\bupdate incentive_catalog set\b/i);
   });
 
-  it("removal deletes the grant but keeps the incentive restricted, and dates the EVENT", () => {
+  it("removal retires the grant, keeps the incentive restricted, and dates the EVENT", () => {
     /* Was "a dated row, never a delete" — true of this module's own table,
        which the merge replaced with Rohan's (0216). That table keeps live
        grants only, so a removal is a delete. What must still hold:
@@ -426,7 +425,8 @@ describe("nothing was duplicated", () => {
          · removing the last person must NOT reopen the incentive to everyone,
            so this action never sets applies_to_all back to true. */
     const body = bodyOf("removeIncentiveEligibility");
-    expect(body).toMatch(/tx\s*\.delete\(incentiveEligibility\)/);
+    expect(body).toMatch(/tx\s*\.update\(incentiveEligibility\)/);
+    expect(body).toMatch(/removedEffectiveFrom/);
     expect(body).toMatch(/effectiveDate: effectiveFrom/);
     expect(body).not.toMatch(/appliesToAll:\s*true/);
   });
@@ -435,7 +435,7 @@ describe("nothing was duplicated", () => {
     // Rohan's table has no date on a row, so "remove with effect from 1 Nov"
     // would remove the person today. Both actions must refuse it.
     for (const fn of ["addIncentiveEligibility", "removeIncentiveEligibility"]) {
-      expect(bodyOf(fn), fn).toMatch(/futureDateError\(effectiveFrom\)/);
+      expect(bodyOf(fn), fn).toMatch(/eligibilityChangeError\(\{ employeeIds, effectiveFrom \}\)/);
     }
   });
 });

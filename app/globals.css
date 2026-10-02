@@ -2162,21 +2162,22 @@ html {
 /* Frozen table cells need a single, explicit stacking contract. A sticky cell
    creates its own stacking context, so a frozen row label can otherwise paint
    over a header while a table is scrolled in both axes. Body cells stay lowest,
-   totals sit above data, and headers always sit above both. This protects every
-   table using the shared Tailwind `sticky` utility, not just payroll. */
+   totals sit above data, and headers always sit above both. Do not use
+   `!important` here: a frozen cell's inline layer must be able to sit above a
+   normal sticky header while the table scrolls horizontally. */
 table > thead.sticky,
 table > thead > tr > .sticky {
-  z-index: 40 !important;
+  z-index: 20;
   background-clip: padding-box;
 }
 
 table > tbody > tr > .sticky {
-  z-index: 10 !important;
+  z-index: 10;
   background-clip: padding-box;
 }
 
 table > tfoot > tr > .sticky {
-  z-index: 30 !important;
+  z-index: 30;
   background-clip: padding-box;
 }
 

@@ -18,7 +18,7 @@ import {
   safeObjectName,
 } from "@/lib/reimbursements/attachment-rules";
 import { buildClaimAttachmentRows } from "@/lib/reimbursements/attachment-rows";
-import { MODULES } from "@/lib/forms/modules";
+import { completeReimbursementRequestFields, MODULES } from "@/lib/forms/modules";
 import { validateFields } from "@/lib/forms/field-types";
 
 /**
@@ -413,6 +413,26 @@ describe("legacyBillKind — telling the two old shapes apart", () => {
 });
 
 describe("the reimbursement request form still carries bill_url", () => {
+  it("recovers the complete claim form from an incomplete saved override", () => {
+    const fields = completeReimbursementRequestFields([
+      { key: "notes", label: "Notes", type: "textarea" },
+      { key: "bill_url", label: "Bill / Receipt Link", type: "url" },
+    ]);
+    expect(fields.map((field) => field.key)).toEqual(
+      MODULES.reimbursement.requestFields.map((field) => field.key),
+    );
+  });
+
+  it("preserves a configured claim form that retains its essential fields", () => {
+    const configured = [
+      { key: "expense_for", label: "Claim purpose", type: "text", required: true },
+      { key: "amount", label: "Amount", type: "number", required: true },
+      { key: "expense_date", label: "Date", type: "date", required: true },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ] as const;
+    expect(completeReimbursementRequestFields([...configured])).toEqual(configured);
+  });
+
   it("keeps the field, because the ANDROID APP posts through it", () => {
     // `validateFields` drops any value whose key is not in this list, so
     // removing the field would make every mobile-filed claim arrive with no

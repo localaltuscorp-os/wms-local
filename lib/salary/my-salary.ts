@@ -19,6 +19,7 @@ import {
   type LedgerPay,
 } from "@/lib/salary/day-ledger";
 import { localDateString } from "@/lib/format";
+import { prioritizeActiveSalaryMonth } from "@/lib/salary/period";
 import {
   NOT_JOINED_CODE,
   employeeEffectiveConfig,
@@ -203,11 +204,11 @@ export async function loadMySalaryMonths(
   // (paid out, recomputed moments ago) simply leaves the stored run in place.
   await refreshSalaryRun(employeeId, open, now);
 
-  let months = await loadStoredMonths(employeeId, hourly);
+  let months = prioritizeActiveSalaryMonth(await loadStoredMonths(employeeId, hourly), open);
 
-  // `months` is newest-first, so "first" is the month the page opens on. Pinned
-  // to a value rather than read through `months` on every call, because the
-  // refresh below may replace that array.
+  // The active month is first when it exists, so "first" is the month the page
+  // opens on. It is pinned to a value rather than read through `months` on every
+  // call, because the refresh below may replace that array.
   const want = opts.ledgerMonths ?? "none";
   const firstMonth = months[0]?.month;
   const ledgerFor: (month: string) => boolean =
@@ -245,7 +246,9 @@ export async function loadMySalaryMonths(
     const outcomes = await Promise.all(
       restale.map((m) => refreshSalaryRun(employeeId, m, now)),
     );
-    if (outcomes.includes("refreshed")) months = await loadStoredMonths(employeeId, hourly);
+    if (outcomes.includes("refreshed")) {
+      months = prioritizeActiveSalaryMonth(await loadStoredMonths(employeeId, hourly), open);
+    }
   }
 
   return withRealAttendance(employeeId, months, wt, now, ledgerFor);

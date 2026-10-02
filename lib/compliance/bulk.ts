@@ -9,11 +9,11 @@
  * again; nothing here is trusted on its own.
  *
  * ── THE COLUMNS ──────────────────────────────────────────────────────────
- *   WCC  Employee* · Section · Compliance* · Frequency* · Days · Mins · Target · Unit
+ *   WCC  Employee* · Subject · Compliance* · Frequency* · Days · Mins · Target · Unit
  *        Frequency: Mon to Sat · Mon to Sun · Each Day of the Week (repeats
  *                   on each day listed in Days) — the pop-up's own three
  *        Mins:      how many minutes it takes each time (lib/compliance/minutes)
- *   MCC  Employee* · Section · Compliance* · Frequency* · Deadline Day* ·
+ *   MCC  Employee* · Subject · Compliance* · Frequency* · Deadline Day* ·
  *        2nd Deadline Day · 3rd Deadline Day · Due Month · Target · Unit
  *        Frequency: Monthly · 2 times/month · 3 times/month · Alternate Month ·
  *                   Quarterly · Half Yearly · Annually (lib/compliance/mcc-frequency)
@@ -79,9 +79,12 @@ const MCC_ALIASES: Record<MccFrequency, string[]> = {
   monthly: ["monthly", "every month", "once a month", "1 time/month", "1 time a month", "per month"],
   twice_monthly: ["2 times/month", "2 times a month", "2 times per month", "twice a month", "twice monthly", "semi monthly", "semimonthly"],
   thrice_monthly: ["3 times/month", "3 times a month", "3 times per month", "thrice a month", "thrice monthly"],
+  four_times_monthly: ["4 times/month", "4 times a month", "4 times per month", "four times a month", "four times monthly"],
   alternate_month: ["alternate month", "alternate months", "every alternate month", "every 2 months", "every two months", "every other month"],
   quarterly: ["quarterly", "every quarter", "once a quarter", "every 3 months", "every three months"],
+  quarterly_multiple: ["quarterly multiple due dates", "quarterly multiple dates", "quarterly multi date"],
   half_yearly: ["half yearly", "half-yearly", "half year", "every 6 months", "every six months", "semi annual", "semi annually", "biannual", "biannually", "twice a year", "six monthly"],
+  half_yearly_multiple: ["half yearly multiple due dates", "half yearly multiple dates", "half yearly multi date"],
   annually: ["annually", "annual", "yearly", "once a year", "every year", "every 12 months"],
 };
 
@@ -220,13 +223,14 @@ export type BulkField =
   | "day1"
   | "day2"
   | "day3"
+  | "day4"
   | "dueMonth"
   | "mins"
   | "target"
   | "unit";
 
 /** Which list backs a column's dropdown in the template. */
-export type BulkList = "people" | "wccFrequency" | "wccDays" | "mccFrequency" | "day" | "month" | null;
+export type BulkList = "people" | "subject" | "wccFrequency" | "wccDays" | "mccFrequency" | "day" | "month" | null;
 
 export interface BulkColumn {
   field: BulkField;
@@ -258,10 +262,10 @@ const COL: Record<BulkField, Omit<BulkColumn, "prompt" | "help"> & { prompt: Rec
     },
   },
   section: {
-    field: "section", header: "Section", required: "no", width: 18, list: null, strict: false,
-    aliases: ["group", "category", "area", "head"],
-    prompt: { wcc: "Optional grouping, e.g. Calls, Reporting. Up to 120 characters.", mcc: "Optional grouping, e.g. Accounts, Reporting. Up to 120 characters." },
-    help: { wcc: "Optional. A short grouping shown under the compliance — Calls, Reporting, Office.", mcc: "Optional. A short grouping shown under the compliance — Accounts, Reporting, Statutory." },
+    field: "section", header: "Subject", required: "no", width: 18, list: "subject", strict: false,
+    aliases: ["section", "group", "category", "area", "head"],
+    prompt: { wcc: "Optional. Pick an Admin → Subjects value, e.g. Calls or Reporting. Up to 120 characters.", mcc: "Optional. Pick an Admin → Subjects value, e.g. Accounts or Reporting. Up to 120 characters." },
+    help: { wcc: "Optional. The subject from Admin → Subjects. It is shown under the compliance.", mcc: "Optional. The subject from Admin → Subjects. It is shown under the compliance." },
   },
   compliance: {
     field: "compliance", header: "Compliance", required: "yes", width: 46, list: null, strict: false,
@@ -317,6 +321,12 @@ const COL: Record<BulkField, Omit<BulkColumn, "prompt" | "help"> & { prompt: Rec
     prompt: { wcc: "", mcc: "Only for 3 times/month — the third deadline, later than the second." },
     help: { wcc: "", mcc: "For 3 times/month only: the third deadline, later in the month than the second." },
   },
+  day4: {
+    field: "day4", header: "4th Deadline Day", required: "depends", width: 17, list: "day", strict: true,
+    aliases: ["fourth deadline day", "deadline day 4", "day 4", "4th deadline"],
+    prompt: { wcc: "", mcc: "Only for a four-date schedule — the fourth deadline, later than the third." },
+    help: { wcc: "", mcc: "For 4 times/month, Quarterly — multiple due dates, and Half Yearly — multiple due dates only: the fourth deadline, later than the third." },
+  },
   dueMonth: {
     field: "dueMonth", header: "Due Month", required: "depends", width: 14, list: "month", strict: true,
     aliases: ["month", "starting month", "start month", "first month", "first due month", "in month"],
@@ -363,7 +373,7 @@ const COL: Record<BulkField, Omit<BulkColumn, "prompt" | "help"> & { prompt: Rec
 
 const FIELDS: Record<ComplianceKind, BulkField[]> = {
   wcc: ["employee", "section", "compliance", "frequency", "days", "mins", "target", "unit"],
-  mcc: ["employee", "section", "compliance", "frequency", "day1", "day2", "day3", "dueMonth", "target", "unit"],
+  mcc: ["employee", "section", "compliance", "frequency", "day1", "day2", "day3", "day4", "dueMonth", "target", "unit"],
 };
 
 /** The template's columns for a checklist, in order. */
@@ -536,12 +546,12 @@ function readRow(
     }
   }
 
-  // Compliance and Section
+  // Compliance and Subject (stored in the established section field).
   const title = cellText(get("compliance")).replace(/\s+/g, " ");
   if (!title) errors.push("Write the Compliance.");
   else if (title.length > 300) errors.push("The Compliance is longer than 300 characters.");
   const sectionText = cellText(get("section"));
-  if (sectionText.length > 120) errors.push("The Section is longer than 120 characters.");
+  if (sectionText.length > 120) errors.push("The Subject is longer than 120 characters.");
 
   // Target and Unit
   let targetQuantity: number | null = null;
@@ -600,7 +610,7 @@ function readRow(
     else {
       frequency = MCC_FREQUENCY_LABEL[f];
       const n = DEADLINES_PER_MONTH[f];
-      const dayFields: BulkField[] = ["day1", "day2", "day3"];
+      const dayFields: BulkField[] = ["day1", "day2", "day3", "day4"];
       const days: (number | null)[] = [];
       dayFields.forEach((field, i) => {
         if (i >= n) {
