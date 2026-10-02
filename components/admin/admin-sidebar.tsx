@@ -28,6 +28,7 @@ export function AdminSidebar({
   avatarUrl,
   backHref,
   rosterOnly = false,
+  hierarchyOnly = false,
 }: {
   adminName: string;
   adminEmail: string;
@@ -35,9 +36,10 @@ export function AdminSidebar({
   backHref: string;
   /** Not an admin — the menu shows only Subjects and Clients. */
   rosterOnly?: boolean;
+  hierarchyOnly?: boolean;
 }) {
   const pathname = usePathname();
-  const nav = adminNavFor(rosterOnly);
+  const nav = adminNavFor(rosterOnly, hierarchyOnly);
   const dropdownActive = isDropDownMasterPath(pathname);
 
   async function handleSignOut() {

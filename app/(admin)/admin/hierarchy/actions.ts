@@ -2,8 +2,12 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth/current";
-import { requireModuleEdit } from "@/lib/permissions/resolve";
+import { requireAdmin, forbiddenError } from "@/lib/auth/current";
+import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isFounderEmail } from "@/lib/auth/founder";
+import { db } from "@/lib/db";
+import { employees } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { setReportingManager, managerHistoryFor } from "@/lib/employees/manager-history";
 import { reorderSibling } from "@/lib/employees/sort-order";
 import { setIsManager } from "@/lib/employees/is-manager";
@@ -26,8 +30,13 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
  * amount to.
  */
 
-const NODE = "admin.people.hierarchy";
 const PATHS = ["/admin/hierarchy", "/admin/employees"];
+
+async function requireHierarchyEditor() {
+  const me = await requireAdmin();
+  if (!isSuperAdmin(me.email)) throw forbiddenError();
+  return me;
+}
 
 const MoveSchema = z
   .object({
@@ -43,8 +52,7 @@ export type MoveResult = { ok: true; changed: boolean } | { ok: false; error: st
 export async function moveEmployeeToManager(
   input: z.infer<typeof MoveSchema>,
 ): Promise<MoveResult> {
-  const me = await requireAdmin();
-  await requireModuleEdit(NODE);
+  const me = await requireHierarchyEditor();
 
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -82,8 +90,7 @@ export async function reorderTeamMember(
   employeeId: string,
   direction: "up" | "down",
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const me = await requireAdmin();
-  await requireModuleEdit(NODE);
+  const me = await requireHierarchyEditor();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
   if (!z.string().uuid().safeParse(employeeId).success) return { ok: false, error: "Invalid id" };
@@ -107,11 +114,13 @@ export async function setEmployeeIsManager(
   employeeId: string,
   isManager: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const me = await requireAdmin();
-  await requireModuleEdit(NODE);
+  const me = await requireHierarchyEditor();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
   if (!z.string().uuid().safeParse(employeeId).success) return { ok: false, error: "Invalid id" };
+
+  const [employee] = await db.select({ email: employees.email }).from(employees).where(eq(employees.id, employeeId)).limit(1);
+  if (!employee || isFounderEmail(employee.email)) return { ok: false, error: "Founder role cannot be changed." };
 
   const wrote = await setIsManager(employeeId, isManager);
   if (!wrote) return { ok: false, error: "Manager designation isn't set up on this database yet." };

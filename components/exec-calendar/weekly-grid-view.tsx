@@ -14,7 +14,7 @@ import {
   weekStart,
   type GridConfig,
 } from "@/lib/exec-calendar/grid";
-import { GRID_WEEKS, monthName, monthSegments } from "@/lib/exec-calendar/period";
+import { GRID_WEEKS, monthName } from "@/lib/exec-calendar/period";
 import { markersByDay, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
 import { useEventContextMenu } from "./event-context-menu";
@@ -24,9 +24,9 @@ import { useEventContextMenu } from "./event-context-menu";
  *
  * Eight columns (time, then Monday → Sunday), and the chosen week plus the
  * three after it stacked down the page. A dark banner names the month where a
- * new one starts; each week opens with a dark row carrying its number, its
- * dates and that day's Day Markers. Below, one row per half hour across the
- * calendar's window (06:30–23:00, the same as Day and Week), white cells with a
+ * new one starts; each week header aligns its number with weekday names, then
+ * shows dates and that day's Day Markers below. One row per hour spans the
+ * calendar's window (07:00–23:00, the same as Day and Week), white cells with a
  * light grey rule, and every block filled in its category's colour with black
  * text that wraps. Blocks that overlap split the cell side by side - a sheet has
  * no layers, so there is no nesting here.
@@ -54,12 +54,6 @@ const TIME_COL = 64;
  * 30px = py-2 (8+8) + an 11.5px line at leading-tight (~14px).
  */
 const HEAD_H = 30;
-/**
- * The month band's own stated height, same reasoning as HEAD_H: the week bar
- * below it sticks at HEAD_H + BANNER_H, so a measured value could judder.
- * 28px = py-1.5 (6+6) + a 13px line at tight leading (~16px).
- */
-const BANNER_H = 28;
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const HEADER_BG = "#6B7280";
@@ -70,11 +64,11 @@ const RULE = "#D3D3D3";
 
 /**
  * The day, within `monday`'s week, that is the 1st of a month — or null when
- * no month starts in this week. Shared by `weekOfMonth` and `monthSegments`
- * so the two questions "does a new month start here" and "which month owns
- * this week" can never disagree (they used to: the old banner logic used
- * THIS rule while `weekOfMonth` asked what its Thursday's month was, so a
- * week straddling a boundary got a "NOVEMBER 2026" banner over a "Week 5" that was still
+ * no month starts in this week. Shared by `weekOfMonth` and `bannerFor` so
+ * the two questions "does a new month start here" and "which month owns this
+ * week" can never disagree (they used to: `bannerFor` used THIS rule while
+ * `weekOfMonth` asked what its Thursday's month was, so a week straddling a
+ * boundary got a "NOVEMBER 2026" banner over a "Week 5" that was still
  * counting OCTOBER's weeks — reported live 2026-09-28, "why is there week 5
  * on first week of november? it should be week 1").
  */
@@ -90,7 +84,7 @@ function monthStartInWeek(monday: string): string | null {
  * Which week of ITS OWN MONTH a Monday starts — Week 1 is whichever week
  * holds that month's 1st, resetting at every month rather than counting
  * ISO weeks through the whole year (asked 2026-09-26). A week that CONTAINS
- * a month's 1st belongs to that new month (matching `monthSegments` below);
+ * a month's 1st belongs to that new month (matching `bannerFor` below);
  * otherwise it belongs to its Monday's own month.
  */
 function weekOfMonth(monday: string): number {
@@ -101,6 +95,12 @@ function weekOfMonth(monday: string): number {
   return Math.round(diffDays / 7) + 1;
 }
 
+/** "Sep 2026" banner text for a week, or null when no new month starts in it. */
+function bannerFor(monday: string, index: number): string | null {
+  if (index === 0) return monthName(monday, true);
+  const newMonth = monthStartInWeek(monday);
+  return newMonth ? monthName(newMonth, true) : null;
+}
 
 export function ExecWeeklyGridView({
   monday,
@@ -143,89 +143,64 @@ export function ExecWeeklyGridView({
     // back, so the box never traps it.
     <div className="max-h-[78vh] overflow-auto border border-hairline bg-white" style={{ overscrollBehaviorX: "contain" }}>
       <div style={{ minWidth: TIME_COL + 7 * 96 }}>
-        {/* Day names, pinned while the weeks scroll under them. The height is
-            STATED (HEAD_H) because each week's bar sticks directly beneath it —
-            see the constant. */}
-        <div
-          className="sticky top-0 z-30 grid text-white"
-          style={{ gridTemplateColumns: cols, background: HEADER_BG, height: HEAD_H }}
-        >
-          <div className="sticky left-0 z-10 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: HEADER_BG }}>
-            Time
-          </div>
-          {DAY_NAMES.map((d) => (
-            <div key={d} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {weeks.map((wk) => {
+        {weeks.map((wk, wi) => {
           const days = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
+          const banner = bannerFor(wk, wi);
           const isCurrentWeek = !!today && days.includes(today);
           const weekBg = isCurrentWeek ? HEADER_BG_CURRENT : HEADER_BG;
           return (
             <section key={wk} aria-label={`Week ${weekOfMonth(wk)}`}>
-              {/* The month band — STICKY, directly under the column header, and
-                  ALWAYS rendered (not just on the week a month starts) so it
-                  can stay pinned and hand off to the next month's label the
-                  moment that week's section arrives, same mechanism as the
-                  week bar below it. Split into per-month segments so a week
-                  straddling a boundary shows both months, each over its own
-                  days. */}
+              {banner && (
+                <div
+                  className="border-t border-white/10 px-3 py-1.5 text-[13px] font-black uppercase tracking-wide text-white"
+                  style={{ background: HEADER_BG }}
+                >
+                  {banner}
+                </div>
+              )}
+
+              {/* Week number and weekday names share this header row. */}
               <div
-                className="sticky z-25 grid border-t border-white/10 text-white"
-                style={{ top: HEAD_H, gridTemplateColumns: cols, background: HEADER_BG, height: BANNER_H }}
+                className="sticky top-0 z-30 grid text-white"
+                style={{ gridTemplateColumns: cols, background: weekBg, height: HEAD_H }}
               >
-                <div className="sticky left-0 z-10" style={{ background: HEADER_BG }} />
-                {(() => {
-                  let col = 2;
-                  return monthSegments(days).map((seg) => {
-                    const gridColumn = `${col} / span ${seg.span}`;
-                    col += seg.span;
-                    return (
-                      <div
-                        key={seg.month}
-                        className="flex items-center border-l border-white/15 px-3 text-[13px] font-black uppercase tracking-wide"
-                        style={{ gridColumn }}
-                      >
-                        {monthName(seg.month, true)}
-                      </div>
-                    );
-                  });
-                })()}
+                <div className="sticky left-0 z-40 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: weekBg }}>
+                  WK {weekOfMonth(wk)}
+                </div>
+                {DAY_NAMES.map((name) => (
+                  <div key={name} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
+                    {name}
+                  </div>
+                ))}
               </div>
 
-              {/* The week's own dark row: number, dates, and each day's markers.
-                  STICKY, directly under the month band.
+              {/* Date row and day markers stick directly beneath weekday names.
 
                   It needs no scroll listener and no observer: a sticky element
                   is clipped by its PARENT, and each week is already its own
-                  <section>. So week 36's bar pins at HEAD_H + BANNER_H while
-                  week 36's body is on screen, and the moment week 37's section
-                  arrives its bar pushes week 36's out and takes the slot — the
-                  swap the browser does for free, which is also why it cannot
-                  get stuck. */}
+                  <section>. So week 36's bar pins at HEAD_H while week 36's body
+                  is on screen, and the moment week 37's section arrives its bar
+                  pushes week 36's out and takes the slot — the swap the browser
+                  does for free, which is also why it cannot get stuck.
+
+                  The month band above is deliberately NOT sticky: it renders on
+                  some weeks and not others, so pinning it too would mean a
+                  second offset that changes week to week. */}
               <div
                 className="sticky z-20 grid border-t border-white/10 text-white"
-                style={{ top: HEAD_H + BANNER_H, gridTemplateColumns: cols, background: weekBg }}
+                style={{ top: HEAD_H, gridTemplateColumns: cols, background: weekBg }}
               >
-                <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: weekBg }}>
-                  Week {weekOfMonth(wk)}
+                <div className="sticky left-0 z-10 flex items-start justify-end px-2 py-1.5 text-[10px] font-bold uppercase text-white/75" style={{ background: weekBg }}>
+                  Time
                 </div>
                 {days.map((d) => {
                   const date = parseDay(d);
                   const isToday = d === today;
                   return (
                     <div key={d} className="min-w-0 border-l border-white/15 px-1.5 py-1.5">
-                      {/* Always black (asked 2026-09-29) — today used to switch
-                          to white/red depending on the week's own colour,
-                          which made the SAME date marker read differently
-                          from one week to the next. Today still gets an
-                          underline, just no colour swap. */}
                       <div
-                        className="text-center text-[11px] font-bold tabular-nums text-black"
-                        style={isToday ? { textDecoration: "underline" } : undefined}
+                        className="text-center text-[11px] font-bold tabular-nums"
+                        style={isToday ? { color: isCurrentWeek ? "#FFFFFF" : "#FF6B6B", textDecoration: isCurrentWeek ? "underline" : undefined } : undefined}
                       >
                         {date.getUTCDate()} {MON_SHORT[date.getUTCMonth()]}
                       </div>
@@ -264,7 +239,7 @@ export function ExecWeeklyGridView({
                 })}
               </div>
 
-              {/* Half-hour rows. */}
+              {/* Hourly rows. */}
               <div className="grid" style={{ gridTemplateColumns: cols }}>
                 {/* z-10, lowered from z-20 when the week bar above became sticky
                     at z-20: this gutter is sticky horizontally and would
@@ -338,6 +313,11 @@ export function ExecWeeklyGridView({
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="grid" style={{ gridTemplateColumns: cols }}>
+                <div className="sticky left-0 z-10 flex h-4 items-start justify-end bg-white pr-1.5 text-[10px] font-medium tabular-nums text-ink-muted">{minToLabel(cfg.endMin)}</div>
+                {days.map((d) => <div key={d} className="h-4 border-l" style={{ borderColor: RULE }} />)}
               </div>
             </section>
           );

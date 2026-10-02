@@ -128,35 +128,27 @@ export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot
 
   return (
     <div className="overflow-hidden border border-hairline bg-surface-card">
-      {/* Day headers — the ISO week number sits in the gutter, as it does on the sheet. */}
-      <div className="grid border-b border-hairline" style={{ gridTemplateColumns: `60px repeat(${days.length}, minmax(0, 1fr))` }}>
-        <div className="flex items-end justify-center px-1 pb-1.5 pt-2 text-center text-[10px] font-bold uppercase leading-tight text-ink-subtle">
-          {days[0] ? isoWeekLabel(days[0]).replace("Week No", "Wk") : ""}
+      {/* Week number shares weekday-header row. Dates stay directly below. */}
+      <div className="grid border-b border-hairline bg-surface-soft" style={{ gridTemplateColumns: `60px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <div className="flex min-h-7 items-center justify-center px-1 text-center text-[10px] font-bold uppercase leading-tight text-ink-subtle">
+          {days[0] ? isoWeekLabel(days[0]).replace("Week No", "WK") : ""}
         </div>
         {days.map((d) => {
           const date = parseDay(d);
           const isToday = d === today;
+          return <div key={d} className="flex min-h-7 items-center justify-center border-l border-hairline px-1 text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle" style={isToday ? { background: "var(--color-altus-red-wash)" } : undefined}>{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][(date.getUTCDay() + 6) % 7]}</div>;
+        })}
+      </div>
+      <div className="grid border-b border-hairline" style={{ gridTemplateColumns: `60px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <div className="flex items-center justify-center px-1 py-1.5 text-[9.5px] font-bold uppercase leading-tight text-ink-subtle">Time</div>
+        {days.map((d) => {
+          const date = parseDay(d);
+          const isToday = d === today;
           return (
-            <div
-              key={d}
-              className="border-l border-hairline px-2 py-1.5 text-center"
-              style={isToday ? { background: "var(--color-altus-red-wash)" } : undefined}
-            >
-              <div className="text-[10.5px] font-bold uppercase tracking-wide text-ink-subtle">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][(date.getUTCDay() + 6) % 7]}
-              </div>
-              {/* "18 - SEP - 2026" (asked 2026-09-18). Two unbreakable halves, so a
-                  narrow column (week view with the sidebar open) wraps the year
-                  onto a second line instead of splitting mid-word. */}
-              <button
-                type="button"
-                onClick={() => onPickDay?.(d)}
-                className={`inline-flex max-w-full flex-wrap justify-center gap-x-1 text-[11.5px] font-bold leading-tight tabular-nums transition hover:underline ${isToday ? "text-[var(--color-altus-red)]" : "text-ink-strong"}`}
-                title="Open this day"
-              >
-                <span className="whitespace-nowrap">
-                  {String(date.getUTCDate()).padStart(2, "0")} - {MONTHS[date.getUTCMonth()]}
-                </span>
+            <div key={d} className="border-l border-hairline px-2 py-1.5 text-center" style={isToday ? { background: "var(--color-altus-red-wash)" } : undefined}>
+              {/* Two unbreakable halves prevent narrow columns splitting date text. */}
+              <button type="button" onClick={() => onPickDay?.(d)} className={`inline-flex max-w-full flex-wrap justify-center gap-x-1 text-[11.5px] font-bold leading-tight tabular-nums transition hover:underline ${isToday ? "text-[var(--color-altus-red)]" : "text-ink-strong"}`} title="Open this day">
+                <span className="whitespace-nowrap">{String(date.getUTCDate()).padStart(2, "0")} - {MONTHS[date.getUTCMonth()]}</span>
                 <span className="whitespace-nowrap">- {date.getUTCFullYear()}</span>
               </button>
             </div>
@@ -258,6 +250,7 @@ export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot
                   }}
                 />
               ))}
+              <div className="absolute inset-x-0 border-t border-hairline" style={{ top: height }} />
 
               {drag && drag.preview.day === d && (
                 <div
@@ -365,6 +358,11 @@ export function ExecWeekGrid({ days, events, cfg, today, onPickEvent, onPickSlot
             </div>
           );
         })}
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: `60px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <div className="flex h-4 items-start justify-end pr-1.5 text-[10.5px] font-medium tabular-nums text-ink-subtle">{minToLabel(cfg.endMin)}</div>
+        {days.map((day) => <div key={day} className="h-4 border-l border-hairline" />)}
       </div>
 
       {hover && !drag && <ExecHoverCard event={hover.event} x={hover.x} y={hover.y} />}

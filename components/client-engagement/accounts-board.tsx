@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CE_CATEGORIES } from "@/lib/client-engagement/constants";
+import { CE_CATEGORIES, type CeProductOption } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
 import { AccountDialog } from "./account-dialog";
@@ -34,6 +34,7 @@ export function AccountsBoard({
   query,
   searchJump,
   addRequest,
+  productOptions,
 }: {
   accounts: CeAccountRow[];
   members: CeMemberRow[];
@@ -76,6 +77,7 @@ export function AccountsBoard({
    * component's own idea of which category tab is active.
    */
   addRequest?: { nonce: number } | null;
+  productOptions: CeProductOption[];
 }) {
   const [tab, setTab] = React.useState<Tab | "references">(
     initialTab === "references" || CE_CATEGORIES.some((c) => c.code === initialTab) ? (initialTab as Tab) : "ps",
@@ -203,8 +205,9 @@ export function AccountsBoard({
           defaultCategory={category?.code}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           batches={batches}
+          productOptions={productOptions}
           canManage={canManage}
-          canEdit
+          canEdit={true}
           onClose={() => setAddingNew(false)}
         />
       ) : null}

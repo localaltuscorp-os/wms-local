@@ -1,5 +1,5 @@
 import { ADMIN_GROUPS, ADMIN_TOP_LEVEL, type AdminNavGroup, type AdminNavItem } from "./admin-nav-config";
-import { Briefcase, Tag } from "lucide-react";
+import { Briefcase, Network, Tag } from "lucide-react";
 import type { Route } from "next";
 
 /**
@@ -9,6 +9,14 @@ import type { Route } from "next";
  * paths, this only trims the menu to match.
  */
 export const ROSTER_ONLY_PATHS: readonly string[] = ["/admin/subjects", "/admin/clients"];
+
+const HIERARCHY_ONLY_NAV: readonly AdminNavGroup[] = [
+  {
+    label: "People",
+    Icon: Briefcase,
+    items: [{ href: "/admin/hierarchy" as Route, label: "Reporting Hierarchy", Icon: Network }],
+  },
+];
 
 const ROSTER_ONLY_NAV: readonly AdminNavGroup[] = [
   {
@@ -25,10 +33,11 @@ export function isRosterOnlyPath(pathname: string): boolean {
   return ROSTER_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export function adminNavFor(rosterOnly: boolean): {
+export function adminNavFor(rosterOnly: boolean, hierarchyOnly = false): {
   topLevel: readonly AdminNavItem[];
   groups: readonly AdminNavGroup[];
 } {
+  if (hierarchyOnly) return { topLevel: [], groups: HIERARCHY_ONLY_NAV };
   if (!rosterOnly) return { topLevel: ADMIN_TOP_LEVEL, groups: ADMIN_GROUPS };
   return {
     topLevel: [],

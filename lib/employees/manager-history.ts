@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employeeManagerHistory, employeeTemporaryBreaks, employees } from "@/db/schema";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isFounderEmail } from "@/lib/auth/founder";
 import { isManagerFlagOf } from "@/lib/employees/is-manager";
 
 /**
@@ -172,18 +172,8 @@ export async function setReportingManager(input: {
           "That would create a loop in the reporting chain — the chosen manager already reports to this employee.",
       };
     }
-
-    // A manager can't be placed under somebody who isn't one themselves
-    // (Team Reporting, 2026-09-26 — "Jeevan cannot be moved under Rudra").
-    // "Manager" here is the same either/or `getHierarchy` uses: has at least
-    // one direct report right now, OR carries the explicit 0253 flag.
-    if (await isManagerOf(input.employeeId)) {
-      if (!(await isManagerOf(input.managerId))) {
-        return {
-          ok: false,
-          error: "A manager can't be moved to report to someone who isn't a manager themselves.",
-        };
-      }
+    if (!(await isValidReportingManager(input.managerId))) {
+      return { ok: false, error: "The selected employee is not designated as a manager." };
     }
   }
 
@@ -196,12 +186,8 @@ export async function setReportingManager(input: {
 
   const next = input.managerId ?? null;
 
-  // A super-admin can't be made someone's report — Team Reporting's "Manan
-  // Vasa is super admin so he cannot be unassigned to any team" (2026-09-24).
-  // Their own manager_id must stay null; they can still be `null`'d to no
-  // manager freely (that's already true today, not what this refuses).
-  if (isSuperAdmin(current.email)) {
-    return { ok: false, error: "A hierarchy root cannot be moved or assigned a manager." };
+  if (next !== null && isFounderEmail(current.email)) {
+    return { ok: false, error: "Founder cannot be assigned a manager." };
   }
 
   if (await hasActiveTemporaryBreak(input.employeeId)) {
@@ -246,6 +232,15 @@ async function isManagerOf(employeeId: string): Promise<boolean> {
     .limit(1);
   if (row) return true;
   return isManagerFlagOf(employeeId);
+}
+
+async function isFounderOf(employeeId: string): Promise<boolean> {
+  const [row] = await db.select({ email: employees.email }).from(employees).where(eq(employees.id, employeeId)).limit(1);
+  return isFounderEmail(row?.email);
+}
+
+export async function isValidReportingManager(employeeId: string): Promise<boolean> {
+  return (await isManagerOf(employeeId)) || (await isFounderOf(employeeId));
 }
 
 /**

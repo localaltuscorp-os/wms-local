@@ -18,10 +18,10 @@ import {
   listExecOwners,
 } from "@/lib/queries/exec-calendar";
 import { ExecCalendarWorkspace } from "@/components/exec-calendar/calendar-workspace";
+import { ExecCalendarLayout } from "@/components/exec-calendar/calendar-layout";
 import { ExecAllocationPanel } from "@/components/exec-calendar/allocation-panel";
 import { ExecLegend } from "@/components/exec-calendar/legend";
 import { ExecOwnerPicker } from "@/components/exec-calendar/owner-picker";
-import { ExecYearStrip } from "@/components/exec-calendar/year-strip";
 
 export const dynamic = "force-dynamic";
 
@@ -127,8 +127,8 @@ export default async function MonthlyEventsMasterPage({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0">
+      <ExecCalendarLayout
+        calendar={<div className="min-w-0">
           <ExecCalendarWorkspace
             view={view}
             day={day}
@@ -144,11 +144,9 @@ export default async function MonthlyEventsMasterPage({
             routineMode={sp.routine === "delete" ? "delete" : "edit"}
             openImport={canEdit && sp.import === "1"}
           />
-        </div>
-
-        <aside className="space-y-4">
-          {/* Whose calendar, and the year jump — both belong beside the stats
-              they change, not in the toolbar, which is now controls only. */}
+        </div>}
+        sidebar={<>
+          {/* Calendar owner remains available beside allocation details. */}
           <div className="rounded-2xl border border-hairline bg-surface-card p-3">
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
               Calendar
@@ -157,22 +155,12 @@ export default async function MonthlyEventsMasterPage({
               <ExecOwnerPicker owners={owners} ownerId={ownerId} meId={me.id} view={view} day={day} />
             </Chevroned>
 
-            <span className="mb-1.5 mt-3 block text-[11px] font-bold uppercase tracking-wide text-ink-subtle">
-              Jump to year
-            </span>
-            <ExecYearStrip
-              thisYear={Number(today.slice(0, 4))}
-              selectedYear={Number(day.slice(0, 4))}
-              view={view}
-              monthDay={day.slice(4)}
-              ownerQuery={isOwner ? "" : `&owner=${ownerId}`}
-            />
           </div>
 
           <ExecAllocationPanel report={report} view={view} />
           <ExecLegend />
-        </aside>
-      </div>
+        </>}
+      />
     </PageShell>
   );
 }

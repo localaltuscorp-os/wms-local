@@ -52,11 +52,18 @@ describe("Day Marker dates", () => {
 describe("the Weekly Grid view", () => {
   const today = "2026-09-18";
 
-  it("sits left of Week in the switcher", () => {
-    const keys = CALENDAR_VIEWS.map((v) => v.key);
-    expect(keys.indexOf("grid")).toBe(keys.indexOf("week") - 1);
-    expect(CALENDAR_VIEWS.find((v) => v.key === "grid")!.label).toBe("Weekly Grid");
+  it("exposes requested view tabs in order", () => {
+    expect(CALENDAR_VIEWS).toEqual([
+      { key: "day", label: "Day" },
+      { key: "week", label: "Week" },
+      { key: "grid", label: "Weekly Grid" },
+      { key: "month", label: "Month" },
+      { key: "monthgrid", label: "Month at a Glance" },
+      { key: "quarter", label: "Quarter" },
+    ]);
+    expect(isCalendarView("monthgrid")).toBe(true);
     expect(isCalendarView("grid")).toBe(true);
+    expect(isCalendarView("year")).toBe(false);
   });
 
   it("loads the chosen week and the five after it", () => {

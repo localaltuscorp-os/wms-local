@@ -1,0 +1,4 @@
+interface:
+  display_name: "WMS UI Language"
+  short_description: "Apply WMS visual and interaction language"
+  default_prompt: "Use $wms-ui-language to make this screen follow the WMS UI language."
