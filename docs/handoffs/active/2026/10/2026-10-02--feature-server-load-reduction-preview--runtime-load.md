@@ -6,7 +6,7 @@
 - Branch: `feature/server-load-reduction-preview`
 - Base: `wms-local/main` at `95a08ad1`
 - Implementation commit: `3b8cdf2f`
-- Status: implementation under validation
+- Status: validated locally and ready for Vercel preview
 
 ## Objective
 
@@ -70,8 +70,16 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 - `pnpm build` — compilation and TypeScript passed; local page-data collection stopped because the isolated worktree intentionally has no `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Vercel preview must confirm the complete build with project environment variables.
 - `pnpm check:leaks` — passed; zero PGlite production trace references.
 
+### Clean-clone verification before development push
+
+- `NODE_OPTIONS=--max-old-space-size=4096 pnpm typecheck` — passed.
+- `pnpm exec vitest run tests/unit/server-load-reduction-preview.test.ts` — passed, 4/4 tests.
+- ESLint on every changed TypeScript/TSX file — passed with no findings.
+- `pnpm build` — compilation and TypeScript passed; page-data collection stopped only because the clean clone has no `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- `pnpm check:leaks` — passed; zero PGlite production trace references.
+- Final outgoing diff review found no credentials, secrets, PII, SQL, migrations or unrelated generated files.
+
 ## Remaining work
 
-- Review the final diff for unrelated changes and sensitive data.
 - Commit and push to the development repository.
-- Create and verify a Vercel preview deployment.
+- Create and verify a Vercel preview deployment from the development branch.
