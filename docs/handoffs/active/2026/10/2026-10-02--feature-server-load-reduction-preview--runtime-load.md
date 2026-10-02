@@ -112,3 +112,23 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 ### Security review note
 
 - A pre-existing identity-based allow-list was found in `lib/hh/access.ts` while tracing a navigation consumer. It is outside this performance diff and was not modified. Migrate it separately to the established role/capability model after the feature owner confirms the intended business rule; do not copy identity values into a handoff or replacement implementation.
+
+## Attendance canonical-day follow-up
+
+### Summary
+
+- Attendance grading now groups a punch by its persisted `attendance_logs.log_date`, which is the business date selected when the punch was recorded.
+- Timestamp-to-timezone conversion now supplies only the displayed clock time. It can no longer move a historic punch to an adjacent calendar day and split an in/out pair across two grades.
+- Added a regression for a hybrid worker with paired 13:20 to 19:55 punches: 395 worked minutes and `Present`.
+
+### Database and deployment
+
+- No database rows, settings, migrations, or production data were changed.
+- This is a live-calculation fix: after deployment, historical attendance is recalculated from existing punch rows.
+
+### Validation
+
+- `pnpm.cmd exec vitest run tests/unit/attendance-worker-config.test.ts tests/unit/attendance-status.test.ts` - 60/60 passed.
+- ESLint on changed files - passed.
+- `node --max-old-space-size=4096 node_modules\\typescript\\bin\\tsc --noEmit` - passed.
+- `git diff --check` - passed.
