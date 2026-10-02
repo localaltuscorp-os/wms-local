@@ -38,6 +38,7 @@ import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-t
 import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
 import { BroadcastLockGate } from "@/components/communications/broadcast-lock-gate";
+import { TaskRealtimeProvider } from "@/components/layout/task-realtime-provider";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   // Load directly (no timeout wrapper). A slow read completes; wrapping auth in
@@ -228,7 +229,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const delegation = await getDelegation();
 
   return (
-    <>
+    <TaskRealtimeProvider>
       {/* FIRST-LOGIN DEVICE REGISTRATION (0222). Mounted first and outside
           ChromeShell so it covers the whole shell, not a pane of it. Renders
           nothing for an already-registered device, an exempt actor, or with
@@ -309,6 +310,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       >
         {children}
       </ChromeShell>
-    </>
+    </TaskRealtimeProvider>
   );
 }

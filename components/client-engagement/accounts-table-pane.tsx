@@ -6,6 +6,7 @@ import { ceAssignAccount } from "@/app/(app)/operations/client-engagement/action
 import { accountLabel } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
+import type { CeProductOption } from "@/lib/client-engagement/constants";
 import { AccountDialog } from "./account-dialog";
 import { TransferDialog } from "./transfer-dialog";
 import { AccountsTable } from "./accounts-table";
@@ -27,6 +28,7 @@ export function AccountsTablePane({
   canManage,
   myMemberId,
   batches,
+  productOptions,
   defaultCategory,
   extraControls,
 }: {
@@ -40,6 +42,7 @@ export function AccountsTablePane({
   myMemberId: string | null;
   /** Batch codes offered in the Edit dialog's own datalist. */
   batches: string[];
+  productOptions: CeProductOption[];
   /** The category a NEW account defaults to — irrelevant here, this pane never opens "new". */
   defaultCategory?: string;
   extraControls?: React.ReactNode;
@@ -88,6 +91,7 @@ export function AccountsTablePane({
           defaultCategory={defaultCategory}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           batches={batches}
+          productOptions={productOptions}
           canManage={canManage}
           canEdit={canEdit(editing)}
           onClose={() => setEditing(null)}

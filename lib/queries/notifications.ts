@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { alias } from "drizzle-orm/pg-core";
 import {
   and,
@@ -175,6 +176,15 @@ export async function getUnreadCount(userId: string): Promise<number> {
       and(eq(notifications.userId, userId), isNull(notifications.readAt)),
     );
   return Number(row?.n ?? 0);
+}
+
+/** Shared navigation may render several times during one browsing session. */
+export function getCachedUnreadCount(userId: string): Promise<number> {
+  return unstable_cache(
+    () => getUnreadCount(userId),
+    ["nav-unread-count", userId],
+    { revalidate: 30 },
+  )();
 }
 
 /**

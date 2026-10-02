@@ -3,6 +3,8 @@ import { loadCePage } from "@/lib/client-engagement/page-context";
 import { buildCapacity, buildPca, weeklyLoadByAccount, type Load } from "@/lib/client-engagement/grids";
 import { CeNotReady } from "@/components/client-engagement/not-ready";
 import { PcaGrid } from "@/components/client-engagement/pca-grid";
+import { listActiveProducts } from "@/lib/queries/products";
+import { ceProductOptions } from "@/lib/client-engagement/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export default async function ClientEngagementPca({ searchParams }: { searchPara
     );
   }
   const { members, accounts, engagements } = ctx.snapshot;
+  const productOptions = ceProductOptions(await listActiveProducts());
   const { columns, total } = buildPca(members, accounts, engagements, ctx.monday);
   const capacity = buildCapacity(members, accounts, engagements, ctx.monday);
   const loads: Record<string, Load> = Object.fromEntries(weeklyLoadByAccount(engagements, ctx.monday));
@@ -36,6 +39,7 @@ export default async function ClientEngagementPca({ searchParams }: { searchPara
         callCounts={callCounts}
         canManage={ctx.canManage}
         myMemberId={ctx.myMemberId}
+        productOptions={productOptions}
       />
     </PageShell>
   );
