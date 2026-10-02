@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { groupOf, type CeGroup } from "@/lib/client-engagement/constants";
+import { groupOf, type CeGroup, type CeProductOption } from "@/lib/client-engagement/constants";
 import { formatDuration } from "@/lib/client-engagement/schedule";
 import type { Load, MemberCapacity, PcaCell, PcaColumn, PcaMatrixRow } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
@@ -35,6 +35,7 @@ export function PcaGrid({
   callCounts,
   canManage,
   myMemberId,
+  productOptions,
 }: {
   columns: PcaColumn[];
   total: PcaMatrixRow;
@@ -45,6 +46,7 @@ export function PcaGrid({
   callCounts: Record<string, number>;
   canManage: boolean;
   myMemberId: string | null;
+  productOptions: CeProductOption[];
 }) {
   const [view, setView] = React.useState<View>("all");
   const batches = React.useMemo(
@@ -124,6 +126,7 @@ export function PcaGrid({
         canManage={canManage}
         myMemberId={myMemberId}
         batches={batches}
+        productOptions={productOptions}
       />
     </>
   );
