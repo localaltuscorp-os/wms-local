@@ -75,3 +75,40 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 - Review the final diff for unrelated changes and sensitive data.
 - Commit and push to the development repository.
 - Create and verify a Vercel preview deployment.
+
+## Navigation and stalled-loading follow-up
+
+### Summary
+
+- Deduplicated responsive navigation data into one request-scoped snapshot, so desktop and mobile variants share the same work during a server render.
+- Loaded independent navigation reads concurrently instead of serially.
+- Added five-second fallbacks for non-critical navigation badges and visibility hints, preventing an optional chrome read from holding the complete page open on a stale pooled connection.
+- Added request-scoped deduplication for workspace access and direct-report lookups. No authorization or employee data is cached across requests.
+- Added a manual `Reload page` action after a loading boundary has remained visible for 12 seconds. It does not auto-reload and cannot create a reload loop.
+
+### Files
+
+- `components/layout/main-nav-server.tsx`
+- `components/layout/loading-recovery.tsx`
+- `app/loading.tsx`
+- `app/(admin)/admin/loading.tsx`
+- `lib/auth/workspace-access.ts`
+- `lib/productivity/access.ts`
+- `tests/unit/server-load-reduction-preview.test.ts`
+
+### Behavior and risk
+
+- Server-side route authorization remains authoritative and unchanged.
+- If a non-critical navigation read times out, a badge or optional menu hint may be absent for that render; protected pages still enforce access independently.
+- Authentication, salary data, schema, migrations, and production data are unchanged.
+
+### Validation
+
+- `pnpm.cmd exec vitest run tests/unit/server-load-reduction-preview.test.ts` - 5/5 passed.
+- ESLint on all follow-up TypeScript and TSX files - passed.
+- `node --max-old-space-size=4096 node_modules\\typescript\\bin\\tsc --noEmit` - passed.
+- `git diff --check` - passed.
+
+### Security review note
+
+- A pre-existing identity-based allow-list was found in `lib/hh/access.ts` while tracing a navigation consumer. It is outside this performance diff and was not modified. Migrate it separately to the established role/capability model after the feature owner confirms the intended business rule; do not copy identity values into a handoff or replacement implementation.

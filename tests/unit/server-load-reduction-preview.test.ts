@@ -64,4 +64,14 @@ describe("server-load reduction preview", () => {
     expect(notifications).toContain("getCachedUnreadCount");
     expect(notifications).toContain("revalidate: 30");
   });
+
+  it("deduplicates shared navigation reads and gives stalled loads a recovery action", () => {
+    const nav = read("components/layout/main-nav-server.tsx");
+    const recovery = read("components/layout/loading-recovery.tsx");
+    expect(nav).toContain("const loadMainNavSnapshot = cache(async () =>");
+    expect(nav).toContain("await Promise.all([");
+    expect(nav).toContain("CHROME_QUERY_TIMEOUT_MS = 5_000");
+    expect(recovery).toContain("RECOVERY_DELAY_MS = 12_000");
+    expect(recovery).toContain("window.location.reload()");
+  });
 });
