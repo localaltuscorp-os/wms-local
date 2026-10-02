@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -27,6 +27,7 @@ import {
   Compass,
   Receipt,
   UserPlus,
+  BookUser,
   FileText,
   Timer,
   Sparkles,
@@ -74,11 +75,19 @@ import type { LucideIcon } from "lucide-react";
 import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
-import { OPERATIONS_AREAS, OPERATIONS_MASTERS, type OperationsAreaId } from "@/lib/operations/nav";
-import { DCC_CHILD_ROUTES, DCC_DOORS } from "@/lib/dcc/nav";
+import {
+  OPERATIONS_AREAS,
+  OPERATIONS_MASTERS,
+  type OperationsAreaId,
+} from "@/lib/operations/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { archiveSection, isArchiveSectionId } from "@/lib/archive/sections";
-import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
+import {
+  HR_STAGES,
+  hrItemHref,
+  type HrStage,
+  type HrStageKey,
+} from "@/lib/hr/lifecycle";
 
 interface Props {
   activeTasks: number;
@@ -217,13 +226,22 @@ interface WorkspaceNav {
  * the single lifecycle source (lib/hr/lifecycle.ts).                            */
 type HrSection = "hub" | HrStageKey | "holiday" | "helpdesk";
 
-const HR_HOME: NavItem = { href: "/hr" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true };
+const HR_HOME: NavItem = {
+  href: "/hr" as Route,
+  label: "Dashboard",
+  Icon: LayoutDashboard,
+  exact: true,
+};
 
 /** The front-door rail — the eight cards, so the rail is also the switcher. */
 const HR_HUB_NAV: WorkspaceNav = {
   top: [
     HR_HOME,
-    ...HR_STAGES.map((s) => ({ href: `/hr/${s.slug}` as Route, label: s.title, Icon: s.Icon })),
+    ...HR_STAGES.map((s) => ({
+      href: `/hr/${s.slug}` as Route,
+      label: s.title,
+      Icon: s.Icon,
+    })),
     // Saved form submissions. Only "My" appears here: it's open to everyone and
     // hard-scoped to the signed-in employee, so it needs no gate.
     //
@@ -233,7 +251,11 @@ const HR_HUB_NAV: WorkspaceNav = {
     // from HR-department non-admins. The HR landing deck already offers it behind
     // the correct predicate, so duplicating it here under the wrong one would
     // only create a second, inconsistent door.
-    { href: "/hr/my-forms" as Route, label: "My Filled Forms", Icon: ClipboardList },
+    {
+      href: "/hr/my-forms" as Route,
+      label: "My Filled Forms",
+      Icon: ClipboardList,
+    },
     { href: "/holidays" as Route, label: "Holiday List", Icon: PartyPopper },
     { href: "/support" as Route, label: "HR Help Desk", Icon: LifeBuoy },
   ],
@@ -245,23 +267,50 @@ function stageNav(s: HrStage): WorkspaceNav {
   return {
     top: [
       HR_HOME,
-      { href: `/hr/${s.slug}` as Route, label: s.title, Icon: s.Icon, exact: true },
-      ...s.items.map((it) => ({ href: hrItemHref(s.slug, it) as Route, label: it.label, Icon: it.Icon })),
+      {
+        href: `/hr/${s.slug}` as Route,
+        label: s.title,
+        Icon: s.Icon,
+        exact: true,
+      },
+      ...s.items.map((it) => ({
+        href: hrItemHref(s.slug, it) as Route,
+        label: it.label,
+        Icon: it.Icon,
+      })),
     ],
     groups: [],
   };
 }
 
 const HR_HOLIDAY_NAV: WorkspaceNav = {
-  top: [HR_HOME, { href: "/holidays" as Route, label: "Holiday List", Icon: PartyPopper, exact: true }],
+  top: [
+    HR_HOME,
+    {
+      href: "/holidays" as Route,
+      label: "Holiday List",
+      Icon: PartyPopper,
+      exact: true,
+    },
+  ],
   groups: [],
 };
 const HR_HELPDESK_NAV: WorkspaceNav = {
   top: [
     HR_HOME,
     { href: "/support" as Route, label: "Live Tickets", Icon: LifeBuoy },
-    { href: "/hr/routing" as Route, label: "Ticket Routing", Icon: ShieldCheck, adminOnly: true },
-    { href: "/hr/metrics" as Route, label: "Support Metrics", Icon: Gauge, adminOnly: true },
+    {
+      href: "/hr/routing" as Route,
+      label: "Ticket Routing",
+      Icon: ShieldCheck,
+      adminOnly: true,
+    },
+    {
+      href: "/hr/metrics" as Route,
+      label: "Support Metrics",
+      Icon: Gauge,
+      adminOnly: true,
+    },
   ],
   groups: [],
 };
@@ -270,18 +319,28 @@ const HR_SECTION_NAV: Record<HrSection, WorkspaceNav> = {
   hub: HR_HUB_NAV,
   holiday: HR_HOLIDAY_NAV,
   helpdesk: HR_HELPDESK_NAV,
-  ...(Object.fromEntries(HR_STAGES.map((s) => [s.slug, stageNav(s)])) as Record<HrStageKey, WorkspaceNav>),
+  ...(Object.fromEntries(HR_STAGES.map((s) => [s.slug, stageNav(s)])) as Record<
+    HrStageKey,
+    WorkspaceNav
+  >),
 };
 
 /** Which HR card a path belongs to — a stage under `/hr/<stage>`, the holiday
  *  or help-desk surfaces, else the hub switcher rail (front door + Overview). */
 function hrSectionForPath(p: string): HrSection {
-  const m = p.match(/^\/hr\/(pre-interview|post-interview|pre-joining|during|appraisal|exit)(\/|$)/);
+  const m = p.match(
+    /^\/hr\/(pre-interview|post-interview|pre-joining|during|appraisal|exit)(\/|$)/,
+  );
   if (m) return m[1] as HrStageKey;
   if (p.startsWith("/hr/candidates")) return "pre-interview"; // Basic Details lives here
 
   if (p.startsWith("/holidays")) return "holiday";
-  if (p.startsWith("/support") || p.startsWith("/hr/routing") || p.startsWith("/hr/metrics")) return "helpdesk";
+  if (
+    p.startsWith("/support") ||
+    p.startsWith("/hr/routing") ||
+    p.startsWith("/hr/metrics")
+  )
+    return "helpdesk";
   return "hub";
 }
 
@@ -307,7 +366,12 @@ function hrSectionForPath(p: string): HrSection {
  * disagree.                                                                   */
 const OPERATIONS_NAV: WorkspaceNav = {
   top: [
-    { href: "/operations/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
+    {
+      href: "/operations/dashboard" as Route,
+      label: "Dashboard",
+      Icon: LayoutDashboard,
+      exact: true,
+    },
     ...OPERATIONS_AREAS.map((a) => ({
       href: a.href as Route,
       label: a.label,
@@ -393,7 +457,12 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // the bare word says nothing about which one you're looking at. (Restored
       // — 2670d47 shipped this and 0ea9152 reverted it by syncing this file
       // from a stale copy.)
-      { href: "/dashboard" as Route, label: "WMS Dashboard", Icon: LayoutDashboard, exact: true },
+      {
+        href: "/dashboard" as Route,
+        label: "WMS Dashboard",
+        Icon: LayoutDashboard,
+        exact: true,
+      },
       // "Daily Goals" (renamed from "Plan My Day", Sir 2026-08-20). It lives
       // here rather than in Goals because workspaceForPath owns `/goals*` for
       // the Goals room, so a `/goals/plan` href would flip the sidebar to that
@@ -402,7 +471,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       { href: "/my-day" as Route, label: "Daily Goals", Icon: CalendarDays },
       // Review = the SAME Review & Scores workbench as Goals › Review, on the
       // WMS-owned alias `/review` for the same reason My Day uses `/my-day`.
-      { href: "/review" as Route, label: "Review & Scores", Icon: ClipboardList },
+      { href: "/review" as Route, label: "Review", Icon: ClipboardList },
       // Task Agenda is GONE — item, route and all. My Day above is the planner
       // that replaced it, so `/tasks/agenda` is no longer excluded below either.
       {
@@ -412,13 +481,23 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         not: ["/tasks/kanban", "/tasks/time"],
         countKey: "activeTasks",
       },
-      { href: "/tasks/kanban" as Route, label: "Kanban", Icon: SquareKanban, adminOnly: true },
+      {
+        href: "/tasks/kanban" as Route,
+        label: "Kanban",
+        Icon: SquareKanban,
+        adminOnly: true,
+      },
       { href: "/tasks/time" as Route, label: "Time Intelligence", Icon: Timer },
       // Completed-work analytics. Sits next to Time Intelligence rather than
       // under Dashboard: both answer "how did the work go", and the dashboard
       // entry is the live board. Admin/manager only, matching the page's own
       // gate — a doer following this link would be redirected straight back.
-      { href: "/dashboard/done" as Route, label: "Done Dashboard", Icon: CheckCircle2, adminOnly: true },
+      {
+        href: "/dashboard/done" as Route,
+        label: "Done Dashboard",
+        Icon: CheckCircle2,
+        adminOnly: true,
+      },
       // Projects is GONE from this rail (2026-09-21). The Project Plan room
       // still owns `/project-plan` and lists its own Projects entry there.
       //
@@ -445,20 +524,24 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // attendance page before — Leave as a link, Live Status as a rail panel —
       // which put a whole-team snapshot on the screen an individual visits to
       // clock in. Each now has its own door.
-      /* DASHBOARD, WCC, MCC LEAD THIS ROOM, in that order (account holder,
-         2026-09-18) — the SP1 dashboard, then the Weekly and Monthly Compliance
-         Checklists that replaced DCC's My Day.
-         The doors are generated from lib/dcc/nav.ts — the SAME list the
-         module's own quick-nav row renders — so the rail can never advertise a
-         door the pages have stopped honouring. DCC Masters is no longer one. */
-      ...DCC_DOORS.map((d) => ({
-        href: d.href as Route,
-        label: d.label,
-        Icon: d.Icon,
-        ...(d.exact ? { not: DCC_CHILD_ROUTES } : {}),
-      })),
+      /* The module landing is a separate dashboard; the checklist remains the
+         operational page beneath it. */
+      {
+        href: "/employees/dashboard" as Route,
+        label: "Dashboard",
+        Icon: Gauge,
+      },
+      {
+        href: "/employees/cc" as Route,
+        label: "Compliance Checklist",
+        Icon: ListChecks,
+      },
       { href: "/attendance/leave" as Route, label: "Leaves", Icon: Plane },
-      { href: "/attendance/remote-work" as Route, label: "Remote Work", Icon: House },
+      {
+        href: "/attendance/remote-work" as Route,
+        label: "Remote Work",
+        Icon: House,
+      },
       {
         href: "/attendance" as Route,
         label: "Attendance",
@@ -487,10 +570,18 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
          parameter — so this room being open to everyone exposes nobody's pay
          but your own. */
       { href: "/salary-slip" as Route, label: "Salary Slip", Icon: FileText },
-      { href: "/reimbursements" as Route, label: "Reimbursements", Icon: Receipt },
+      {
+        href: "/reimbursements" as Route,
+        label: "Reimbursements",
+        Icon: Receipt,
+      },
       // Queries & Notifications — re-parented here from the HR room (2026-07):
       // it's an employee-facing surface (raise a query, track company notices).
-      { href: "/queries" as Route, label: "Queries & Notifications", Icon: BellRing },
+      {
+        href: "/queries" as Route,
+        label: "Queries & Notifications",
+        Icon: BellRing,
+      },
     ],
     groups: [],
   },
@@ -500,14 +591,34 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   hr: HR_HUB_NAV,
   sales: {
     top: [
-      { href: "/people-gives" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
-      { href: "/participant-breakthrough" as Route, label: "Breakthrough", Icon: Sparkles },
-      { href: "/record-reference" as Route, label: "References", Icon: BookMarked },
+      {
+        href: "/people-gives" as Route,
+        label: "Dashboard",
+        Icon: LayoutDashboard,
+        exact: true,
+      },
+      {
+        href: "/participant-breakthrough" as Route,
+        label: "Breakthrough",
+        Icon: Sparkles,
+      },
+      {
+        href: "/record-reference" as Route,
+        label: "References",
+        Icon: BookMarked,
+      },
     ],
     groups: [],
   },
   admin: {
-    top: [{ href: "/admin" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true }],
+    top: [
+      {
+        href: "/admin" as Route,
+        label: "Dashboard",
+        Icon: LayoutDashboard,
+        exact: true,
+      },
+    ],
     groups: [],
   },
   /**
@@ -533,15 +644,47 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * default are unchanged — only the order someone reads them in.
      */
     top: [
-      { href: "/incentive" as Route, label: "Dashboard", Icon: LayoutDashboard, tab: "dashboard", tabDefault: true },
+      {
+        href: "/incentive" as Route,
+        label: "Dashboard",
+        Icon: LayoutDashboard,
+        tab: "dashboard",
+        tabDefault: true,
+      },
       // MY INCENTIVES (0244) sits second, right after Dashboard: it answers the
       // employee's own question ("what can I earn?") and needs no admin rights,
       // which is not true of anything below it.
-      { href: "/incentive" as Route, label: "My Incentives", Icon: Award, tab: "my" },
-      { href: "/incentive" as Route, label: "Requests", Icon: ListChecks, tab: "requests" },
-      { href: "/incentive" as Route, label: "Targets", Icon: Target, tab: "targets" },
-      { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },
-      { href: "/incentive" as Route, label: "Billing", Icon: IndianRupee, tab: "billing" },
+      {
+        href: "/incentive" as Route,
+        label: "My Incentives",
+        Icon: Award,
+        tab: "my",
+      },
+      {
+        href: "/incentive" as Route,
+        label: "Requests",
+        Icon: ListChecks,
+        tab: "requests",
+      },
+      {
+        href: "/incentive" as Route,
+        label: "Targets",
+        Icon: Target,
+        tab: "targets",
+      },
+      {
+        href: "/incentive" as Route,
+        label: "Entries",
+        Icon: Table2,
+        tab: "entries",
+        adminOnly: true,
+      },
+      {
+        href: "/incentive" as Route,
+        label: "Billing",
+        Icon: IndianRupee,
+        tab: "billing",
+      },
     ],
     groups: [],
   },
@@ -567,8 +710,16 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   "control-panel": {
     top: [
       { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
-      { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
-      { href: "/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
+      {
+        href: "/control-panel/permissions" as Route,
+        label: "Permissions",
+        Icon: KeyRound,
+      },
+      {
+        href: "/control-panel/temporary-access" as Route,
+        label: "Temporary Access",
+        Icon: Clock,
+      },
     ],
     groups: [],
   },
@@ -595,10 +746,27 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * appended to every rail in the app. See IMPORTANT_LINKS_ITEM.
      */
     top: [
-      { href: "/accounts" as Route, label: "Index", Icon: LayoutDashboard, exact: true },
-      { href: "/accounts/weekly-checklist" as Route, label: "Weekly CC", Icon: CalendarCheck },
-      { href: "/accounts/monthly-quarterly-annual" as Route, label: "Monthly CC", Icon: CalendarRange },
-      { href: "/accounts/due-dates" as Route, label: "Due Dates Master", Icon: CalendarClock },
+      {
+        href: "/accounts" as Route,
+        label: "Index",
+        Icon: LayoutDashboard,
+        exact: true,
+      },
+      {
+        href: "/accounts/weekly-checklist" as Route,
+        label: "Weekly CC",
+        Icon: CalendarCheck,
+      },
+      {
+        href: "/accounts/monthly-quarterly-annual" as Route,
+        label: "Monthly CC",
+        Icon: CalendarRange,
+      },
+      {
+        href: "/accounts/due-dates" as Route,
+        label: "Due Dates Master",
+        Icon: CalendarClock,
+      },
       // Payroll — the admin Salary module + Overtime, re-parented from Employees
       // (2026-07). Gated by the Accounts room + each page's own finance guard.
       { href: "/salary" as Route, label: "Salary", Icon: IndianRupee },
@@ -608,10 +776,19 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // nothing here for Accounts to see that HR doesn't - only a second door
       // to it, because payroll is run from this room. The HR workspace is open
       // to every employee, so this link can never dead-end.
-      { href: "/overtime" as Route, label: "Overtime", Icon: Timer, not: ["/overtime/dashboard"] },
+      {
+        href: "/overtime" as Route,
+        label: "Overtime",
+        Icon: Timer,
+        not: ["/overtime/dashboard"],
+      },
       // A `link` in the Accounts Index too — /reimbursements is a built module
       // of its own, and this is the door to it from this room, not a copy.
-      { href: "/reimbursements" as Route, label: "Reimbursement", Icon: Receipt },
+      {
+        href: "/reimbursements" as Route,
+        label: "Reimbursement",
+        Icon: Receipt,
+      },
       /* MIS — the eight registers, folded. `/accounts/mis` is an IDENTITY, not
        * a route: a parent carrying `children` never navigates. Do not create a
        * page at that path expecting this to open it. */
@@ -621,17 +798,41 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         Icon: BarChart3,
         closedUntilClicked: true,
         children: [
-          { href: "/accounts/bank-balance" as Route, label: "Bank Balance Master", Icon: Landmark },
+          {
+            href: "/accounts/bank-balance" as Route,
+            label: "Bank Balance Master",
+            Icon: Landmark,
+          },
           {
             href: "/accounts/vasa-family-interpersonal" as Route,
             label: "Vasa Family Interpersonal Balances",
             Icon: Users,
           },
-          { href: "/accounts/cc-tracker" as Route, label: "Credit Cards Masters", Icon: CreditCard },
-          { href: "/accounts/sip-tracker" as Route, label: "SIP Trackers", Icon: PiggyBank },
-          { href: "/accounts/fno-income" as Route, label: "FNO Income Master", Icon: LineChart },
-          { href: "/accounts/shares-register" as Route, label: "Shares Master", Icon: CandlestickChart },
-          { href: "/accounts/ca-handover" as Route, label: "CA Handover", Icon: ShieldCheck },
+          {
+            href: "/accounts/cc-tracker" as Route,
+            label: "Credit Cards Masters",
+            Icon: CreditCard,
+          },
+          {
+            href: "/accounts/sip-tracker" as Route,
+            label: "SIP Trackers",
+            Icon: PiggyBank,
+          },
+          {
+            href: "/accounts/fno-income" as Route,
+            label: "FNO Income Master",
+            Icon: LineChart,
+          },
+          {
+            href: "/accounts/shares-register" as Route,
+            label: "Shares Master",
+            Icon: CandlestickChart,
+          },
+          {
+            href: "/accounts/ca-handover" as Route,
+            label: "CA Handover",
+            Icon: ShieldCheck,
+          },
           {
             href: "/accounts/income-tax-master-folder" as Route,
             label: "Last 3–5 Years Income Tax Folder",
@@ -648,7 +849,11 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       },
       // The manual lives in the Induction module; this is the door to it from
       // Accounts, the same arrangement as Reimbursement above.
-      { href: "/training/induction" as Route, label: "Accounts Manual", Icon: BookOpen },
+      {
+        href: "/training/induction" as Route,
+        label: "Accounts Manual",
+        Icon: BookOpen,
+      },
       /* NOT ON THE RAIL ANY MORE, DELIBERATELY, and still reachable.
        * Cash Withdrawal, Incentive Payments and "CC Master — FY 2026-27" are
        * built sections with live data; they keep their routes and their cards on
@@ -676,18 +881,56 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
          the DD, and anything removed waits in the bin. Billing's own four
          surfaces follow, because a document cannot be raised until there is
          a customer to raise it against. */
-      { href: "/billing/customers" as Route, label: "Customer", Icon: Users, exact: true },
+      {
+        href: "/billing/customers/new" as Route,
+        label: "New Customer KYC",
+        Icon: UserPlus,
+        exact: true,
+      },
+      {
+        href: "/billing/customers" as Route,
+        label: "Customer Master",
+        Icon: Users,
+        exact: true,
+      },
+      {
+        href: "/billing/customers/addresses" as Route,
+        label: "Customer Address Book",
+        Icon: BookUser,
+        exact: true,
+      },
 
-      { href: "/billing/documents" as Route, label: "Billing", Icon: FileText, exact: false },
+      {
+        href: "/billing/documents" as Route,
+        label: "Billing Document",
+        Icon: FileText,
+        exact: false,
+      },
       /* ── CONTRACTS, ABOVE ADMIN MASTER ────────────────────────────────
          2026-09-19: "create new section in side panel above admin master".
          A contract caps what may be billed to a client and raises its bills
          as ordinary tax invoices in Documents — so it sits after Documents
          and before the masters. All Contracts stays lit on a contract's own
          pages, but not on Create Contract, which lights up on its own. */
-      { href: "/billing/contracts" as Route, label: "Contract", Icon: ScrollText, exact: false, not: ["/billing/contracts/new"] },
-      { href: "/billing/ambassadors" as Route, label: "Ambassadors", Icon: Gem, exact: false },
-      { href: "/billing/customers/dropdowns" as Route, label: "Customer Master DD", Icon: ListChecks, exact: true },
+      {
+        href: "/billing/contracts" as Route,
+        label: "All Contracts",
+        Icon: ScrollText,
+        exact: false,
+        not: ["/billing/contracts/new"],
+      },
+      {
+        href: "/billing/ambassadors" as Route,
+        label: "Ambassadors",
+        Icon: Gem,
+        exact: false,
+      },
+      {
+        href: "/billing/customers/dropdowns" as Route,
+        label: "Customer Master DD",
+        Icon: ListChecks,
+        exact: true,
+      },
       /* NO MASTERS RAIL IN THIS ROOM (2026-09-20). Admin Master and Customer
          Master DD both went: the only master data Billing owns is the customer
          itself, in Customer Master. Everything else an invoice is built from —
@@ -703,8 +946,18 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
        * destination as "Outstanding", which is the collections chase rather
        * than the master view — two doors to one ledger, deliberately, the same
        * way Overtime is reachable from both HR and Accounts. */
-      { href: "/billing/outstanding" as Route, label: "Collection", Icon: IndianRupee, exact: false },
-      { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
+      {
+        href: "/billing/outstanding" as Route,
+        label: "Collection Master",
+        Icon: IndianRupee,
+        exact: false,
+      },
+      {
+        href: "/billing/recycle-bin" as Route,
+        label: "Recycle Bin",
+        Icon: Trash2,
+        exact: true,
+      },
     ],
     groups: [],
   },
@@ -733,15 +986,50 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // Projects because it is the only item that answers "what is in this
       // plan?" without a click. The five level items below it slice the same
       // rows by level once you know which branch you want.
-      { href: "/project-plan/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
-      { href: "/project-plan/views" as Route, label: "Project Views", Icon: FolderTree, exact: true },
-      { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
-      { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
-      { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
-      { href: "/project-plan/actions" as Route, label: "Actions", Icon: ListChecks },
-      { href: "/project-plan/sub-actions" as Route, label: "Sub-Actions", Icon: CornerDownRight },
+      {
+        href: "/project-plan/dashboard" as Route,
+        label: "Dashboard",
+        Icon: LayoutDashboard,
+        exact: true,
+      },
+      {
+        href: "/project-plan/views" as Route,
+        label: "Project Views",
+        Icon: FolderTree,
+        exact: true,
+      },
+      {
+        href: "/project-plan" as Route,
+        label: "Projects",
+        Icon: FolderTree,
+        exact: true,
+      },
+      {
+        href: "/project-plan/milestones" as Route,
+        label: "Milestones",
+        Icon: Flag,
+      },
+      {
+        href: "/project-plan/results" as Route,
+        label: "Results",
+        Icon: Target,
+      },
+      {
+        href: "/project-plan/actions" as Route,
+        label: "Actions",
+        Icon: ListChecks,
+      },
+      {
+        href: "/project-plan/sub-actions" as Route,
+        label: "Sub-Actions",
+        Icon: CornerDownRight,
+      },
       // The same board component WMS renders, narrowed to plan-linked tasks.
-      { href: "/project-plan/kanban" as Route, label: "Kanban", Icon: SquareKanban },
+      {
+        href: "/project-plan/kanban" as Route,
+        label: "Kanban",
+        Icon: SquareKanban,
+      },
     ],
     groups: [],
   },
@@ -773,9 +1061,24 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         canvasOnly: true,
       },
       // yearly rootView — the FY's YEAR objectives themselves (drill → Quarterly).
-      { href: "/goals/yearly" as Route, label: "Yearly Goals", Icon: Trophy, canvasOnly: true },
-      { href: "/goals/quarterly" as Route, label: "Quarterly Goals", Icon: Target, canvasOnly: true },
-      { href: "/goals/monthly" as Route, label: "Monthly Goals", Icon: CalendarRange, canvasOnly: true },
+      {
+        href: "/goals/yearly" as Route,
+        label: "Yearly Goals",
+        Icon: Trophy,
+        canvasOnly: true,
+      },
+      {
+        href: "/goals/quarterly" as Route,
+        label: "Quarterly Goals",
+        Icon: Target,
+        canvasOnly: true,
+      },
+      {
+        href: "/goals/monthly" as Route,
+        label: "Monthly Goals",
+        Icon: CalendarRange,
+        canvasOnly: true,
+      },
       // Weekly = the REAL weekly board (WeeklyCascadeBoard over weekly_goals,
       // its own week nav). /goals/week is a permanent redirect alias to it.
       // The team view is nested below this path but has its own rail item.
@@ -803,10 +1106,23 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // "Team Productivity", on the speedometer — it reads as a performance
       // gauge rather than a second generic dashboard, and matches the icon the
       // Productivity module already carries.
-      { href: "/goals/weekly/team" as Route, label: "Team Productivity", Icon: Gauge },
-      { href: "/goals/review" as Route, label: "Review & Scores", Icon: ClipboardList },
-      { href: "/goals/approve" as Route, label: "Approve", Icon: CalendarRange },
-      { href: "/goals/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, adminOnly: true },
+      {
+        href: "/goals/weekly/team" as Route,
+        label: "Team Productivity",
+        Icon: Gauge,
+      },
+      { href: "/goals/review" as Route, label: "Review", Icon: ClipboardList },
+      {
+        href: "/goals/approve" as Route,
+        label: "Approve",
+        Icon: CalendarRange,
+      },
+      {
+        href: "/goals/recycle-bin" as Route,
+        label: "Recycle Bin",
+        Icon: Trash2,
+        adminOnly: true,
+      },
     ],
     groups: [],
   },
@@ -817,7 +1133,12 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   // the boundary (§23).
   productivity: {
     top: [
-      { href: "/productivity" as Route, label: "Dashboard", Icon: Gauge, exact: true },
+      {
+        href: "/productivity" as Route,
+        label: "Dashboard",
+        Icon: Gauge,
+        exact: true,
+      },
       {
         href: "/productivity/team" as Route,
         label: "Team Performance",
@@ -833,7 +1154,11 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // may open whose scorecard, and everyone has their own — hiding the entry
       // from employees would take away a surface they are entitled to and that
       // five inbox notifications link them straight to.
-      { href: "/productivity/appraisal" as Route, label: "Appraisal", Icon: Award },
+      {
+        href: "/productivity/appraisal" as Route,
+        label: "Appraisal",
+        Icon: Award,
+      },
     ],
     groups: [],
   },
@@ -845,12 +1170,29 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
 const GOALS_PERSONAL_NAV: WorkspaceNav = {
   top: [
     { href: "/goals/yearly" as Route, label: "Yearly Goals", Icon: Trophy },
-    { href: "/goals/quarterly" as Route, label: "Quarterly Goals", Icon: Target },
-    { href: "/goals/monthly" as Route, label: "Monthly Goals", Icon: CalendarRange },
-    { href: "/goals/weekly" as Route, label: "Weekly Goals", Icon: CalendarCheck },
+    {
+      href: "/goals/quarterly" as Route,
+      label: "Quarterly Goals",
+      Icon: Target,
+    },
+    {
+      href: "/goals/monthly" as Route,
+      label: "Monthly Goals",
+      Icon: CalendarRange,
+    },
+    {
+      href: "/goals/weekly" as Route,
+      label: "Weekly Goals",
+      Icon: CalendarCheck,
+    },
     // Daily Goals — same page, same href as the professional rail above.
     { href: "/my-day" as Route, label: "Daily Goals", Icon: CalendarDays },
-    { href: "/goals/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, adminOnly: true },
+    {
+      href: "/goals/recycle-bin" as Route,
+      label: "Recycle Bin",
+      Icon: Trash2,
+      adminOnly: true,
+    },
   ],
   groups: [],
 };
@@ -877,7 +1219,8 @@ const NAV_TITLE_ENTRIES: Array<[string, string]> = (() => {
     // explicitly in TITLE_OVERRIDES instead.
     for (const i of nav.top) if (!i.tab) out.push([i.href as string, i.label]);
     for (const g of nav.groups)
-      for (const i of g.items) if (!i.tab) out.push([i.href as string, i.label]);
+      for (const i of g.items)
+        if (!i.tab) out.push([i.href as string, i.label]);
   };
   for (const nav of Object.values(WORKSPACE_NAV)) push(nav);
   for (const nav of Object.values(HR_SECTION_NAV)) push(nav);
@@ -954,27 +1297,6 @@ export function MainNav({
   hiddenNodeKeys,
 }: Props) {
   const pathname = usePathname();
-  const [filteredTaskCount, setFilteredTaskCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    const cachedCount = (window as Window & { __altusTasksFilterCount?: number })
-      .__altusTasksFilterCount;
-    if (pathname === "/tasks" && typeof cachedCount === "number") {
-      setFilteredTaskCount(cachedCount);
-    }
-    const updateCount = (event: Event) => {
-      const count = (event as CustomEvent<unknown>).detail;
-      if (typeof count === "number" && Number.isFinite(count) && count >= 0) {
-        setFilteredTaskCount(count);
-      }
-    };
-    window.addEventListener("altus:tasks-filter-count", updateCount);
-    return () => window.removeEventListener("altus:tasks-filter-count", updateCount);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (pathname !== "/tasks") setFilteredTaskCount(null);
-  }, [pathname]);
   // Which TAB the current page is showing, for the single-page modules whose
   // rail entries are tabs (Incentive). Null on every other route, where no item
   // carries a `tab` and this is never consulted.
@@ -1007,7 +1329,9 @@ export function MainNav({
   // Project Plan. Both use a deliberately curated module rail and must not
   // grow a generic link that is absent from their designed navigation.
   const top: NavItem[] =
-    (workspace === "billing" || workspace === "project-plan") || roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
+    workspace === "billing" ||
+    workspace === "project-plan" ||
+    roomTop.some((i) => i.href === IMPORTANT_LINKS_ITEM.href)
       ? roomTop
       : [...roomTop, IMPORTANT_LINKS_ITEM];
 
@@ -1019,7 +1343,8 @@ export function MainNav({
     if (goalsCanvasEnabled) return items;
     return items.flatMap((it) => {
       if (it.canvasOnly) return [];
-      if (it.canvasOffHref) return [{ ...it, href: it.canvasOffHref, not: undefined }];
+      if (it.canvasOffHref)
+        return [{ ...it, href: it.canvasOffHref, not: undefined }];
       return [it];
     });
   }
@@ -1037,13 +1362,17 @@ export function MainNav({
     // the item marked `tabDefault` is the one the module actually opened on.
     if (item.tab) {
       if (pathname !== item.href) return false;
-      return activeTab === null ? item.tabDefault === true : activeTab === item.tab;
+      return activeTab === null
+        ? item.tabDefault === true
+        : activeTab === item.tab;
     }
     if (item.exact) return pathname === item.href;
     // Segment-aware: only match the exact path or a true sub-path, so
     // `/goals/week` never lights up on `/goals/weekly` (prefix collision).
-    if (pathname !== item.href && !pathname.startsWith(item.href + "/")) return false;
-    if (item.not?.some((p) => pathname === p || pathname.startsWith(p + "/"))) return false;
+    if (pathname !== item.href && !pathname.startsWith(item.href + "/"))
+      return false;
+    if (item.not?.some((p) => pathname === p || pathname.startsWith(p + "/")))
+      return false;
     return true;
   }
 
@@ -1086,7 +1415,10 @@ export function MainNav({
   const isExpanded = (item: NavItem): boolean =>
     openKeys[navKey(item)] ?? defaultExpanded(item);
   const toggleExpanded = (item: NavItem) =>
-    setOpenKeys((m) => ({ ...m, [navKey(item)]: !(m[navKey(item)] ?? defaultExpanded(item)) }));
+    setOpenKeys((m) => ({
+      ...m,
+      [navKey(item)]: !(m[navKey(item)] ?? defaultExpanded(item)),
+    }));
 
   function renderPill(item: NavItem) {
     return (
@@ -1096,13 +1428,7 @@ export function MainNav({
         label={item.label}
         Icon={item.Icon}
         active={isActive(item)}
-        count={
-          item.countKey === "activeTasks"
-            ? pathname === "/tasks" && filteredTaskCount !== null
-              ? filteredTaskCount
-              : activeTasks
-            : undefined
-        }
+        count={item.countKey === "activeTasks" ? activeTasks : undefined}
         variant={variant}
       />
     );

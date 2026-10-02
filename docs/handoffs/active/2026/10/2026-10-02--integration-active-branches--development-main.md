@@ -73,6 +73,21 @@ The integration branch has not been pushed or promoted. Full-suite validation
 passed after all approved active branches were integrated. The branch has not
 yet been pushed or promoted.
 
+## Post-integration build repair
+
+- Vercel's production build at `f2baa3de` failed because the retained
+  navigation still imported the retired `lib/dcc/nav` file after the Employees
+  Compliance Checklist migration removed it.
+- Restored Vinal's complete navigation file by explicit product direction. It
+  removes the retired DCC import, uses the live Employees Dashboard and
+  Compliance Checklist routes, and restores Vinal's detailed Billing labels.
+- Verified that the requested Billing, Archive, and Task Detail refinements are
+  already present in the current codebase; no historical Billing/schema code
+  was blindly reapplied.
+- A local production build and typecheck both exceeded the interactive time cap
+  before returning a result. The exact Vercel missing-module error has been
+  removed from the source and focused validation passed.
+
 ### Validation
 
 - `pnpm.cmd exec vitest run tests/unit/ce-v2.test.ts tests/unit/exec-calendar-grid.test.ts tests/unit/exec-calendar-markers.test.ts tests/unit/exec-calendar-period.test.ts tests/unit/manager-hierarchy.test.ts`
@@ -83,3 +98,5 @@ yet been pushed or promoted.
   - PASS: 6 files, 121 tests.
 - `pnpm.cmd test`
   - PASS: 393 test files, 5 skipped; 5,292 tests passed, 34 skipped.
+- `pnpm.cmd exec vitest run tests/unit/wms-legacy-entry.test.ts tests/unit/permission-catalog.test.ts tests/unit/cc-timeframes.test.ts`
+  - PASS: 3 files, 26 tests.
