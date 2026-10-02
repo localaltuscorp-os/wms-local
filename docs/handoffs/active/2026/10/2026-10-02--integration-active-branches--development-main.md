@@ -55,8 +55,19 @@ modified by this work.
 - Vinal's Employees Compliance Check (CC) migration
   `db/migrations/0263_mcc_multi_date_schedules.sql` is included but has not
   been executed.
-- The mobile-login branch remains to be reviewed and integrated. Its overlap
-  with session handling will require focused authorization and behavior review.
+## Mobile web login and device integration
+
+- Integrated `origin/mobile-web-login-devices` into this isolated worktree.
+- Retained the current shared `mintSessionForIdToken` and
+  `lib/security/device-access` path instead of reintroducing the branch's
+  retired `lib/attendance/web-device` implementation. The current path already
+  adopts a web browser at sign-in and enforces device access across the WMS,
+  including two-step checks; this avoids duplicating and weakening the newer
+  security boundary.
+- Added `/get-app` to the public path allowlist so the branch's Get App page is
+  reachable before sign-in.
+- No production branch, deployment, migration execution, or direct change to
+  `origin/main` has occurred.
 
 The integration branch has not been pushed or promoted. Full-suite validation
 is pending until all approved active branches are integrated.
@@ -67,3 +78,5 @@ is pending until all approved active branches are integrated.
   - PASS: 5 files, 107 tests.
 - `pnpm.cmd exec vitest run tests/unit/cc-timeframes.test.ts tests/unit/compliance-columns.test.ts tests/unit/compliance-bulk-actions.test.ts tests/unit/compliance-quantity-actions.test.ts tests/unit/api-guard.test.ts tests/unit/permission-catalog.test.ts tests/unit/master-admin-authorization.test.ts tests/unit/incentive-master-authorization.test.ts tests/unit/module-backup.test.ts tests/unit/my-salary.test.ts tests/unit/reimbursement-attachments.test.ts tests/unit/wms-legacy-entry.test.ts`
   - PASS: 12 files, 240 tests.
+- `pnpm.cmd exec vitest run tests/unit/device-access.test.ts tests/unit/device-exemption-login.test.ts tests/unit/device-registration-flow.test.ts tests/unit/device-self-registration.test.ts tests/unit/attendance-authorization.test.ts tests/unit/punch-no-task-prerequisite.test.ts`
+  - PASS: 6 files, 121 tests.
