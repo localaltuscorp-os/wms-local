@@ -5,6 +5,7 @@
 - Date: 2026-10-02
 - Branch: `feature/server-load-reduction-preview`
 - Base: `wms-local/main` at `95a08ad1`
+- Implementation commit: `3b8cdf2f`
 - Status: implementation under validation
 
 ## Objective
