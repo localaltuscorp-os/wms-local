@@ -2,8 +2,10 @@
 
 - **Date:** 2026-10-02
 - **Work item:** `bugfix/client-engagement-product-options`
-- **Status:** Committed locally; ready to push for development review
+- **Status:** Pushed for development review; PR open
 - **Commit:** `ccb94013` (`fix(client-engagement): pass product options to account editor`)
+- **Branch:** `origin/bugfix/client-engagement-product-options`
+- **Pull request:** #5, base `main`, not merged
 
 ## Objective
 
@@ -32,5 +34,5 @@ Passed the existing active-product option list through the shared account-table 
 
 ## Remaining work
 
-- Push this bugfix branch to the Development Repository and open a review PR against `origin/main`.
+- Review and resolve the PR checks before merging to `origin/main`.
 - Run or observe a complete production build in an environment with sufficient resources before any production promotion.
