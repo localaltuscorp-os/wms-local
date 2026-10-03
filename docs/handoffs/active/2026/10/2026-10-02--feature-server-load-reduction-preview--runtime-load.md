@@ -242,4 +242,6 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 - After explicit owner approval to use that shared live database, migration `0264_super_admin_grants.sql` was applied by itself in a transaction and recorded in `__schema_applied`. No other pending migration was applied.
 - Post-migration verification found zero rows in both `super_admin_grants` and `super_admin_grant_events`.
 - The Super Admin backfill was then run in its default dry-run mode. It resolved 3 active legacy Super Admin employee records and reported that 3 database grants need to be created.
-- The write-mode backfill was not run. No grant or audit-event rows were written, and active authorization still uses the legacy synchronous guard until the complete async-guard migration is separately reviewed and implemented.
+- After a second explicit owner approval, the write-mode backfill created 3 database grants and 3 append-only `backfilled` audit events in one transaction.
+- Independent read-only verification confirmed 3 unique grant employees, 3 valid employee references, 3 `backfilled` events, and no null event employee references.
+- Active authorization still uses the legacy synchronous guard until the complete async-guard migration is separately reviewed and implemented; storing the grants does not by itself remove the hardcoded guard.
