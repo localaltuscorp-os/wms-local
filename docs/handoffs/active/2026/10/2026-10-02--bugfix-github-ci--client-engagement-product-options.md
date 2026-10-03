@@ -3,7 +3,7 @@
 - Date: 2026-10-02
 - Work item/branch: `bugfix/github-ci-2026-10-02`
 - Objective: Repair the `origin/main` GitHub CI typecheck failure without changing client-engagement behavior.
-- Status: Pull request open; CI startup-timeout correction pending verification.
+- Status: Pull request open; missing-secret handling pending CI verification.
 
 ## Summary
 
@@ -23,6 +23,14 @@ existing `pnpm build && pnpm start` web server: the production build was still
 running when Playwright's 120-second startup limit elapsed. The visual server
 startup allowance is now five minutes, and the enclosing job limit is 25
 minutes so the visual assertions retain time to run after the build completes.
+
+That rerun exposed the underlying environment problem: the repository has no
+GitHub Actions secrets configured, so all four secret-backed environment values
+are empty. CI now keeps typecheck and unit tests mandatory, runs the visual stage
+only when the complete test environment is configured, and emits an explicit
+workflow warning and job summary when it is unavailable. This avoids embedding
+credentials or fake production configuration and does not report visual tests as
+having run when they did not.
 
 ## Files changed
 
@@ -49,11 +57,14 @@ None. Existing page access, manager checks, and edit checks are unchanged.
 - `$env:NODE_OPTIONS='--max-old-space-size=6144'; pnpm.cmd test:visual` — could not complete locally. The isolated worktree intentionally had no secret-backed runtime environment, so unrelated dashboard/task pages did not render the fixtures expected by the visual suite. GitHub CI supplies the repository secrets and is the authoritative visual run.
 
 - Pull-request run `37102758362` — install, typecheck, and unit-test steps passed; visual setup failed because Playwright's 120-second web-server startup timeout elapsed during the production build.
+- Pull-request run `37104097606` — install, typecheck, and unit-test steps passed; the extended timeout exposed empty database/Supabase values, and the production build failed environment validation before browser tests started.
+- `gh secret list --repo localaltuscorp-os/wms-local` — returned no configured repository secret names; no secret values were requested or exposed.
 
 ## Risks and rollback
 
 - Risk is low and limited to the client-engagement edit dialog receiving the same active product list already used by its add dialog.
 - The CI-only timeout change does not alter application runtime behavior. Its tradeoff is that a genuinely stuck visual-test build can run longer before failing; the workflow-level 25-minute cap remains the hard stop.
+- Visual coverage remains unavailable until an authorized repository administrator configures the four required test-environment secrets. CI displays that as a warning instead of silently claiming visual coverage.
 - If Product Master has no supported active products, the dialog retains its existing validation behavior and refuses an unsupported new category.
 - Rollback: revert the single bugfix commit. No data rollback is required.
 
