@@ -181,6 +181,12 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 4. Connect the Head / Associate / Developer design to the existing role/module-permission architecture. Do not create a parallel authorization system or grant access merely from a UI label.
 5. Run focused authorization tests, typecheck, diff/PII review, then push to `feature/server-load-reduction-preview` and verify a Preview deployment.
 
+### Test database discovery status (2026-10-03)
+
+- Read-only Supabase project discovery found the live Altus OS project and unrelated Altus projects, but no separate Altus OS test project available to the current signed-in account.
+- Do not link, migrate, or backfill the live Altus OS project for this work.
+- An authorised owner must either create a separate test Supabase project or provide access to its project reference before the next implementation phase can proceed.
+
 ## Attendance canonical-day follow-up
 
 ### Summary
