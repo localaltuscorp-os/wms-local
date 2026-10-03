@@ -165,6 +165,7 @@ export function AccountsBoard({
           canManage={canManage}
           myMemberId={myMemberId}
           batches={batches}
+          productOptions={productOptions}
           defaultCategory={category!.code}
           extraControls={
             <>
