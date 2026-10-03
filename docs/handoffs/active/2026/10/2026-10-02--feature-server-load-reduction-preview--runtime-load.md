@@ -245,3 +245,13 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 - After a second explicit owner approval, the write-mode backfill created 3 database grants and 3 append-only `backfilled` audit events in one transaction.
 - Independent read-only verification confirmed 3 unique grant employees, 3 valid employee references, 3 `backfilled` events, and no null event employee references.
 - Active authorization still uses the legacy synchronous guard until the complete async-guard migration is separately reviewed and implemented; storing the grants does not by itself remove the hardcoded guard.
+
+## Module ownership live demo (2026-10-03)
+
+- Added a UI-only concept route at `/admin/access-architecture-demo`, linked as **Ownership Demo** under the Control Panel’s Access navigation.
+- The demo models one Head as the primary module owner, one Associate as the Head’s operational replacement with the same access, and one or more Developers as technical/code owners assigned by Super Admin.
+- Each page inherits its module assignment by default and can be switched to a custom page-level Head, Associate, and Developer assignment.
+- Developer assignment is deliberately described as technical ownership; it does not grant business-data access or bypass existing authorization.
+- All displayed people are synthetic, all interactions stay in browser memory, and no server action, permission guard, schema, migration, or database write was added.
+- Validation: changed-file ESLint passed; full `pnpm typecheck` passed; environment-backed `pnpm build` passed and included the new route; `pnpm check:leaks` passed with zero watched-package leaks.
+- Product decision still required after review: confirm whether module/page inheritance and the exact Head/Associate/Developer model shown in the demo match the intended operating structure before implementing persistence or authorization.

@@ -16,6 +16,7 @@ import {
   ScrollText,
   ListFilter,
   Archive,
+  Boxes,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -66,7 +67,10 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
   {
     label: "Access",
     Icon: KeyRound,
-    items: [{ href: "/admin/access-control" as Route, label: "Task Visibility", Icon: ShieldCheck }],
+    items: [
+      { href: "/admin/access-control" as Route, label: "Task Visibility", Icon: ShieldCheck },
+      { href: "/admin/access-architecture-demo" as Route, label: "Ownership Demo", Icon: Boxes },
+    ],
   },
   {
     label: "System",
