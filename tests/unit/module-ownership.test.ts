@@ -5,6 +5,7 @@ import {
   nearestOwnership,
   type OwnershipAssignment,
 } from "@/lib/permissions/ownership-effective";
+import { filterVisibleModules } from "@/lib/permissions/visible-modules-effective";
 
 const rows: OwnershipAssignment[] = [
   { nodeKey: "wms", role: "head", employeeId: "head-module", canView: true, canEdit: true },
@@ -44,5 +45,19 @@ describe("module ownership inheritance", () => {
   it("hides a restricted node from an unassigned person", () => {
     expect(configuredPermission({ nodeKey: "wms", defaultVisibility: "restricted", assignments: rows }, "other"))
       .toEqual({ show: false, view: false, edit: false });
+  });
+});
+
+describe("ownership-backed global navigation", () => {
+  it("shows everyone-visible modules and removes restricted modules", () => {
+    const decisions = new Map([
+      ["wms", true],
+      ["employees", false],
+      ["employees.incentive", true],
+    ]);
+    expect(filterVisibleModules(["wms", "employees", "incentive"], decisions)).toEqual([
+      "wms",
+      "incentive",
+    ]);
   });
 });

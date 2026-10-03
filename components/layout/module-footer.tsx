@@ -6,13 +6,13 @@ import {
   ADMIN_PANEL_ENTRY,
   MODULE_ORDER,
   MODULE_THEME,
-  listedModules,
   moduleShortcutHint,
   moduleShortcutLabel,
 } from "@/lib/module-theme";
 import {
   canAccessWorkspace,
   workspaceForPath,
+  type WorkspaceId,
   type WorkspaceAccessInput,
 } from "@/lib/workspaces";
 
@@ -79,9 +79,10 @@ import {
 
 export interface ModuleFooterProps {
   access: WorkspaceAccessInput;
+  modules: readonly WorkspaceId[];
 }
 
-export function ModuleFooter({ access }: ModuleFooterProps) {
+export function ModuleFooter({ access, modules }: ModuleFooterProps) {
   const pathname = usePathname();
   const activeWs = workspaceForPath(pathname ?? "/");
 
@@ -157,7 +158,7 @@ export function ModuleFooter({ access }: ModuleFooterProps) {
           scrollbarWidth: "none",
         }}
       >
-        {listedModules(access).map((id) => {
+        {modules.map((id) => {
           const m = MODULE_THEME[id];
           // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
           // module (the Control Panel) is appended to `listedModules` and owns no

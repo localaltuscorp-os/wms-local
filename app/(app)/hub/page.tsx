@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/current";
 import { accessFor } from "@/lib/auth/workspace-access";
 import { canAccessWorkspace, WORKSPACE_LANDING, type WorkspaceId } from "@/lib/workspaces";
 import { listedModules } from "@/lib/module-theme";
+import { visibleModules } from "@/lib/permissions/visible-modules";
 import { EnterWorkspaceLink } from "@/components/hub/enter-workspace-link";
 import { AuraSheen } from "@/components/hub/aura-chrome";
 import { AuraTopBar } from "@/components/layout/aura-top-bar";
@@ -230,7 +231,7 @@ export default async function HubPage() {
   // `listedModules`, not MODULE_ORDER: the Control Panel is appended for the
   // people who may enter it and absent for everybody else. The other rooms are
   // the same fixed set as before.
-  const visible = listedModules(access);
+  const visible = await visibleModules(listedModules(access));
   const canSeeWms = canAccessWorkspace("wms", access);
   const canSeeGoals = canAccessWorkspace("goals", access);
 

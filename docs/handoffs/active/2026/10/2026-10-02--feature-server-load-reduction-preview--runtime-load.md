@@ -302,3 +302,20 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 - `NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd typecheck`: passed.
 - `pnpm.cmd test tests/unit/module-ownership.test.ts tests/unit/permission-catalog.test.ts`: passed, 26/26.
 - Supabase verification: migration ledger present, 3 assignments preserved, old Associate uniqueness index absent, 1 `everyone` policy row.
+
+## Ownership visibility enforcement audit (2026-10-03)
+
+- Confirmed direct `(app)` routes are enforced centrally by `requirePathView`; an unassigned person is redirected from a restricted module/page even when entering its URL directly.
+- Closed a navigation gap: hub cards, global module shortcuts, the Aura room list, and the module footer now use the same server-side `show` decision as route authorization.
+- Workspace-to-catalogue mapping follows each workspace landing surface; notably the Accounts-labelled `admin` workspace maps to `accounts`, and Incentive maps to `employees.incentive`.
+- `everyone` means an unassigned person can see and read the node but cannot edit. `restricted` means an unassigned person cannot see or read it. Assignments still take precedence: Head and Developer receive View+Edit; each Associate receives View-only or Edit+View as configured.
+- Existing workspace, finance, HR, capability, row-scope, and other domain gates remain additive and may further narrow access.
+
+### Validation
+
+- Changed-file ESLint: passed.
+- `NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd typecheck`: passed.
+- `pnpm.cmd test tests/unit/module-ownership.test.ts tests/unit/permission-catalog.test.ts`: passed, 27/27, including restricted navigation removal and everyone-visible retention.
+- `git diff --check`: passed.
+- `pnpm.cmd check:leaks`: passed with zero watched-package and PGlite trace leaks.
+- Local `pnpm.cmd build` compiled successfully and entered TypeScript validation; the repository-wide build did not finish inside the five-minute local command limit. The Vercel environment-backed build remains the deployment gate.
