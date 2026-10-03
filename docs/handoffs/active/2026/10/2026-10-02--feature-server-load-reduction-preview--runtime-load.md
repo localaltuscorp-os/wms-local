@@ -185,7 +185,8 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 
 - Read-only Supabase project discovery found the live Altus OS project and unrelated Altus projects, but no separate Altus OS test project available to the current signed-in account.
 - Do not link, migrate, or backfill the live Altus OS project for this work.
-- An authorised owner must either create a separate test Supabase project or provide access to its project reference before the next implementation phase can proceed.
+- **Cross-machine handoff:** the separate test-database work will be performed first on another machine and repository by an authorised operator. That operator must create/link the test project, apply migration 0264, run the backfill dry-run and authorised backfill, then verify grants, audit events, access decisions, and rollback.
+- Only after that operator records successful verification may this branch move to the next phase: remove the legacy hardcoded Super Admin list through a complete async-guard migration, then connect the Head / Associate / Developer design to the existing permission architecture.
 
 ## Attendance canonical-day follow-up
 
