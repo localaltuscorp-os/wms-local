@@ -137,6 +137,7 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 - It creates no memberships and contains no employee identities.
 - Present membership uses `ON DELETE RESTRICT`; audit evidence uses `ON DELETE SET NULL`.
 - The controlled backfill command is dry-run by default. It must only run after 0264 is reviewed and applied by an authorised database operator. It refuses incomplete legacy resolution and reports counts only.
+- **Testing rollout decision (2026-10-03):** apply migration 0264 and run any dry-run/backfill only against the separate test database first. Do not apply it to the production database or remove the legacy Super Admin guard until the test database grants, access checks, and rollback path have been verified.
 
 ### Access and rollout considerations
 
