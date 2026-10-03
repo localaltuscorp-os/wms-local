@@ -113,6 +113,49 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 
 - A pre-existing identity-based allow-list was found in `lib/hh/access.ts` while tracing a navigation consumer. It is outside this performance diff and was not modified. Migrate it separately to the established role/capability model after the feature owner confirms the intended business rule; do not copy identity values into a handoff or replacement implementation.
 
+## Separate Super Admin database foundation
+
+### Objective and status
+
+- Added the background-only database foundation for a Super Admin role that is separate from the existing Master Admin capability.
+- No page, route, navigation item, permission decision, production database, or existing Master Admin behavior changed in this branch.
+- Existing synchronous Super Admin checks remain in place until a separately reviewed async-guard migration can be completed safely.
+
+### Files
+
+- `db/migrations/0264_super_admin_grants.sql`
+- `db/schema.ts`
+- `lib/security/super-admin-grants.ts`
+- `scripts/backfill-super-admin-grants.ts`
+- `tests/unit/super-admin-database-foundation.test.ts`
+- `package.json`
+
+### Database and migration information
+
+- Migration 0264 adds `super_admin_grants` and append-only `super_admin_grant_events`.
+- It creates no memberships and contains no employee identities.
+- Present membership uses `ON DELETE RESTRICT`; audit evidence uses `ON DELETE SET NULL`.
+- The controlled backfill command is dry-run by default. It must only run after 0264 is reviewed and applied by an authorised database operator. It refuses incomplete legacy resolution and reports counts only.
+
+### Access and rollout considerations
+
+- Super Admin remains separate from `capability_grants` and `master_admin.manage`.
+- The existing Control Panel and Master Admin behaviors are unchanged.
+- The new server-only grant helper protects the last database-backed Super Admin from revocation, but has no UI or route yet.
+- Do not remove the legacy synchronous Super Admin guard or run the backfill until a planned, tested transition covers its current synchronous consumers.
+
+### Validation
+
+- `pnpm.cmd exec vitest run tests/unit/super-admin-database-foundation.test.ts tests/unit/super-admin.test.ts` — 13/13 passed.
+- `pnpm.cmd exec eslint db/schema.ts lib/security/super-admin-grants.ts scripts/backfill-super-admin-grants.ts tests/unit/super-admin-database-foundation.test.ts` — passed.
+- `node --max-old-space-size=4096 node_modules\\typescript\\bin\\tsc --noEmit` — passed.
+
+### Rollback
+
+- Before migration application: revert the feature commit.
+- After migration application but before any backfill: leave the tables unused or deploy a forward migration only if removal is specifically approved.
+- No production rollback is required for this branch because no production migration or backfill was executed.
+
 ## Attendance canonical-day follow-up
 
 ### Summary

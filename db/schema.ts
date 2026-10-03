@@ -837,6 +837,68 @@ export const capabilityGrantEvents = pgTable(
   ],
 );
 
+/**
+ * Super-admin membership is deliberately separate from capability grants.
+ *
+ * A master admin may manage its existing limited control-panel responsibilities;
+ * a super admin is the break-glass, whole-application role.  Keeping the rows
+ * apart prevents a future capability addition from accidentally becoming a
+ * super-admin promotion.
+ *
+ * This table is additive groundwork only.  Existing synchronous super-admin
+ * guards continue to use their current source until the controlled backfill and
+ * async guard migration are complete.
+ */
+export const superAdminGrants = pgTable(
+  "super_admin_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "restrict" }),
+    employeeEmail: text("employee_email").notNull(),
+    grantedById: uuid("granted_by_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("super_admin_grants_employee_uniq").on(t.employeeId),
+    index("super_admin_grants_created_idx").on(t.createdAt),
+  ],
+);
+
+/** Append-only audit trail for every database-backed super-admin change. */
+export const superAdminGrantEvents = pgTable(
+  "super_admin_grant_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: uuid("employee_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    employeeEmail: text("employee_email").notNull(),
+    action: text("action").notNull(),
+    actorEmployeeId: uuid("actor_employee_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("super_admin_grant_events_employee_idx").on(
+      t.employeeId,
+      t.occurredAt,
+    ),
+    index("super_admin_grant_events_recent_idx").on(t.occurredAt),
+  ],
+);
+
 /** Operations → Directory: outside-vendor directory (migration 0228). */
 export const opsVendors = pgTable(
   "ops_vendors",
