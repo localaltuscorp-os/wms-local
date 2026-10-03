@@ -228,10 +228,18 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 ## Development merge verification (2026-10-03)
 
 - Merged the attendance and Super Admin foundation commits into the development copy of `feature/server-load-reduction-preview` while retaining the earlier preview validation history.
-- Did not apply migration `0264` and did not run either the dry-run or write-mode Super Admin backfill. The separate test-database prerequisite remains open and production data was untouched.
+- At merge-validation time, migration `0264` and both backfill modes had not been run.
 - `pnpm.cmd exec vitest run tests/unit/server-load-reduction-preview.test.ts tests/unit/super-admin-database-foundation.test.ts tests/unit/super-admin.test.ts tests/unit/attendance-worker-config.test.ts tests/unit/attendance-status.test.ts` — passed, 78/78 tests.
 - ESLint on all TypeScript and TSX files introduced or changed by the incoming commits — passed with no findings.
 - `NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd typecheck` — passed.
 - `pnpm.cmd build` — compilation and TypeScript passed; local page-data collection stopped because the linked clone lacks `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - `pnpm.cmd check:leaks` — passed; zero PGlite production trace references.
 - Remaining deployment step: push the merge to the development branch and verify the existing Vercel branch preview reaches Ready using project-managed preview variables.
+
+## Live database migration execution (2026-10-03)
+
+- The project’s Vercel Preview and Production environments share the same `DATABASE_URL`; this was identified and disclosed before execution.
+- After explicit owner approval to use that shared live database, migration `0264_super_admin_grants.sql` was applied by itself in a transaction and recorded in `__schema_applied`. No other pending migration was applied.
+- Post-migration verification found zero rows in both `super_admin_grants` and `super_admin_grant_events`.
+- The Super Admin backfill was then run in its default dry-run mode. It resolved 3 active legacy Super Admin employee records and reported that 3 database grants need to be created.
+- The write-mode backfill was not run. No grant or audit-event rows were written, and active authorization still uses the legacy synchronous guard until the complete async-guard migration is separately reviewed and implemented.
