@@ -120,6 +120,7 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 - Added the background-only database foundation for a Super Admin role that is separate from the existing Master Admin capability.
 - No page, route, navigation item, permission decision, production database, or existing Master Admin behavior changed in this branch.
 - Existing synchronous Super Admin checks remain in place until a separately reviewed async-guard migration can be completed safely.
+- Implementation commit: `6c9295be` (`feat: add super admin database foundation`), pushed to `altus-os-fork/feature/server-load-reduction-preview`.
 
 ### Files
 
@@ -155,6 +156,11 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 - Before migration application: revert the feature commit.
 - After migration application but before any backfill: leave the tables unused or deploy a forward migration only if removal is specifically approved.
 - No production rollback is required for this branch because no production migration or backfill was executed.
+
+### Preview deployment
+
+- A manual non-production Vercel Preview was created at `https://altus-5svc2l7gb-altus-corp1.vercel.app`.
+- At the last check it remained `UNKNOWN` with a `0ms` build record; it is not Ready and must not be treated as testable. No production deployment was created or changed.
 
 ## Attendance canonical-day follow-up
 
