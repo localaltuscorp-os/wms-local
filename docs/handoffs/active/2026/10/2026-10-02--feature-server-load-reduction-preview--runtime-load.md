@@ -255,3 +255,28 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 - All displayed people are synthetic, all interactions stay in browser memory, and no server action, permission guard, schema, migration, or database write was added.
 - Validation: changed-file ESLint passed; full `pnpm typecheck` passed; environment-backed `pnpm build` passed and included the new route; `pnpm check:leaks` passed with zero watched-package leaks.
 - Product decision still required after review: confirm whether module/page inheritance and the exact Head/Associate/Developer model shown in the demo match the intended operating structure before implementing persistence or authorization.
+
+## Module ownership implementation in progress (2026-10-03)
+
+- The approved demo has been converted locally into a database-backed Super-Admin management surface using real active employee records and the existing permission catalogue.
+- Added migration `0265_module_ownership.sql` with current assignments and append-only audit events. It seeds no identities or assignments.
+- Head and Associate are equivalent catalogue-level Show/View/Edit owners. The closest configured node wins, so a page assignment fully overrides its inherited module team.
+- Developer remains technical ownership metadata and receives no access from the assignment.
+- Existing feature-specific security checks remain additive; ownership does not bypass finance, HR, capability, row-scope, or other domain guards.
+- Writes require membership in `super_admin_grants`, are rate-limited, validate active employees, prevent Head/Associate duplication, and use one transaction for replacement plus audit history.
+
+### Validation so far
+
+- Changed-file ESLint: passed.
+- `NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd typecheck`: passed.
+- `pnpm.cmd test tests/unit/module-ownership.test.ts tests/unit/permission-catalog.test.ts`: passed, 24/24.
+- Production compilation and build TypeScript: passed. Local page-data collection cannot finish because this checkout has none of `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, or `NEXT_PUBLIC_SUPABASE_ANON_KEY`; Vercel remains the valid environment-backed build.
+- `pnpm.cmd check:leaks`: passed with zero watched-package and PGlite trace leaks.
+
+### Database execution
+
+- The Vercel Preview Supabase URL was matched to project `fjopgyqytfvbudkwhdto` before any write. The same Vercel configuration applies to Preview and Production, so this is the shared live database previously approved for this branch.
+- A read-only preflight confirmed migration 0265 was absent and the database-backed Super Admin registry contained 3 grants.
+- Applied only `db/migrations/0265_module_ownership.sql` through the authenticated Supabase CLI, then recorded `0265_module_ownership.sql` in `__schema_applied`.
+- Post-apply verification confirmed both ownership tables, 8 indexes/constraints, a ledger record, 0 assignment rows and 0 audit-event rows. No identities or default ownership assignments were inserted.
+- Temporary Vercel environment and Supabase link files were removed after verification.

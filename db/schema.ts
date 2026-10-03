@@ -12422,6 +12422,57 @@ export type ModulePermission = typeof modulePermissions.$inferSelect;
 export type NewModulePermission = typeof modulePermissions.$inferInsert;
 export type ModulePermissionEvent = typeof modulePermissionEvents.$inferSelect;
 
+/**
+ * Operational and technical ownership for permission-catalogue nodes.
+ *
+ * Head and Associate are equivalent operational owners. Developer records code
+ * stewardship only and never grants access by itself. Assignments inherit down
+ * the catalogue tree; the nearest node with rows replaces its ancestor's team.
+ */
+export const moduleOwnershipAssignments = pgTable(
+  "module_ownership_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nodeKey: text("node_key").notNull(),
+    role: text("role").notNull(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
+    assignedById: uuid("assigned_by_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("module_ownership_role_chk", sql`${t.role} in ('head', 'associate', 'developer')`),
+    uniqueIndex("module_ownership_node_role_employee_uq").on(t.nodeKey, t.role, t.employeeId),
+    uniqueIndex("module_ownership_one_head_uq").on(t.nodeKey).where(sql`${t.role} = 'head'`),
+    uniqueIndex("module_ownership_one_associate_uq").on(t.nodeKey).where(sql`${t.role} = 'associate'`),
+    index("module_ownership_employee_idx").on(t.employeeId),
+    index("module_ownership_node_idx").on(t.nodeKey),
+  ],
+);
+
+export const moduleOwnershipEvents = pgTable(
+  "module_ownership_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nodeKey: text("node_key").notNull(),
+    previousAssignments: jsonb("previous_assignments").notNull().default(sql`'[]'::jsonb`),
+    nextAssignments: jsonb("next_assignments").notNull().default(sql`'[]'::jsonb`),
+    actorEmployeeId: uuid("actor_employee_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("module_ownership_events_node_idx").on(t.nodeKey, t.occurredAt)],
+);
+
+export type ModuleOwnershipAssignment = typeof moduleOwnershipAssignments.$inferSelect;
+
 /* ──────────────────────────────────────────────────────────────────────────
  * REPORTING-MANAGER HISTORY (migration 0220)
  *
