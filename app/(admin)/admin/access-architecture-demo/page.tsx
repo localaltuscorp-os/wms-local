@@ -4,7 +4,7 @@ import { AdminSection } from "@/components/admin/ui/section-shell";
 import { AccessArchitectureDemo } from "@/components/admin/access-architecture-demo";
 import { hasDatabaseSuperAdminGrant } from "@/lib/security/super-admin-grants";
 import { allPermissionNodes } from "@/lib/permissions/catalog";
-import { listOwnershipAssignments, listOwnershipPeople } from "@/lib/queries/module-ownership";
+import { listOwnershipAssignments, listOwnershipPeople, listOwnershipPolicies } from "@/lib/queries/module-ownership";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +12,10 @@ export default async function AccessArchitectureDemoPage() {
   await requireUser();
   const actor = await getSignedInEmployee();
   if (!actor || !(await hasDatabaseSuperAdminGrant(actor.id))) throw forbiddenError();
-  const [people, assignments] = await Promise.all([
+  const [people, assignments, policies] = await Promise.all([
     listOwnershipPeople(),
     listOwnershipAssignments(),
+    listOwnershipPolicies(),
   ]);
   const nodes = allPermissionNodes().map((node) => ({
     key: node.key,
@@ -34,7 +35,7 @@ export default async function AccessArchitectureDemoPage() {
         { label: "Assignments", value: new Set(assignments.map((row) => row.nodeKey)).size },
       ]}
     >
-      <AccessArchitectureDemo nodes={nodes} people={people} assignments={assignments} />
+      <AccessArchitectureDemo nodes={nodes} people={people} assignments={assignments} policies={policies} />
     </AdminSection>
   );
 }

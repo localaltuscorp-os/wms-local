@@ -12435,6 +12435,8 @@ export const moduleOwnershipAssignments = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     nodeKey: text("node_key").notNull(),
     role: text("role").notNull(),
+    canView: boolean("can_view").notNull().default(true),
+    canEdit: boolean("can_edit").notNull().default(true),
     employeeId: uuid("employee_id")
       .notNull()
       .references((): AnyPgColumn => employees.id, { onDelete: "cascade" }),
@@ -12447,11 +12449,35 @@ export const moduleOwnershipAssignments = pgTable(
   },
   (t) => [
     check("module_ownership_role_chk", sql`${t.role} in ('head', 'associate', 'developer')`),
+    check("module_ownership_edit_requires_view_chk", sql`not ${t.canEdit} or ${t.canView}`),
+    check(
+      "module_ownership_fixed_role_access_chk",
+      sql`${t.role} = 'associate' or (${t.canView} and ${t.canEdit})`,
+    ),
     uniqueIndex("module_ownership_node_role_employee_uq").on(t.nodeKey, t.role, t.employeeId),
     uniqueIndex("module_ownership_one_head_uq").on(t.nodeKey).where(sql`${t.role} = 'head'`),
-    uniqueIndex("module_ownership_one_associate_uq").on(t.nodeKey).where(sql`${t.role} = 'associate'`),
     index("module_ownership_employee_idx").on(t.employeeId),
     index("module_ownership_node_idx").on(t.nodeKey),
+  ],
+);
+
+export const moduleOwnershipPolicies = pgTable(
+  "module_ownership_policies",
+  {
+    nodeKey: text("node_key").primaryKey(),
+    defaultVisibility: text("default_visibility").notNull().default("everyone"),
+    updatedById: uuid("updated_by_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "module_ownership_default_visibility_chk",
+      sql`${t.defaultVisibility} in ('everyone', 'restricted')`,
+    ),
   ],
 );
 
@@ -12462,6 +12488,8 @@ export const moduleOwnershipEvents = pgTable(
     nodeKey: text("node_key").notNull(),
     previousAssignments: jsonb("previous_assignments").notNull().default(sql`'[]'::jsonb`),
     nextAssignments: jsonb("next_assignments").notNull().default(sql`'[]'::jsonb`),
+    previousDefaultVisibility: text("previous_default_visibility"),
+    nextDefaultVisibility: text("next_default_visibility"),
     actorEmployeeId: uuid("actor_employee_id").references(
       (): AnyPgColumn => employees.id,
       { onDelete: "set null" },
@@ -12472,6 +12500,7 @@ export const moduleOwnershipEvents = pgTable(
 );
 
 export type ModuleOwnershipAssignment = typeof moduleOwnershipAssignments.$inferSelect;
+export type ModuleOwnershipPolicy = typeof moduleOwnershipPolicies.$inferSelect;
 
 /* ──────────────────────────────────────────────────────────────────────────
  * REPORTING-MANAGER HISTORY (migration 0220)

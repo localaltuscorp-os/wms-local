@@ -280,3 +280,25 @@ Do not remove the legacy Super Admin code guard or connect the Head / Associate 
 - Applied only `db/migrations/0265_module_ownership.sql` through the authenticated Supabase CLI, then recorded `0265_module_ownership.sql` in `__schema_applied`.
 - Post-apply verification confirmed both ownership tables, 8 indexes/constraints, a ledger record, 0 assignment rows and 0 audit-event rows. No identities or default ownership assignments were inserted.
 - Temporary Vercel environment and Supabase link files were removed after verification.
+
+## Ownership permissions and compact directory (2026-10-03)
+
+- Updated the confirmed role model: one optional Head with View+Edit; multiple Associates with View-only or Edit+View; multiple Developers with automatic View+Edit.
+- Edit is the catalogue-level create/update/delete permission and always implies View.
+- Every configured module/page now has a default visibility policy: `everyone` lets unassigned people view but not edit; `restricted` hides it from unassigned people. The closest configured page/module remains the inherited source.
+- Database-backed Super Admins bypass ownership restrictions so the recovery/configuration path cannot lock itself out. Feature-specific finance, HR, capability, row-scope, and other domain checks remain additive.
+- Reworked the page into a compact Module Directory based on the supplied reference: horizontal module tabs, search, dense route rows, status badges, and a focused policy editor.
+
+### Migration 0266
+
+- Applied only `db/migrations/0266_module_ownership_permissions.sql` to verified Supabase project `fjopgyqytfvbudkwhdto` and recorded it in `__schema_applied`.
+- Existing 3 assignments were preserved and retained View+Edit, matching their pre-migration effective access.
+- Removed the one-Associate unique index, added `can_view`/`can_edit` invariants, created `module_ownership_policies`, and extended audit events with previous/next visibility.
+- Backfilled the one already-configured node to `everyone`, preserving its previous visibility for unassigned users. No identity or new assignment was inserted.
+
+### Validation
+
+- Changed-file ESLint: passed.
+- `NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd typecheck`: passed.
+- `pnpm.cmd test tests/unit/module-ownership.test.ts tests/unit/permission-catalog.test.ts`: passed, 26/26.
+- Supabase verification: migration ledger present, 3 assignments preserved, old Associate uniqueness index absent, 1 `everyone` policy row.

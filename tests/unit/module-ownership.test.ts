@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   assignmentGrantsOperationalAccess,
+  configuredPermission,
   nearestOwnership,
   type OwnershipAssignment,
 } from "@/lib/permissions/ownership-effective";
 
 const rows: OwnershipAssignment[] = [
-  { nodeKey: "wms", role: "head", employeeId: "head-module" },
-  { nodeKey: "wms", role: "associate", employeeId: "associate-module" },
-  { nodeKey: "wms.tasks", role: "head", employeeId: "head-page" },
-  { nodeKey: "wms.tasks", role: "associate", employeeId: "associate-page" },
-  { nodeKey: "wms.tasks", role: "developer", employeeId: "developer-page" },
+  { nodeKey: "wms", role: "head", employeeId: "head-module", canView: true, canEdit: true },
+  { nodeKey: "wms", role: "associate", employeeId: "associate-module", canView: true, canEdit: false },
+  { nodeKey: "wms.tasks", role: "head", employeeId: "head-page", canView: true, canEdit: true },
+  { nodeKey: "wms.tasks", role: "associate", employeeId: "associate-page", canView: true, canEdit: false },
+  { nodeKey: "wms.tasks", role: "developer", employeeId: "developer-page", canView: true, canEdit: true },
 ];
 
 describe("module ownership inheritance", () => {
@@ -28,10 +29,20 @@ describe("module ownership inheritance", () => {
     ]);
   });
 
-  it("grants operational access equally to Head and Associate, never Developer", () => {
+  it("gives Head and Developer edit, while a view-only Associate cannot edit", () => {
     const team = nearestOwnership(["wms", "wms.tasks"], rows);
-    expect(assignmentGrantsOperationalAccess(team, "head-page")).toBe(true);
-    expect(assignmentGrantsOperationalAccess(team, "associate-page")).toBe(true);
-    expect(assignmentGrantsOperationalAccess(team, "developer-page")).toBe(false);
+    expect(assignmentGrantsOperationalAccess(team, "head-page")).toEqual({ view: true, edit: true });
+    expect(assignmentGrantsOperationalAccess(team, "associate-page")).toEqual({ view: true, edit: false });
+    expect(assignmentGrantsOperationalAccess(team, "developer-page")).toEqual({ view: true, edit: true });
+  });
+
+  it("lets an unassigned person view an everyone-visible node but never edit", () => {
+    expect(configuredPermission({ nodeKey: "wms", defaultVisibility: "everyone", assignments: rows }, "other"))
+      .toEqual({ show: true, view: true, edit: false });
+  });
+
+  it("hides a restricted node from an unassigned person", () => {
+    expect(configuredPermission({ nodeKey: "wms", defaultVisibility: "restricted", assignments: rows }, "other"))
+      .toEqual({ show: false, view: false, edit: false });
   });
 });

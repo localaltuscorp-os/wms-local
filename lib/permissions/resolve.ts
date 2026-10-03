@@ -24,7 +24,8 @@ import {
 } from "./catalog";
 import { auditAccessDenied } from "@/lib/logs/audit";
 import { activeScopedAccess, applyScopedAccess } from "./scoped-temporary-access";
-import { isOperationalOwner } from "./ownership";
+import { ownershipPermission } from "./ownership";
+import { hasDatabaseSuperAdminGrant } from "@/lib/security/super-admin-grants";
 
 /**
  * THE SERVER SIDE OF THE PERMISSION MATRIX.
@@ -128,13 +129,19 @@ export async function modulePermission(nodeKey: string): Promise<EffectivePermis
   // node. Before a scoped grant exists, preserve the catalogue's historic
   // fail-open behaviour for unclassified routes.
   if (!isPermissionNodeKey(nodeKey)) return scoped === null ? allowAll() : { show: false, view: false, edit: false };
-  // Head and Associate are equivalent operational owners. Ownership grants the
-  // catalogue-level show/view/edit permission, while existing feature-specific
-  // guards (finance, HR, row scope, capabilities) remain additional checks.
-  const owner = await isOperationalOwner(nodeKey, me.id);
-  const existing = owner || !(await governedByMatrix(me))
-    ? allowAll()
-    : effectiveFor(nodeKey, await loadOverrides(me.id));
+  // Database-backed Super Admin must always retain the recovery path to the
+  // ownership editor, even when a node is configured as restricted.
+  if (await hasDatabaseSuperAdminGrant(me.id)) {
+    return applyScopedAccess(allowAll(), nodeKey, scoped);
+  }
+  // A configured ownership policy becomes the catalogue-level answer. Existing
+  // feature-specific guards remain additive and can still refuse sensitive data.
+  const ownership = await ownershipPermission(nodeKey, me.id);
+  const existing = ownership ?? (
+    (await governedByMatrix(me))
+      ? effectiveFor(nodeKey, await loadOverrides(me.id))
+      : allowAll()
+  );
   return applyScopedAccess(existing, nodeKey, scoped);
 }
 

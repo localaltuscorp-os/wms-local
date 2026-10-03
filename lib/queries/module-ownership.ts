@@ -1,7 +1,7 @@
 import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { employees, moduleOwnershipAssignments } from "@/db/schema";
+import { employees, moduleOwnershipAssignments, moduleOwnershipPolicies } from "@/db/schema";
 
 export async function listOwnershipPeople() {
   return db
@@ -17,7 +17,19 @@ export async function listOwnershipAssignments() {
       nodeKey: moduleOwnershipAssignments.nodeKey,
       role: moduleOwnershipAssignments.role,
       employeeId: moduleOwnershipAssignments.employeeId,
+      canView: moduleOwnershipAssignments.canView,
+      canEdit: moduleOwnershipAssignments.canEdit,
     })
     .from(moduleOwnershipAssignments)
     .orderBy(asc(moduleOwnershipAssignments.nodeKey), asc(moduleOwnershipAssignments.role));
+}
+
+export async function listOwnershipPolicies() {
+  return db
+    .select({
+      nodeKey: moduleOwnershipPolicies.nodeKey,
+      defaultVisibility: moduleOwnershipPolicies.defaultVisibility,
+    })
+    .from(moduleOwnershipPolicies)
+    .orderBy(asc(moduleOwnershipPolicies.nodeKey));
 }

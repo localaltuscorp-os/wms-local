@@ -7,6 +7,7 @@ import {
   employees,
   moduleOwnershipAssignments,
   moduleOwnershipEvents,
+  moduleOwnershipPolicies,
 } from "@/db/schema";
 import { getSignedInEmployee, requireUser } from "@/lib/auth/current";
 import { hasDatabaseSuperAdminGrant } from "@/lib/security/super-admin-grants";
@@ -31,56 +32,107 @@ function values(form: FormData, key: string): string[] {
   return [...new Set(form.getAll(key).map(String).map((v) => v.trim()).filter(Boolean))];
 }
 
+interface AssociateInput { employeeId: string; canEdit: boolean }
+
+function associatesFrom(form: FormData): AssociateInput[] | null {
+  try {
+    const parsed = JSON.parse(String(form.get("associates") ?? "[]")) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const rows = parsed.map((item) => {
+      if (!item || typeof item !== "object") throw new Error("invalid");
+      const record = item as Record<string, unknown>;
+      const employeeId = String(record.employeeId ?? "").trim();
+      if (!employeeId || typeof record.canEdit !== "boolean") throw new Error("invalid");
+      return { employeeId, canEdit: record.canEdit };
+    });
+    return [...new Map(rows.map((row) => [row.employeeId, row])).values()];
+  } catch {
+    return null;
+  }
+}
+
 export async function saveModuleOwnership(form: FormData): Promise<Result> {
   const auth = await requireOwnershipAdmin();
   if (!auth.ok) return auth;
 
   const nodeKey = String(form.get("nodeKey") ?? "").trim();
   const head = String(form.get("head") ?? "").trim();
-  const associate = String(form.get("associate") ?? "").trim();
+  const associates = associatesFrom(form);
   const developers = values(form, "developers");
+  const defaultVisibility = String(form.get("defaultVisibility") ?? "").trim();
   if (!isPermissionNodeKey(nodeKey)) return { ok: false, error: "Unknown module or page." };
-  if (!head || !associate) return { ok: false, error: "Choose both a Head and an Associate." };
-  if (head === associate) return { ok: false, error: "Head and Associate must be different people." };
-  if (developers.includes(head) || developers.includes(associate)) {
-    return { ok: false, error: "A Head or Associate cannot also be a Developer on the same item." };
+  if (!associates) return { ok: false, error: "Associate permissions are invalid." };
+  if (defaultVisibility !== "everyone" && defaultVisibility !== "restricted") {
+    return { ok: false, error: "Choose a default visibility." };
+  }
+  const associateIds = associates.map((row) => row.employeeId);
+  const selectedIds = [head, ...associateIds, ...developers].filter(Boolean);
+  if (new Set(selectedIds).size !== selectedIds.length) {
+    return { ok: false, error: "A person can hold only one role on the same item." };
   }
 
-  const employeeIds = [head, associate, ...developers];
-  const active = await db
-    .select({ id: employees.id })
-    .from(employees)
-    .where(and(inArray(employees.id, employeeIds), eq(employees.isActive, true)));
-  if (active.length !== new Set(employeeIds).size) {
-    return { ok: false, error: "One or more selected employees are no longer active." };
+  if (selectedIds.length > 0) {
+    const active = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(inArray(employees.id, selectedIds), eq(employees.isActive, true)));
+    if (active.length !== selectedIds.length) {
+      return { ok: false, error: "One or more selected employees are no longer active." };
+    }
   }
 
   const next = [
-    { role: "head" as const, employeeId: head },
-    { role: "associate" as const, employeeId: associate },
-    ...developers.map((employeeId) => ({ role: "developer" as const, employeeId })),
+    ...(head ? [{ role: "head" as const, employeeId: head, canView: true, canEdit: true }] : []),
+    ...associates.map(({ employeeId, canEdit }) => ({
+      role: "associate" as const,
+      employeeId,
+      canView: true,
+      canEdit,
+    })),
+    ...developers.map((employeeId) => ({
+      role: "developer" as const,
+      employeeId,
+      canView: true,
+      canEdit: true,
+    })),
   ];
 
   try {
     await db.transaction(async (tx) => {
       const previous = await tx
-        .select({ role: moduleOwnershipAssignments.role, employeeId: moduleOwnershipAssignments.employeeId })
+        .select({ role: moduleOwnershipAssignments.role, employeeId: moduleOwnershipAssignments.employeeId, canView: moduleOwnershipAssignments.canView, canEdit: moduleOwnershipAssignments.canEdit })
         .from(moduleOwnershipAssignments)
         .where(eq(moduleOwnershipAssignments.nodeKey, nodeKey));
       await tx.delete(moduleOwnershipAssignments).where(eq(moduleOwnershipAssignments.nodeKey, nodeKey));
-      await tx.insert(moduleOwnershipAssignments).values(
-        next.map((row) => ({ ...row, nodeKey, assignedById: auth.actorId })),
-      );
+      const [previousPolicy] = await tx
+        .select({ defaultVisibility: moduleOwnershipPolicies.defaultVisibility })
+        .from(moduleOwnershipPolicies)
+        .where(eq(moduleOwnershipPolicies.nodeKey, nodeKey))
+        .limit(1);
+      if (next.length > 0) {
+        await tx.insert(moduleOwnershipAssignments).values(
+          next.map((row) => ({ ...row, nodeKey, assignedById: auth.actorId })),
+        );
+      }
+      await tx
+        .insert(moduleOwnershipPolicies)
+        .values({ nodeKey, defaultVisibility, updatedById: auth.actorId })
+        .onConflictDoUpdate({
+          target: moduleOwnershipPolicies.nodeKey,
+          set: { defaultVisibility, updatedById: auth.actorId, updatedAt: new Date() },
+        });
       await tx.insert(moduleOwnershipEvents).values({
         nodeKey,
         previousAssignments: previous,
         nextAssignments: next,
+        previousDefaultVisibility: previousPolicy?.defaultVisibility ?? null,
+        nextDefaultVisibility: defaultVisibility,
         actorEmployeeId: auth.actorId,
       });
     });
   } catch (error) {
     console.error("[module-ownership] save failed", error);
-    return { ok: false, error: "Ownership could not be saved. Check that migration 0265 is applied." };
+    return { ok: false, error: "Ownership could not be saved. Check that migration 0266 is applied." };
   }
 
   revalidatePath(PATH);
@@ -95,14 +147,22 @@ export async function clearModuleOwnership(nodeKey: string): Promise<Result> {
   try {
     await db.transaction(async (tx) => {
       const previous = await tx
-        .select({ role: moduleOwnershipAssignments.role, employeeId: moduleOwnershipAssignments.employeeId })
+        .select({ role: moduleOwnershipAssignments.role, employeeId: moduleOwnershipAssignments.employeeId, canView: moduleOwnershipAssignments.canView, canEdit: moduleOwnershipAssignments.canEdit })
         .from(moduleOwnershipAssignments)
         .where(eq(moduleOwnershipAssignments.nodeKey, nodeKey));
       await tx.delete(moduleOwnershipAssignments).where(eq(moduleOwnershipAssignments.nodeKey, nodeKey));
+      const [previousPolicy] = await tx
+        .select({ defaultVisibility: moduleOwnershipPolicies.defaultVisibility })
+        .from(moduleOwnershipPolicies)
+        .where(eq(moduleOwnershipPolicies.nodeKey, nodeKey))
+        .limit(1);
+      await tx.delete(moduleOwnershipPolicies).where(eq(moduleOwnershipPolicies.nodeKey, nodeKey));
       await tx.insert(moduleOwnershipEvents).values({
         nodeKey,
         previousAssignments: previous,
         nextAssignments: [],
+        previousDefaultVisibility: previousPolicy?.defaultVisibility ?? null,
+        nextDefaultVisibility: null,
         actorEmployeeId: auth.actorId,
       });
     });

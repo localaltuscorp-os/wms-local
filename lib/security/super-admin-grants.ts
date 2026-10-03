@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { count, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -18,14 +19,21 @@ export type SuperAdminGrantResult = { ok: true } | { ok: false; error: string };
  * synchronous `isSuperAdmin` guard yet: that guard has many synchronous callers
  * and changing it without a complete async migration could silently alter access.
  */
-export async function hasDatabaseSuperAdminGrant(employeeId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: superAdminGrants.id })
-    .from(superAdminGrants)
-    .where(eq(superAdminGrants.employeeId, employeeId))
-    .limit(1);
-  return Boolean(row);
-}
+export const hasDatabaseSuperAdminGrant = cache(
+  async (employeeId: string): Promise<boolean> => {
+    try {
+      const [row] = await db
+        .select({ id: superAdminGrants.id })
+        .from(superAdminGrants)
+        .where(eq(superAdminGrants.employeeId, employeeId))
+        .limit(1);
+      return Boolean(row);
+    } catch (error) {
+      console.error("[super-admin-grants] membership read failed", error);
+      return false;
+    }
+  },
+);
 
 /**
  * Controlled data-layer write for a future internal operator path. There is no
