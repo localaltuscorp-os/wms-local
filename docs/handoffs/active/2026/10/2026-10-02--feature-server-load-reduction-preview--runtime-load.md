@@ -163,6 +163,24 @@ None. Proxy, Firebase session validation, two-step checks, permissions and API g
 - A manual non-production Vercel Preview was created at `https://altus-5svc2l7gb-altus-corp1.vercel.app`.
 - At the last check it remained `UNKNOWN` with a `0ms` build record; it is not Ready and must not be treated as testable. No production deployment was created or changed.
 
+### Required decisions before the next implementation phase
+
+Do not remove the legacy Super Admin code guard or connect the Head / Associate / Developer draft to live permissions until both items below are explicitly confirmed and recorded.
+
+1. **Separate test database:** identify and link the non-production Supabase project, then obtain approval to apply migration 0264 and run its dry-run/backfill there. Do not use the production project. Migration 0264 creates only the tables; the backfill is a separate, explicit operation.
+2. **Role semantics:** confirm the exact allowed actions and data scope for each Head, Associate, and Developer assignment. The proposed safe default is:
+   - Head: full module access, may manage the module team and approve; no deletion of sensitive records by default.
+   - Associate: view/create/edit only within assigned scope; no deletion or approval.
+   - Developer: selected pages only, view by default; edit only when explicitly granted by Super Admin.
+
+### Next implementation sequence after approval
+
+1. Apply migration 0264 to the separate test database; run the backfill dry-run and review only its count-based result.
+2. Run the authorised backfill in that test database; verify Super Admin rows, audit events, access decisions, and rollback behaviour.
+3. Replace the legacy synchronous Super Admin implementation only as part of a complete, reviewed async-guard migration. It has many current consumers; partial conversion risks unexpected 403 responses or a lockout.
+4. Connect the Head / Associate / Developer design to the existing role/module-permission architecture. Do not create a parallel authorization system or grant access merely from a UI label.
+5. Run focused authorization tests, typecheck, diff/PII review, then push to `feature/server-load-reduction-preview` and verify a Preview deployment.
+
 ## Attendance canonical-day follow-up
 
 ### Summary
