@@ -3,7 +3,7 @@
 - Date: 2026-10-02
 - Work item/branch: `bugfix/github-ci-2026-10-02`
 - Objective: Repair the `origin/main` GitHub CI typecheck failure without changing client-engagement behavior.
-- Status: Pull request open; missing-secret handling pending CI verification.
+- Status: Pull request open; GitHub CI passing, awaiting review/merge.
 
 ## Summary
 
@@ -59,6 +59,7 @@ None. Existing page access, manager checks, and edit checks are unchanged.
 - Pull-request run `37102758362` — install, typecheck, and unit-test steps passed; visual setup failed because Playwright's 120-second web-server startup timeout elapsed during the production build.
 - Pull-request run `37104097606` — install, typecheck, and unit-test steps passed; the extended timeout exposed empty database/Supabase values, and the production build failed environment validation before browser tests started.
 - `gh secret list --repo localaltuscorp-os/wms-local` — returned no configured repository secret names; no secret values were requested or exposed.
+- Pull-request run `37104532482` — passed in 3m12s. Install, typecheck, and unit tests passed; the workflow emitted the documented warning and skipped secret-backed visual tests.
 
 ## Risks and rollback
 
@@ -70,5 +71,5 @@ None. Existing page access, manager checks, and edit checks are unchanged.
 
 ## Remaining work
 
-- Push the timeout correction and monitor the full GitHub Actions workflow.
-- Merge only after the secret-backed GitHub visual stage and required deployment checks pass.
+- Obtain the required pull-request review and merge through the protected development workflow.
+- Configure the four repository test-environment secrets before treating the visual suite as active coverage.
