@@ -13,6 +13,7 @@ export type HierarchyRole = "Founder" | "Manager" | "Employee";
 export interface HierarchyPerson {
   id: string;
   name: string;
+  avatarUrl: string | null;
   functionName: string | null;
   managerId: string | null;
   role: HierarchyRole;
@@ -34,6 +35,7 @@ export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Pr
   const rows = await db.select({
     id: employees.id,
     name: employees.name,
+    avatarUrl: employees.avatarUrl,
     email: employees.email,
     functionName: functions.name,
     managerId: employees.managerId,
@@ -58,6 +60,7 @@ export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Pr
     return {
       id: row.id,
       name: row.name,
+      avatarUrl: row.avatarUrl ?? null,
       functionName: row.functionName,
       managerId: isRoot ? null : status === "break" ? (breaks.get(row.id) ?? row.managerId) : row.managerId,
       role: isRoot ? "Founder" : isManager ? "Manager" : "Employee",

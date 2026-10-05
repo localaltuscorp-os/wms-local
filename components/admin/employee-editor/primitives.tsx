@@ -24,7 +24,7 @@ import type { ReactNode } from "react";
 export const NO_CHANGE = "__no_change__";
 
 export const inputClass =
-  "w-full rounded-md border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-[15px] text-ink-strong outline-none transition-colors focus:border-[var(--color-altus-red)] focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/25 disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-ink-subtle";
+  "h-9.5 w-full rounded-md border border-[#CBD5E1] bg-white px-3 text-[13px] text-ink-strong outline-none transition-colors focus:border-[var(--color-altus-red)] focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/20 disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-ink-subtle";
 
 export function Card({
   title,
@@ -37,13 +37,13 @@ export function Card({
 }) {
   return (
     <section
-      className="rounded-xl border border-hairline p-4 max-md:p-3.5"
+      className="rounded-lg border border-hairline p-3.5 max-md:p-3"
       style={{ background: tone === "muted" ? "#F8FAFC" : "#FFFFFF" }}
     >
-      <h3 className="mb-3 text-[11.5px] font-black uppercase tracking-[0.09em] text-ink-subtle">
+      <h3 className="mb-3 text-[10px] font-black uppercase tracking-[0.1em] text-ink-subtle">
         {title}
       </h3>
-      <div className="space-y-3.5">{children}</div>
+      <div className="space-y-3">{children}</div>
     </section>
   );
 }
@@ -59,15 +59,11 @@ export function Field({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-[13.5px] font-semibold text-ink-strong">
+      <label className="mb-1 block text-[11px] font-bold text-ink-strong">
         {label}
       </label>
       {children}
-      {hint ? (
-        <p className="mt-1 text-[12px] text-ink-subtle" style={{ lineHeight: 1.5 }}>
-          {hint}
-        </p>
-      ) : null}
+      {hint ? <span className="sr-only">{hint}</span> : null}
     </div>
   );
 }
@@ -118,7 +114,7 @@ export function TimeInput({
           type="button"
           onClick={() => onChange(null)}
           title="Revert to No Change"
-          className="shrink-0 rounded-md border border-hairline px-2 py-2 text-[12px] font-semibold text-ink-subtle transition-colors hover:text-ink-strong"
+          className="shrink-0 rounded-md border border-hairline px-2 py-1.5 text-[11px] font-semibold text-ink-subtle transition-colors hover:text-ink-strong"
         >
           Reset
         </button>

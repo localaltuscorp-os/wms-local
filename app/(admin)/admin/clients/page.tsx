@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/current";
 import { canManageTaskRosters } from "@/lib/security/capabilities";
+import { canDeleteDropdownMasters } from "@/lib/auth/attendance-permissions";
 import { listClientsWithCounts } from "@/lib/queries/clients";
 import { ClientList } from "@/components/admin/client-list";
 import { CreateClientDialog } from "@/components/admin/create-client-dialog";
@@ -38,7 +39,7 @@ export default async function ClientsPage() {
       ]}
       actions={canEdit ? <CreateClientDialog /> : <RosterLockedNote noun="clients" />}
     >
-      <ClientList clients={rows} canEdit={canEdit} />
+      <ClientList clients={rows} canEdit={canEdit} canDelete={canDeleteDropdownMasters(me.email)} />
     </AdminSection>
   );
 }

@@ -63,6 +63,7 @@ import {
 import { siteUrl, rehostActionLink } from "@/lib/site-url";
 import { generateInvitePassword } from "@/lib/auth/default-password";
 import { issueSuggestedEmployeeCode } from "@/lib/employees/code-registry";
+import { defaultProbationEnd } from "@/lib/employees/probation";
 
 /**
  * Priv-esc guard: super-admins are ordinary `employees` rows identified by email.
@@ -765,7 +766,9 @@ export async function editEmployee(
     override: patch.employeeType !== undefined ? patch.employeeType : emp.employeeType,
     designationType: await designationTypeFor(patch.designationId !== undefined ? patch.designationId : emp.designationId),
   });
-  const probationEndAfter = patch.probationEnd !== undefined ? patch.probationEnd : emp.probationEnd;
+  const probationEndAfter = patch.probationEnd !== undefined
+    ? patch.probationEnd
+    : defaultProbationEnd(D.joinedAt !== undefined ? D.joinedAt : emp.joinedAt, emp.probationEnd);
   if (effectiveType !== "intern" && probationEndAfter == null) {
     return {
       ok: false,

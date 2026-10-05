@@ -22,6 +22,7 @@ import { refreshSalaryMonth } from "@/lib/salary/refresh-run";
 import { syncBreakupFromApp } from "@/lib/salary/breakup-from-app";
 import { getRun, listRunsForMonth } from "@/lib/queries/salary";
 import { GenerateSalarySchema, RunEditSchema } from "@/lib/validators/salary";
+import { isHoursPayrollMonth } from "@/lib/attendance/payroll-month";
 import {
   mailPayslipOnPaid,
   payslipMailTargets,
@@ -71,6 +72,9 @@ export async function generateSalary(input: unknown): Promise<ActionResult<{ gen
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const { month } = parsed.data;
+  if (!isHoursPayrollMonth(month)) {
+    return { ok: false, error: "Historical payroll before September 2026 is read-only." };
+  }
 
   let generated = 0;
   try {
@@ -124,6 +128,9 @@ export async function generateSalaryAll(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const { month } = parsed.data;
+  if (!isHoursPayrollMonth(month)) {
+    return { ok: false, error: "Historical payroll before September 2026 is read-only." };
+  }
 
   let rows;
   let existing;
@@ -158,7 +165,10 @@ export async function generateSalaryAll(
         month,
         fy: row.fy,
         annualCtc: row.annualCtc.toFixed(2),
+        monthlySalary: b.monthlyCtc.toFixed(2),
         daysInMonth: row.daysInMonth,
+        perDaySalary: b.perDay.toFixed(2),
+        workingHoursPerDay: row.workingHoursPerDay.toFixed(2),
         payableDays: b.payableDays.toFixed(2),
         lateMarks: row.input.lateMarksInMonth,
         lateDeductionDays: b.lateDeductionDays.toFixed(2),
@@ -510,6 +520,9 @@ export async function setWaiveOff(input: {
   // numeric(6,2): keep two decimals, clamp to the column's precision.
   const rounded = Math.round(days * 100) / 100;
   const trimmedNote = note?.trim().slice(0, 500) || null;
+  if (rounded > 0 && !trimmedNote) {
+    return { ok: false, error: "Add a reason before waving off salary days." };
+  }
 
   try {
     await db
@@ -552,6 +565,9 @@ export async function setPayoutAdjustment(input: {
   }
   const rounded = Math.round(amount * 100) / 100;
   const trimmedNote = note?.trim().slice(0, 500) || null;
+  if (rounded !== 0 && !trimmedNote) {
+    return { ok: false, error: "Add a reason before changing the payout." };
+  }
 
   try {
     await db

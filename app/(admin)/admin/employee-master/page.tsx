@@ -8,6 +8,9 @@ import {
 } from "@/lib/employees/master-query";
 import { EmployeeMasterTable } from "@/components/admin/employee-master/master-table";
 import { SalaryProfileImportDialog } from "@/components/admin/salary-profile-import-dialog";
+import { EmployeeMasterWorkspaceTabs } from "@/components/admin/employee-master/workspace-tabs";
+import { ReportingHierarchy } from "@/components/admin/reporting-hierarchy";
+import { getHierarchy } from "@/lib/queries/hierarchy";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +38,10 @@ export const dynamic = "force-dynamic";
 export default async function EmployeeMasterPage() {
   const me = await requireAdmin();
 
-  const [rows, options] = await Promise.all([
+  const [rows, options, hierarchy] = await Promise.all([
     loadEmployeeMasterRows(),
     loadMasterOptions(),
+    getHierarchy({ includeInactive: true }),
   ]);
 
   // Pay visibility follows the existing rule on the Employees screen: salary is
@@ -58,16 +62,28 @@ export default async function EmployeeMasterPage() {
   return (
     <AdminSection
       title="Employee Master"
-      subtitle="Every employee record in one place — employment, payroll, contact, family and documents."
+      subtitle="Employee records, payroll and reporting."
       icon={Users}
       actions={<SalaryProfileImportDialog />}
     >
-      <EmployeeMasterTable
-        rows={visible}
-        options={options}
-        canSeePay={canSeePay}
-        canDelete={isSuperAdmin(me.email)}
-        currentUserId={me.id}
+      <EmployeeMasterWorkspaceTabs
+        employeeMaster={
+          <EmployeeMasterTable
+            rows={visible}
+            options={options}
+            canSeePay={canSeePay}
+            canDelete={isSuperAdmin(me.email)}
+            currentUserId={me.id}
+          />
+        }
+        reportingHierarchy={
+          <ReportingHierarchy
+            people={hierarchy.people}
+            inactivePeople={hierarchy.inactivePeople}
+            canEdit={isSuperAdmin(me.email)}
+            embedded
+          />
+        }
       />
     </AdminSection>
   );

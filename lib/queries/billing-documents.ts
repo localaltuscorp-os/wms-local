@@ -383,6 +383,7 @@ export async function listBillableProducts(): Promise<BillableProduct[]> {
       id: outstandingProducts.id,
       name: outstandingProducts.name,
       code: outstandingProducts.code,
+      displayName: outstandingProducts.displayName,
       description: outstandingProducts.description,
       sacCode: outstandingProducts.sacCode,
       defaultRate: outstandingProducts.defaultRate,

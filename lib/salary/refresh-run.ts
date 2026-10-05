@@ -5,6 +5,7 @@ import { salaryBreakup, salaryRuns } from "@/db/schema";
 import { assembleMonthInputs, computeForRow, type MonthInputRow } from "./generate";
 import type { SalaryBreakdown } from "./compute";
 import { currentMonthKeyOf, monthsSpanned } from "./period";
+import { isHoursPayrollMonth } from "@/lib/attendance/payroll-month";
 
 /**
  * KEEP A SALARY RUN CURRENT WITH ITS SOURCE DATA, so every surface shows one
@@ -58,6 +59,7 @@ export type RefreshOutcome =
   | "refreshed"
   | "fresh" // recomputed recently enough (page views only)
   | "no-profile" // no pay configuration → no run should exist
+  | "historical" // pre-cutoff payroll is read-only
   | "failed";
 
 export interface RefreshOptions {
@@ -75,6 +77,8 @@ export interface RefreshOptions {
    * throttle protects a hot read path that only ever touches the open month.
    */
   force?: boolean;
+  /** Create a missing run but never reprice an existing one. */
+  missingOnly?: boolean;
 }
 
 /**
@@ -90,6 +94,8 @@ export async function refreshSalaryRun(
   now: Date = new Date(),
   opts: RefreshOptions = {},
 ): Promise<RefreshOutcome> {
+  if (!isHoursPayrollMonth(month)) return "historical";
+
   // Only the OPEN month is a hot read path, so only it is throttled. A closed
   // month is recomputed because something actually changed, and waiting five
   // minutes to reflect that would be the bug rather than the protection.
@@ -99,6 +105,8 @@ export async function refreshSalaryRun(
     const existing = await db.query.salaryRuns.findFirst({
       where: and(eq(salaryRuns.employeeId, employeeId), eq(salaryRuns.month, month)),
     });
+
+    if (opts.missingOnly && existing) return "fresh";
 
     if (!force && existing && now.getTime() - existing.updatedAt.getTime() < STALE_MS) {
       return "fresh";
@@ -147,7 +155,10 @@ function computedColumns(month: string, row: MonthInputRow, b: SalaryBreakdown) 
     month,
     fy: row.fy,
     annualCtc: row.annualCtc.toFixed(2),
+    monthlySalary: b.monthlyCtc.toFixed(2),
     daysInMonth: row.daysInMonth,
+    perDaySalary: b.perDay.toFixed(2),
+    workingHoursPerDay: row.workingHoursPerDay.toFixed(2),
     payableDays: b.payableDays.toFixed(2),
     lateMarks: row.input.lateMarksInMonth,
     lateDeductionDays: b.lateDeductionDays.toFixed(2),
@@ -198,6 +209,9 @@ export async function refreshSalaryMonth(
   now: Date = new Date(),
   opts: { generatedById?: string } = {},
 ): Promise<MonthRefreshResult> {
+  if (!isHoursPayrollMonth(month)) {
+    return { written: 0, skipped: 0, failed: 0 };
+  }
   const out: MonthRefreshResult = { written: 0, skipped: 0, failed: 0 };
   const rows = await assembleMonthInputs(month, now);
 

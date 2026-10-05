@@ -29,6 +29,7 @@ import {
 } from "@/lib/attendance/worker-type";
 import { formatDate } from "@/lib/format";
 import "./aura.css";
+import { probationEndAfterDays } from "@/lib/employees/probation";
 
 /**
  * THE EMPLOYEE MASTER WORKSPACE.
@@ -581,6 +582,15 @@ function Section(props: {
 
   const dateStr = (d: Date | string | null) =>
     !d ? "" : typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
+  const joinedDate = dateStr(v("joinedAt", dateStr(r.joinedAt)) ?? null);
+  const shownProbationEnd = "probationEnd" in draft
+    ? (v("probationEnd", r.probationEnd) ?? "")
+    : r.probationEndExplicit
+      ? (r.probationEnd ?? "")
+      : (probationEndAfterDays(joinedDate, 180) ?? "");
+  const probationDuration = r.effectiveEmployeeType === "intern"
+    ? ""
+    : shownProbationEnd === probationEndAfterDays(joinedDate, 180) ? "180" : shownProbationEnd === probationEndAfterDays(joinedDate, 90) ? "90" : "custom";
 
   switch (section) {
     case "overview": {
@@ -632,7 +642,7 @@ function Section(props: {
 
             <Pane title="Employment dates">
               <Rows>
-                <DateInput label="Date of Joining" value={dateStr(v("joinedAt", dateStr(r.joinedAt)) ?? null)} onChange={(x) => set("joinedAt", x || null, dateStr(r.joinedAt))} />
+                <DateInput label="Date of Joining" value={joinedDate} onChange={(x) => set("joinedAt", x || null, dateStr(r.joinedAt))} />
                 {/* PROBATION END DATE IS REQUIRED for a non-intern (0244), and
                     the server refuses a save without it. The marker is on the
                     LABEL here so the admin sees the requirement on the control
@@ -646,9 +656,26 @@ function Section(props: {
                         ? "Probation Ends On"
                         : "Probation Ends On *"
                     }
-                    value={v("probationEnd", r.probationEnd) ?? ""}
+                    value={shownProbationEnd}
                     onChange={(x) => set("probationEnd", x || null, r.probationEnd)}
                   />
+                  {r.effectiveEmployeeType !== "intern" && (
+                    <label className="mt-2 block text-[11.5px] text-ink-muted">
+                      Default duration
+                      <select
+                        value={probationDuration}
+                        onChange={(e) => {
+                          const days = e.target.value === "90" ? 90 : e.target.value === "180" ? 180 : null;
+                          if (days) set("probationEnd", probationEndAfterDays(joinedDate, days), r.probationEnd);
+                        }}
+                        className="mt-1 w-full rounded-md border border-hairline bg-surface-card px-2 py-1.5 text-[12px] text-ink-strong"
+                      >
+                        <option value="180">6 months (180 days)</option>
+                        <option value="90">3 months</option>
+                        <option value="custom">Custom date</option>
+                      </select>
+                    </label>
+                  )}
                   {!r.probationEnd && r.effectiveEmployeeType !== "intern" && (
                     <p className="mt-1 text-[11.5px]" style={{ color: "var(--color-red-deep, #b91c1c)" }}>
                       Required — this employee cannot be saved without it.

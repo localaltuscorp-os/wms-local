@@ -2,11 +2,17 @@
 
 import * as React from "react";
 import {
+  BadgeCheck,
   ChevronDown,
+  Clock3,
   Columns3,
   Download,
   Filter,
+  GraduationCap,
+  Moon,
   Search,
+  Sun,
+  Users,
   X,
 } from "lucide-react";
 import type { EmployeeMasterRow, MasterOptions } from "@/lib/employees/master-query";
@@ -398,12 +404,12 @@ export function EmployeeMasterTable({
       (row) => row.effectiveEmployeeType === "intern" && row.workerType !== "full_time",
     ).length;
     return [
-      { key: "confirmed" as const, label: "Confirmed Employees", value: confirmed, tone: "green" },
-      { key: "probation" as const, label: "On Probation", value: probation, tone: "blue" },
-      { key: "employees" as const, label: "Total Employees", value: confirmed + probation, tone: "green" },
-      { key: "full_time_interns" as const, label: "Full-Time Interns", value: fullTimeInterns, tone: "green" },
-      { key: "part_time_interns" as const, label: "Part-Time Interns", value: partTimeInterns, tone: "green" },
-      { key: "interns" as const, label: "Total Interns", value: fullTimeInterns + partTimeInterns, tone: "green" },
+      { key: "employees" as const, label: "Total Employees", value: confirmed + probation, tone: "#1d4ed8", icon: Users },
+      { key: "confirmed" as const, label: "Confirmed Employees", value: confirmed, tone: "#15803d", icon: BadgeCheck },
+      { key: "probation" as const, label: "On Probation", value: probation, tone: "#b45309", icon: Clock3 },
+      { key: "interns" as const, label: "Total Interns", value: fullTimeInterns + partTimeInterns, tone: "#7e22ce", icon: GraduationCap },
+      { key: "full_time_interns" as const, label: "Full-Time Interns", value: fullTimeInterns, tone: "#0f766e", icon: Sun },
+      { key: "part_time_interns" as const, label: "Part-Time Interns", value: partTimeInterns, tone: "#475569", icon: Moon },
     ];
   }, [rows]);
 
@@ -519,7 +525,10 @@ export function EmployeeMasterTable({
 
   function sortBy(key: ColumnKey) {
     if (!COLUMNS.find((c) => c.key === key)?.sort) return;
-    if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    if (key === sortKey) {
+      if (sortDir === "asc") setSortDir("desc");
+      else { setSortKey(null); setSortDir("asc"); }
+    }
     else { setSortKey(key); setSortDir("asc"); }
   }
 
@@ -542,9 +551,11 @@ export function EmployeeMasterTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-6 gap-2 overflow-x-auto" role="group" aria-label="Employee workforce KPIs">
+      <div className="overflow-x-auto" role="group" aria-label="Employee workforce KPIs">
+        <div className="grid min-w-[930px] grid-cols-6 gap-2">
         {kpis.map((kpi) => {
           const active = kpiFilter === kpi.key;
+          const Icon = kpi.icon;
           return (
             <button
               key={kpi.key}
@@ -552,16 +563,25 @@ export function EmployeeMasterTable({
               aria-pressed={active}
               onClick={() => setKpiFilter((current) => current === kpi.key ? null : kpi.key)}
               className={cn(
-                "min-w-[145px] rounded-lg border px-3 py-2 text-left transition-colors",
-                kpi.tone === "blue" ? "border-sky-200 bg-sky-50" : "border-emerald-200 bg-emerald-50",
+                "min-w-0 rounded-2xl border px-3 py-3 text-left transition-all duration-150 hover:-translate-y-0.5",
                 active ? "ring-2 ring-altus-red ring-offset-1" : "hover:border-hairline-strong",
               )}
+              style={{
+                borderColor: active ? kpi.tone : "var(--color-hairline)",
+                background: active ? `color-mix(in srgb, ${kpi.tone} 8%, var(--color-surface-card))` : "var(--color-surface-card)",
+              }}
             >
-              <span className="block text-[11px] font-semibold leading-tight text-ink-muted">{kpi.label}</span>
-              <span className="mt-1 block text-xl font-bold tabular-nums text-ink-strong">{kpi.value}</span>
+              <span className="flex items-center gap-2">
+                <span className="inline-grid size-7 shrink-0 place-items-center rounded-lg" style={{ background: `color-mix(in srgb, ${kpi.tone} 10%, transparent)`, color: kpi.tone }}>
+                  <Icon size={15} strokeWidth={2.4} />
+                </span>
+                <span className="min-w-0 text-[9px] font-black uppercase leading-tight tracking-[0.07em]" style={{ color: kpi.tone }}>{kpi.label}</span>
+              </span>
+              <span className="mt-2 block text-[24px] font-black leading-none tracking-[-0.02em] tabular-nums text-ink-strong">{kpi.value}</span>
             </button>
           );
         })}
+        </div>
       </div>
       {/* ── Controls ────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">

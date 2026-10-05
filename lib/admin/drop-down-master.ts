@@ -40,19 +40,13 @@ export const DROP_DOWN_MASTER_MODULES: readonly DropDownMasterModule[] = [
     entries: [
       { label: "Clients", href: "/admin/clients" as Route },
       { label: "Subjects", href: "/admin/subjects" as Route },
-      { label: "Products", href: "/admin/products" as Route },
-      { label: "Payment Modes", href: "/admin/outstanding-payment-modes" as Route },
-      { label: "Entities", href: "/admin/outstanding-entities" as Route },
-      { label: "Products (Legacy View)", href: "/admin/outstanding-products" as Route },
     ],
   },
   {
     id: "billing",
     label: "Billing",
     entries: [
-      { label: "Billing Master", href: "/admin/billing-master" as Route },
-      { label: "Paying Entities", href: "/admin/paying-entities" as Route },
-      { label: "Billing Profiles", href: "/admin/billing-profiles" as Route },
+      { label: "Receiving Entities", href: "/admin/paying-entities" as Route },
     ],
   },
   {

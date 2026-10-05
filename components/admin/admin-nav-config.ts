@@ -8,7 +8,6 @@ import {
   BadgeIndianRupee,
   Gift,
   IdCard,
-  Network,
   KeyRound,
   ShieldCheck,
   FileUp,
@@ -43,7 +42,8 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     items: [
       { href: "/admin/employees" as Route, label: "Employees", Icon: Users },
       { href: "/admin/employee-master" as Route, label: "Employee Master", Icon: IdCard },
-      { href: "/admin/hierarchy" as Route, label: "Reporting Hierarchy", Icon: Network },
+      { href: "/admin/salary-profiles" as Route, label: "Salary Breakup", Icon: BadgeIndianRupee },
+      { href: "/admin/salary-lineage" as Route, label: "Salary Lineage", Icon: ScrollText },
     ],
   },
   {
@@ -52,6 +52,15 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     label: "Masters",
     Icon: ListFilter,
     items: [{ href: "/admin/upload-master" as Route, label: "Upload Master", Icon: FileUp }],
+  },
+  {
+    label: "Billing",
+    Icon: BadgeIndianRupee,
+    items: [
+      { href: "/admin/billing-details" as Route, label: "Billing Details", Icon: BadgeIndianRupee },
+      { href: "/admin/outstanding-products" as Route, label: "Products (Legacy View)", Icon: Gift },
+      { href: "/admin/outstanding-payment-modes" as Route, label: "Payment Modes", Icon: ListFilter },
+    ],
   },
   {
     label: "Incentive",

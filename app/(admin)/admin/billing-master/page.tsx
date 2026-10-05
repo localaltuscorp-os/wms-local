@@ -1,4 +1,5 @@
 import { ReceiptIndianRupee } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/current";
 import { requireModuleView } from "@/lib/permissions/resolve";
 import { AdminSection } from "@/components/admin/ui/section-shell";
@@ -35,6 +36,7 @@ export const dynamic = "force-dynamic";
  * decides what appears; nothing here is load-bearing on its own.
  */
 export default async function BillingMasterPage() {
+  redirect("/admin/billing-details");
   await requireAdmin();
   // The permission matrix, on top of the admin gate the layout already applied.
   await requireModuleView("admin.masters.billing");

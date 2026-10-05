@@ -1089,7 +1089,7 @@ export function BillingDocumentForm({
             </div>
           ) : null}
           <Link
-            href={"/admin/billing-profiles" as Route}
+            href={"/admin/billing-details" as Route}
             className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-muted underline underline-offset-4"
           >
             Edit in Admin Panel <ExternalLink size={13} />
