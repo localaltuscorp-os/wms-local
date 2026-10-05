@@ -281,7 +281,9 @@ function buildSalary(month: MySalaryMonth, ledger: DayLedger | null): SalarySlip
     // ₹/day is the engine's own rate for a day-priced month; the ledger carries
     // it when there is one. Otherwise it is the CTC over the calendar month,
     // which is exactly how the engine derives it.
-    perDay: round2(ledger?.dailyRate ?? (month.daysInMonth > 0 ? month.monthlyCtc / month.daysInMonth : 0)),
+    // Generated runs freeze the rate that produced their money. Fall back only
+    // for historical rows created before the rate-root migration.
+    perDay: round2(month.perDaySalary ?? ledger?.dailyRate ?? (month.daysInMonth > 0 ? month.monthlyCtc / month.daysInMonth : 0)),
     payableDays: month.finalWorkingDays,
     earnings,
     gross: round2(month.gross),

@@ -19,9 +19,10 @@ interface Props {
   clients: ClientWithCount[];
   /** Manan Sir, Jeevan and Rohan only — everyone else gets a read-only list. */
   canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function ClientList({ clients, canEdit = false }: Props) {
+export function ClientList({ clients, canEdit = false, canDelete = false }: Props) {
   const [editing, setEditing] = useState<ClientWithCount | null>(null);
   const [deleting, setDeleting] = useState<ClientWithCount | null>(null);
 
@@ -53,16 +54,6 @@ export function ClientList({ clients, canEdit = false }: Props) {
             ),
           },
           {
-            key: "sortOrder",
-            label: "Sort",
-            align: "right",
-            className: "tabular-nums",
-            sortValue: (c) => c.sortOrder,
-            render: (c) => (
-              <span className="tabular-nums text-ink-soft">{c.sortOrder}</span>
-            ),
-          },
-          {
             key: "taskCount",
             label: "Tasks",
             align: "right",
@@ -85,13 +76,13 @@ export function ClientList({ clients, canEdit = false }: Props) {
                 <ClientRowActions
                   client={c}
                   onEdit={() => setEditing(c)}
-                  onDelete={() => setDeleting(c)}
+                  onDelete={canDelete ? () => setDeleting(c) : undefined}
                 />
               )
             : undefined
         }
         bulkActions={
-          canEdit ? (selected, clear) => <ClientBulkActions selected={selected} clear={clear} /> : undefined
+          canDelete ? (selected, clear) => <ClientBulkActions selected={selected} clear={clear} /> : undefined
         }
         emptyState={
           <>
@@ -221,7 +212,7 @@ function ClientRowActions({
 }: {
   client: ClientWithCount;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -266,11 +257,7 @@ function ClientRowActions({
           <Power size={15} strokeWidth={2.2} />
           {client.isActive ? "Deactivate" : "Reactivate"}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem danger onSelect={onDelete}>
-          <Trash2 size={15} strokeWidth={2.2} />
-          Delete
-        </DropdownMenuItem>
+        {onDelete ? <><DropdownMenuSeparator /><DropdownMenuItem danger onSelect={onDelete}><Trash2 size={15} strokeWidth={2.2} /> Delete</DropdownMenuItem></> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -304,13 +291,11 @@ function EditClientDialog({
   onClose: () => void;
 }) {
   const [name, setName] = useState(client?.name ?? "");
-  const [sortOrder, setSortOrder] = useState<number>(client?.sortOrder ?? 100);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setName(client?.name ?? "");
-    setSortOrder(client?.sortOrder ?? 100);
     setError(null);
   }, [client?.id, client?.name, client?.sortOrder]);
 
@@ -319,10 +304,9 @@ function EditClientDialog({
     if (!client) return;
     setError(null);
 
-    const patch: { name?: string; sortOrder?: number } = {};
+    const patch: { name?: string } = {};
     const trimmedName = name.trim();
     if (trimmedName !== client.name) patch.name = trimmedName;
-    if (sortOrder !== client.sortOrder) patch.sortOrder = sortOrder;
 
     if (Object.keys(patch).length === 0) {
       setError("No changes to save.");
@@ -363,19 +347,6 @@ function EditClientDialog({
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
                 className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
-              />
-            </div>
-            <div>
-              <label className="block text-[14px] font-semibold text-[#0F172A] mb-1.5">
-                Sort order
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={9999}
-                value={sortOrder}
-                onChange={(e) => setSortOrder(Number(e.target.value))}
-                className="w-28 rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px] tabular-nums"
               />
             </div>
             {error && (

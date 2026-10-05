@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { clients, tasks, settingsEvents } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { TASK_ROSTER_REFUSAL, canManageTaskRosters } from "@/lib/security/capabilities";
+import { canDeleteDropdownMasters } from "@/lib/auth/attendance-permissions";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import {
   CreateClientSchema,
@@ -94,7 +95,7 @@ export async function deleteClient(
 ): Promise<ActionResult> {
   const me = await requireUser();
   // Locked to Manan Sir, Jeevan and Rohan (2026-09-15) — not every admin.
-  if (!canManageTaskRosters(me.email)) return { ok: false, error: TASK_ROSTER_REFUSAL };
+  if (!canDeleteDropdownMasters(me.email)) return { ok: false, error: "You cannot delete Dropdown master records." };
 
   const parsedId = ClientIdSchema.safeParse(clientId);
   if (!parsedId.success) {

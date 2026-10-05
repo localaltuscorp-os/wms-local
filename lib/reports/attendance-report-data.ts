@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { employeeEffectiveConfig } from "@/lib/queries/attendance-status";
 import type { DayLine, AttnTotals } from "@/lib/email/report-emails";
+import { daysInMonth } from "@/lib/salary/period";
 
 /**
  * Shared builder that turns the graded attendance engine into the per-day rows +
@@ -23,10 +24,6 @@ import type { DayLine, AttnTotals } from "@/lib/email/report-emails";
 const OFF_CODES = new Set(["W/O", "H", "PL", "CO", "LWP"]);
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function isWorkingDay(row: DayRow): boolean {
-  return row.code !== NOT_JOINED_CODE && !OFF_CODES.has(row.code);
-}
 
 function toSummaryDay(row: DayRow, todayIso: string): SummaryDay {
   const offDay = row.isWeeklyOff || OFF_CODES.has(row.code) || row.code === NOT_JOINED_CODE;
@@ -47,9 +44,8 @@ function toSummaryDay(row: DayRow, todayIso: string): SummaryDay {
 }
 
 function perDayRateFor(days: DayRow[], monthlyGross: number): number {
-  const workingDays = days.filter(isWorkingDay).length;
-  if (monthlyGross <= 0 || workingDays <= 0) return 0;
-  return monthlyGross / workingDays;
+  const month = days[0]?.logDate.slice(0, 7);
+  return monthlyGross > 0 && month ? monthlyGross / daysInMonth(month) : 0;
 }
 
 /**
@@ -60,7 +56,7 @@ function perDayRateFor(days: DayRow[], monthlyGross: number): number {
  * week reported 3 days earned out of 6 in the report emails — a phantom
  * shortfall on the very document that tells someone how their week went. The
  * on-screen self-view already passes this; the reports were the surface still
- * defaulting. Fail-soft to the full-time day, which is what the default was.
+ * defaulting. Undefined lets `summarize` preserve its existing fail-soft path.
  */
 async function dayMinutesFor(employeeId: string): Promise<number | undefined> {
   try {

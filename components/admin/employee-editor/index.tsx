@@ -457,13 +457,13 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
         <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-[100] flex w-[min(1120px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-hairline bg-white shadow-xl"
-          style={{ height: "min(86vh, 900px)" }}
+          className="fixed left-1/2 top-1/2 z-[100] flex w-[min(1200px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-hairline bg-white shadow-xl"
+          style={{ height: "min(90vh, 920px)" }}
         >
           {/* Header — fixed. */}
-          <div className="flex items-start gap-3 border-b border-hairline px-6 py-4 max-md:px-4">
+          <div className="flex items-start gap-3 border-b border-hairline px-5 py-3.5 max-md:px-4">
             <div className="min-w-0 flex-1">
-              <Dialog.Title className="font-serif text-[22px] leading-tight text-ink-strong">
+              <Dialog.Title className="text-[18px] font-black leading-tight text-ink-strong">
                 {title}
               </Dialog.Title>
               <p className="mt-0.5 truncate text-[14px] text-ink-subtle">{subtitle}</p>
@@ -480,7 +480,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
           </div>
 
           {/* Body — the only scrolling region. */}
-          <div className="slim-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5 max-md:px-4">
+          <div className="slim-scroll min-h-0 flex-1 overflow-y-auto bg-[#FAFBFC] px-4 py-4 max-md:px-3">
             {bulk ? (
               <div className="mb-4 space-y-3">
                 <div className="flex flex-wrap gap-1.5">
@@ -507,9 +507,9 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                 changes={bulkChanges}
               />
             ) : (
-              <div className="grid grid-cols-[55fr_45fr] gap-5 max-lg:grid-cols-1">
+              <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
                 {/* LEFT ── identity, organisation, contact. */}
-                <div className="space-y-4">
+                <div className="space-y-3.5">
                   <Card title="Basic Information">
                     <Field
                       label="Full Name"
@@ -578,6 +578,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                             options={departmentOptions}
                             selectedIds={deptIds}
                             primaryId={primaryId}
+                            compact
                             onChange={(ids, primary) => {
                               setDeptIds(ids);
                               setPrimaryId(primary);
@@ -619,17 +620,12 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           disabled={props.mode === "single" && props.isSelf}
                           className="size-4 accent-[var(--color-altus-red)]"
                         />
-                        Admin (can manage employees + settings)
+                        Admin
                       </label>
                     ) : !bulk && one?.isAdmin ? (
                       <div className="flex items-center gap-2.5 text-[14px] text-ink-soft opacity-70">
                         <input type="checkbox" checked readOnly disabled className="size-4" />
-                        <span>
-                          Admin
-                          <span className="block text-[12px] text-ink-subtle">
-                            Only an admin can change admin access.
-                          </span>
-                        </span>
+                        <span>Admin</span>
                       </div>
                     ) : null}
 
@@ -657,14 +653,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           onChange={(ev) => setCanIssueLetters(ev.target.checked)}
                           className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
                         />
-                        <span>
-                          Issue letters
-                          <span className="block text-[12px] text-ink-subtle">
-                            {isAdmin
-                              ? "Included with admin access."
-                              : "Can create, issue and email HR letters, without managing employees or settings."}
-                          </span>
-                        </span>
+                        <span>Issue letters</span>
                       </label>
                     ) : null}
 
@@ -694,13 +683,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           onChange={(ev) => setCanCoordinateDcc(ev.target.checked)}
                           className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
                         />
-                        <span>
-                          DCC Coordinator
-                          <span className="block text-[12px] text-ink-subtle">
-                            Works on everyone&apos;s WCC and MCC. Does not include
-                            approving them, and closed days still lock.
-                          </span>
-                        </span>
+                        <span>DCC Coordinator</span>
                       </label>
                     ) : null}
 
@@ -724,13 +707,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           onChange={(ev) => setIsMasterAdmin(ev.target.checked)}
                           className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
                         />
-                        <span>
-                          Master admin
-                          <span className="block text-[12px] text-ink-subtle">
-                            Can open Master Admin and change anyone&apos;s module permissions.{" "}
-                            Only a super-admin can change this.
-                          </span>
-                        </span>
+                        <span>Master admin</span>
                       </label>
                     ) : !bulk && one?.isMasterAdmin ? (
                       <div className="flex items-start gap-2.5 text-[14px] text-ink-soft opacity-70">
@@ -741,12 +718,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           disabled
                           className="mt-0.5 size-4"
                         />
-                        <span>
-                          Master admin
-                          <span className="block text-[12px] text-ink-subtle">
-                            Only a super-admin can change master admin access.
-                          </span>
-                        </span>
+                        <span>Master admin</span>
                       </div>
                     ) : null}
                   </Card>
@@ -793,23 +765,14 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           onChange={(ev) => setWaOptIn(ev.target.checked)}
                           className="mt-1 size-4 accent-[var(--color-altus-red)]"
                         />
-                        <span>
-                          <span className="font-semibold text-ink-strong">
-                            I have this employee&apos;s consent to send WhatsApp
-                            notifications
-                          </span>
-                          <span className="mt-0.5 block text-[12px] text-ink-subtle">
-                            Required by Meta + DPDP - leave off if the employee hasn&apos;t
-                            agreed.
-                          </span>
-                        </span>
+                        <span className="font-semibold text-ink-strong">WhatsApp notifications consent</span>
                       </label>
                     )}
                   </Card>
                 </div>
 
                 {/* RIGHT ── schedule + live summary. */}
-                <div className="space-y-4">
+                <div className="space-y-3.5">
                   <ScheduleFields
                     bulk={bulk}
                     draft={sched}
@@ -864,12 +827,12 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
           </div>
 
           {/* Footer — fixed, always reachable. */}
-          <div className="flex items-center justify-between gap-3 border-t border-hairline bg-white px-6 py-4 max-md:px-4">
+          <div className="flex items-center justify-between gap-3 border-t border-hairline bg-white px-5 py-3 max-md:px-4">
             <button
               type="button"
               onClick={() => (confirming ? setConfirming(false) : onOpenChange(false))}
               disabled={pending}
-              className="rounded-md px-4 py-2.5 text-[14px] font-semibold text-ink-subtle transition-colors hover:text-ink-strong disabled:opacity-50"
+              className="rounded-md px-3 py-2 text-[13px] font-semibold text-ink-subtle transition-colors hover:text-ink-strong disabled:opacity-50"
             >
               {confirming ? "Back" : "Cancel"}
             </button>
@@ -885,8 +848,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                 }
                 applyBulk();
               }}
-              className="rounded-md px-5 py-2.5 text-[14px] font-semibold text-white transition-opacity disabled:opacity-45"
-              style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}
+              className="rounded-md bg-altus-red px-4 py-2 text-[13px] font-bold text-white transition-opacity hover:bg-altus-red-deep disabled:opacity-45"
             >
               {pending
                 ? "Saving…"

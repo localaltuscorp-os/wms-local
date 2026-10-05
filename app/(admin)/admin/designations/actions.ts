@@ -4,6 +4,7 @@ import { designations } from "@/db/schema";
 import {
   createRosterItem,
   updateRosterItem,
+  deleteRosterItems,
   type ActionResult,
   type CreateRosterInput,
   type UpdateRosterInput,
@@ -30,4 +31,8 @@ export async function updateDesignation(
   fields: UpdateRosterInput,
 ): Promise<ActionResult> {
   return updateRosterItem(designations, PATHS, id, fields);
+}
+
+export async function deleteDesignations(ids: string[]): Promise<ActionResult<{ deleted: number }>> {
+  return deleteRosterItems(designations, PATHS, ids);
 }

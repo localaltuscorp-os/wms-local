@@ -54,7 +54,7 @@ import type { EffectiveAttendanceConfig } from "./effective-config";
  * boundary (2026-07, when synthetic sheet punches gave way to real ones); it is
  * about where the punches come from, not about which pay model applies.
  */
-export const PAYROLL_HOURS_FROM = "2026-08";
+export const PAYROLL_HOURS_FROM = "2026-09";
 
 /** Is this month's pay derived from graded hours rather than frozen history? */
 export function isHoursPayrollMonth(month: string): boolean {
