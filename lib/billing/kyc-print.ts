@@ -135,7 +135,6 @@ ${section(
   "Registration & Tax",
   rows([
     ["PAN / IT No", d.pan],
-    ["MSME / Udyam No", d.msmeNo],
     ["GST registration type", d.gstRegType],
     ["Currency", d.currency],
     ["Country", d.country],

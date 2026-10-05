@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   Flag,
@@ -14,6 +14,7 @@ import {
   Tag,
   Building2,
   BadgeCheck,
+  Eye,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -73,6 +74,8 @@ const MANAGER_MARK_ACTIONS = [
   | { kind: "approval"; value: ApprovalStatus; label: string; verb: string }
 )[];
 
+const DELETE_REQUEST_BATCH_SIZE = 500;
+
 /**
  * Floating toolbar shown when ≥1 task is selected in the list. Offers the
  * batch actions (status / priority / reassign, plus admin-only archive +
@@ -91,6 +94,7 @@ export function BulkActionBar({
   showArchive = true,
   showDelete = true,
   showTaskActions = true,
+  showViewDetails = true,
   onDeleteOverride,
   count: countOverride,
 }: {
@@ -131,6 +135,9 @@ export function BulkActionBar({
    * plan-side set in `extras` plus Delete, which act on every selected row.
    */
   showTaskActions?: boolean;
+  /** Opens the selected task in the existing task-detail drawer. Plan hosts
+   * disable this because their selection represents plan rows, not tasks. */
+  showViewDetails?: boolean;
   /** Replaces the task-level delete. Project Plan passes its own, which
    *  archives plan rows and their tasks together — the task-only delete would
    *  strand the rows behind. The host owns the confirm and the toast. */
@@ -146,6 +153,8 @@ export function BulkActionBar({
   count?: number;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [pending, start] = React.useTransition();
   const count = countOverride ?? selectedIds.length;
 
@@ -167,6 +176,28 @@ export function BulkActionBar({
     });
   }
 
+  async function deleteInBatches(): Promise<BulkResult> {
+    let updated = 0;
+    let skipped = 0;
+
+    for (let startAt = 0; startAt < selectedIds.length; startAt += DELETE_REQUEST_BATCH_SIZE) {
+      const result = await bulkDelete(selectedIds.slice(startAt, startAt + DELETE_REQUEST_BATCH_SIZE));
+      if (!result.ok) {
+        return {
+          ok: false,
+          error:
+            updated > 0
+              ? `${result.error} ${updated} task${updated === 1 ? " was" : "s were"} already deleted.`
+              : result.error,
+        };
+      }
+      updated += result.updated;
+      skipped += result.skipped;
+    }
+
+    return { ok: true, updated, skipped };
+  }
+
   // The batch twin of the row's inline status chip, and offering the SAME six
   // options for the same reason: this control reports the doer's progress. The
   // manager's rulings (hold / approve / decline / cancel) are the "Manager
@@ -178,7 +209,7 @@ export function BulkActionBar({
        the controls outrun the width. Wrapping made it grow a second row that
        shoved the table down and left "Clear" stranded on its own line. */
     <div
-      className="wg-rise sticky top-[150px] z-30 mb-3 flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden rounded-section border px-4 py-2.5 max-md:top-[120px] [scrollbar-width:thin]"
+      className="wg-rise no-scrollbar sticky top-[150px] z-30 mb-3 flex items-center gap-2 flex-nowrap overflow-x-auto overflow-y-hidden rounded-section border px-4 py-2.5 max-md:top-[120px]"
       style={{
         borderColor: "color-mix(in srgb, var(--color-altus-red) 22%, var(--color-hairline-strong))",
         background:
@@ -193,7 +224,7 @@ export function BulkActionBar({
     >
       {/* CONTROL ORDER IS A CONTRACT — left to right:
             [N] selected · Doer Status · Priority · Reassign · Subject ·
-            Client · Manager Status · Archive · Delete
+            Client · Manager Status · View Details · Archive · Delete
             (then Clear, pinned right)
           It runs doer-facing edits first, then the manager's ruling, then the
           two destructive actions. Subject and Client are conditional on having
@@ -387,6 +418,25 @@ export function BulkActionBar({
       </>
       )}
 
+      {showViewDetails && (
+        <button
+          type="button"
+          disabled={pending || selectedIds.length !== 1}
+          title={selectedIds.length === 1 ? "View selected task details" : "Select one task to view details"}
+          onClick={() => {
+            const taskId = selectedIds[0];
+            if (!taskId) return;
+            const next = new URLSearchParams(searchParams.toString());
+            next.set("task", taskId);
+            router.push(`${pathname}?${next.toString()}`);
+          }}
+          className={chipBtn}
+        >
+          <Eye size={14} strokeWidth={2.2} />
+          View Details
+        </button>
+      )}
+
       {isAdmin && (
         <>
           {showArchive && (
@@ -416,10 +466,10 @@ export function BulkActionBar({
               }
               if (
                 confirm(
-                  `Permanently delete ${count} task${count === 1 ? "" : "s"}?\n\nThis removes the tasks and their history and cannot be undone.`,
+                  `Are you sure you want to permanently delete ${count} selected task${count === 1 ? "" : "s"}?\n\nThis removes the tasks and their history and cannot be undone.`,
                 )
               ) {
-                run("Deleted", () => bulkDelete(selectedIds));
+                run("Deleted", deleteInBatches);
               }
             }}
             className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-pill border px-3 py-1.5 text-[13px] font-bold text-altus-red bg-surface-card shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:bg-altus-red/8 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"

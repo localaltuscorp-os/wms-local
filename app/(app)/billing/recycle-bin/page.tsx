@@ -27,10 +27,21 @@ export default async function BillingRecycleBinPage() {
   return (
     <PageShell width="wide">
       <h1
-        style={PAGE_COMMAND_BAR_TITLE_STYLE}
+        className="text-ink-strong"
+        style={{
+          fontFamily: "var(--font-display), system-ui, sans-serif",
+          fontWeight: 900,
+          fontSize: "clamp(24px,2.8vw,34px)",
+          letterSpacing: "-0.025em",
+        }}
       >
         Recycle Bin
       </h1>
+      <p className="hidden">
+        Customers removed from the Billing module. Nothing here has been destroyed — restoring
+        puts it back exactly where it was.
+      </p>
+
       {rows.length === 0 ? (
         <div className="mt-6 rounded-[22px] p-10 text-center" style={CARD_STYLE}>
           <Trash2 size={26} className="mx-auto text-ink-muted" />

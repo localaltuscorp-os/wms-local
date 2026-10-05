@@ -16,7 +16,7 @@ import {
   inKpiBucket,
   isOpenTask,
 } from "@/lib/dashboard/kpi-buckets";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import {
   distributeDoneFine,
   distributePendingFine,
@@ -54,6 +54,7 @@ import {
 } from "@/lib/queries/departments";
 import { unstable_cache } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { computeTaskStatusKpiCounts } from "@/lib/task-status-kpis";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -159,7 +160,7 @@ export async function loadDashboardData(
     // `window` / `changePct` / `trend`, and `wmsSummaryByKpi` was added. A v2
     // entry served after this deploy would hand the card a `trend` of
     // `undefined` and the tooltip would read `.length` off it during render.
-    "dashboard-data:v3",
+    "dashboard-data:v4",
     filters.startDate?.toISOString() ?? "_",
     filters.endDate?.toISOString() ?? "_",
     filters.view,
@@ -328,6 +329,9 @@ export async function loadDashboardDataUncached(
   ]);
 
   const totals = computeKpiTotals(periodTasks);
+  // Keep this compact strip aligned with every dashboard widget: it is derived
+  // from the existing filtered task scan, not from a separate query.
+  const taskStatusCounts = computeTaskStatusKpiCounts(periodTasks);
 
   // ── The six cards, all off ONE classification ────────────────────────────
   //
@@ -570,11 +574,12 @@ export async function loadDashboardDataUncached(
   // ③ Manager Initiator — split the 7-day scan into 3-day and 7-day windows.
   const holidaySet = new Set(holidayRows.map((h) => h.holidayDate));
   const initEmployees = allEmployees.map((e) => ({ id: e.id, name: e.name, managerId: e.managerId, email: e.email }));
+  const founderIds = await founderEmployeeIds();
   const board = (since: Date, windowDays: number): InitiatorBoard => {
     const wd = countWorkingDays(since, now, holidaySet); // Sunday off (default)
     const windowTasks = initiatorTasksRaw.filter((t) => t.createdAt >= since)
       .map((t) => ({ initiatorId: t.initiatorId, doerId: t.doerId }));
-    return { windowDays, workingDays: wd, managers: computeInitiatorScorecard(windowTasks, initEmployees, wd, isFounderEmail) };
+    return { windowDays, workingDays: wd, managers: computeInitiatorScorecard(windowTasks, initEmployees, wd, (id) => founderIds.has(id)) };
   };
   // DESCRIPTIONS FOR THE DRILL-DOWNS.
   //
@@ -737,6 +742,7 @@ export async function loadDashboardDataUncached(
 
   return {
     kpis,
+    taskStatusCounts,
     wmsSummary,
     wmsSummaryByKpi,
     punctuality,

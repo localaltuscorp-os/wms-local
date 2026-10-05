@@ -7,7 +7,7 @@ import { Landmark } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function PayingEntitiesPage() {
+export default async function ReceivingEntitiesPage() {
   await requireAdmin();
   const rows = await listPayingEntitiesWithCounts();
   const activeCount = rows.filter((r) => r.isActive).length;
@@ -16,9 +16,9 @@ export default async function PayingEntitiesPage() {
 
   return (
     <AdminSection
-      eyebrow="Admin · Salary"
-      title="Paying Entities"
-      subtitle={`${rows.length} total · ${activeCount} active · Legal entities that pay employee salaries`}
+      eyebrow="Admin · Billing"
+      title="Receiving Entities"
+      subtitle={`${rows.length} total · ${activeCount} active · Billing entities receiving or holding receipts`}
       icon={Landmark}
       stats={[
         { label: "Total", value: rows.length },
@@ -28,7 +28,7 @@ export default async function PayingEntitiesPage() {
       ]}
     >
       <OutstandingRosterList
-        title="Paying Entities"
+        title="Receiving Entities"
         items={rows}
         createAction={createPayingEntity}
         updateAction={updatePayingEntity}

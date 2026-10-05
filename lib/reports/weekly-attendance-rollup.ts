@@ -73,13 +73,13 @@ function possessive(name: string): string {
 /**
  * Build every Sunday-morning rollup email for the just-ended week.
  *
- * `founderEmailLogin` is the founder's LOGIN address (the identity), used only
+ * `founderEmployeeId` is the database-backed Founder identity, used only
  * to find their employee row — the mail itself goes to that row's business
  * address.
  */
 export async function buildWeeklyAttendanceRollup(args: {
   now?: Date;
-  founderEmailLogin: string;
+  founderEmployeeId: string | null;
 }): Promise<WeeklyRollup> {
   const now = args.now ?? new Date();
   const profiles = await listSalaryProfiles();
@@ -131,7 +131,7 @@ export async function buildWeeklyAttendanceRollup(args: {
       officialEmail: employees.officialEmail,
     })
     .from(employees)
-    .where(eq(employees.email, args.founderEmailLogin))
+    .where(eq(employees.id, args.founderEmployeeId ?? ""))
     .limit(1);
 
   const managers: RollupRecipient[] = [];
@@ -168,7 +168,7 @@ export async function buildWeeklyAttendanceRollup(args: {
   const allRows = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
   const founderTo = founderRow
     ? businessEmailFor(founderRow)
-    : args.founderEmailLogin;
+    : "Founder";
   const founder: RollupRecipient | null =
     founderTo && allRows.length > 0
       ? {

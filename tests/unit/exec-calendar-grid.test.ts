@@ -14,6 +14,7 @@ import {
   routineDays,
   rangeLabel,
   slotCount,
+  slotMinutes,
   topToMin,
   weekDays,
   weekStart,
@@ -28,13 +29,15 @@ import {
  */
 
 describe("the configurable window", () => {
-  it("shows 06:30–23:00 in half-hour rows (fixed, 2026-09-18)", () => {
-    expect(DEFAULT_GRID).toEqual({ startMin: 390, endMin: 1380, slotMin: 30 });
-    expect(slotCount(DEFAULT_GRID)).toBe(33); // 16.5 hours × 2
+  it("shows 07:00–23:00 in hourly rows", () => {
+    expect(DEFAULT_GRID).toEqual({ startMin: 420, endMin: 1380, slotMin: 60 });
+    expect(slotCount(DEFAULT_GRID)).toBe(16);
+    expect(slotMinutes(DEFAULT_GRID)).toEqual(Array.from({ length: 16 }, (_, i) => (7 + i) * 60));
+    expect(minToLabel(DEFAULT_GRID.endMin)).toBe("11:00 PM");
   });
 
   it("counts hourly rows when asked for hourly", () => {
-    expect(slotCount({ startMin: 420, endMin: 1320, slotMin: 60 })).toBe(15);
+    expect(slotCount({ startMin: 420, endMin: 1380, slotMin: 60 })).toBe(16);
   });
 
   it("still supports a full day for the odd 6am flight", () => {
@@ -42,7 +45,7 @@ describe("the configurable window", () => {
   });
 
   it("puts the window start at the top, whatever the window", () => {
-    expect(minToTop(390, DEFAULT_GRID, 40)).toBe(0);
+    expect(minToTop(420, DEFAULT_GRID, 40)).toBe(0);
     expect(minToTop(0, FULL_DAY_GRID, 40)).toBe(0);
   });
 
@@ -66,7 +69,7 @@ describe("the configurable window", () => {
   });
 
   it("is as tall as its rows", () => {
-    expect(gridHeight(DEFAULT_GRID, 20)).toBe(660);
+    expect(gridHeight(DEFAULT_GRID, 20)).toBe(320);
   });
 });
 

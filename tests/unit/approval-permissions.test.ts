@@ -31,8 +31,8 @@ const task = (over: Partial<ApprovalTask> = {}): ApprovalTask => ({
 
 const actor = (id: string, over: Partial<ApprovalActor> = {}): ApprovalActor => ({
   id,
-  email: `${id}@example.com`,
   isAdmin: false,
+  isFounder: false,
   ...over,
 });
 

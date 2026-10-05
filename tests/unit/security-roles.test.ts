@@ -70,6 +70,22 @@ describe("granting and holding", () => {
   });
 });
 
+describe("the Super Admin role-management panel", () => {
+  const actions = readFileSync("app/(admin)/admin/security-roles/actions.ts", "utf8");
+  const page = readFileSync("app/(admin)/admin/security-roles/page.tsx", "utf8");
+
+  it("requires a database-backed Super Admin for both the page and every write", () => {
+    expect(page).toContain("hasDatabaseSuperAdminGrant(actor.id)");
+    expect(actions).toContain("hasDatabaseSuperAdminGrant(actor.id)");
+  });
+
+  it("validates role keys, active employees and blocks self-assignment", () => {
+    expect(actions).toContain("isSecurityRole(role)");
+    expect(actions).toContain("eq(employees.isActive, true)");
+    expect(actions).toContain("employeeId === auth.actorId");
+  });
+});
+
 describe("the lock respects the role, not a hardcoded list", () => {
   const lockout = readFileSync("lib/auth/account-lockout.ts", "utf8");
 

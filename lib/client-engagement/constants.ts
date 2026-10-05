@@ -33,6 +33,12 @@ export interface CeCategoryMeta {
   batch: boolean;
 }
 
+export interface CeProductOption {
+  value: CeCategory;
+  label: string;
+  group: CeGroup;
+}
+
 /**
  * In the brief's section order: 1 Retainer … 5 Corporate, with OS (2026-09-28)
  * added as a PS/BSS-style participant — it is a real Admin Panel Product
@@ -47,6 +53,20 @@ export const CE_CATEGORIES: readonly CeCategoryMeta[] = [
   { code: "corporate", label: "Corporate", section: "Corporate Consulting Clients", group: "C", batch: false },
   { code: "ambassador", label: "Ambassador", section: "Ambassadors", group: "A", batch: false },
 ];
+
+/** Resolve active Product Master rows to categories supported by this module. */
+export function ceProductOptions(products: readonly { code: string | null; name: string }[]): CeProductOption[] {
+  const seen = new Set<CeCategory>();
+  const options: CeProductOption[] = [];
+  for (const product of products) {
+    const keys = new Set([product.code, product.name].filter((value): value is string => !!value).map((value) => value.trim().toLowerCase()));
+    const category = CE_CATEGORIES.find((item) => keys.has(item.code) || keys.has(item.label.toLowerCase()));
+    if (!category || seen.has(category.code)) continue;
+    seen.add(category.code);
+    options.push({ value: category.code, label: product.name, group: category.group });
+  }
+  return options;
+}
 
 export const CE_CATEGORY_CODES: readonly string[] = CE_CATEGORIES.map((c) => c.code);
 

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { incentiveCatalog } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canEditIncentiveTable, INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
+import { isFounder } from "@/lib/auth/founder";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { afterResponse } from "@/lib/after";
 import {
@@ -71,7 +72,7 @@ async function tableEditorOrError(): Promise<
   { ok: true; me: { id: string; name: string } } | { ok: false; error: string }
 > {
   const me = await requireUser();
-  if (!canEditIncentiveTable(me.email)) {
+  if (!canEditIncentiveTable(await isFounder(me.id))) {
     return {
       ok: false,
       error: `Only ${INCENTIVE_REVIEWER_NAME} can add, edit or delete Incentive Table records.`,

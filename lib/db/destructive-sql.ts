@@ -14,7 +14,9 @@
  * migrations in this repo drop and recreate those routinely — none of them lose
  * a row. A guard that fired on ordinary migrations would be switched off inside
  * a week, and a guard nobody runs protects nothing. As written it matches
- * exactly 1 of ~210 migrations here, so when it fires it means something.
+ * exactly the small set of reviewed data-cleanup migrations here, so when it
+ * fires it means something. Trigger declarations and privilege statements
+ * mentioning TRUNCATE/DELETE are not destructive statements themselves.
  *
  * ── WHY IT EXISTS ──────────────────────────────────────────────────────────
  * `pnpm db:migrate` applies every un-ledgered migration in filename order,
@@ -44,7 +46,7 @@
  * it, and these lines have already had comments stripped.
  */
 export const DESTRUCTIVE_SQL_RE =
-  /\b(?:drop\s+(?:table|column|schema|database)|truncate|delete\s+from)\b/i;
+  /(?:^\s*(?:drop\s+(?:table|column|schema|database)|truncate|delete\s+from)\b|\balter\s+table\b.*\bdrop\s+column\b)/i;
 
 /** The destructive statements in a migration, in file order. Empty ⇒ additive. */
 export function destructiveStatements(contents: string): string[] {

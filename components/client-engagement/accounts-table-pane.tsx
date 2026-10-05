@@ -3,7 +3,7 @@
 import * as React from "react";
 import { fireToast } from "@/lib/toast";
 import { ceAssignAccount } from "@/app/(app)/operations/client-engagement/actions";
-import { accountLabel } from "@/lib/client-engagement/constants";
+import { accountLabel, type CeProductOption } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
 import { AccountDialog } from "./account-dialog";
@@ -27,6 +27,7 @@ export function AccountsTablePane({
   canManage,
   myMemberId,
   batches,
+  productOptions,
   defaultCategory,
   extraControls,
 }: {
@@ -40,6 +41,8 @@ export function AccountsTablePane({
   myMemberId: string | null;
   /** Batch codes offered in the Edit dialog's own datalist. */
   batches: string[];
+  /** Active Product Master choices used by the shared add/edit dialog. */
+  productOptions: CeProductOption[];
   /** The category a NEW account defaults to — irrelevant here, this pane never opens "new". */
   defaultCategory?: string;
   extraControls?: React.ReactNode;
@@ -88,6 +91,7 @@ export function AccountsTablePane({
           defaultCategory={defaultCategory}
           members={members.map((m) => ({ id: m.id, name: m.name }))}
           batches={batches}
+          productOptions={productOptions}
           canManage={canManage}
           canEdit={canEdit(editing)}
           onClose={() => setEditing(null)}

@@ -121,7 +121,7 @@ export type SecurityCapability =
    * another user has Entity Edit, Admin access, File Manage, or other Billing
    * Master permissions, they must NOT be able to delete an entity."
    *
-   * ── WHY A CAPABILITY OF ITS OWN, NOT `isFounderEmail` ────────────────────
+   * ── WHY A CAPABILITY OF ITS OWN, NOT THE FOUNDER ROLE ───────────────────
    * `lib/auth/founder.ts` already knows Manan's address, and testing it would
    * have worked today. But it means "the founder", and this rule is not about
    * being the founder — it is about one irreversible operation on one master.
@@ -147,7 +147,7 @@ export type SecurityCapability =
    * is narrower than editing the incentive itself: an admin may correct a
    * scheme's amount or description without also choosing who collects it.
    *
-   * ── WHY A CAPABILITY, NOT `isFounderEmail` ───────────────────────────────
+   * ── WHY A CAPABILITY, NOT THE FOUNDER ROLE ──────────────────────────────
    * The same reasoning as `billing_entity.delete` above, and it has already
    * been proved right once: keyed off "the founder", a change of founder
    * silently moves the authority, and a second person who one day shares it

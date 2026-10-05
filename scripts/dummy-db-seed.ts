@@ -549,6 +549,41 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
 
   await bump("employees");
 
+  // HR Directory: synthetic Vendor and HR Consultant entries for both tabs,
+  // including secondary contacts so the quick-action columns can be tested.
+  for (const [id, type, company, name, cell, email, contact2Name, contact2Cell, contact2Email] of [
+    ["00000000-0000-4000-8300-000000000001", "vendor", "Northstar Office Services", "Test Vendor One", "9876500011", "vendor.one@example.invalid", "Test Vendor Two", "9876500012", "vendor.two@example.invalid"],
+    ["00000000-0000-4000-8300-000000000002", "vendor", "Evergreen Facilities", "Test Vendor Three", "9876500013", "vendor.three@example.invalid", "", "", ""],
+    ["00000000-0000-4000-8300-000000000003", "hr_consultant", "Talent Test Partners", "Test Consultant One", "9876500014", "consultant.one@example.invalid", "Test Consultant Two", "9876500015", "consultant.two@example.invalid"],
+    ["00000000-0000-4000-8300-000000000004", "hr_consultant", "People Practice Test", "Test Consultant Three", "9876500016", "consultant.three@example.invalid", "", "", ""],
+  ] as const) {
+    await pg.query(
+      `insert into hr_contacts (id, directory_type, company_name, person_name, cell_no, email, contact_2_name, contact_2_cell_no, contact_2_email, service, created_by_id, updated_by_id)
+       values ($1,$2,$3,$4,$5,$6,nullif($7,''),nullif($8,''),nullif($9,''),'Other',$10,$10)
+       on conflict (id) do nothing`,
+      [id, type, company, name, cell, email, contact2Name, contact2Cell, contact2Email, EMP.me],
+    );
+  }
+  await bump("hr_contacts");
+
+  // Compensation workflow test cases: every approval tab has pending,
+  // approved, rejected, and paid dummy records. This runs only in local
+  // PGlite dummy mode; see dummy-db-seed-compensation.ts for the fixture.
+  const { seedDummyCompensationFixtures } = await import("./dummy-db-seed-compensation");
+  Object.assign(counts, await seedDummyCompensationFixtures(pg, {
+    admin: EMP.me,
+    primary: EMP.ravi,
+    secondary: EMP.meera,
+    tertiary: EMP.imran,
+    extendedName: EMP.long,
+  }));
+  await pg.query(
+    `insert into super_admin_grants (employee_id, employee_email, granted_by_id)
+     select id, lower(email), id from employees where id = $1
+     on conflict (employee_id) do nothing`,
+    [EMP.me],
+  );
+
   for (const name of CLIENTS) {
     await pg.query(`insert into clients (name) values ($1) on conflict do nothing`, [name]);
   }

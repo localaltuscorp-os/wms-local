@@ -10,7 +10,9 @@ export default async function DropDownMasterPage() {
   return (
     <>
       <PageCommandBar title="Dropdown" />
-      <DropDownMasterExplorer />
+      <main className="w-full max-w-none px-6 pb-8">
+        <DropDownMasterExplorer />
+      </main>
     </>
   );
 }

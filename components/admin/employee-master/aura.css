@@ -569,3 +569,22 @@
   .aura *,
   .aura *::after { transition-duration: 1ms !important; }
 }
+
+/* Employee Master uses standard WMS surfaces. Keep restored workspace controls
+   flat and quiet; no decorative gradients or lift on hover. */
+.aura .glass.interactive:hover,
+.aura .chrome-bar,
+.aura .chrome-rail,
+.aura .btn,
+.aura .avatar,
+.aura .meter > span {
+  background: #b42318;
+  background-image: none;
+  transform: none;
+}
+.aura .glass.interactive:hover,
+.aura .chrome-bar,
+.aura .chrome-rail,
+.aura .avatar { background: #fff; }
+.aura .meter > span { background: #164a8f; }
+.aura .avatar { box-shadow: none; }

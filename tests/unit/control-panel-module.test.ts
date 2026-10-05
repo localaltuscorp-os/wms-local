@@ -72,7 +72,7 @@ describe("the Control Panel is a workspace", () => {
     expect(isWorkspaceId("control-panel")).toBe(true);
     expect(WORKSPACE_IDS).toContain("control-panel");
     expect(WORKSPACE_LABEL["control-panel"]).toBe("Control Panel");
-    expect(WORKSPACE_LANDING["control-panel"]).toBe("/control-panel/users");
+    expect(WORKSPACE_LANDING["control-panel"]).toBe("/control-panel/roles");
   });
 
   it("owns its path, so the layout gate reaches every screen under it", () => {
@@ -80,7 +80,7 @@ describe("the Control Panel is a workspace", () => {
     // gates every route on the workspace `workspaceForPath` returns, so an
     // unlisted page under the room is still refused.
     expect(workspaceForPath("/control-panel")).toBe("control-panel");
-    expect(workspaceForPath("/control-panel/users")).toBe("control-panel");
+    expect(workspaceForPath("/control-panel/roles")).toBe("control-panel");
     expect(workspaceForPath("/control-panel/temporary-access")).toBe("control-panel");
   });
 
@@ -181,7 +181,6 @@ describe("the permission catalogue moved with it", () => {
   });
 
   it("governs each screen", () => {
-    expect(nodeKeyForPath("/control-panel/users")).toBe("control-panel.users");
     expect(nodeKeyForPath("/control-panel/roles")).toBe("control-panel.roles");
     expect(nodeKeyForPath("/control-panel/permissions")).toBe("control-panel.permissions");
     expect(nodeKeyForPath("/control-panel/temporary-access")).toBe(
@@ -194,7 +193,6 @@ describe("the permission catalogue moved with it", () => {
     // is asserted by `effectiveFor` elsewhere; what is pinned here is that the
     // chain actually contains the module.
     for (const key of [
-      "control-panel.users",
       "control-panel.roles",
       "control-panel.permissions",
       "control-panel.temporary-access",

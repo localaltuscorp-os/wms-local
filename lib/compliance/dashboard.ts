@@ -69,8 +69,17 @@ export interface ComplianceKpis {
 
 export function emptyKpis(): ComplianceKpis {
   return {
-    due: 0, done: 0, onTime: 0, late: 0, notFilled: 0,
-    carried: 0, lapsed: 0, abandoned: 0, ratePct: 0, onTimePct: 0, minutes: 0,
+    due: 0,
+    done: 0,
+    onTime: 0,
+    late: 0,
+    notFilled: 0,
+    carried: 0,
+    lapsed: 0,
+    abandoned: 0,
+    ratePct: 0,
+    onTimePct: 0,
+    minutes: 0,
   };
 }
 
@@ -116,7 +125,9 @@ export interface CompliancePersonRow extends ComplianceKpis {
  * and the order is stable rather than depending on which rows happened to load
  * first.
  */
-export function computePeople(rows: readonly ComplianceRow[]): CompliancePersonRow[] {
+export function computePeople(
+  rows: readonly ComplianceRow[],
+): CompliancePersonRow[] {
   const byPerson = new Map<string, ComplianceRow[]>();
   for (const row of rows) {
     const list = byPerson.get(row.ownerId);
@@ -134,7 +145,9 @@ export function computePeople(rows: readonly ComplianceRow[]): CompliancePersonR
   }
   out.sort(
     (a, b) =>
-      b.ratePct - a.ratePct || b.due - a.due || a.ownerName.localeCompare(b.ownerName),
+      b.ratePct - a.ratePct ||
+      b.due - a.due ||
+      a.ownerName.localeCompare(b.ownerName),
   );
   return out;
 }
@@ -183,7 +196,6 @@ export function computeComplianceDashboard(
 /** Re-exported so the view can label a status without importing the whole module. */
 export type { DoerStatus };
 export { isClosed };
-
 
 /* ────────────────────────────────────────────────────────────────────────────
  * THE SECTION BREAKDOWNS.
@@ -255,9 +267,18 @@ export function mostMissed(
     byTitle.set(row.title, at);
   }
   return [...byTitle.entries()]
-    .map(([title, v]) => ({ title, ...v, ratePct: pct(v.due - v.missed, v.due) }))
+    .map(([title, v]) => ({
+      title,
+      ...v,
+      ratePct: pct(v.due - v.missed, v.due),
+    }))
     .filter((r) => r.missed > 0)
-    .sort((a, b) => b.missed - a.missed || a.ratePct - b.ratePct || a.title.localeCompare(b.title))
+    .sort(
+      (a, b) =>
+        b.missed - a.missed ||
+        a.ratePct - b.ratePct ||
+        a.title.localeCompare(b.title),
+    )
     .slice(0, limit);
 }
 
@@ -279,11 +300,17 @@ export function minutesLoad(rows: readonly ComplianceRow[]): MinutesLoad[] {
   const by = new Map<string, MinutesLoad>();
   for (const row of rows) {
     if (!isDue(row) || !row.minutes) continue;
-    const at = by.get(row.ownerId) ?? { ownerId: row.ownerId, ownerName: row.ownerName, minutes: 0 };
+    const at = by.get(row.ownerId) ?? {
+      ownerId: row.ownerId,
+      ownerName: row.ownerName,
+      minutes: 0,
+    };
     at.minutes += row.minutes;
     by.set(row.ownerId, at);
   }
-  return [...by.values()].sort((a, b) => b.minutes - a.minutes || a.ownerName.localeCompare(b.ownerName));
+  return [...by.values()].sort(
+    (a, b) => b.minutes - a.minutes || a.ownerName.localeCompare(b.ownerName),
+  );
 }
 
 export interface FrequencyRow {
@@ -313,9 +340,13 @@ export function byFrequency(rows: readonly ComplianceRow[]): FrequencyRow[] {
   }
   return [...by.entries()]
     .map(([schedule, v]) => ({ schedule, ...v, ratePct: pct(v.done, v.due) }))
-    .sort((a, b) => a.ratePct - b.ratePct || b.due - a.due || a.schedule.localeCompare(b.schedule));
+    .sort(
+      (a, b) =>
+        a.ratePct - b.ratePct ||
+        b.due - a.due ||
+        a.schedule.localeCompare(b.schedule),
+    );
 }
-
 
 /* ────────────────────────────────────────────────────────────────────────────
  * DRILL-THROUGH — the link behind a figure.
@@ -330,7 +361,8 @@ export function byFrequency(rows: readonly ComplianceRow[]): FrequencyRow[] {
  * would land the reader on 450 rows after clicking a tile that said 389, and a
  * dashboard that does that once is not trusted again.
  */
-export type KpiDrill = "all" | "carried" | "lapsed" | "done" | DoerStatus | null;
+export type KpiDrill =
+  "all" | "carried" | "lapsed" | "done" | DoerStatus | null;
 
 /**
  * Where a tile's link goes: the WCC board, filtered.
@@ -340,12 +372,17 @@ export type KpiDrill = "all" | "carried" | "lapsed" | "done" | DoerStatus | null
  * send anyone to. The tile names both counts in its own sub-line, so what the
  * click will show is stated before it is clicked.
  */
-export function drillHref(drill: KpiDrill, who: string | undefined): string | null {
+export function drillHref(
+  drill: KpiDrill,
+  who: string | undefined,
+): string | null {
   if (drill === null) return null;
   const params = new URLSearchParams();
   // "all" is the whole board — a destination, just not a filtered one.
   if (drill !== "all") params.set("status", drill);
   if (who && who !== "me") params.set("who", who);
   const qs = params.toString();
-  return qs ? `/dcc/wcc?${qs}` : "/dcc/wcc";
+  return qs
+    ? `/employees/cc?view=consolidated&${qs}`
+    : "/employees/cc?view=consolidated";
 }

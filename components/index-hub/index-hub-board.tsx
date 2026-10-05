@@ -74,7 +74,7 @@ export function IndexHubBoard({ sections, isAdmin, canDelete }: Props) {
   }
 
   return (
-    <main className="mx-auto max-w-[1400px] px-12 max-md:px-4 pt-8 pb-24">
+    <main className="wms-compact relative mx-auto w-full min-w-0 max-w-[1560px] px-7 pt-4 pb-16 max-md:px-4 max-md:pt-3">
       {/* Header ------------------------------------------------------- */}
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>

@@ -21,7 +21,7 @@ import {
 export function TableToolbar({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
   return (
     <div
-      className="wg-rise slim-scroll flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-section border border-hairline px-2.5 py-1.5 [scrollbar-width:thin]"
+      className="wg-rise slim-scroll flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-none border border-hairline px-2.5 py-1.5 [scrollbar-width:thin]"
       style={{
         background: "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
         backdropFilter: "blur(14px) saturate(140%)",

@@ -94,7 +94,6 @@ export function CustomerDetailBody({ c, compact }: { c: CustomerDetail; compact?
           cols={cols}
           pairs={[
             ["PAN / IT No", c.pan],
-            ["MSME / Udyam No", c.msmeNo],
             ["GST registration type", c.gstRegType],
             ["Currency", c.currency],
             ["Country", c.country],

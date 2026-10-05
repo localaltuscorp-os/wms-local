@@ -109,10 +109,6 @@ function monthBack(year: number, month: number, n: number): { year: number; mont
 
 /** A day counts toward the FULL-month working-day denominator when it is a real,
  *  joined, non-off day (Present/Absent/Half/Incomplete/Holiday-worked). */
-function isWorkingDay(row: DayRow): boolean {
-  return row.code !== NOT_JOINED_CODE && !OFF_CODES.has(row.code);
-}
-
 /** Map a graded month-status row onto the pure summary engine's per-day shape.
  *  Off / holiday / leave / pre-join days are marked `offDay` so `summarize`
  *  excludes them from working days and from the mark tallies. */
@@ -140,9 +136,8 @@ function toSummaryDay(row: DayRow, todayIso: string): SummaryDay {
 /** Per-day rupee rate for a month: monthlyGross ÷ that month's full working-day
  *  count. Returns 0 when there's no CTC or no working days (never divide-by-0). */
 function perDayRateFor(days: DayRow[], monthlyGross: number): number {
-  const workingDays = days.filter(isWorkingDay).length;
-  if (monthlyGross <= 0 || workingDays <= 0) return 0;
-  return monthlyGross / workingDays;
+  const month = days[0]?.logDate.slice(0, 7);
+  return monthlyGross > 0 && month ? monthlyGross / daysInMonth(month) : 0;
 }
 
 /**
@@ -409,6 +404,7 @@ export async function getSelfAttendanceSummary(
     const bd = computeDailySalary({
       monthlySalary,
       daysInMonth: dim,
+      workingHoursPerDay: cfg.dailyTargetMinutes / 60,
       payableDayValue: payroll.payableDayValue,
       // PT / TDS / advances change only the net, never the base — pass none.
       ptExempt: true,

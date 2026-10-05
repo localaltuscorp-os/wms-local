@@ -23,7 +23,7 @@ import type { ExecEventRow } from "@/lib/queries/exec-calendar";
  * (`?routine=edit`) if that screen gets wired back in later.
  *
  * One hook, shared by every grid that draws event blocks (Day/Week, Weekly
- * Grid, Monthly Grid), so the three don't grow three slightly different
+ * Grid, Month at a Glance), so the views don't grow different
  * right-click behaviours.
  */
 export function useEventContextMenu() {

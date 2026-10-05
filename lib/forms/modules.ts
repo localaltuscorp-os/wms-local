@@ -194,6 +194,30 @@ export const MODULES: Record<ModuleKey, ModuleDef> = {
   },
 };
 
+/**
+ * A reimbursement claim is not meaningful without what was spent, how much,
+ * and when. Request forms are admin-configurable, but a partial saved override
+ * must not turn the claim into a notes-only submission or drop these values
+ * before the shared server validation sees them.
+ */
+const REIMBURSEMENT_CORE_REQUEST_FIELDS = [
+  "expense_for",
+  "amount",
+  "expense_date",
+] as const;
+
+/**
+ * Keep a complete admin override; recover to the canonical claim form when an
+ * incomplete override is encountered. This is used by both the web form and
+ * API/server-action validation so they cannot disagree about the claim shape.
+ */
+export function completeReimbursementRequestFields(fields: FormFieldDef[]): FormFieldDef[] {
+  const keys = new Set(fields.map((field) => field.key));
+  return REIMBURSEMENT_CORE_REQUEST_FIELDS.every((key) => keys.has(key))
+    ? fields
+    : MODULES.reimbursement.requestFields;
+}
+
 export function moduleByPath(path: string): ModuleDef | undefined {
   return Object.values(MODULES).find((m) => m.path === path);
 }

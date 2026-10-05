@@ -10,6 +10,7 @@ import {
 
 const PUBLIC_PATHS = [
   "/ctest",
+  "/get-app",
   // Candidate no-login forms (migration 0221). `/c/<token>` lets someone who is
   // not an employee yet fill in their own details and sign the policies without
   // creating an account on os.altuscorp.in, and `/c/resume` mails them a fresh

@@ -4,58 +4,29 @@ import * as React from "react";
 import { categoryColors, execCategory } from "@/lib/exec-calendar/taxonomy";
 import { execClient } from "@/lib/exec-calendar/clients";
 import {
-  addDays,
-  isoWeek,
   laneDay,
   minToLabel,
+  monthWeeks,
   parseDay,
   rangeLabel,
   slotMinutes,
-  weekStart,
   type GridConfig,
 } from "@/lib/exec-calendar/grid";
-import { monthName, monthSegments } from "@/lib/exec-calendar/period";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
 import { MARKER_BG, MARKER_FG, markersByDay, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import { useEventContextMenu } from "./event-context-menu";
 
-/**
- * MONTHLY GRID (revamped 2026-09-26, then corrected same day) — the Weekly
- * Grid's own engine, over a ROLLING window: one week before `anchor`'s week,
- * that week, and four after — six weeks total, same count as Grid, just
- * centred differently. NOT bounded to a calendar month any more (that was
- * the first cut; scrapped the same day because "one week before the current
- * week... 4 weeks after" doesn't respect month boundaries at all) — so
- * `monthWeeks()` and its `inMonth` flag don't apply here, and every day
- * simply carries its own "31 Aug" / "1 Sep" label to stay unambiguous as the
- * window crosses a month line.
- *
- * THE STICKY MONTH TITLE (asked twice — it "still disappeared" the first
- * time): every week — not just the ones where a month starts — renders its
- * OWN sticky band, split by `monthSegments` into one label per month the
- * week's days actually fall in (two, for a week straddling a boundary).
- * Because every week's `<section>` has one, the browser's native sticky
- * stacking swaps them for free as you scroll — the same trick the per-week
- * dark bar below it already relies on (see the comment down there). A
- * banner that only appeared on month-transition weeks (Weekly Grid's old
- * approach) would vanish the moment you scrolled past that one week, which
- * is exactly the bug being fixed.
- */
+/** Month at a Glance reuses the hourly event grid over the selected month's
+ * calendar weeks. Each week can collapse; adjacent-month days stay visible. */
 
 const ROW_H = 22;
 const TIME_COL = 64;
-const MONTH_H = 26;
 const HEAD_H = 30;
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const HEADER_BG = "#6B7280";
 const HEADER_BG_CURRENT = "var(--color-altus-red)";
-const MONTH_BG = "#52525B";
 const RULE = "#D3D3D3";
-
-/** One week before, then five more — the -1/+4 window around `anchor`'s week. */
-const WEEKS_BEFORE = 1;
-const WEEKS_TOTAL = 6;
 
 export function ExecMonthlyGridView({
   anchor,
@@ -68,7 +39,7 @@ export function ExecMonthlyGridView({
   onPickSlot,
   onPickMarker,
 }: {
-  /** Any day in the reference week — the window runs from one week before it. */
+  /** Any day in the month to display. */
   anchor: string;
   events: ExecEventRow[];
   cfg: GridConfig;
@@ -82,8 +53,7 @@ export function ExecMonthlyGridView({
   const rows = slotMinutes(cfg);
   const height = rows.length * ROW_H;
   const cols = `${TIME_COL}px repeat(7, minmax(96px, 1fr))`;
-  const firstMonday = addDays(weekStart(anchor), -7 * WEEKS_BEFORE);
-  const weeks = Array.from({ length: WEEKS_TOTAL }, (_, i) => addDays(firstMonday, 7 * i));
+  const weeks = monthWeeks(anchor);
   const { openMenu, node: contextMenuNode } = useEventContextMenu();
   const canEdit = !!onPickEvent;
 
@@ -95,26 +65,7 @@ export function ExecMonthlyGridView({
   const markerDays = React.useMemo(() => markersByDay(markers), [markers]);
   const topMin = (m: number) => ((m - cfg.startMin) / cfg.slotMin) * ROW_H;
 
-  // On the CURRENT week by default (asked 2026-09-28) — the window itself
-  // already starts one week early (WEEKS_BEFORE), so without this the page
-  // opens showing last week first, with the highlighted current week
-  // scrolled halfway off the bottom. Sets scrollTop directly on THIS
-  // component's own scroll box rather than `scrollIntoView` — that walks up
-  // every scrollable ancestor, which also dragged the outer page down and
-  // hid the toolbar above it. Mount-only ([]): a later prev/next click is
-  // the user deliberately looking elsewhere, and should stay put.
   const scrollBoxRef = React.useRef<HTMLDivElement>(null);
-  const currentWeekRef = React.useRef<HTMLElement | null>(null);
-  React.useEffect(() => {
-    const box = scrollBoxRef.current;
-    const wk = currentWeekRef.current;
-    if (box && wk) {
-      // getBoundingClientRect(), not offsetTop: offsetTop is relative to the
-      // nearest POSITIONED ancestor, which here is neither `box` nor
-      // predictable — it overshot into the middle of the week below.
-      box.scrollTop += wk.getBoundingClientRect().top - box.getBoundingClientRect().top;
-    }
-  }, []);
 
   return (
     <div ref={scrollBoxRef} className="max-h-[78vh] overflow-auto border border-hairline bg-white" style={{ overscrollBehaviorX: "contain" }}>
@@ -134,51 +85,20 @@ export function ExecMonthlyGridView({
         </div>
 
         {weeks.map((wk, wi) => {
-          const days = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
+          const days = wk.days.map((d) => d.ymd);
           const isCurrentWeek = !!today && days.includes(today);
           const weekBg = isCurrentWeek ? HEADER_BG_CURRENT : HEADER_BG;
           return (
-            <section key={`${wk}-${wi}`} ref={isCurrentWeek ? currentWeekRef : undefined} aria-label={`Week of ${wk}`}>
-              {/* Every week has one — see the file-level comment on why that,
-                  and not "only when the month changes", is what stays visible.
-                  Sticks at HEAD_H, BELOW the column header — asked 2026-09-29:
-                  it used to stick at top:0, the SAME offset as the column
-                  header, and its higher z-index then painted over "Time |
-                  Monday | Tuesday | …" the moment both were pinned, which
-                  looked exactly like that row never freezing at all. Split
-                  into per-month segments (asked 2026-09-29) so a week
-                  straddling a boundary shows both months, each over its own
-                  days, instead of the single month its Thursday happens to
-                  fall in. */}
-              <div
-                className="sticky z-25 grid border-t border-white/10 text-white"
-                style={{ top: HEAD_H, gridTemplateColumns: cols, background: MONTH_BG, height: MONTH_H }}
-              >
-                <div className="sticky left-0 z-10" style={{ background: MONTH_BG }} />
-                {(() => {
-                  let col = 2;
-                  return monthSegments(days).map((seg) => {
-                    const gridColumn = `${col} / span ${seg.span}`;
-                    col += seg.span;
-                    return (
-                      <div
-                        key={seg.month}
-                        className="flex items-center border-l border-white/15 px-3 text-[12px] font-black uppercase tracking-wide"
-                        style={{ gridColumn }}
-                      >
-                        {monthName(seg.month, true)}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-
+            <details key={`${days[0]}-${wi}`} open className="border-t border-hairline" aria-label={`Week ${wi + 1}`}>
+              <summary className="cursor-pointer px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-white" style={{ background: weekBg }}>
+                Week {wi + 1}
+              </summary>
               <div
                 className="sticky z-20 grid border-t border-white/10 text-white"
-                style={{ top: HEAD_H + MONTH_H, gridTemplateColumns: cols, background: weekBg }}
+                style={{ top: HEAD_H, gridTemplateColumns: cols, background: weekBg }}
               >
                 <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: weekBg }}>
-                  Week {isoWeek(wk).week}
+                  Time
                 </div>
                 {days.map((d) => {
                   const date = parseDay(d);
@@ -302,7 +222,11 @@ export function ExecMonthlyGridView({
                   );
                 })}
               </div>
-            </section>
+              <div className="grid" style={{ gridTemplateColumns: cols }}>
+                <div className="flex h-5 items-start justify-end pr-1.5 text-[10px] font-medium tabular-nums text-ink-muted">{minToLabel(cfg.endMin)}</div>
+                {days.map((d) => <div key={d} className="h-5 border-l" style={{ borderColor: RULE }} />)}
+              </div>
+            </details>
           );
         })}
       </div>

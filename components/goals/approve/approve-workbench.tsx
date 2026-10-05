@@ -144,9 +144,6 @@ export function ApproveWorkbench({
           </button>
           );
         })}
-        <button type="button" onClick={() => setFullscreen((value) => !value)} aria-pressed={fullscreen} className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 text-[13px] font-semibold text-ink-soft hover:bg-surface-soft">
-          {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{fullscreen ? "Exit full screen" : "Full screen"}
-        </button>
       </div>
       {false && <div
         className="wg-rise relative isolate overflow-hidden rounded-xl border border-hairline bg-surface-card p-4"

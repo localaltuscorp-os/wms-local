@@ -13,6 +13,7 @@ interface Props {
   selectedIds: string[];
   primaryId: string | null;
   onChange: (selectedIds: string[], primaryId: string | null) => void;
+  compact?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export function DepartmentMultiSelect({
   selectedIds,
   primaryId,
   onChange,
+  compact = false,
 }: Props) {
   function toggle(id: string) {
     const isSelected = selectedIds.includes(id);
@@ -56,7 +58,7 @@ export function DepartmentMultiSelect({
   }
 
   return (
-    <div className="slim-scroll rounded-md border border-[#CBD5E1] divide-y divide-[#EEF2F6] max-h-56 overflow-y-auto">
+    <div className={`slim-scroll overflow-y-auto rounded-md border border-[#CBD5E1] divide-y divide-[#EEF2F6] ${compact ? "max-h-52 bg-white" : "max-h-56"}`}>
       {/* Every Function in one click, then untick the one or two that don't
           apply. The star follows: selecting all keeps the primary already set,
           or falls to the first Function; clearing leaves nobody primary. */}
@@ -75,9 +77,9 @@ export function DepartmentMultiSelect({
         return (
           <div
             key={opt.id}
-            className="flex items-center justify-between gap-2 px-3 py-2"
+            className={`flex items-center justify-between gap-2 ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}
           >
-            <label className="flex items-center gap-2.5 text-[15px] text-[#334155] cursor-pointer flex-1 min-w-0">
+            <label className={`flex min-w-0 flex-1 cursor-pointer items-center ${compact ? "gap-2 text-[13px]" : "gap-2.5 text-[15px]"} text-[#334155]`}>
               <input
                 type="checkbox"
                 checked={checked}

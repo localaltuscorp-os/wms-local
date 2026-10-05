@@ -5,12 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import type { CSSProperties } from "react";
-import { Ban, Eye, Paperclip, Pencil, Play, Square, Trash2 } from "lucide-react";
+import { Ban, Eye, Paperclip, Pencil, Play, Search, Square, Trash2, X } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { formatDate } from "@/lib/format";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { MultiFilter } from "@/components/ui/multi-filter";
+import { ColumnsMenu, GroupByControl, Pager, TableToolbar, useHiddenColumns } from "@/components/billing/table-toolbar";
 import { SelectionBar, barBtn, barBtnDanger, useRowSelection } from "@/components/billing/selection-bar";
-import { BILLING_PURPLE_DEEP, rupees } from "@/lib/billing/ui";
+import { BILLING_PURPLE_DEEP, CARD_STYLE, rupees } from "@/lib/billing/ui";
 import { CONTRACT_PAYMENT_TYPE_LABELS, CONTRACT_STATUS_LABELS, type ContractStatus } from "@/db/enums";
 import type { ContractSummary } from "@/lib/queries/billing-contracts";
 import {
@@ -43,18 +46,90 @@ const STATUS_STYLE: Record<ContractStatus, CSSProperties> = {
   cancelled: { background: "rgba(100,116,139,0.14)", color: "#475569" },
 };
 
+type ContractGroupKey = "none" | "customer" | "paymentType" | "status" | "entity" | "year";
+
+const CONTRACT_GROUPS: { key: ContractGroupKey; label: string; get: (contract: ContractSummary) => string }[] = [
+  { key: "none", label: "No grouping", get: () => "" },
+  { key: "customer", label: "Customer", get: (contract) => contract.customerName },
+  { key: "paymentType", label: "Payment type", get: (contract) => CONTRACT_PAYMENT_TYPE_LABELS[contract.paymentType] },
+  { key: "status", label: "Status", get: (contract) => CONTRACT_STATUS_LABELS[contract.status] },
+  { key: "entity", label: "Entity", get: (contract) => contract.entityId },
+  { key: "year", label: "Start year", get: (contract) => contract.startDate.slice(0, 4) },
+];
+
+const CONTRACT_COLUMNS = [
+  { key: "client", label: "Client" }, { key: "payment", label: "Payment Type" },
+  { key: "period", label: "Period" }, { key: "value", label: "Contract Value" },
+  { key: "billed", label: "Billed" }, { key: "paid", label: "Paid" },
+  { key: "unpaid", label: "Unpaid" }, { key: "notDue", label: "Not Due" },
+  { key: "pdcs", label: "PDCs" }, { key: "status", label: "Status" },
+] as const;
+type ContractColumnKey = (typeof CONTRACT_COLUMNS)[number]["key"];
+
 export function ContractsTable({
   rows,
   entityNames,
+  initialMetric,
 }: {
   rows: ContractSummary[];
   /** entityId → display name, resolved on the server. */
   entityNames: Record<string, string>;
+  initialMetric?: string;
 }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
-  const sel = useRowSelection(rows.map((r) => r.id));
-  const selectedRows = rows.filter((r) => sel.selected.has(r.id));
+  const [groupBy, setGroupBy] = React.useState<ContractGroupKey>("none");
+  const [query, setQuery] = React.useState("");
+  const [paymentTypes, setPaymentTypes] = React.useState<string[]>([]);
+  const [statuses, setStatuses] = React.useState<string[]>([]);
+  const [customers, setCustomers] = React.useState<string[]>([]);
+  const [entities, setEntities] = React.useState<string[]>([]);
+  const [years, setYears] = React.useState<string[]>([]);
+  const [pageIndex, setPageIndex] = React.useState(0);
+  const [pageSize, setPageSize] = React.useState(20);
+  const metric = ["billed", "paid", "unpaid", "not_due"].includes(initialMetric ?? "") ? initialMetric : null;
+  const { hidden, toggle: toggleColumn } = useHiddenColumns<ContractColumnKey>();
+
+  const group = CONTRACT_GROUPS.find((item) => item.key === groupBy)!;
+  const filteredRows = React.useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const filtered = rows.filter((contract) => {
+      if (term && !`${contract.customerName} ${entityNames[contract.entityId] ?? ""}`.toLowerCase().includes(term)) return false;
+      if (paymentTypes.length && !paymentTypes.includes(contract.paymentType)) return false;
+      if (statuses.length && !statuses.includes(contract.status)) return false;
+      if (customers.length && !customers.includes(contract.customerId)) return false;
+      if (entities.length && !entities.includes(contract.entityId)) return false;
+      if (years.length && !years.includes(contract.startDate.slice(0, 4))) return false;
+      if (metric === "billed" && contract.billedAmount <= 0) return false;
+      if (metric === "paid" && contract.buckets.paid.count === 0) return false;
+      if (metric === "unpaid" && contract.buckets.unpaid.count === 0) return false;
+      if (metric === "not_due" && contract.buckets.notDue.count === 0) return false;
+      return true;
+    });
+    return groupBy === "none" ? filtered : [...filtered].sort((a, b) => group.get(a).localeCompare(group.get(b)));
+  }, [customers, entities, entityNames, group, groupBy, metric, paymentTypes, query, rows, statuses, years]);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+  const pageRows = filteredRows.slice(safePageIndex * pageSize, (safePageIndex + 1) * pageSize);
+  const sel = useRowSelection(pageRows.map((r) => r.id));
+  const selectedRows = pageRows.filter((r) => sel.selected.has(r.id));
+  const activeFilters = paymentTypes.length + statuses.length + customers.length + entities.length + years.length;
+  const customerOptions = React.useMemo(
+    () => [...new Map(rows.map((r) => [r.customerId, r.customerName])).entries()].map(([value, label]) => ({ value, label })),
+    [rows],
+  );
+  const entityOptions = React.useMemo(
+    () => [...new Set(rows.map((r) => r.entityId))].map((value) => ({ value, label: entityNames[value] ?? value })),
+    [entityNames, rows],
+  );
+  const yearOptions = React.useMemo(
+    () => [...new Set(rows.map((r) => r.startDate.slice(0, 4)))].sort().reverse(),
+    [rows],
+  );
+
+  function clearFilters() {
+    setPaymentTypes([]); setStatuses([]); setCustomers([]); setEntities([]); setYears([]); setQuery(""); setPageIndex(0);
+  }
 
   /**
    * Run the same action over every selected row and report once.
@@ -101,7 +176,35 @@ export function ContractsTable({
   const canDelete = selectedRows.filter((r) => r.billedAmount === 0);
 
   return (
-    <>
+    <div className="space-y-4">
+      <TableToolbar
+        left={
+          <>
+            <GroupByControl noun="contracts" options={CONTRACT_GROUPS} value={groupBy} onChange={(value) => { setGroupBy(value); setPageIndex(0); }} />
+            <CollapsibleSearch scope="contracts">
+              <div className="relative w-[220px] shrink-0">
+                <Search size={16} strokeWidth={2.2} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => { setQuery(event.target.value); setPageIndex(0); }}
+                  placeholder="Search customer or entity…"
+                  aria-label="Search contracts"
+                  className="h-8 w-full rounded-pill border border-hairline bg-surface-card pl-9 pr-3 text-[12.5px] text-ink-strong outline-none placeholder:text-ink-subtle focus:border-altus-red focus:ring-2 focus:ring-altus-red/25"
+                />
+              </div>
+            </CollapsibleSearch>
+            <MultiFilter allLabel="Payment type" values={paymentTypes} onChange={(value) => { setPaymentTypes(value); setPageIndex(0); }} options={Object.entries(CONTRACT_PAYMENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))} className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft" />
+            <MultiFilter allLabel="Status" values={statuses} onChange={(value) => { setStatuses(value); setPageIndex(0); }} options={Object.entries(CONTRACT_STATUS_LABELS).map(([value, label]) => ({ value, label }))} className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft" />
+            <MultiFilter allLabel="Customer" values={customers} onChange={(value) => { setCustomers(value); setPageIndex(0); }} options={customerOptions} className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft" />
+            <MultiFilter allLabel="Entity" values={entities} onChange={(value) => { setEntities(value); setPageIndex(0); }} options={entityOptions} className="h-8 max-w-[150px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft" />
+            <MultiFilter allLabel="Year" values={years} onChange={(value) => { setYears(value); setPageIndex(0); }} options={yearOptions} className="h-8 max-w-[120px] rounded-pill border bg-surface-card pl-2.5 pr-1.5 text-[12px] font-bold text-ink-soft" />
+            {activeFilters > 0 || query ? <button type="button" onClick={clearFilters} className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-pill px-2 text-[12px] font-bold text-altus-red"><X size={13} strokeWidth={2.4} /> Clear filters</button> : null}
+          </>
+        }
+        right={<><Pager pageIndex={safePageIndex} pageCount={pageCount} pageSize={pageSize} rangeStart={filteredRows.length === 0 ? 0 : safePageIndex * pageSize + 1} rangeEnd={Math.min(filteredRows.length, safePageIndex * pageSize + pageRows.length)} total={filteredRows.length} noun="contracts" onPage={setPageIndex} onPageSize={(value) => { setPageSize(value); setPageIndex(0); }} /><ColumnsMenu columns={[...CONTRACT_COLUMNS]} hidden={hidden} onToggle={toggleColumn} locked="client" /></>}
+      />
+
       <SelectionBar count={selectedRows.length} pending={pending} onClear={sel.clear}>
         <Link
           href={(one ? `/billing/contracts/${one.id}` : "/billing/contracts") as Route}
@@ -203,11 +306,11 @@ export function ContractsTable({
         </button>
       </SelectionBar>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1140px] border-separate border-spacing-0 text-[13px]">
-          <thead>
-            <tr className="text-left text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">
-              <th className="w-10 pb-2 pr-1">
+      <div className="overflow-x-auto rounded-[22px]" style={CARD_STYLE}>
+        <table className="w-full min-w-[1140px] whitespace-nowrap border-separate border-spacing-0 text-[13px]">
+          <thead className="[&>tr>th]:!px-4 [&>tr>th]:!py-3">
+            <tr className="text-left text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-muted">
+              <th className="w-10 !pl-4 !pr-1 text-left">
                 <Checkbox
                   checked={sel.allOn}
                   indeterminate={sel.someOn}
@@ -215,27 +318,27 @@ export function ContractsTable({
                   ariaLabel="Select all contracts"
                 />
               </th>
-              <th className="pb-2 pr-3">Client</th>
-              <th className="pb-2 pr-3">Payment Type</th>
-              <th className="pb-2 pr-3">Period</th>
-              <th className="pb-2 pr-3 text-right">Contract Value</th>
-              <th className="pb-2 pr-3 text-right">Billed</th>
-              <th className="pb-2 pr-3 text-right">Paid</th>
-              <th className="pb-2 pr-3 text-right">Unpaid</th>
-              <th className="pb-2 pr-3 text-right">Not Due</th>
-              <th className="pb-2 pr-3 text-right">PDCs</th>
-              <th className="pb-2">Status</th>
+              <th>Client</th>
+              <th>Payment Type</th>
+              <th>Period</th>
+              <th className="text-right">Contract Value</th>
+              <th className="text-right">Billed</th>
+              <th className="text-right">Paid</th>
+              <th className="text-right">Unpaid</th>
+              <th className="text-right">Not Due</th>
+              <th className="text-right">PDCs</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((c) => {
+            {pageRows.map((c) => {
               const on = sel.selected.has(c.id);
               return (
                 <tr
                   key={c.id}
                   className={on ? "bg-[color:color-mix(in_srgb,var(--color-altus-red)_5%,transparent)]" : undefined}
                 >
-                  <td className="border-t border-hairline py-2.5 pr-1">
+                  <td className="border-t border-hairline py-3 pl-4 pr-1">
                     <Checkbox
                       checked={on}
                       onChange={(next) => sel.toggle(c.id, next)}
@@ -298,7 +401,7 @@ export function ContractsTable({
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Employee } from "@/db/schema";
-import { accountLabel, categoryNeedsBatch, groupOf } from "@/lib/client-engagement/constants";
+import { accountLabel, categoryNeedsBatch, ceProductOptions, groupOf } from "@/lib/client-engagement/constants";
 import {
   dateInWeek,
   findClash,
@@ -33,6 +33,22 @@ const { isHrStaff } = await import("@/lib/hr/access");
 const hrStaff = vi.mocked(isHrStaff);
 
 beforeEach(() => hrStaff.mockReset());
+
+describe("Client Engagement product options", () => {
+  it("uses matching Product Master rows and excludes unsupported product codes", () => {
+    expect(ceProductOptions([
+      { code: "PS", name: "PS" },
+      { code: "BSS", name: "BSS Program" },
+      { code: null, name: "Retainer" },
+      { code: "PSO", name: "PSO" },
+      { code: "KN", name: "Key Note" },
+    ])).toEqual([
+      { value: "ps", label: "PS", group: "P" },
+      { value: "bss", label: "BSS Program", group: "P" },
+      { value: "retainer", label: "Retainer", group: "C" },
+    ]);
+  });
+});
 
 const person = (email: string | null, name: string, isAdmin = false): Employee => ({ id: `e-${name}`, email, name, isAdmin }) as unknown as Employee;
 

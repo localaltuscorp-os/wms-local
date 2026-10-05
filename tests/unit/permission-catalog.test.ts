@@ -57,10 +57,19 @@ const redirectSources = new Set<string>(
 function routeExists(route: string): boolean {
   if (redirectSources.has(route)) return true;
   const rel = route.replace(/^\//, "");
+  if (rel.startsWith("api/")) {
+    return existsSync(join(ROOT, "app", rel, "route.ts")) ||
+      existsSync(join(ROOT, "app", rel, "route.js"));
+  }
   const groups = ["(app)", "(admin)", ""];
   for (const g of groups) {
     const dir = g ? join(ROOT, "app", g, rel) : join(ROOT, "app", rel);
-    if (existsSync(join(dir, "page.tsx")) || existsSync(join(dir, "page.ts"))) return true;
+    if (
+      existsSync(join(dir, "page.tsx")) ||
+      existsSync(join(dir, "page.ts")) ||
+      existsSync(join(dir, "route.ts")) ||
+      existsSync(join(dir, "route.js"))
+    ) return true;
   }
   return false;
 }
@@ -187,10 +196,9 @@ describe("nodeKeyForPath", () => {
     // The point of apiRoutes: an endpoint is governed by the same node as the
     // screen it serves, so revoking a module refuses its pages AND its handlers
     // from one switch.
-    expect(nodeKeyForPath("/api/hr/letters/email-pdf")).toBe("hr.letters");
-    expect(nodeKeyForPath("/api/hr/letters/issue")).toBe("hr.letters");
+    expect(nodeKeyForPath("/api/events/export")).toBe("events.overview");
     // Query strings are stripped here too — endpoints carry them routinely.
-    expect(nodeKeyForPath("/api/hr/letters/pdf?template=appointment")).toBe("hr.letters");
+    expect(nodeKeyForPath("/api/events/export?format=pdf")).toBe("events.overview");
   });
 
   it("ALREADY governs a handler nested under a page prefix — no apiRoutes entry needed", () => {
@@ -221,8 +229,8 @@ describe("nodeKeyForPath", () => {
     // `/tasks` is a page node; a deeper handler must win over its parent prefix.
     // Asserted with real data rather than a synthetic pair: the letters node
     // claims both `/hr/letters` (page) and the four endpoints beneath it.
-    expect(nodeKeyForPath("/hr/letters")).toBe("hr.letters");
-    expect(nodeKeyForPath("/api/hr/letters/issue-rich")).toBe("hr.letters");
+    expect(nodeKeyForPath("/events")).toBe("events.overview");
+    expect(nodeKeyForPath("/api/events/export")).toBe("events.overview");
   });
 });
 

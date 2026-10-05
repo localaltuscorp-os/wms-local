@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -27,6 +28,7 @@ import { GradeBadge, GradeLegend } from "@/components/productivity/grade-badge";
 import { calculateCompletionGrade, type Grade } from "@/lib/productivity/calc";
 import { GRADE_ORDER, GRADE_OUTLINE, gradeColor } from "@/lib/productivity/theme";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 
 /**
  * The Team Performance board — a COMPACT, SCANNABLE employee table with
@@ -281,6 +283,7 @@ export function TeamPerformanceBoard({
    */
   canArchive?: boolean;
 }) {
+  const pageChromeSlots = usePageChromeSlots();
   const [dept, setDept] = React.useState<string[]>([]);
   const [team, setTeam] = React.useState<string[]>([]);
   const [status, setStatus] = React.useState<StatusFilter[]>([]);
@@ -300,6 +303,7 @@ export function TeamPerformanceBoard({
   // the same board and is deliberately left exactly as it was, so every grade
   // affordance below — column, filter, distribution — is behind this one flag.
   const showGrades = variant === "productivity";
+  const useProductivityRibbon = showGrades && Boolean(pageChromeSlots?.ribbon);
 
   // Filter vocabularies come from the loaded roster, so they can only ever
   // offer values that actually exist on screen.
@@ -395,14 +399,51 @@ export function TeamPerformanceBoard({
     setQuery("");
   }
 
+  const activeFilterChips = [
+    ...dept.map((value) => ({ key: `department-${value}`, label: `Function: ${value}`, clear: () => setDept((current) => current.filter((item) => item !== value)) })),
+    ...team.map((value) => ({ key: `team-${value}`, label: `Team: ${value}`, clear: () => setTeam((current) => current.filter((item) => item !== value)) })),
+    ...status.map((value) => ({ key: `status-${value}`, label: `Status: ${STATUS_FILTERS.find((option) => option.value === value)?.label ?? value}`, clear: () => setStatus((current) => current.filter((item) => item !== value)) })),
+    ...(showGrades && grade !== ALL ? [{ key: `grade-${grade}`, label: grade === UNGRADED ? "Grade: Ungraded" : `Grade: ${grade}`, clear: () => setGrade(ALL) }] : []),
+  ];
+
   return (
     <>
+      {useProductivityRibbon && pageChromeSlots?.ribbon && createPortal(
+        <div className="no-scrollbar mx-auto flex w-full min-w-0 max-w-[1600px] flex-nowrap items-center gap-x-1 overflow-x-auto px-6 py-2.5 max-md:px-4">
+          {activeFilterChips.length > 0 && (
+            <>
+              <span className="shrink-0 text-[13px] font-bold tabular-nums text-ink-muted">{activeFilterChips.length} active</span>
+              {activeFilterChips.map((chip) => (
+                <button key={chip.key} type="button" onClick={chip.clear} className="filter-pill text-[11.5px] font-bold" data-active="true" style={{ ["--filter-pill-tint" as string]: "var(--color-altus-red)" }}>
+                  <span className="max-w-[190px] truncate">{chip.label}</span><X size={14} strokeWidth={2.5} aria-hidden />
+                </button>
+              ))}
+              <button type="button" onClick={clearFilters} className="shrink-0 px-1 text-[13px] font-bold text-altus-red transition-colors hover:text-altus-red-deep">Clear all</button>
+            </>
+          )}
+          <MultiSelect selected={dept} onChange={setDept} placeholder="All Functions" className={FIELD} options={departments.map((value) => ({ value, label: value }))} />
+          <MultiSelect selected={team} onChange={setTeam} placeholder="All teams" className={FIELD} options={teams.map((value) => ({ value, label: `Reports to ${value}` }))} />
+          <MultiSelect selected={status} onChange={(values) => setStatus(values as StatusFilter[])} placeholder="All statuses" className={FIELD} options={STATUS_FILTERS.filter((option) => option.value !== "all")} />
+          <Select value={grade} onValueChange={setGrade} ariaLabel="Filter by grade" unstyled className={FIELD} options={[{ value: ALL, label: "All grades" }, ...distribution.present.map((value) => ({ value, label: `Grade ${value} · ${distribution.counts[value] ?? 0}` })), ...(distribution.ungraded > 0 ? [{ value: UNGRADED, label: `Ungraded · ${distribution.ungraded}` }] : [])]} />
+          <Select value={sort} onValueChange={(value) => setSort(value as SortKey)} ariaLabel="Sort employees" unstyled className={FIELD} options={SORT_OPTIONS.map((option) => ({ value: option.value, label: `Sort: ${option.label}` }))} />
+          <div className="ml-auto shrink-0">
+            <CollapsibleSearch scope="employee, function, team">
+              <label className="relative block">
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search employees" aria-label="Search employees, functions, and teams" className="h-9 w-[210px] rounded-lg border border-hairline-strong bg-surface-card pl-8 pr-7 text-[13px] font-medium text-ink-strong outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40" />
+                {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-ink-strong"><X size={13} strokeWidth={2.6} /></button>}
+              </label>
+            </CollapsibleSearch>
+          </div>
+        </div>,
+        pageChromeSlots.ribbon,
+      )}
       {/* ── 1 · compact team summary — one horizontal line, not four big cards.
           Each count is a filter shortcut, so "5 need help" goes straight to
           those five people. ── */}
       <section
         aria-label="Team summary"
-        className="mb-5 flex flex-wrap items-center gap-x-1 gap-y-2 rounded-xl border border-hairline bg-surface-card px-4 py-2.5"
+        className={`mb-3 flex flex-wrap items-center gap-x-1 gap-y-2 ${showGrades ? "px-0 py-1" : "rounded-xl border border-hairline bg-surface-card px-4 py-2.5"}`}
       >
         <SummaryStat label="Employees" value={rows.length} />
         <Divider />
@@ -485,7 +526,7 @@ export function TeamPerformanceBoard({
       )}
 
       {/* ── 2 · filter + sort toolbar ── */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className={`mb-3 flex flex-wrap items-center gap-2 ${useProductivityRibbon ? "hidden" : ""}`}>
         <MultiSelect
           selected={dept}
           onChange={setDept}
@@ -609,7 +650,7 @@ export function TeamPerformanceBoard({
           }
         />
       ) : (
-        <div className="table-scroll overflow-x-auto rounded-xl border border-hairline bg-surface-card">
+        <div className={`table-scroll overflow-x-auto border border-hairline bg-surface-card ${showGrades ? "rounded-none" : "rounded-xl"}`}>
           <table className="w-full min-w-[680px] border-collapse text-left">
             <thead>
               <tr className="border-b border-hairline">

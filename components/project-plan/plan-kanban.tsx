@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, User, Loader2, CircleDashed } from "lucide-react";
+import { CalendarDays, User, Loader2, CircleDashed, GripVertical } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { USER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import { type TaskStatus } from "@/db/enums";
 import {
+  DOER_COLUMN_ORDER,
   INITIATOR_COLUMN_LABEL,
   INITIATOR_COLUMN_ORDER,
   INITIATOR_COLUMN_TONE,
@@ -71,7 +72,7 @@ type ColId = TaskStatus | typeof UNSCHEDULED | InitiatorColId;
  * WMS task yet", which is a fact about the work, not a ruling on it — an
  * unscheduled row can perfectly well be Approved.
  */
-const DOER_COLUMNS: ColId[] = [UNSCHEDULED, ...USER_TASK_STATUSES];
+const DOER_COLUMNS: ColId[] = [UNSCHEDULED, ...DOER_COLUMN_ORDER];
 const VERDICT_COLUMNS: ColId[] = [...INITIATOR_COLUMN_ORDER];
 
 function columnsFor(axis: StatusAxis): ColId[] {
@@ -268,10 +269,10 @@ export function PlanKanban({
        a full-screen flex parent there was no page scroll to fall back on.
        Each column scrolls its own cards (below), so the headers stay put. */
     <div
-      className="overflow-auto pb-2"
+      className="kanban-palette kanban-board-container kanban-scroll overflow-auto rounded-section border border-hairline-strong bg-white p-4 shadow-sm"
       style={{ height: "calc(100vh - 300px)", minHeight: 320 }}
     >
-      <div className="flex h-full items-stretch gap-3" style={{ minWidth: COLUMNS.length * 268 }}>
+      <div className="flex h-full items-stretch gap-4" style={{ minWidth: COLUMNS.length * 320 }}>
         {COLUMNS.map((col) => {
           const list = byColumn.get(col) ?? [];
           const tone = columnTone(col);
@@ -286,28 +287,39 @@ export function PlanKanban({
               }}
               onDragLeave={() => setOverCol((c) => (c === col ? null : c))}
               onDrop={() => onDrop(col)}
-              className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden rounded-xl border bg-surface-soft transition-colors"
+              className="flex h-full w-[300px] shrink-0 flex-col overflow-hidden rounded-section border bg-surface-soft transition-colors"
               style={{
-                borderColor: isOver ? ACCENT : "var(--color-hairline-strong)",
+                borderLeftColor: isOver ? ACCENT : "var(--color-hairline-strong)",
+                borderRightColor: isOver ? ACCENT : "var(--color-hairline-strong)",
+                borderBottomColor: isOver ? ACCENT : "var(--color-hairline-strong)",
                 background: isOver ? ACCENT_SOFT : undefined,
+                borderTopColor: tone,
+                borderTopStyle: "solid",
+                borderTopWidth: 3,
               }}
             >
               {/* shrink-0 so the header keeps its height while the card list
                   below takes the rest and scrolls under it. */}
-              <header className="flex shrink-0 items-center gap-2 border-b border-hairline px-3 py-2.5">
+              <header className="flex shrink-0 items-center gap-2 border-b border-hairline px-3 py-3">
+                <GripVertical size={15} className="shrink-0 text-ink-subtle" aria-hidden />
                 <span className="size-2 rounded-full" style={{ background: tone }} aria-hidden />
-                <h3 className="min-w-0 flex-1 truncate text-[12.5px] font-bold text-ink-strong">
+                <h3 className="min-w-0 flex-1 truncate text-[15px] font-bold text-ink-strong">
                   {columnLabel(col)}
                 </h3>
-                <span className="rounded-pill bg-white px-2 py-0.5 text-[11.5px] font-bold tabular-nums text-ink-muted">
+                <span
+                  className="rounded-lg border bg-white px-2.5 py-1 text-[12px] font-bold tabular-nums"
+                  style={{ borderColor: `${tone}55`, color: tone }}
+                >
                   {list.length}
                 </span>
               </header>
 
-              <div className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto p-2 [scrollbar-width:thin]">
+              <div className="kanban-scroll flex min-h-[120px] flex-1 flex-col gap-3 overflow-y-auto p-3 [scrollbar-width:thin]">
                 {list.length === 0 && (
-                  <p className="px-1 py-6 text-center text-[12px] font-medium text-ink-subtle">
-                    {col === UNSCHEDULED ? "Everything here is in WMS." : "Nothing here."}
+                  <p className="rounded-section border border-dashed border-hairline-strong bg-white/70 px-3 py-8 text-center text-[13px] font-semibold text-ink-muted">
+                    {col === UNSCHEDULED
+                      ? "Everything here is in WMS."
+                      : "Nothing here — drop a card to move it."}
                   </p>
                 )}
                 {list.map((c) => {
@@ -355,10 +367,13 @@ export function PlanKanban({
                               ? "Give this row an owner and a target date to put it in WMS"
                               : "Only the doer, their supervisor or the project owner can move this."
                       }
-                      className={`rounded-lg border border-hairline-strong bg-white p-2.5 transition-shadow ${
+                      className={`relative overflow-hidden rounded-section border border-hairline-strong bg-white p-3.5 pl-4 transition-all ${
                         draggable ? "cursor-grab active:cursor-grabbing hover:shadow-[0_4px_14px_-6px_rgba(15,23,42,0.3)]" : "cursor-default"
                       }`}
-                      style={{ opacity: dragId === c.node.id ? 0.5 : 1 }}
+                      style={{
+                        opacity: dragId === c.node.id ? 0.5 : 1,
+                        borderLeft: `3px solid ${tone}`,
+                      }}
                     >
                       <div className="mb-1 flex items-center gap-1.5">
                         <span
@@ -370,7 +385,7 @@ export function PlanKanban({
                         <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-subtle">
                           {KIND_LABEL[node.kind]}
                         </span>
-                        {verdict && (
+                        {axis === "initiator" && verdict && (
                           <span
                             className="rounded px-1.5 py-0.5 text-[10px] font-bold"
                             style={{

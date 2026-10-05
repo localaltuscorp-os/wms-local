@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { salaryProfiles } from "@/db/schema";
 import { getMonthDashboard } from "@/lib/queries/attendance-status";
 import { isMonthFrozen } from "@/lib/reports/attendance-freeze";
+import { deriveSalaryRate } from "@/lib/salary/compute";
 
 /**
  * FINANCE / payroll-impact attendance analytics — the "money view" of a month's
@@ -180,8 +181,9 @@ export async function loadFinanceAttendanceAnalytics(
     const hasSalaryProfile = annualCtc != null;
     const monthlyCtc = hasSalaryProfile ? rupees(annualCtc / 12) : 0;
     // THE PAYSLIP'S OWN DIVISOR (spec §4): the month's real calendar length.
-    const perDayExact =
-      hasSalaryProfile && daysInMonth > 0 ? annualCtc / 12 / daysInMonth : 0;
+    const perDayExact = hasSalaryProfile
+      ? deriveSalaryRate({ monthlySalary: annualCtc / 12, daysInMonth, workingHoursPerDay: 1 }).perDayExact
+      : 0;
 
     // ── THE BUCKETS NOW *ARE* THE PAY MODEL ──────────────────────────────
     // A full-timer earns `perDay × dayValue`, and the day-value table makes an

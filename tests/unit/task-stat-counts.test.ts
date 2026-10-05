@@ -3,9 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 // task-list-page imports task-table → server actions → server-only + @/lib/db
 // (which validates env at import). Mock those so the module loads in vitest.
 vi.mock("server-only", () => ({}));
-// The list page now reaches the visibility resolver, whose import chain builds
-// a drizzle predicate on the `employees` table at module scope — so the stub
-// has to carry the table, not only the two this suite used to name.
 vi.mock("@/lib/db", () => ({ db: {}, tasks: {}, employees: {} }));
 
 import { computeStatCounts } from "@/components/tasks/task-list-page";
@@ -13,10 +10,10 @@ import type { TaskListRow } from "@/lib/types";
 
 function row(p: Partial<TaskListRow>): TaskListRow {
   return {
-    id: "t", title: "t", subject: null, client: null, description: null,
+    id: "task", title: "Task", subject: null, client: null, description: null,
     status: "not_started", priority: "not_imp_not_urgent",
-    doerId: "d", doerName: null, doerDept: null,
-    initiatorId: "i", initiatorName: null,
+    doerId: "doer", doerName: null, doerDept: null,
+    initiatorId: "initiator", initiatorName: null,
     createdAt: new Date(), dueAt: new Date(), ageDays: 0,
     archived: false, createdById: null, updatedAt: new Date(),
     approvalStatus: null, firstReadAt: new Date(),
@@ -25,42 +22,42 @@ function row(p: Partial<TaskListRow>): TaskListRow {
 }
 
 describe("computeStatCounts", () => {
-  it("counts done = done + approved", () => {
+  it("counts done Doer Status values", () => {
     const rows = [row({ status: "done" }), row({ status: "approved" }), row({ status: "not_started" })];
     expect(computeStatCounts(rows).done).toBe(2);
   });
 
-  it("counts pending statuses", () => {
-    const rows = [row({ status: "not_started" }), row({ status: "follow_up" }), row({ status: "done" })];
+  it("counts pending Initiator Status values", () => {
+    const rows = [
+      row({ status: "not_started" }),
+      row({ status: "follow_up" }),
+      row({ status: "done", approvalStatus: "approved" }),
+    ];
     expect(computeStatCounts(rows).pending).toBe(2);
   });
 
-  it("counts critical (imp_urgent) and urgent (not_imp_urgent)", () => {
-    const rows = [row({ priority: "imp_urgent" }), row({ priority: "not_imp_urgent" }), row({ priority: "not_imp_urgent" })];
-    const c = computeStatCounts(rows);
-    expect(c.critical).toBe(1);
-    expect(c.urgent).toBe(2);
+  it("counts the current Doer Status cards", () => {
+    const rows = [row({ status: "not_started" }), row({ status: "initiated" }), row({ status: "initiated" })];
+    const counts = computeStatCounts(rows);
+    expect(counts.notStarted).toBe(1);
+    expect(counts.initiated).toBe(2);
   });
 
-  // The card means EXACTLY "Not Approved" — declined via the approvalStatus
-  // column or via the legacy status value. A done task still awaiting sign-off
-  // (approvalStatus null) is NOT counted; see the note on computeStatCounts.
-  it("notApproved = declined via column or via legacy status, never done-awaiting", () => {
+  it("counts only the Initiator Status column for not-approved work", () => {
     const rows = [
       row({ approvalStatus: "not_approved" }),
+      row({ status: "done", approvalStatus: "not_approved" }),
       row({ status: "not_approved" }),
       row({ status: "done", approvalStatus: null }),
-      row({ status: "done", approvalStatus: "approved" }),
-      row({ status: "not_started" }),
     ];
     expect(computeStatCounts(rows).notApproved).toBe(2);
   });
 
-  it("notRead = pending status AND firstReadAt null only", () => {
+  it("counts the Doer Status value used for not-read work", () => {
     const rows = [
+      row({ status: "dont_know", firstReadAt: null }),
+      row({ status: "dont_know", firstReadAt: new Date() }),
       row({ status: "not_started", firstReadAt: null }),
-      row({ status: "follow_up", firstReadAt: null }),
-      row({ status: "not_started", firstReadAt: new Date() }),
       row({ status: "done", firstReadAt: null }),
     ];
     expect(computeStatCounts(rows).notRead).toBe(2);

@@ -2,7 +2,7 @@ import "server-only";
 import { and, gte, lt, sql } from "drizzle-orm";
 import { listHolidayRowsBetween } from "@/lib/queries/holidays";
 import { db, employees, tasks } from "@/lib/db";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 import {
   computeInitiatorScorecard,
@@ -174,6 +174,7 @@ export async function loadTaskReportData(now: Date = new Date()): Promise<TaskRe
     managerId: e.managerId,
     email: e.email,
   }));
+  const founderIds = await founderEmployeeIds();
   const board = (since: Date, windowDays: number): InitiatorBoard => {
     const wd = countWorkingDays(since, now, holidaySet); // Sunday off (default)
     const windowTasks = initiatorTasks
@@ -182,7 +183,7 @@ export async function loadTaskReportData(now: Date = new Date()): Promise<TaskRe
     return {
       windowDays,
       workingDays: wd,
-      managers: computeInitiatorScorecard(windowTasks, initEmployees, wd, isFounderEmail),
+      managers: computeInitiatorScorecard(windowTasks, initEmployees, wd, (id) => founderIds.has(id)),
     };
   };
 

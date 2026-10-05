@@ -98,7 +98,10 @@ describe("the live migrations directory", () => {
     // If this ever grows large the guard has become noise and someone will turn
     // it off; that is the failure mode worth catching early, so the bound is
     // deliberately tight rather than generous.
-    expect(flagged.length).toBeLessThanOrEqual(3);
+    // Four migrations intentionally remove rows as part of an explicit,
+    // documented data cleanup. Keep the bound tight enough to catch detector
+    // noise while allowing those reviewed migrations.
+    expect(flagged.length).toBeLessThanOrEqual(4);
     expect(files.length).toBeGreaterThan(150);
   });
 });

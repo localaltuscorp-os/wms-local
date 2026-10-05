@@ -184,7 +184,7 @@ export function ContractSchedule({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-separate border-spacing-0 text-[13px]">
+          <table className="w-full min-w-[860px] whitespace-nowrap border-separate border-spacing-0 text-[13px]">
             <thead>
               <tr className="text-left text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">
                 <th className="pb-2 pr-3">{paymentType === "subscription" ? "No." : paymentType === "milestone" ? "Milestone" : "Bill"}</th>

@@ -280,6 +280,8 @@ interface FoldedDay {
 
 /** A punch row, as much of it as the grader needs. */
 type PunchRow = {
+  /** Canonical attendance calendar date, written at punch time. */
+  logDate: string;
   kind: "in" | "out";
   loggedAt: Date;
   source?: string | null;
@@ -297,13 +299,12 @@ type PunchRow = {
  */
 const isAutoPunchOut = isSystemAutoPunchOut;
 
-/** Fold an employee's raw punch rows into per-day in/out "HH:mm" times (in the
- *  employee's timezone). The day key is recomputed from `loggedAt` in `tz` so
- *  it stays consistent with the per-day calendar walk. */
+/** Fold an employee's raw punches into per-day in/out clocks. `logDate` is the
+ * canonical business day; `loggedAt` supplies the clock time in the employee timezone. */
 function foldPunches(rows: PunchRow[], tz: string): Map<string, FoldedDay> {
   const byDay = new Map<string, FoldedDay>();
   for (const r of rows) {
-    const day = dateInTz(r.loggedAt, tz);
+    const day = r.logDate;
     let slot = byDay.get(day);
     if (!slot) {
       slot = { inAt: null, outAt: null, autoClosed: false };
@@ -687,6 +688,7 @@ export async function getEmployeeMonthStatus(
   const { first, last } = monthBounds(year, month);
   const rows = await db
     .select({
+      logDate: attendanceLogs.logDate,
       kind: attendanceLogs.kind,
       loggedAt: attendanceLogs.loggedAt,
       source: attendanceLogs.source,
@@ -819,9 +821,10 @@ export async function getMonthDashboard(
       .where(eq(employees.isActive, true))
       .orderBy(employees.name),
     db
-      .select({
-        employeeId: attendanceLogs.employeeId,
-        kind: attendanceLogs.kind,
+    .select({
+      employeeId: attendanceLogs.employeeId,
+      logDate: attendanceLogs.logDate,
+      kind: attendanceLogs.kind,
         loggedAt: attendanceLogs.loggedAt,
         source: attendanceLogs.source,
         reason: attendanceLogs.reason,
@@ -870,6 +873,7 @@ export async function getMonthDashboard(
       rowsByEmp.set(r.employeeId, arr);
     }
     arr.push({
+      logDate: r.logDate,
       kind: r.kind,
       loggedAt: r.loggedAt,
       source: r.source,

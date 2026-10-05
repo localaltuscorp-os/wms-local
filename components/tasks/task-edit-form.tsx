@@ -532,7 +532,7 @@ export function TaskEditForm({
                 onFocus={p.onFocus}
                 onBlur={p.onBlur}
                 options={[
-                  { value: "", label: "No verdict" },
+                  { value: "", label: "Pending" },
                   ...APPROVAL_STATUSES.map((s) => ({ value: s, label: APPROVAL_LABEL[s] })),
                 ]}
               />

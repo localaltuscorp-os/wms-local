@@ -55,6 +55,8 @@ import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-ce
 import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
+import { PlanStatusKpiStrip, type PlanStatusPerspective } from "./plan-status-kpi-strip";
 
 /**
  * Project Plan — the hierarchy table.
@@ -592,6 +594,7 @@ function initialCollapsed(nodes: PlanRow[]): Set<string> {
 }
 
 export function PlanBoard({ level, tree, employees, canManage, labels, clients, isAdmin, me, downline, initialView = "list" }: Props) {
+  const pageChromeSlots = usePageChromeSlots();
   const router = useRouter();
   const pathname = usePathname();
   /** The viewer's downline as a set — rebuilt only when the list itself does,
@@ -642,6 +645,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
   const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
   const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
+  const [statusPerspective, setStatusPerspective] = React.useState<PlanStatusPerspective>("doer");
 
   /**
    * One click on a header, three states — ascending, descending, back to the
@@ -993,6 +997,25 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   }, [tree, projectIds, query, sortKey, sortDir]);
 
   const counts = React.useMemo(() => countTree(baseTree), [baseTree]);
+
+  const planStatusCounts = React.useMemo(() => {
+    const next: Record<string, number> = {};
+    const walk = (nodes: PlanRow[]) => {
+      for (const node of nodes) {
+        const doer = effectivePlanStatus(
+          isExecutable(node.kind) && node.task ? node.task.status : node.status,
+          null,
+          false,
+        );
+        const initiator = approverDisplay(node.approvalStatus, isSelfRaisedNode(node));
+        next[doer] = (next[doer] ?? 0) + 1;
+        next[initiator] = (next[initiator] ?? 0) + 1;
+        walk(node.children);
+      }
+    };
+    walk(baseTree);
+    return next;
+  }, [baseTree]);
 
   /**
    * …and the tree actually rendered, once the LEVEL and then a chip narrow it.
@@ -1454,15 +1477,18 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           ))}
         </div>
 
-        <button
-          onClick={() => setFullscreen((v) => !v)}
-          aria-pressed={fullscreen}
-          title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
-          className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
-        >
-          {fullscreen ? <Minimize2 size={14} strokeWidth={2.2} /> : <Maximize2 size={14} strokeWidth={2.2} />}
-          {fullscreen ? "Exit full screen" : "Full screen"}
-        </button>
+        <PlanStatusKpiStrip
+          perspective={statusPerspective}
+          onPerspectiveChange={setStatusPerspective}
+          counts={planStatusCounts}
+          total={counts.total}
+          activeStatus={(statusPerspective === "doer" ? doerStatus : initiatorStatus)[0] ?? null}
+          onStatusChange={(status) => {
+            if (statusPerspective === "doer") setDoerStatus(status ? [status] : []);
+            else setInitiatorStatus(status ? [status] : []);
+          }}
+        />
+
       </header>
 
       {/* ── Search row — its own line, with the primary action opposite it. ── */}
@@ -1509,6 +1535,22 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
               tight it is a project name that truncates — not the Rows /
               Columns / Export group dropping to a second line.
           No overflow-x scroll here: it would clip the Rows / Columns menus. */}
+      {view === "kanban" && pageChromeSlots?.actions && createPortal(
+        <div role="group" aria-label="Status axis" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
+          {STATUS_AXES.map((a) => (
+            <ViewTab
+              key={a}
+              active={axis === a}
+              onClick={() => setAxis(a)}
+              activeColor="var(--color-ink-muted)"
+              icon={a === "doer" ? <User size={13} strokeWidth={2.4} /> : <ShieldCheck size={13} strokeWidth={2.4} />}
+            >
+              {STATUS_AXIS_LABEL[a]}
+            </ViewTab>
+          ))}
+        </div>,
+        pageChromeSlots.actions,
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-1 rounded-2xl border border-hairline-strong bg-white px-2 py-1 md:flex-nowrap">
         {/* View toggle — the same List / Kanban pair the Goals board uses. */}
         <div role="group" aria-label="Board view" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
@@ -1522,7 +1564,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
 
         {/* The axis switch, shown only with the board it re-columns. Same two
             questions, same wording, as the WMS kanban's toggle. */}
-        {view === "kanban" && (
+        {view === "kanban" && !pageChromeSlots?.actions && (
           <div
             role="group"
             aria-label="Status axis"
@@ -1533,6 +1575,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
                 key={a}
                 active={axis === a}
                 onClick={() => setAxis(a)}
+                activeColor="var(--color-ink-muted)"
                 icon={
                   a === "doer" ? (
                     <User size={13} strokeWidth={2.4} />
@@ -1719,6 +1762,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           statusLabels={labels}
           onClear={() => setSelected(new Set())}
           showArchive={false}
+          showViewDetails={false}
           // A selected Project may only be archived by an administrator. Hide
           // the bulk action rather than offering a request the server rejects.
           showDelete={isAdmin || !selectedRows.some((row) => row.node.kind === "project")}
@@ -3084,12 +3128,13 @@ function LevelTabs({
 
 /** One tab of the List / Kanban pair. */
 function ViewTab({
-  active, onClick, icon, children,
+  active, onClick, icon, children, activeColor = ACCENT,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   children: React.ReactNode;
+  activeColor?: string;
 }) {
   return (
     <button
@@ -3097,7 +3142,7 @@ function ViewTab({
       aria-pressed={active}
       className="inline-flex h-7 items-center gap-1 whitespace-nowrap px-2 text-[11.5px] font-bold transition-colors"
       style={active
-        ? { background: ACCENT, color: "white" }
+        ? { background: activeColor, color: "white" }
         : { background: "white", color: "var(--color-ink-soft)" }}
     >
       {icon}

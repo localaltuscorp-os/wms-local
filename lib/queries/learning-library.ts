@@ -3,7 +3,7 @@ import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { tcSelfLearning, tcShares, employees, functions, type Employee } from "@/db/schema";
 import { learningVisibleIds } from "@/lib/training/roles";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 
 /** The Self-Learning Library — every visible employee's logged learning. */
 export interface SelfLearningLibraryRow {
@@ -23,7 +23,7 @@ export async function listSelfLearningLibrary(
   to: string,
 ): Promise<SelfLearningLibraryRow[]> {
   const visible = await learningVisibleIds(viewer);
-  const scoped = visible.length > 0 && !(viewer.isAdmin || isFounderEmail(viewer.email));
+  const scoped = visible.length > 0 && !(viewer.isAdmin || (await isFounder(viewer.id)));
 
   const rows = await db
     .select({

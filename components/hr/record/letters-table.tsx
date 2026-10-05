@@ -369,7 +369,7 @@ export function LettersTable({
 
       {/* Toolbar — Group By · Search · Pager · New letter */}
       <div
-        className="flex flex-wrap items-center gap-2 rounded-section border border-hairline px-3 py-2"
+        className="flex flex-wrap items-center gap-2 rounded-none border border-hairline px-3 py-2"
         style={{
           background: "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
           boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px -20px rgba(15, 23, 42, 0.18)",

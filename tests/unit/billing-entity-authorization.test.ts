@@ -89,7 +89,7 @@ describe("deleting an entity is Manan's alone", () => {
   });
 
   it("is a capability of its own, not derived from being the founder", () => {
-    // Keyed off `isFounderEmail`, a change of founder would silently move the
+    // Keying this to the Founder role would silently move the
     // authority, and a second person needing it could only be added by making
     // them a founder.
     const caps = codeOf("lib/security/capabilities.ts");

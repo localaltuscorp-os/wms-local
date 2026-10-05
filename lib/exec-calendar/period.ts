@@ -1,14 +1,12 @@
 /**
  * MONTHLY EVENTS MASTER — what you are looking at, and what to call it.
  *
- * The four horizons (day / week / month / year) each need three things: the
- * date range to load, where the arrows go, and — the fiddly part — a LABEL that
- * reads the way a person would say it.
+ * Each calendar view defines its data range, navigation step, and compact label.
  *
  *     day    Yesterday · Today · Tomorrow, then "24 Sep"
  *     week   Last week · This week · Next week, then "27 Sep – 3 Oct"
  *     month  September · October 2027   (the year only when it is not this one)
- *     year   2026
+ *     quarter Q3 2026
  *
  * Relative names only stretch one step either side of now, deliberately. "Two
  * weeks ago" is not how anybody reads a calendar toolbar, and a label that
@@ -20,26 +18,22 @@
 
 import { addDays, addMonths, monthStart, parseDay, weekStart } from "./grid";
 
-export type CalendarView = "day" | "grid" | "week" | "month" | "monthgrid" | "year";
+export type CalendarView = "day" | "week" | "grid" | "month" | "monthgrid" | "quarter";
 
 /** Weeks the Weekly Grid shows: the chosen one and the five after it (2026-09-26: was 4). */
 export const GRID_WEEKS = 6;
 
 export const CALENDAR_VIEWS: { key: CalendarView; label: string }[] = [
   { key: "day", label: "Day" },
-  // Left of Week (asked 2026-09-18): a spreadsheet of stacked weeks.
-  { key: "grid", label: "Weekly Grid" },
   { key: "week", label: "Week" },
+  { key: "grid", label: "Weekly Grid" },
   { key: "month", label: "Month" },
-  // The Excel-sheet-shaped month view (2026-09-24): day boxes with compact
-  // event pills, no fixed time-slot Y-axis — distinct from "Month" above,
-  // which caps at 3 chips per day and is tuned for the Year view's 12-up size.
-  { key: "monthgrid", label: "Monthly Grid" },
-  { key: "year", label: "Year" },
+  { key: "monthgrid", label: "Month at a Glance" },
+  { key: "quarter", label: "Quarter" },
 ];
 
 export function isCalendarView(v: string | null | undefined): v is CalendarView {
-  return v === "day" || v === "grid" || v === "week" || v === "month" || v === "monthgrid" || v === "year";
+  return v === "day" || v === "week" || v === "grid" || v === "month" || v === "monthgrid" || v === "quarter";
 }
 
 /** The inclusive range a view loads — one query serves the grid and the stats. */
@@ -55,19 +49,20 @@ export function periodRange(view: CalendarView, day: string): { from: string; to
       const monday = weekStart(day);
       return { from: monday, to: addDays(monday, 7 * GRID_WEEKS - 1) };
     }
-    // Rolling, not month-bounded (2026-09-26): one week before the selected
-    // week through four weeks after it — six weeks total, same as Grid, just
-    // shifted so the selected week isn't the very first one shown.
     case "monthgrid": {
-      const from = addDays(weekStart(day), -7);
-      return { from, to: addDays(from, 7 * 6 - 1) };
+      const from = weekStart(monthStart(day));
+      const last = addDays(addMonths(monthStart(day), 1), -1);
+      return { from, to: addDays(weekStart(last), 6) };
     }
     case "month": {
       const first = monthStart(day);
       return { from: first, to: addDays(addMonths(first, 1), -1) };
     }
-    case "year":
-      return { from: `${day.slice(0, 4)}-01-01`, to: `${day.slice(0, 4)}-12-31` };
+    case "quarter": {
+      const month = parseDay(day).getUTCMonth();
+      const first = monthStart(`${day.slice(0, 4)}-${String(Math.floor(month / 3) * 3 + 1).padStart(2, "0")}-01`);
+      return { from: first, to: addDays(addMonths(first, 3), -1) };
+    }
   }
 }
 
@@ -78,12 +73,12 @@ export function stepPeriod(view: CalendarView, day: string, dir: -1 | 1): string
       return addDays(day, dir);
     case "week":
     case "grid": // same week-by-week navigation as Week
-    case "monthgrid": // rolling window, so it steps by week too, not by month
       return addDays(day, 7 * dir);
+    case "monthgrid":
     case "month":
-      return addMonths(day, dir);
-    case "year":
-      return `${Number(day.slice(0, 4)) + dir}${day.slice(4)}`;
+      return addMonths(monthStart(day), dir);
+    case "quarter":
+      return addMonths(periodRange("quarter", day).from, 3 * dir);
   }
 }
 
@@ -119,7 +114,7 @@ export function periodLabel(view: CalendarView, day: string, today: string): str
     }
     case "week":
     case "grid":
-    case "monthgrid": {
+    {
       const monday = weekStart(day);
       const thisMonday = weekStart(today);
       if (monday === thisMonday) return "This week";
@@ -135,8 +130,16 @@ export function periodLabel(view: CalendarView, day: string, today: string): str
       const name = MONTHS_LONG[d.getUTCMonth()]!;
       return sameYear ? name : `${name} ${d.getUTCFullYear()}`;
     }
-    case "year":
-      return day.slice(0, 4);
+    case "monthgrid": {
+      const label = periodLabel("month", day, today);
+      return day.slice(0, 7) === today.slice(0, 7) ? "This month" : label;
+    }
+    case "quarter": {
+      const q = Math.floor(parseDay(day).getUTCMonth() / 3) + 1;
+      const tq = Math.floor(parseDay(today).getUTCMonth() / 3) + 1;
+      if (day.slice(0, 4) === today.slice(0, 4) && q === tq) return "This quarter";
+      return `Q${q} ${day.slice(0, 4)}`;
+    }
   }
 }
 
@@ -147,25 +150,14 @@ export function isNow(view: CalendarView, day: string, today: string): boolean {
       return day === today;
     case "week":
     case "grid":
-    case "monthgrid":
       return weekStart(day) === weekStart(today);
     case "month":
       return day.slice(0, 7) === today.slice(0, 7);
-    case "year":
-      return day.slice(0, 4) === today.slice(0, 4);
+    case "monthgrid":
+      return day.slice(0, 7) === today.slice(0, 7);
+    case "quarter":
+      return periodRange("quarter", day).from === periodRange("quarter", today).from;
   }
-}
-
-/**
- * The years offered in the jump strip: this year and the next few.
- *
- * Forward-only, because the sheet this replaces is a PLANNING document — the
- * back-catalogue is reachable by arrowing, and a strip of past years was mostly
- * making the row too wide to fit beside the stats panel.
- */
-export function yearChoices(today: string, count = 4): number[] {
-  const y = Number(today.slice(0, 4));
-  return Array.from({ length: count }, (_, i) => y + i);
 }
 
 /** "September" / "September 2027" — shared with the month and year headings. */

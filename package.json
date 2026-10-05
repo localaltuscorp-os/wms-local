@@ -38,6 +38,7 @@
     "emul": "firebase emulators:start --only auth",
     "dev:full": "concurrently -k -n web,emul \"pnpm dev\" \"pnpm emul\"",
     "bootstrap-admin": "tsx --env-file=.env.bootstrap scripts/bootstrap-admin.ts",
+    "super-admin:backfill": "tsx --env-file=.env.local scripts/backfill-super-admin-grants.ts",
     "import:legacy": "tsx --env-file=.env.local scripts/import-legacy.ts",
     "gen:icons": "python scripts/gen-pwa-icons.py",
     "setup:local-postgres": "tsx --env-file=.env.local scripts/setup-local-postgres.ts",

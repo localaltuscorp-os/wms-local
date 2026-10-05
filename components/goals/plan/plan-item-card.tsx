@@ -45,6 +45,7 @@ interface Props {
   dayOffset: number;
   /** This day as `YYYY-MM-DD` — what the duplicate picker opens on. */
   dayYmd: string;
+  unruledInitiatorLabel?: string;
 }
 
 /**
@@ -75,6 +76,7 @@ export function PlanItemCard({
   onSetTime,
   dayOffset,
   dayYmd,
+  unruledInitiatorLabel,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -357,6 +359,7 @@ export function PlanItemCard({
               archived={item.isPutAway ?? false}
               actor={statusActor}
               compact
+              unruledLabel={unruledInitiatorLabel}
               onCommit={async (next) => {
                 const res = await setPlanItemInitiatorStatus(item.id, next);
                 return res.ok ? { ok: true } : { ok: false, error: res.error };
@@ -452,6 +455,7 @@ export function PlanItemCard({
           onClose={() => setDetail(false)}
           onRename={onRename}
           onSetTime={onSetTime}
+          unruledInitiatorLabel={unruledInitiatorLabel}
         />
       ) : null}
     </li>
