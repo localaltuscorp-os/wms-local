@@ -5,7 +5,7 @@ import { learningVisibleIds, learningRoleGroupFor } from "@/lib/training/roles";
 import { listEmployees } from "@/lib/queries/employees";
 import { computePersonActuals, effectiveTargetFor } from "@/lib/queries/learning-targets";
 import type { LearningMetric } from "@/db/enums";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +88,7 @@ export default async function TargetsPage() {
             Target vs Actual
           </h1>
           <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-            Current month · configurable targets · {me.isAdmin || isFounderEmail(me.email) ? "whole organisation" : "you and your team"}.
+            Current month · configurable targets · {me.isAdmin || (await isFounder(me.id)) ? "whole organisation" : "you and your team"}.
           </p>
         </header>
 

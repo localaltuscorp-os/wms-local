@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { employeeTemporaryBreaks, employees, functions } from "@/db/schema";
 import { loadSortOrders } from "@/lib/employees/sort-order";
 import { loadManagerFlags } from "@/lib/employees/is-manager";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 
 export type HierarchyStatus = "active" | "break" | "inactive";
 export type HierarchyRole = "Founder" | "Manager" | "Employee";
@@ -50,10 +50,10 @@ export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Pr
       .where(and(isNull(employeeTemporaryBreaks.endedAt), inArray(employeeTemporaryBreaks.employeeId, eligible.map((row) => row.id))))
     : [];
   const breaks = new Map(activeBreakRows.map((row) => [row.employeeId, row.previousManagerId]));
-  const [sortOrders, managerFlags] = await Promise.all([loadSortOrders(), loadManagerFlags()]);
+  const [sortOrders, managerFlags, founderIds] = await Promise.all([loadSortOrders(), loadManagerFlags(), founderEmployeeIds()]);
 
   const toPerson = (row: (typeof staff)[number], status: HierarchyStatus): HierarchyPerson => {
-    const isRoot = isFounderEmail(row.email);
+    const isRoot = founderIds.has(row.id);
     const isManager = managerFlags.get(row.id) ?? false;
     return {
       id: row.id,

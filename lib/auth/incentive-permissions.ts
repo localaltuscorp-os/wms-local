@@ -1,5 +1,3 @@
-import { isFounderEmail } from "@/lib/auth/founder";
-
 /**
  * WHO MAY DECIDE AN INCENTIVE REQUEST — Manan Vasa, and nobody else.
  *
@@ -12,8 +10,8 @@ import { isFounderEmail } from "@/lib/auth/founder";
  * boundary is the server: every decision action calls this again for itself.
  * A hidden button is presentation.
  */
-export function canReviewIncentives(email: string | null | undefined): boolean {
-  return isFounderEmail(email);
+export function canReviewIncentives(isFounder: boolean): boolean {
+  return isFounder;
 }
 
 /** How the reviewer is named on screens and in messages. */
@@ -34,6 +32,6 @@ export const INCENTIVE_REVIEWER_NAME = "Manan Vasa";
  * the boundary is the server: `catalog-actions.ts` re-checks it on every write,
  * so hiding the buttons is presentation, not the lock.
  */
-export function canEditIncentiveTable(email: string | null | undefined): boolean {
-  return isFounderEmail(email);
+export function canEditIncentiveTable(isFounder: boolean): boolean {
+  return isFounder;
 }

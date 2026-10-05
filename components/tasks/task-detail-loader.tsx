@@ -13,6 +13,7 @@ import { planBreadcrumbForNode } from "@/lib/queries/project-plan";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 import { canManagerApprove, canAdminApprove } from "@/lib/tasks/approval-permissions";
+import { isFounder } from "@/lib/auth/founder";
 import {
   canEditTaskFields,
   canApprove,
@@ -53,6 +54,7 @@ interface Props {
  * then full render" to "shell + skeleton instantly, content fills in".
  */
 export async function TaskDetailLoader({ taskId, me }: Props) {
+  const founder = await isFounder(me.id);
   const task = await getTaskById(taskId);
   if (!task) notFound();
 
@@ -120,7 +122,7 @@ export async function TaskDetailLoader({ taskId, me }: Props) {
           // Two-stage approval (mig 0185) — computed server-side ONLY to decide
           // which button to draw; decideTaskApproval re-derives both rules.
           canManagerApprove: canManagerApprove(
-            { id: me.id, email: me.email ?? null, isAdmin: me.isAdmin },
+            { id: me.id, isAdmin: me.isAdmin, isFounder: founder },
             {
               status: task.status,
               approvalLevel: (task.approvalLevel ?? "none") as "none" | "manager" | "admin",
@@ -130,7 +132,7 @@ export async function TaskDetailLoader({ taskId, me }: Props) {
             { isDoersManager, assignerIsAdmin: true, assignerIsManager: true },
           ),
           canAdminApprove: canAdminApprove(
-            { id: me.id, email: me.email ?? null, isAdmin: me.isAdmin },
+            { id: me.id, isAdmin: me.isAdmin, isFounder: founder },
             {
               status: task.status,
               approvalLevel: (task.approvalLevel ?? "none") as "none" | "manager" | "admin",

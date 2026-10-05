@@ -1,14 +1,19 @@
-// tests/unit/founder.test.ts
-import { describe, it, expect } from "vitest";
-import { isFounderEmail, FOUNDER_EMAIL } from "@/lib/auth/founder";
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { SECURITY_ROLES, SECURITY_ROLE_DEFS } from "@/lib/auth/security-roles-catalog";
 
-describe("isFounderEmail", () => {
-  it("matches Manan (case/space-insensitive)", () => {
-    expect(isFounderEmail(FOUNDER_EMAIL)).toBe(true);
-    expect(isFounderEmail("  Manan@Unleashed.in ")).toBe(true);
+describe("database-backed Founder role", () => {
+  it("is an enforced audited security role", () => {
+    expect(SECURITY_ROLES).toContain("founder");
+    expect(SECURITY_ROLE_DEFS.founder.enforced).toBe(true);
   });
-  it("rejects everyone else incl. other super-admins", () => {
-    expect(isFounderEmail("hetesh@example.com")).toBe(false);
-    expect(isFounderEmail(null)).toBe(false);
+
+  it("contains no identity or email allow-list", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "lib/auth/founder.ts"), "utf8");
+    expect(source).not.toMatch(/@[a-z0-9.-]+\.[a-z]{2,}/i);
+    expect(source).not.toContain("FOUNDER_EMAIL");
+    expect(source).not.toContain("isFounderEmail");
+    expect(source).toContain('eq(securityRoleGrants.role, "founder")');
   });
 });

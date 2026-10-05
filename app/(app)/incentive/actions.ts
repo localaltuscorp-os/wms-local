@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { incentiveRequestDecisions, incentiveRequests } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canReviewIncentives, INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
+import { isFounder } from "@/lib/auth/founder";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { afterResponse } from "@/lib/after";
 import type { IncentiveRequestInput } from "@/lib/incentive-fields";
@@ -102,7 +103,7 @@ export async function decideIncentiveRequest(input: {
   note?: string;
 }): Promise<ActionResult<{ newStatus: string }>> {
   const me = await requireUser();
-  if (!canReviewIncentives(me.email)) {
+  if (!canReviewIncentives(await isFounder(me.id))) {
     return { ok: false, error: `Only ${INCENTIVE_REVIEWER_NAME} can decide incentive requests.` };
   }
   const limited = rateLimitOrError(me.id, "write");
@@ -309,7 +310,7 @@ export async function getIncentiveRequestHistory(
     .select({ employeeId: incentiveRequests.employeeId })
     .from(incentiveRequests)
     .where(eq(incentiveRequests.id, parsedId.data));
-  const allowed = !!row && (row.employeeId === me.id || me.isAdmin || canReviewIncentives(me.email));
+  const allowed = !!row && (row.employeeId === me.id || me.isAdmin || canReviewIncentives(await isFounder(me.id)));
   if (!allowed) return { ok: false, error: "That incentive request was not found." };
 
   const history = await loadIncentiveRequestHistory(parsedId.data);
