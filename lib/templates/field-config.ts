@@ -28,7 +28,7 @@ export async function requiredFieldsForTemplate(
   key: string,
   variant: string,
 ): Promise<readonly string[]> {
-  const shape = templateDef(key)?.variants.find((item) => item.id === variant);
+  const shape = templateDef(key)?.variants?.find((item) => item.id === variant);
   if (!shape) return [];
   return configuredRequiredFields(key, variant, shape.defaultRequired);
 }

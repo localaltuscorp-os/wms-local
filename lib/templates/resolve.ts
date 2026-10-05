@@ -207,7 +207,7 @@ async function matrixTemplate(
   key: string,
   variant: string,
 ): Promise<ResolvedTemplate> {
-  const def = templateDef(key)?.variants.find((item) => item.id === variant);
+  const def = templateDef(key)?.variants?.find((item) => item.id === variant);
   const fields = def?.fields ?? [];
   const required = new Set(await requiredFieldsForTemplate(key, variant));
   const header = matrix[0] ?? [];

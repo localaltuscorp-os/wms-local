@@ -76,7 +76,7 @@ export async function salaryLineageMonths(): Promise<string[]> {
   return [...new Set([...runs, ...breakup].map((row) => row.month))].sort((a, b) => b.localeCompare(a));
 }
 
-function num(value: string | number | null | undefined): number {
+function num(value: unknown): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
