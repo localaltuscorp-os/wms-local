@@ -72,11 +72,12 @@ function fmtDate(iso: string): string {
 export function PoliciesWorkspace({
   groups,
   signable,
-  isAdmin,
+  canManage,
 }: {
   groups: Group[];
   signable: SignablePolicy[];
-  isAdmin: boolean;
+  /** Mirrors the server-side HR publisher guard for upload and removal. */
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -144,7 +145,7 @@ export function PoliciesWorkspace({
                 <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
               </a>
             )}
-            {isAdmin && (
+            {canManage && (
               <button
                 onClick={() => setOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white"
@@ -229,7 +230,7 @@ export function PoliciesWorkspace({
           <ScrollText size={30} className="mx-auto text-ink-soft" />
           <p className="mt-3 text-[14px] font-medium text-ink-muted">
             No uploaded policy documents yet.
-            {isAdmin ? " Upload one above." : " Check back soon."}
+            {canManage ? " Upload one above." : " Check back soon."}
           </p>
         </div>
       ) : visibleUploadedCount === 0 ? (
@@ -271,7 +272,7 @@ export function PoliciesWorkspace({
                     ) : (
                       <span className="text-[12px] font-medium text-ink-muted">Preview unavailable</span>
                     )}
-                    {isAdmin && <DeleteButton id={p.id} onDone={() => router.refresh()} />}
+                    {canManage && <DeleteButton id={p.id} onDone={() => router.refresh()} />}
                   </li>
                 ))}
               </ul>

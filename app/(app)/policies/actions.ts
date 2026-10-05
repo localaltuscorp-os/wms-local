@@ -7,13 +7,18 @@ import { db } from "@/lib/db";
 import { documents } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { hrSupportEnabled } from "@/lib/hr/flag";
-import { encodeOtherPolicyCategory, isPolicyCategory } from "@/lib/hr/policy-types";
+import {
+  encodeOtherPolicyCategory,
+  encodePolicyOriginalFileName,
+  isPolicyCategory,
+} from "@/lib/hr/policy-types";
 import { POLICY_STORAGE_PREFIX, policyStoragePath } from "@/lib/hr/sections";
 import { canPublishPolicies } from "@/lib/hr/policies/access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { safeFileName, validateUpload } from "@/lib/hr/upload";
+import { putObject, removeObjects } from "@/lib/storage/objects";
 import type { Employee } from "@/db/schema";
 import type { PolicyCategory } from "@/lib/hr/policy-types";
 
@@ -54,7 +59,7 @@ export async function uploadPolicy(form: FormData): Promise<Result<{ id: string 
   if (category === "other" && (!otherCategory || otherCategory.length > 80)) {
     return { ok: false, error: "Enter an Other category name (up to 80 characters)." };
   }
-  const description = category === "other"
+  const describedCategory = category === "other"
     ? encodeOtherPolicyCategory(descriptionInput, otherCategory)
     : descriptionInput || null;
 
@@ -64,12 +69,10 @@ export async function uploadPolicy(form: FormData): Promise<Result<{ id: string 
   if (!shape.ok) return shape;
 
   const path = policyStoragePath(category as PolicyCategory, crypto.randomUUID(), safeFileName(file.name));
-  const admin = getSupabaseAdmin();
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { error: upErr } = await admin.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: false });
-  if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
+  const upload = await putObject(DOCUMENTS_BUCKET, path, buffer, file.type || "application/octet-stream");
+  if (!upload.ok) return { ok: false, error: `Upload failed: ${upload.error}` };
+  const description = encodePolicyOriginalFileName(describedCategory, file.name);
 
   let inserted;
   try {
@@ -86,7 +89,7 @@ export async function uploadPolicy(form: FormData): Promise<Result<{ id: string 
       })
       .returning({ id: documents.id });
   } catch (err) {
-    await admin.storage.from(DOCUMENTS_BUCKET).remove([path]).catch(() => {});
+    await removeObjects(DOCUMENTS_BUCKET, [path]).catch(() => {});
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
   if (!inserted) return { ok: false, error: "Insert returned no row" };
@@ -113,7 +116,7 @@ export async function deletePolicy(id: string): Promise<Result> {
     return { ok: false, error: "Not a policy document." };
   }
 
-  await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).remove([row.storagePath]).catch(() => {});
+  await removeObjects(DOCUMENTS_BUCKET, [row.storagePath]).catch(() => {});
   // Delete guarded by the prefix as well, so a bad id can't reach other rows.
   await db.delete(documents).where(eq(documents.id, id));
   revalidatePath("/policies");

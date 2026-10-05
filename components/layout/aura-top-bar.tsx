@@ -215,6 +215,15 @@ export function AuraTopBar({
   const [moduleView, setModuleView] = React.useState<"doer" | "initiator">("doer");
   const showsModuleView = ws === "goals" || ws === "project-plan";
   const slots = usePageChromeSlots();
+  const hasHrConsoleRail =
+    pathname === "/hr" ||
+    pathname.startsWith("/hr/") ||
+    pathname === "/policies" ||
+    pathname.startsWith("/policies/") ||
+    pathname === "/dossier" ||
+    pathname.startsWith("/dossier/") ||
+    pathname === "/support" ||
+    pathname.startsWith("/support/");
   const hrTitle = React.useMemo(() => {
     if (!pathname.startsWith("/hr")) return null;
     const at = locateHrRoute(pathname);
@@ -247,7 +256,15 @@ export function AuraTopBar({
   return (
     // Phones already carry a fixed 56px bar from DashboardSidebar, so off the
     // dashboard this one hides rather than eating a third of a small screen.
-    <header className={onDashboard ? "aura-topbar app-topbar" : "aura-topbar app-topbar max-md:hidden"}>
+    <header
+      className={[
+        "aura-topbar app-topbar",
+        onDashboard ? "" : "max-md:hidden",
+        hasHrConsoleRail ? "aura-topbar-with-console-rail" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
 
       {onDashboard && (
       <a

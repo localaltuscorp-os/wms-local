@@ -40,6 +40,8 @@ export type HrConsoleSubModule = {
   blurb: string;
   Icon: LucideIcon;
   href: string;
+  /** Approved letter code, when this is a catalogue letter. */
+  code?: string;
   /** Lives outside /hr — opening it leaves the console shell behind. */
   external: boolean;
 };
@@ -98,6 +100,7 @@ const lifecycleModules: HrConsoleModule[] = HR_STAGES.map((stage) => ({
       blurb: item.blurb,
       Icon: item.Icon,
       href,
+      code: item.code,
       external: isOutsideConsole(href),
     };
   }),

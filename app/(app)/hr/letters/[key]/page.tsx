@@ -2,7 +2,7 @@ import { FileText } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { requireHrStaff } from "@/lib/hr/access";
 import { canIssueLetters } from "@/lib/hr/letters/issue-access";
-import { getLetter } from "@/lib/hr/letters/registry";
+import { approvedLetterByKey, getLetter } from "@/lib/hr/letters/registry";
 import { loadLetterRoster, loadLetterCandidates } from "@/lib/hr/letters/roster";
 import { listActiveDepartments } from "@/lib/queries/departments";
 import {
@@ -36,11 +36,12 @@ export default async function LetterPage({
   // letter editor uses it in a dozen places purely as "draw the issue buttons".
   const isAdmin = await canIssueLetters(me);
   const template = getLetter(key);
+  const catalogueEntry = approvedLetterByKey(key);
 
   return (
     <div className="min-h-full bg-[#faf9fb]">
       <HrTitleBar
-        title={template ? template.title : "Letter"}
+        title={catalogueEntry?.title ?? template?.title ?? "Letter"}
       />
 
       {/* pt-2, NOT pt-8. The editing band (.alw-toolbar) is the first thing in
@@ -59,6 +60,8 @@ export default async function LetterPage({
             initialCandidateId={candidate}
             initialEmployeeId={employee}
           />
+        ) : catalogueEntry?.availability === "content-pending" ? (
+          <ContentPending title={catalogueEntry.title} />
         ) : (
           <ComingSoon />
         )}
@@ -139,6 +142,25 @@ function ComingSoon() {
       <p className="mt-2 text-[14px] font-medium leading-relaxed text-ink-muted">
         The template for this letter hasn&apos;t been written yet. It will appear here as a fully
         editable letter on the Altus letterhead soon.
+      </p>
+    </div>
+  );
+}
+
+function ContentPending({ title }: { title: string }) {
+  return (
+    <div className="mx-auto mt-10 max-w-[560px] rounded-2xl border border-dashed border-hairline-strong bg-white px-8 py-14 text-center">
+      <span
+        className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl"
+        style={{ background: "#E106001a", color: "#A80400" }}
+      >
+        <FileText size={26} strokeWidth={2.1} />
+      </span>
+      <h1 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 22 }}>
+        {title}
+      </h1>
+      <p className="mt-2 text-[14px] font-medium leading-relaxed text-ink-muted">
+        Content Pending / Not Provided. This letter cannot be edited, exported, or issued until approved content is added.
       </p>
     </div>
   );

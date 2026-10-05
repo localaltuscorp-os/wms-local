@@ -1,57 +1,59 @@
 import { describe, it, expect } from "vitest";
 import { HR_STAGES } from "@/lib/hr/lifecycle";
-import { LETTER_LIST } from "@/lib/hr/letters/registry";
+import { APPROVED_LETTER_CATALOGUE } from "@/lib/hr/letters/catalog";
 
 function stageSlugs(key: string): string[] {
-  return HR_STAGES.find((s) => s.key === key)?.items.map((i) => i.slug) ?? [];
+  return HR_STAGES.find((stage) => stage.key === key)?.items.map((item) => item.slug) ?? [];
 }
 
-/** Keeps only `wanted`, in the order they appear in `list`. */
 function orderOf(list: string[], wanted: string[]): string[] {
-  return list.filter((x) => wanted.includes(x));
+  return list.filter((entry) => wanted.includes(entry));
 }
 
-describe("HR lifecycle order", () => {
-  it("Appraisal: End of Probation → Appraisal → Promotion → Increment → New CTC Appraisal → New CTC Promotion", () => {
+describe("approved HR lifecycle order", () => {
+  it("keeps promotion, salary revision, and appraisal + promotion as distinct appraisal letters", () => {
     expect(stageSlugs("appraisal")).toEqual([
-      "end-of-probation",
       "appraisal",
       "promotion",
-      "increment",
-      "appraisal-revised-ctc",
-      "promotion-revised-ctc",
+      "salary-revision",
+      "appraisal-promotion",
     ]);
   });
 
-  it("Exit follows Appraisal", () => {
-    const keys = HR_STAGES.map((s) => s.key);
+  it("puts Exit after Appraisal", () => {
+    const keys = HR_STAGES.map((stage) => stage.key);
     expect(keys.indexOf("exit")).toBeGreaterThan(keys.indexOf("appraisal"));
-  });
-
-  it("Exit: the Experience Letter comes before the Letter of Recommendation", () => {
-    expect(orderOf(stageSlugs("exit"), ["experience-letter", "letter-of-recommendation"])).toEqual([
-      "experience-letter",
-      "letter-of-recommendation",
-    ]);
   });
 });
 
-describe("letters index order (registry insertion order)", () => {
-  const keys = LETTER_LIST.map((l) => l.key);
+describe("approved letter catalogue", () => {
+  const letters = APPROVED_LETTER_CATALOGUE.flatMap((section) => section.letters);
+  const keys = letters.map((letter) => letter.key);
 
-  it("compensation letters follow the appraisal workflow", () => {
-    expect(orderOf(keys, ["promotion", "increment", "appraisal-revised-ctc", "promotion-revised-ctc"])).toEqual([
+  it("contains every approved code once and in order", () => {
+    expect(letters.map((letter) => letter.code)).toEqual([
+      "1A", "1B", "1C", "1D", "1E", "2", "3", "4", "5", "6", "7", "8",
+      "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21",
+    ]);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("does not fold promotion or salary revision into the combined code 16 letter", () => {
+    expect(orderOf(keys, ["promotion", "increment", "promotion-revised-ctc"])).toEqual([
       "promotion",
       "increment",
-      "appraisal-revised-ctc",
       "promotion-revised-ctc",
     ]);
   });
 
-  it("the Experience Letter comes before the Letter of Recommendation", () => {
+  it("marks only the two unprovided approved letters as content pending", () => {
+    expect(letters.filter((letter) => letter.availability === "content-pending").map((letter) => letter.code)).toEqual(["6", "11"]);
+  });
+
+  it("uses the approved exit ordering", () => {
     expect(orderOf(keys, ["experience-letter", "letter-of-recommendation"])).toEqual([
-      "experience-letter",
       "letter-of-recommendation",
+      "experience-letter",
     ]);
   });
 });
