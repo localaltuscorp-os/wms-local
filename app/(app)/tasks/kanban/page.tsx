@@ -2,12 +2,10 @@ import { DashboardHeader } from "@/components/layout/header";
 import { FilterBar } from "@/components/layout/filter-bar";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { InitiatorKanbanBoard } from "@/components/tasks/initiator-kanban-board";
-import { KanbanAxisToggle } from "@/components/tasks/kanban-axis-toggle";
 import { DOER_STATUSES, isStatusAxis, type StatusAxis } from "@/lib/status/axes";
 import { listBoardTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import { listEmployeeOptions } from "@/lib/queries/employees";
 import { listActiveClientNames } from "@/lib/queries/clients";
-import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { parseTaskFilters } from "@/lib/task-filters";
@@ -49,16 +47,17 @@ export default async function KanbanPage({ searchParams }: PageProps) {
     defaultDoerId: defaultScopeId(me),
   });
 
-  const axisParam = typeof sp.axis === "string" ? sp.axis : undefined;
+  // FilterBar owns the page-wide View switch as `view`; keep `axis` only for
+  // backwards-compatible Kanban links.
+  const axisParam =
+    typeof sp.view === "string"
+      ? sp.view
+      : typeof sp.axis === "string"
+        ? sp.axis
+        : undefined;
   const axis: StatusAxis = isStatusAxis(axisParam) ? axisParam : "doer";
 
-  // Kanban is admin-only, so the board shows everyone's goals unless the
-  // assignee filter narrows the scope. They're injected as badged, link-out
-  // cards inside their status column (design §10) and never counted as tasks.
-  const goalScope =
-    filters.assigneeMode === "all" ? undefined : filters.doerIds;
-
-  const [tasks, statusDisplay, employees, org, subjects, clients, weeklyGoals] =
+  const [tasks, statusDisplay, employees, org, subjects, clients] =
     await Promise.all([
       listBoardTasks(filters),
       getStatusDisplayMap(),
@@ -66,14 +65,6 @@ export default async function KanbanPage({ searchParams }: PageProps) {
       getOrgSettings(),
       listDistinctSubjects(),
       listActiveClientNames(),
-      listWeekGoalsAsTasks({
-        scope: { employeeIds: goalScope },
-        filters: {
-          priorities: filters.priorities,
-          subjects: filters.subjects,
-          clients: filters.clients,
-        },
-      }).catch(() => []),
     ]);
   const labels = Object.fromEntries(
     Object.entries(statusDisplay).map(([k, v]) => [k, v.label]),
@@ -124,6 +115,11 @@ export default async function KanbanPage({ searchParams }: PageProps) {
           client: filters.clients,
         }}
       />
+      {/* The KPI strip is portaled here by the active board so it sits outside
+          the rounded Kanban panel, in the same page-level position as Tasks. */}
+      <div className="w-full px-6 max-md:px-4 pt-4">
+        <div id="kanban-kpi-strip" />
+      </div>
       <main className="w-full px-6 max-md:px-4 pt-6 pb-10">
         {/* Full-bleed white canvas; status colour lives in the columns.
 
@@ -166,10 +162,7 @@ export default async function KanbanPage({ searchParams }: PageProps) {
               left as-is it would have been a floating button over an empty
               header, and `absolute` inside a row with nothing else in it has no
               height to be centred against. */}
-          {/* The axis switch sits with the view links, because that is what it
-              is: a different view of the same cards, not a filter on them. */}
-          <header className="wg-rise relative mb-4 flex items-center justify-between gap-3">
-            <KanbanAxisToggle axis={axis} />
+          <header className="wg-rise relative mb-4 flex items-center justify-end gap-3">
             <Link
               href={"/tasks" as Route}
               className="wg-btn inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-4 h-9 text-[13.5px] font-bold text-ink-soft hover:text-ink-strong hover:border-hairline-strong transition-colors"
@@ -182,19 +175,17 @@ export default async function KanbanPage({ searchParams }: PageProps) {
             {axis === "doer" ? (
               <KanbanBoard
                 tasks={tasks}
-                weeklyGoals={weeklyGoals}
                 labels={labels}
                 tones={tones}
                 isAdmin={me.isAdmin}
                 columnOrder={columnOrder}
+                kpiPortalTarget="kanban-kpi-strip"
               />
             ) : (
-              /* The SAME `tasks`, re-columned. Weekly goals are deliberately not
-                 injected here: they are link-out cards with no initiator verdict
-                 of their own, so they would sit permanently in No Verdict and
-                 make that column read as a backlog nobody can clear. */
+              /* The same tasks, re-columned by Initiator Status. */
               <InitiatorKanbanBoard
                 me={{ id: me.id, isAdmin: me.isAdmin }}
+                kpiPortalTarget="kanban-kpi-strip"
                 cards={tasks.map((t) => ({
                   id: t.id,
                   taskNo: t.taskNo,

@@ -13,8 +13,6 @@ import { listEmployeeOptions } from "@/lib/queries/employees";
 import { listTasks, listDistinctSubjects } from "@/lib/queries/tasks";
 import type { TaskListFilters } from "@/lib/types";
 import { listActiveClientNames } from "@/lib/queries/clients";
-import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
-import { goalScopeFor } from "@/lib/weekly-goals/hierarchy";
 import { parseTaskFilters, taskFilterDefaultStart } from "@/lib/task-filters";
 import { currentTaskVisibility } from "@/lib/tasks/scope";
 import { requireUser } from "@/lib/auth/current";
@@ -69,16 +67,6 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const visibility = await currentTaskVisibility();
   const filters = parseTaskFilters(sp, /*archived*/ false, { defaultDoerId: me.id });
 
-  // This week's goals for the view's scope, surfaced as a pinned group above
-  // the task table (design §10). Honours the shared client/subject/priority
-  // filters. Display-only — never counted in the KPIs.
-  //
-  // The Tasks page surfaces ONLY the viewer's OWN weekly goals — never anyone
-  // else's, not even for admins. Showing every employee's goals here made the
-  // page run very long for admins; each person sees just their own goals (the
-  // full team view lives on the Weekly Goals board).
-  const goalScope: string[] = [me.id];
-
   // The summary pills describe the user's WHOLE scope, so they are counted over
   // a second read with the status/priority dimensions stripped out. Counting
   // them from `rows` (as the component used to) meant clicking "Pending" filtered
@@ -121,7 +109,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
     endDate: null,
   };
 
-  const [allEmployees, rows, scopeRows, sidebarTaskRows, subjects, clients, statusDisplay, weeklyGoals, teamMemberIds] =
+  const [allEmployees, rows, scopeRows, sidebarTaskRows, subjects, clients, statusDisplay, teamMemberIds] =
     await Promise.all([
       listEmployeeOptions(),
       listTasks(filters),
@@ -132,14 +120,6 @@ export default async function TasksPage({ searchParams }: PageProps) {
       listDistinctSubjects(),
       listActiveClientNames(),
       getStatusDisplayMap(),
-      listWeekGoalsAsTasks({
-        scope: { employeeIds: goalScope },
-        filters: {
-          priorities: filters.priorities,
-          subjects: filters.subjects,
-          clients: filters.clients,
-        },
-      }).catch(() => []),
       filters.teams.length > 0
         ? resolveTeamScopes(filters.teams, me.id)
         : Promise.resolve(null),
@@ -237,7 +217,6 @@ export default async function TasksPage({ searchParams }: PageProps) {
         statusTones={statusTones}
         subjects={subjects}
         clients={clients}
-        weeklyGoals={weeklyGoals}
         metricsRows={scopeRows ?? rows}
         selectedTaskId={selectedTaskId}
         detail={

@@ -155,6 +155,7 @@ import { InlineStatusCell } from "./inline-status-cell";
 import { ApproverChip } from "@/components/status/approver-chip";
 import {
   APPROVER_CHOICES,
+  APPROVER_LABEL,
   selectableApproverChoices,
   taskApproverShown,
   taskDoerShown,
@@ -244,9 +245,28 @@ function colId(c: TaskCol): string {
   return anyCol.id ?? anyCol.accessorKey ?? "";
 }
 
-/** Columns that stay put: the select checkbox and the row-actions rail are
- *  positional furniture, not data, and both are sticky-pinned to an edge. */
+/** Selection and row-action controls are positional furniture, not data, so
+ * they stay pinned to their table edges. */
 const UNMOVABLE_COLUMNS = new Set(["select", "actions"]);
+
+/** Default left-to-right sequence for the task workflow fields. */
+const TASK_WORKFLOW_COLUMN_ORDER = [
+  "select",
+  "taskNo",
+  "timer",
+  "client",
+  "subject",
+  "title",
+  "dueAt",
+  "ageDays",
+  "status",
+  "priority",
+  "doerName",
+  "initiatorName",
+  "approvalStatus",
+  "createdAt",
+  "actions",
+] as const;
 
 /**
  * LEFT-FROZEN COLUMNS and their widths in px (Sir).
@@ -269,10 +289,10 @@ const UNMOVABLE_COLUMNS = new Set(["select", "actions"]);
  */
 const FROZEN_LEFT_WIDTH: Record<string, number> = {
   select: 44,
+  timer: 52,
   client: 132,
   subject: 128,
   title: 315,
-  timer: 92,
 };
 
 /**
@@ -342,6 +362,21 @@ function buildColumns(
       },
     },
     {
+      id: "timer",
+      header: () => <span className="sr-only">Action</span>,
+      enableSorting: false,
+      meta: { narrow: true, align: "center" },
+      cell: ({ row }) => (
+        <div className="flex items-center justify-center">
+          <TaskTimerCell
+            taskId={row.original.id}
+            running={row.original.timerRunning}
+            canOperate={me.isAdmin || me.id === row.original.doerId}
+          />
+        </div>
+      ),
+    },
+    {
       accessorKey: "client",
       header: "Client",
       meta: { narrow: true },
@@ -354,7 +389,7 @@ function buildColumns(
         const v = info.getValue<string | null>();
         return v ? (
           <HoverTip text={v} className="block min-w-0 max-w-full">
-            <span className="block truncate text-ink-strong font-semibold" style={{ fontSize: 15 }}>
+            <span className="block max-w-[132px] overflow-hidden text-ellipsis whitespace-nowrap text-ink-strong font-semibold" style={{ fontSize: 15 }}>
               {v}
             </span>
           </HoverTip>
@@ -371,7 +406,7 @@ function buildColumns(
         const subject = info.getValue<string>() ?? "-";
         return (
           <HoverTip text={subject} className="block min-w-0 max-w-full">
-            <span className="block truncate text-body-lg text-ink-muted">{subject}</span>
+            <span className="block max-w-[128px] overflow-hidden text-ellipsis whitespace-nowrap text-body-lg text-ink-muted">{subject}</span>
           </HoverTip>
         );
       },
@@ -389,31 +424,6 @@ function buildColumns(
     // leading column of a work queue is for. Both timestamps are still on the
     // row payload (and still stamped by the engine) — only their columns are
     // gone.
-    {
-      id: "timer",
-      header: "Action",
-      enableSorting: false,
-      // `narrow` keeps it out of the flexible-width pool; the w-24/min-w-[90px]
-      // box is applied on the cells themselves (see the th/td below) because
-      // `meta` carries hints, not classes.
-      meta: { narrow: true, align: "center" },
-      cell: ({ row }) => (
-        // Explicit flex centring rather than leaning on the td's text-center:
-        // the button is the cell's only content and a fixed-width frozen column
-        // is exactly where an off-centre control is most obvious.
-        <div className="flex items-center justify-center">
-        <TaskTimerCell
-          taskId={row.original.id}
-          running={row.original.timerRunning}
-          // The engine allows admin, the doer, OR the doer's manager. The
-          // manager leg needs the org chart, which the table does not have, so
-          // the inline control shows for admin + doer and managers keep using
-          // the drawer. Better a missing button than one that always errors.
-          canOperate={me.isAdmin || me.id === row.original.doerId}
-        />
-        </div>
-      ),
-    },
     {
       accessorKey: "doerName",
       header: "Doer",
@@ -463,7 +473,7 @@ function buildColumns(
       cell: ({ row }) => {
         const name = row.original.initiatorName;
         return name ? (
-          <span className="block min-w-[120px] truncate whitespace-nowrap">{name}</span>
+          <span className="block min-w-[120px] overflow-hidden whitespace-nowrap">{name}</span>
         ) : (
           <span className="text-ink-subtle">—</span>
         );
@@ -630,6 +640,7 @@ export function TaskTable({
   statusTones,
   subjects,
   clients,
+  hideDoerWhenOnlyMe = false,
   openInDrawer = false,
   filterLabel = null,
 }: {
@@ -644,6 +655,9 @@ export function TaskTable({
    *  subject/client values present in the current rows. */
   subjects?: string[];
   clients?: string[];
+  /** The employee scope contains only the viewer, so Doer is redundant until
+   * explicitly re-enabled from the Columns menu. */
+  hideDoerWhenOnlyMe?: boolean;
   /** Open the record in the side drawer (`?task=`) instead of navigating away
    *  to /tasks/[id]. Modifier-clicks still open the full page in a new tab. */
   openInDrawer?: boolean;
@@ -757,6 +771,20 @@ export function TaskTable({
   // (the reason this used to start as `{}`). The saved choice loads after mount.
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(DEFAULT_COLUMN_VISIBILITY);
+  // An Only Me scope temporarily hides the redundant Doer column. This is
+  // separate from persisted columnVisibility so changing the filter never
+  // overwrites a person's Columns-menu preference.
+  const [doerVisibilityExplicit, setDoerVisibilityExplicit] = React.useState(false);
+  React.useEffect(() => {
+    setDoerVisibilityExplicit(false);
+  }, [hideDoerWhenOnlyMe]);
+  const effectiveColumnVisibility = React.useMemo<VisibilityState>(
+    () => ({
+      ...columnVisibility,
+      doerName: hideDoerWhenOnlyMe && !doerVisibilityExplicit ? false : (columnVisibility.doerName ?? true),
+    }),
+    [columnVisibility, hideDoerWhenOnlyMe, doerVisibilityExplicit],
+  );
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(COLUMN_VIS_STORAGE_KEY);
@@ -795,7 +823,14 @@ export function TaskTable({
   // established this as the house pattern for task-table layout. The trade-off
   // is that the order does not follow a user to another browser or device.
   const orderKey = `altus.tasks.columnOrder.v1:${me.id}`;
-  const defaultOrder = React.useMemo(() => columns.map((c) => colId(c)), [columns]);
+  const workflowColumnsMigrationKey = `${orderKey}:workflow-columns.v3`;
+  const defaultOrder = React.useMemo(() => {
+    const ids = columns.map((c) => colId(c));
+    return [
+      ...TASK_WORKFLOW_COLUMN_ORDER.filter((id) => ids.includes(id)),
+      ...ids.filter((id) => !TASK_WORKFLOW_COLUMN_ORDER.includes(id as (typeof TASK_WORKFLOW_COLUMN_ORDER)[number])),
+    ];
+  }, [columns]);
   const [columnOrder, setColumnOrder] = React.useState<string[]>(defaultOrder);
   React.useEffect(() => {
     try {
@@ -808,6 +843,21 @@ export function TaskTable({
       // had ever reordered, which is a silent data-loss bug.
       const known = new Set(defaultOrder);
       const kept = saved.filter((id) => known.has(id));
+
+      // Put the requested workflow sequence directly after Task: Due, Age,
+      // Doer Status, Priority, Doer, Initiator, then Initiator Status. Do this
+      // once for existing saved layouts; future manual column moves remain intact.
+      if (!localStorage.getItem(workflowColumnsMigrationKey)) {
+        const workflowIds = TASK_WORKFLOW_COLUMN_ORDER.filter((id) => kept.includes(id));
+        const movedIds = new Set(["status", "dueAt", "ageDays", "priority", "doerName", "initiatorName", "approvalStatus"]);
+        const remaining = kept.filter((id) => !movedIds.has(id));
+        const anchor = remaining.indexOf("title");
+        const insertAt = anchor >= 0 ? anchor + 1 : remaining.length;
+        const requested = workflowIds.filter((id) => movedIds.has(id));
+        remaining.splice(insertAt, 0, ...requested);
+        kept.splice(0, kept.length, ...remaining);
+        localStorage.setItem(workflowColumnsMigrationKey, "1");
+      }
 
       // A NEW COLUMN IS SPLICED IN AT ITS DEFAULT POSITION, NOT APPENDED.
       //
@@ -839,7 +889,7 @@ export function TaskTable({
     } catch {
       /* ignore malformed storage */
     }
-  }, [orderKey, defaultOrder]);
+  }, [orderKey, workflowColumnsMigrationKey, defaultOrder]);
   React.useEffect(() => {
     try {
       localStorage.setItem(orderKey, JSON.stringify(columnOrder));
@@ -896,8 +946,13 @@ export function TaskTable({
   // the row's own hover preview and expanded panel put on screen, so a reader
   // who searched a line they could see got "No tasks" back.
   const matchesRow = React.useCallback(
-    (r: TaskListRow, q: string) =>
-      taskMatchesQuery(
+    (r: TaskListRow, q: string) => {
+      // Search the same human-readable values exposed by the table columns.
+      // In particular, dates use `safeFormat` so a user can type the value they
+      // see (for example, "03-Oct-2026") rather than needing a database date.
+      const isSelfRaised = r.initiatorId === r.doerId;
+      const approverStatus = taskApproverShown(r.approvalStatus, r.status, isSelfRaised);
+      return taskMatchesQuery(
         q,
         r.taskNo,
         r.title,
@@ -907,7 +962,13 @@ export function TaskTable({
         r.doerName,
         r.initiatorName,
         resolvedLabels[r.status] ?? r.status,
-      ),
+        PRIORITY_LABELS[r.priority as TaskPriority],
+        APPROVER_LABEL[approverStatus],
+        safeFormat(r.createdAt),
+        safeFormat(r.dueAt),
+        String(r.ageDays),
+      );
+    },
     [resolvedLabels],
   );
 
@@ -939,7 +1000,7 @@ export function TaskTable({
   const table = useReactTable({
     data: visibleRows,
     columns,
-    state: { columnVisibility, columnOrder, sorting: effectiveSorting, rowSelection },
+    state: { columnVisibility: effectiveColumnVisibility, columnOrder, sorting: effectiveSorting, rowSelection },
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,
     onSortingChange: handleSortingChange,
@@ -1117,8 +1178,8 @@ export function TaskTable({
 
   /** Cell (body) alignment. Headers are ALWAYS left — see `headAlign` below. */
   function alignClass(c: TaskCol): string {
-    const a = c.meta?.align;
-    return a === "center" ? "text-center" : a === "right" ? "text-right" : "text-left";
+    void c;
+    return "text-left";
   }
 
   // Frozen-column offsets, from the LIVE order — so a user who has reordered
@@ -1189,7 +1250,7 @@ export function TaskTable({
           Prev/Next pair are repeated in the table's sticky footer, beside the
           rows they describe and reachable without scrolling back up. */}
       <div
-        className="wg-rise mb-3 flex items-center gap-2 flex-wrap rounded-section border border-hairline px-3 py-2 max-md:px-3"
+        className="wg-rise mb-3 flex items-center gap-2 flex-wrap rounded-none border border-hairline px-3 py-2 max-md:px-3"
         style={{
           background:
             "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
@@ -1225,7 +1286,7 @@ export function TaskTable({
                   }
                   selectMatchingTasks(matchingTaskIds.length);
                 }}
-                className="rounded bg-altus-red px-2 py-1 text-white transition-colors hover:bg-altus-red-deep"
+                className="rounded border border-hairline-strong bg-surface-soft px-2 py-1 text-ink-soft transition-colors hover:bg-white hover:text-ink-strong"
                 title={
                   allMatchingSelected
                     ? "Clear the matching-task selection"
@@ -1257,7 +1318,10 @@ export function TaskTable({
             }}
           />
           <MobileSortControl table={table} className="hidden max-md:flex" />
-          <ColumnsMenu table={table} />
+          <ColumnsMenu
+            table={table}
+            onDoerVisibilityChange={() => setDoerVisibilityExplicit(true)}
+          />
         </div>
       </div>
 
@@ -1386,7 +1450,7 @@ export function TaskTable({
                     // HEADERS ARE ALWAYS LEFT-ALIGNED (Sir) — `alignClass` still
                     // governs the CELLS, so numeric columns keep their right-aligned
                     // values under a left-aligned label.
-                    className={`group/head sticky top-0 px-4 py-1.5 text-table-head whitespace-nowrap max-md:px-3 max-md:py-3 text-left ${frozen ? `${frozen.className} z-30` : isActions ? "right-0 z-30" : "z-20"} ${!frozen && col.meta?.wide ? "w-full" : ""} ${hide ? "max-md:hidden" : ""}`}
+                    className={`group/head relative sticky top-0 px-4 py-1.5 text-table-head whitespace-nowrap max-md:px-3 max-md:py-3 text-left ${frozen ? `${frozen.className} z-30` : isActions ? "right-0 z-30" : "z-20"} ${!frozen && col.meta?.wide ? "w-full" : ""} ${hide ? "max-md:hidden" : ""}`}
                     style={{
                       ...(frozen?.style ?? {}),
                       zIndex: frozen || isActions ? 40 : 20,
@@ -1438,7 +1502,7 @@ export function TaskTable({
                           typeof headerNode === "string" ? headerNode : h.column.id
                         }`}
                         title="Drag to reorder this column"
-                        className="mr-1 inline-flex cursor-grab align-middle text-ink-subtle opacity-0 transition-opacity hover:text-ink-strong active:cursor-grabbing group-hover/head:opacity-70"
+                        className="absolute left-1 top-1/2 inline-flex -translate-y-1/2 cursor-grab text-ink-subtle opacity-0 transition-opacity hover:text-ink-strong active:cursor-grabbing group-hover/head:opacity-70"
                       >
                         <GripVertical size={12} strokeWidth={2.4} aria-hidden />
                       </span>
@@ -1581,6 +1645,22 @@ export function TaskTable({
               )}
             <tr
               data-task-row={row.original.id}
+              draggable
+              onDragStart={(e) => {
+                // A row drag is only for the Tasks KPI strip. Controls retain
+                // their native interaction (including text selection and links).
+                if ((e.target as HTMLElement | null)?.closest("button, a, input, textarea, select, [role='button']")) {
+                  e.preventDefault();
+                  return;
+                }
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData(
+                  "application/x-altus-task",
+                  JSON.stringify({ id: row.original.id, updatedAt: row.original.updatedAt.toISOString() }),
+                );
+                // Firefox will not begin a drag unless text/plain is populated.
+                e.dataTransfer.setData("text/plain", row.original.id);
+              }}
               // `is-focused` is mirrored in CSS onto the sticky Manage cell —
               // that cell paints its own opaque background, so it has to repeat
               // the row's tints or it reads as a mismatched block at the edge.
@@ -1676,7 +1756,7 @@ export function TaskTable({
                 // instead of growing the row. Unfrozen columns keep the old
                 // behaviour: size to content, never clip, and let the table scroll.
                 const maxW = frozen
-                  ? "overflow-hidden text-ellipsis"
+                  ? "overflow-hidden"
                   : isActions
                     ? ""
                     : col.meta?.wide
@@ -1685,7 +1765,7 @@ export function TaskTable({
                 return (
                   <td
                     key={cell.id}
-                    className={`px-3 py-1 whitespace-nowrap max-md:px-3 max-md:py-2 ${maxW} ${alignClass(col)} ${hide ? "max-md:hidden" : ""} ${!frozen && col.meta?.wide ? "min-w-[280px]" : ""} ${frozen ? `${frozen.className} z-10` : ""} ${isActions ? "task-actions-cell sticky right-0 z-10" : ""}`}
+                    className={`px-4 py-1 whitespace-nowrap max-md:px-3 max-md:py-2 ${maxW} ${alignClass(col)} ${hide ? "max-md:hidden" : ""} ${!frozen && col.meta?.wide ? "min-w-[280px]" : ""} ${frozen ? `${frozen.className} z-10` : ""} ${isActions ? "task-actions-cell sticky right-0 z-10" : ""}`}
                     style={
                       isActions
                         ? { boxShadow: "-10px 0 14px -10px rgba(15,23,42,0.14)" }
@@ -2301,7 +2381,7 @@ const TaskTitleCell = React.memo(function TaskTitleCell({
         e.preventDefault();
         onOpen?.(row.id);
       }}
-      className="task-title-link text-body underline-offset-2 transition-colors"
+      className="task-title-link block truncate text-body underline-offset-2 transition-colors"
       style={{
         fontWeight: unread ? 900 : 700,
         color: unread ? "var(--color-ink-strong)" : "var(--color-ink-soft)",
@@ -2429,7 +2509,13 @@ function MobileSortControl({
 // #11 — column show/hide menu. Lists the optional columns (everything
 // except the always-on Task + Actions) with a check for visible ones.
 // `onSelect → preventDefault` keeps the menu open for multiple toggles.
-function ColumnsMenu({ table }: { table: TableInstance<TaskListRow> }) {
+function ColumnsMenu({
+  table,
+  onDoerVisibilityChange,
+}: {
+  table: TableInstance<TaskListRow>;
+  onDoerVisibilityChange?: (visible: boolean) => void;
+}) {
   const cols = table
     .getAllLeafColumns()
     .filter((c) => c.getCanHide() && c.id in COLUMN_LABELS);
@@ -2455,14 +2541,21 @@ function ColumnsMenu({ table }: { table: TableInstance<TaskListRow> }) {
           count={cols.filter((c) => c.getIsVisible()).length}
           total={cols.length}
           emptyLabel="No columns shown"
-          onSelectAll={() => cols.forEach((c) => c.toggleVisibility(true))}
-          onClear={() => cols.forEach((c) => c.toggleVisibility(false))}
+          onSelectAll={() => {
+            onDoerVisibilityChange?.(true);
+            cols.forEach((c) => c.toggleVisibility(true));
+          }}
+          onClear={() => {
+            onDoerVisibilityChange?.(false);
+            cols.forEach((c) => c.toggleVisibility(false));
+          }}
         />
         {cols.map((c) => (
           <DropdownMenuItem
             key={c.id}
             onSelect={(e) => {
               e.preventDefault();
+              if (c.id === "doerName") onDoerVisibilityChange?.(!c.getIsVisible());
               c.toggleVisibility();
             }}
           >

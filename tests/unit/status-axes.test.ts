@@ -40,11 +40,12 @@ describe("the two status axes", () => {
     ]);
   });
 
-  it("offers exactly the four initiator statuses, in order", () => {
+  it("offers exactly the five initiator statuses, in order", () => {
     expect(INITIATOR_STATUSES.map((s) => INITIATOR_STATUS_LABEL[s])).toEqual([
       "Approved",
       "Not Approved",
       "On Hold",
+      "Cancelled",
       "Archived",
     ]);
   });
@@ -79,8 +80,8 @@ describe("reading a row's status back", () => {
     expect(effectiveInitiatorStatus(null, true)).toBe("archived");
   });
 
-  it("shows the pre-split verdicts as Archived, which is what they meant", () => {
-    expect(effectiveInitiatorStatus("cancelled", false)).toBe("archived");
+  it("keeps Cancelled distinct and shows the retired transferred verdict as Archived", () => {
+    expect(effectiveInitiatorStatus("cancelled", false)).toBe("cancelled");
     expect(effectiveInitiatorStatus("transferred", false)).toBe("archived");
   });
 });
@@ -118,7 +119,7 @@ describe("who may set what", () => {
     );
   });
 
-  it("allows the initiator and the admin all four", () => {
+  it("allows the initiator and the admin all five", () => {
     expect(selectableInitiatorStatuses(actor({ isInitiator: true }))).toEqual([
       ...INITIATOR_STATUSES,
     ]);

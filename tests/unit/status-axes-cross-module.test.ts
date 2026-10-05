@@ -44,7 +44,7 @@ const DOER_LABELS = [
   "Done",
   "Abandoned",
 ];
-const INITIATOR_LABELS = ["Approved", "Not Approved", "On Hold", "Archived"];
+const INITIATOR_LABELS = ["Approved", "Not Approved", "On Hold", "Cancelled", "Archived"];
 
 describe("Tasks speaks the shared vocabulary", () => {
   it("offers the seven doer statuses in its picker", () => {

@@ -6,12 +6,12 @@ import { TaskTable } from "./task-table";
 import { SectionErrorBoundary } from "@/components/ui/section-error-boundary";
 import { TaskDetailDrawer } from "./task-detail-drawer";
 import { TasksFullscreen } from "./tasks-fullscreen";
-import { WeeklyGoalTaskGroup } from "@/components/weekly-goals/weekly-goal-task-group";
-import type { VirtualTaskRow } from "@/lib/weekly-goals/as-task-row";
 import type { TaskListRow, TaskListFilters } from "@/lib/types";
 import { taskFiltersToSearchString } from "@/lib/task-filters";
 import { type TaskStatus, type StatusColorToken } from "@/db/enums";
 import { taskDoerShown } from "@/lib/status/approver-status";
+import { doerKpiDropStatus } from "@/lib/tasks/kpi-drop";
+import { TaskKpiDropLink } from "./task-kpi-drop-link";
 
 export type KpiKey =
   | "total"
@@ -61,7 +61,12 @@ const DOER_KPI_SPECS: KpiSpec[] = [
 
 const INITIATOR_KPI_SPECS: KpiSpec[] = [
   TOTAL_KPI,
-  { key: "pending", label: "PENDING / NO VERDICT", sublabel: "Awaiting a verdict", tone: "amber" },
+  // Initiators need both verdict totals and a concise view of the doer's
+  // delivery outcome. Done/Abandoned stay Doer-axis filters; Pending/Cancelled
+  // stay Initiator-axis filters.
+  { key: "done", label: "DONE", sublabel: "Work completed", tone: "green" },
+  { key: "abandoned", label: "ABANDONED", sublabel: "Work stopped", tone: "slate" },
+  { key: "pending", label: "PENDING", sublabel: "Awaiting a verdict", tone: "amber" },
   { key: "approved", label: "APPROVED", sublabel: "Signed off", tone: "green" },
   { key: "notApproved", label: "NOT APPROVED", sublabel: "Declined", tone: "rose" },
   { key: "onHold", label: "ON HOLD", sublabel: "Paused", tone: "slate" },
@@ -86,9 +91,9 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
     dot: "bg-slate-500",
   },
   notRead: {
-    pill: "bg-slate-100 hover:bg-slate-200 text-slate-900",
-    border: "border-slate-300",
-    dot: "bg-slate-500",
+    pill: "bg-violet-50 hover:bg-violet-100 text-violet-950",
+    border: "border-violet-200",
+    dot: "bg-violet-600",
   },
   notStarted: {
     pill: "bg-indigo-50 hover:bg-indigo-100 text-indigo-950",
@@ -120,13 +125,12 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
     border: "border-red-200",
     dot: "bg-red-600",
   },
-  // Lavender, and the one pill whose fill is NOT a -50 tint: purple-100 at 70%
-  // sits about where the other five land visually, because purple-50 on this
-  // near-white page is barely a colour at all.
+  // Teal deliberately separates an initiator approval from the doer's green
+  // Done card: the two facts can coexist but must not read as one status.
   approved: {
-    pill: "bg-emerald-50 hover:bg-emerald-100 text-emerald-950",
-    border: "border-emerald-200",
-    dot: "bg-emerald-600",
+    pill: "bg-teal-50 hover:bg-teal-100 text-teal-950",
+    border: "border-teal-200",
+    dot: "bg-teal-600",
   },
   done: {
     pill: "bg-emerald-50 hover:bg-emerald-100 text-emerald-950",
@@ -134,9 +138,9 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
     dot: "bg-emerald-600",
   },
   pending: {
-    pill: "bg-stone-100 hover:bg-stone-200 text-stone-900",
-    border: "border-stone-300",
-    dot: "bg-stone-500",
+    pill: "bg-violet-50 hover:bg-violet-100 text-violet-950",
+    border: "border-violet-200",
+    dot: "bg-violet-600",
   },
   /* RED, NOT ROSE. rose-50/-100 are #fff1f2 / #ffe4e6 — pale pink, and on a
      pill that means "critical" the hue was doing the opposite of its job.
@@ -155,9 +159,9 @@ const CHIP_STYLE: Record<KpiKey, { pill: string; border: string; dot: string }> 
     dot: "bg-orange-600",
   },
   archived: {
-    pill: "bg-stone-100 hover:bg-stone-200 text-stone-900",
-    border: "border-stone-300",
-    dot: "bg-stone-600",
+    pill: "bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-950",
+    border: "border-fuchsia-200",
+    dot: "bg-fuchsia-600",
   },
 };
 
@@ -206,7 +210,6 @@ export function TaskListPage({
   statusTones,
   subjects,
   clients,
-  weeklyGoals = [],
   basePath = "/tasks",
   selectedTaskId = null,
   detail = null,
@@ -227,9 +230,6 @@ export function TaskListPage({
   /** Bulk-set option rosters, threaded down to the bulk-action bar. */
   subjects?: string[];
   clients?: string[];
-  /** This week's goals for the view's scope, surfaced as a pinned group above
-   *  the task table (design §10). Display-only; NOT counted in the stat cards. */
-  weeklyGoals?: VirtualTaskRow[];
   /** List route the summary cards link into (so Archived keeps its own scope). */
   basePath?: string;
   /** `?task=` — which record the detail drawer is showing, if any. */
@@ -240,10 +240,6 @@ export function TaskListPage({
   detail?: React.ReactNode;
   kpiView?: TaskKpiView;
 }) {
-  // Weekly goals are surfaced as a pinned group above the table but are
-  // deliberately EXCLUDED from the task stat-card counts (design §10) — the
-  // KPIs stay tasks-only.
-  //
   // Counted over `metricsRows` (the whole scope), NOT the filtered `rows`.
   // Counting the filtered set made every unselected pill read 0 the moment one
   // was clicked, which turned a summary bar into a description of itself.
@@ -416,31 +412,22 @@ export function TaskListPage({
                 );
               }
               return (
-                <Link
+                <TaskKpiDropLink
                   key={spec.key}
                   href={cardHref(spec.key)}
-                  aria-pressed={on}
-                  aria-label={`${on ? "Remove" : "Add"} ${spec.label.toLowerCase()} filter`}
-                  className="wg-rise block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+                  status={kpiView === "doer" ? doerKpiDropStatus(spec.key) : null}
+                  label={spec.label}
+                  active={on}
                   style={{ animationDelay: `${i * 30}ms` }}
                 >
                   <StatChip spec={spec} value={value} active={on} />
-                </Link>
+                </TaskKpiDropLink>
               );
             })}
           </div>
         </div>
         {/* Administrative task tools remain available in the overflow menu. */}
       </header>
-
-      {/* Pinned "This week's goals" group above the table (design §10). Admins
-          viewing the unscoped "all" list see each goal's doer name. Excluded
-          from the stat-card counts above. */}
-      <WeeklyGoalTaskGroup
-        goals={weeklyGoals}
-        showDoer={me.isAdmin && filters.assigneeMode === "all"}
-        className="mb-3"
-      />
 
       {rows.length === 0 ? (
         <div
@@ -504,6 +491,12 @@ export function TaskListPage({
               statusTones={statusTones}
               subjects={subjects}
               clients={clients}
+              hideDoerWhenOnlyMe={
+                filters.assigneeMode === "default" ||
+                (filters.assigneeMode === "specific" &&
+                  filters.doerIds.length === 1 &&
+                  filters.doerIds[0] === me.id)
+              }
               openInDrawer
             />
           </SectionErrorBoundary>

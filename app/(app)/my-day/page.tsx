@@ -17,6 +17,31 @@ import { resolvePlanTarget } from "@/lib/goals/plan-target";
 
 export const dynamic = "force-dynamic";
 
+/** Hosts Daily Commitments' date navigator and search control, matching the
+ * placement of the Tasks filter strip while the controls retain planner state. */
+function DailyCommitmentsRibbon() {
+  return (
+    <div
+      className="sticky sticky-below-topbar z-40 h-[51px] border-b border-hairline px-6 max-md:top-14 max-md:px-4"
+      style={{
+        background:
+          "radial-gradient(560px 90px at 6% 0%, color-mix(in srgb, var(--color-altus-red) 4%, transparent), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.86), rgba(250,251,252,0.80))",
+        backdropFilter: "blur(20px) saturate(150%)",
+        WebkitBackdropFilter: "blur(20px) saturate(150%)",
+        boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
+      }}
+    >
+      <div className="flex h-full w-full items-center justify-between gap-3">
+        <div id="daily-commitments-ribbon-days" className="min-w-0 overflow-x-auto no-scrollbar" />
+        <div className="relative shrink-0">
+          <div id="daily-commitments-ribbon-search" />
+          <div id="daily-commitments-ribbon-rail-toggle" className="absolute left-1/2 top-[calc(100%+8px)] z-30 -translate-x-1/2" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * WMS · Daily Goals & Commitments — the drag-drop day planner.
  *
@@ -74,6 +99,7 @@ export default async function MyDayPage({
     return (
       <>
         <DashboardHeader generatedAt={new Date()} />
+        <DailyCommitmentsRibbon />
         <PersonalWDBoard data={data} />
       </>
     );
@@ -85,6 +111,7 @@ export default async function MyDayPage({
     windowStart,
     { owner: target.name, manager: target.manager, managerManager: target.managerManager },
     windowDays,
+    { includeGoals: false },
   );
 
   return (
@@ -96,6 +123,7 @@ export default async function MyDayPage({
           it covers the viewport without ever intercepting a click or a drag. */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 bg-white" />
       <DashboardHeader generatedAt={new Date()} />
+      <DailyCommitmentsRibbon />
       {/* The tall bottom padding is for the floating dock below: it is fixed to
           the viewport, so without room reserved here the last card of a long day
           would sit permanently underneath it. */}
@@ -118,6 +146,8 @@ export default async function MyDayPage({
           payload={payload}
           dashboardHref={"/my-day/dashboard" as Route}
           quickDock
+          wmsTasksOnly
+          unruledInitiatorLabel="Not Applicable"
         />
       </PageShell>
     </>

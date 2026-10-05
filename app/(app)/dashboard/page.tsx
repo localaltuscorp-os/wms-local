@@ -27,8 +27,6 @@ import { getStatusDisplayMap } from "@/lib/queries/status-display";
 import { getMyDayCounts, getMyTodayTasks } from "@/lib/queries/my-day";
 import { MobileToday } from "@/components/dashboard/mobile-today";
 import { getCurrentEmployee } from "@/lib/auth/current";
-import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
-import { WeeklyGoalTaskGroup } from "@/components/weekly-goals/weekly-goal-task-group";
 import { parseFilters } from "@/lib/filters";
 import { defaultScopeId, opensOnEveryone } from "@/lib/auth/default-scope";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
@@ -92,7 +90,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     Awaited<ReturnType<typeof getMyDayCounts>> | null,
     Awaited<ReturnType<typeof getMyTodayTasks>> | null,
     string[],
-    Awaited<ReturnType<typeof listWeekGoalsAsTasks>>,
   ];
   try {
     loaded = await Promise.all([
@@ -102,9 +99,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       me ? getMyDayCounts(me.id).catch(() => null) : Promise.resolve(null),
       me ? getMyTodayTasks(me.id).catch(() => null) : Promise.resolve(null),
       listDistinctSubjects().catch(() => [] as string[]),
-      me
-        ? listWeekGoalsAsTasks({ scope: { employeeIds: [me.id] } }).catch(() => [])
-        : Promise.resolve([]),
     ]);
   } catch (err) {
     console.error("[dashboard] core load failed:", err);
@@ -117,7 +111,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       </>
     );
   }
-  const [allEmployees, data, statusDisplay, myDay, todayTasks, subjects, myGoals] =
+  const [allEmployees, data, statusDisplay, myDay, todayTasks, subjects] =
     loaded;
 
   const statusLabels = Object.fromEntries(
@@ -213,16 +207,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <WelcomeHero />
         ) : (
           <>
-            {/* Pinned "This week's goals" group at the top of My Day (design
-                §10) — visible on mobile Today + desktop. Display-only. */}
-            {myGoals.length > 0 && (
-              <PageShell as="div" width="full" py={false} className="mt-6">
-                {/* The section inset, so this banner's content shares the left
-                    and right edge of every section header below it — see the
-                    `inset` prop. */}
-                <WeeklyGoalTaskGroup goals={myGoals} inset="px-6 md:px-8" />
-              </PageShell>
-            )}
             {mobileToday && me && (
               <div className="md:hidden">
                 <MobileToday

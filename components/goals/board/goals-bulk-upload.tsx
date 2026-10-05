@@ -197,6 +197,8 @@ interface Props {
   typeOptions: string[];
   /** Roster for the in-grid delegate search picker. */
   roster: RosterMember[];
+  /** Compact trigger for a dense page command bar; the upload flow is unchanged. */
+  compact?: boolean;
 }
 
 export function GoalsBulkUpload(props: Props) {
@@ -382,7 +384,7 @@ export function GoalsBulkUpload(props: Props) {
           setOpen(true);
           reset();
         }}
-        className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border px-3.5 text-[13px] font-bold transition-all cursor-pointer hover:border-hairline-strong hover:text-ink-strong ${FOCUS_RING}`}
+        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border font-bold transition-all cursor-pointer hover:border-hairline-strong hover:text-ink-strong ${props.compact ? "h-8 px-2.5 text-[12px]" : "h-9 px-3.5 text-[13px]"} ${FOCUS_RING}`}
         style={{
           background: "var(--color-surface-card)",
           borderColor: "var(--color-hairline)",

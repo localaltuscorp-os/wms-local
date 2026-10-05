@@ -28,8 +28,10 @@ export function KanbanAxisToggle({ axis }: { axis: StatusAxis }) {
     const sp = new URLSearchParams(params.toString());
     // "doer" is the default, so it stays out of the URL — a clean link for the
     // common case, an explicit one only where it changes something.
-    if (next === "doer") sp.delete("axis");
-    else sp.set("axis", next);
+    // Share FilterBar's source of truth so the board and KPI strip switch with
+    // the page-level Doer / Initiator control.
+    sp.set("view", next);
+    sp.delete("axis");
     const qs = sp.toString();
     router.push((qs ? `${pathname}?${qs}` : pathname) as Route);
   }

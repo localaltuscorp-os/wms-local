@@ -117,14 +117,6 @@ export function HrModuleRail({
           className="flex flex-col items-center gap-3 rounded-xl py-1 text-center transition-opacity hover:opacity-80"
           title="Back to Hub"
         >
-          {/* The same /logo.png at the same height as the other rails. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo.png"
-            alt="Altus Corp"
-            className={cn("w-auto", collapsed ? "h-12" : "h-[68px]")}
-            style={{ display: "block" }}
-          />
           {/* Collapsed, the gradient TILE stays and only the WORDMARK TEXT goes —
               exactly what the global rail does, where the hiding is done in CSS
               (`.sidebar-rail[data-collapsed="true"] .module-wordmark-text`).

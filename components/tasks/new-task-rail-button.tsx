@@ -73,14 +73,13 @@ export function NewTaskRailButton() {
                     dismissHint();
                     window.dispatchEvent(new Event(NEW_TASK_OPEN_EVENT));
                   }}
-                  className="group relative inline-flex w-full items-center justify-center gap-2 rounded-2xl text-white font-semibold outline-none focus-visible:ring-2 focus-visible:ring-white/60 px-4 py-2.5 max-md:gap-0 max-md:size-10 max-md:p-0 max-md:justify-center"
+                  className="group relative inline-flex w-full items-center justify-center gap-2 rounded-2xl font-semibold text-altus-red outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 px-4 py-2.5 max-md:gap-0 max-md:size-10 max-md:p-0 max-md:justify-center"
                   style={{
                     fontSize: 14,
                     letterSpacing: "0.005em",
-                    background:
-                      "linear-gradient(135deg, rgb(212, 6, 0), rgb(160, 4, 0))",
-                    boxShadow:
-                      "0 2px 6px rgba(120, 3, 0, 0.20), inset 0 0 0 1px rgba(255,255,255,0.16)",
+                    background: "color-mix(in srgb, var(--color-altus-red) 7%, var(--color-surface-card))",
+                    border: "1px solid var(--color-altus-red)",
+                    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
                     transition:
                       "transform 180ms ease, box-shadow 220ms ease, filter 180ms ease",
                     animation:
@@ -90,12 +89,12 @@ export function NewTaskRailButton() {
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = "scale(1.02)";
                     e.currentTarget.style.boxShadow =
-                      "0 4px 12px rgba(120, 3, 0, 0.28), inset 0 0 0 1px rgba(255,255,255,0.22)";
+                      "0 6px 16px rgba(15, 23, 42, 0.08)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "";
                     e.currentTarget.style.boxShadow =
-                      "0 2px 6px rgba(120, 3, 0, 0.20), inset 0 0 0 1px rgba(255,255,255,0.16)";
+                      "0 1px 2px rgba(15, 23, 42, 0.06)";
                   }}
                 >
                   <Plus size={15} strokeWidth={2.6} />
@@ -110,9 +109,9 @@ export function NewTaskRailButton() {
                       fontSize: 10.5,
                       fontWeight: 700,
                       borderRadius: 5,
-                      color: "rgba(255,255,255,0.95)",
-                      background: "rgba(255,255,255,0.18)",
-                      boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.25)",
+                      color: "var(--color-altus-red)",
+                      background: "color-mix(in srgb, var(--color-altus-red) 18%, transparent)",
+                      boxShadow: "none",
                       letterSpacing: 0,
                     }}
                   >

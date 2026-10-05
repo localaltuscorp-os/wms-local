@@ -36,7 +36,6 @@ import {
   saveLookupDefaultsAction,
 } from "@/app/(app)/billing/customers/actions";
 import { ConfirmDelete } from "@/components/billing/confirm-destructive";
-import { FullscreenToggle } from "@/components/masters/fullscreen-toggle";
 
 /**
  * CUSTOMER MASTER DD — the configuration screen for every editable dropdown on
@@ -143,7 +142,6 @@ export function DropdownMasterView({ lists }: { lists: LookupListState[] }) {
           >
             Customer Master DD
           </h1>
-          <FullscreenToggle />
         </div>
       </header>
 

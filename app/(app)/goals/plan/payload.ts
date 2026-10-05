@@ -569,7 +569,9 @@ export async function getPlanDayPayload(
   windowStart: number = 0,
   hierarchy: PlanHierarchy = { manager: null, managerManager: null },
   windowDays: number = PLAN_WINDOW_DAYS,
+  options: { includeGoals?: boolean } = {},
 ): Promise<PlanDayPayload> {
+  const includeGoals = options.includeGoals ?? true;
   const days_ = clampWindowDays(windowDays);
   const start = clampWindowStart(windowStart, days_);
   const today = todayYmd(now);
@@ -592,7 +594,7 @@ export async function getPlanDayPayload(
     ymds
       .filter((_, i) => (offsets[i] ?? 0) >= 0)
       .flatMap((ymd) => [
-        materialiseGoalsDueOn(employeeId, ymd).catch(() => {}),
+        ...(includeGoals ? [materialiseGoalsDueOn(employeeId, ymd).catch(() => {})] : []),
         materialiseTasksDueOn(employeeId, ymd).catch(() => {}),
       ]),
   );
@@ -600,10 +602,10 @@ export async function getPlanDayPayload(
   const [rows, weekly, monthG, quarterG, yearG, openTasks, unfinishedRows, pendingRows, isManager, hoursRow, dayRow] =
     await Promise.all([
       planRowsForDays(employeeId, ymds),
-      listGoalsForPlanner(employeeId, now),
-      getPeriodGoals(employeeId, "month", monthKey(now)),
-      getPeriodGoals(employeeId, "quarter", quarterKey(now)),
-      getPeriodGoals(employeeId, "year", yearKey(now)),
+      includeGoals ? listGoalsForPlanner(employeeId, now) : Promise.resolve([]),
+      includeGoals ? getPeriodGoals(employeeId, "month", monthKey(now)) : Promise.resolve([]),
+      includeGoals ? getPeriodGoals(employeeId, "quarter", quarterKey(now)) : Promise.resolve([]),
+      includeGoals ? getPeriodGoals(employeeId, "year", yearKey(now)) : Promise.resolve([]),
       // WMS To-Do source. The column filters by OVERDUE BUCKET itself, so it
       // needs the whole open set to filter over — a horizon here would make
       // "All" quietly mean "the next N days". Anything already filed on a
@@ -633,15 +635,16 @@ export async function getPlanDayPayload(
 
   // Cascade provenance (0141, guarded) — without it a GOAL pulled onto a day
   // is indistinguishable from a typed commitment and would wear the wrong tag.
-  const cascadeLevels = await cascadeGoalLevels(rows.map((r) => r.id));
+  const visibleRows = includeGoals ? rows : rows.filter((row) => row.origin !== "goal_related");
+  const cascadeLevels = includeGoals ? await cascadeGoalLevels(visibleRows.map((r) => r.id)) : new Map<string, PlanKind>();
 
   // ONE round-trip for the whole window, not one per day column.
-  const dailyAxes = await loadDailyAxes(rows.map((r) => r.id));
+  const dailyAxes = await loadDailyAxes(visibleRows.map((r) => r.id));
 
   const days: PlanDayColumn[] = offsets.map((offset, i) => {
     const ymd = ymds[i]!;
     const { word, date } = dayLabels(ymd, offset);
-    const items: PlanItem[] = rows
+    const items: PlanItem[] = visibleRows
       .filter((r) => r.planDate === ymd)
       .map((r) => {
         const effDue = r.taskId
@@ -692,8 +695,8 @@ export async function getPlanDayPayload(
 
   // Everything already filed on ANY of the visible days, so a source card can't
   // be offered twice.
-  const plannedGoalIds = new Set(rows.map((r) => r.goalId).filter(Boolean) as string[]);
-  const plannedTaskIds = new Set(rows.map((r) => r.taskId).filter(Boolean) as string[]);
+  const plannedGoalIds = new Set(visibleRows.map((r) => r.goalId).filter(Boolean) as string[]);
+  const plannedTaskIds = new Set(visibleRows.map((r) => r.taskId).filter(Boolean) as string[]);
 
   const sources = {
     weekly: weekly.map<SourceItem>((g) => ({
@@ -729,7 +732,11 @@ export async function getPlanDayPayload(
         timeLabel: taskBlockLabel(t),
       };
     }),
-    unfinished: buildUnfinished([...pendingRows, ...unfinishedRows], plannedGoalIds, plannedTaskIds),
+    unfinished: buildUnfinished(
+      includeGoals ? [...pendingRows, ...unfinishedRows] : [...pendingRows, ...unfinishedRows].filter((row) => !row.goalId),
+      plannedGoalIds,
+      plannedTaskIds,
+    ),
   };
 
   // THE TIMELINE AXIS — the person's OWN working hours (employees.working_hours_*),

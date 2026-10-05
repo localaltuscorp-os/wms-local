@@ -91,6 +91,7 @@ import {
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { Route } from "next";
+import { createPortal } from "react-dom";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { CompactSelect } from "@/components/ui/compact-select";
 
@@ -141,6 +142,10 @@ interface Props {
    * the canvas. The Daily Goals page passes it; nothing else does.
    */
   quickDock?: boolean;
+  /** WMS Daily Commitments excludes all Goal-derived work and pull sources. */
+  wmsTasksOnly?: boolean;
+  /** Display-only label for an unruled task approval on this surface. */
+  unruledInitiatorLabel?: string;
 }
 
 const GOALS_ACCENT = "#E10600";
@@ -166,11 +171,26 @@ const nonGhost = (items: PlanItem[]) => items.filter((i) => i.id !== GHOST_ID);
  * the four decisions (Done / → tomorrow / → day after / Pending). There is no
  * percentage anywhere: a commitment was delivered or it wasn't.
  */
-export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Props) {
+export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTasksOnly = false, unruledInitiatorLabel }: Props) {
   const [phase, setPhase] = React.useState(payload.initialPhase);
   const [starting, setStarting] = React.useState(false);
-  const [days, setDays] = React.useState<PlanDayColumn[]>(payload.days);
-  const [src, setSrc] = React.useState<PlanSources>(payload.sources);
+  const [days, setDays] = React.useState<PlanDayColumn[]>(() =>
+    wmsTasksOnly
+      ? payload.days.map((day) => ({ ...day, items: day.items.filter((item) => item.origin === "standalone") }))
+      : payload.days,
+  );
+  const [src, setSrc] = React.useState<PlanSources>(() =>
+    wmsTasksOnly
+      ? {
+          ...payload.sources,
+          weekly: [],
+          monthly: [],
+          quarterly: [],
+          yearly: [],
+          unfinished: payload.sources.unfinished.filter((item) => item.originKind !== "weekly"),
+        }
+      : payload.sources,
+  );
   const [busyId, setBusyId] = React.useState<string | null>(null);
   // The pull rail folds away like the app sidebar does, giving the three day
   // columns the whole width when you're only reading the plan (Sir).
@@ -182,6 +202,24 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
   // board already holds the whole window, so typing filters instantly with no
   // round-trip and no spinner.
   const [query, setQuery] = React.useState("");
+  const [ribbonSearchTarget, setRibbonSearchTarget] = React.useState<HTMLElement | null>(null);
+  const [ribbonDaysTarget, setRibbonDaysTarget] = React.useState<HTMLElement | null>(null);
+  const [ribbonRailToggleTarget, setRibbonRailToggleTarget] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    if (!dashboardHref) return;
+    // These hosts are rendered by the server-owned page shell, so they only
+    // exist after mount. Keeping this in an effect also avoids an SSR/client
+    // mismatch in the planner bar before its portal can be attached.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRibbonSearchTarget(document.getElementById("daily-commitments-ribbon-search"));
+    setRibbonDaysTarget(document.getElementById("daily-commitments-ribbon-days"));
+    setRibbonRailToggleTarget(document.getElementById("daily-commitments-ribbon-rail-toggle"));
+    return () => {
+      setRibbonSearchTarget(null);
+      setRibbonDaysTarget(null);
+      setRibbonRailToggleTarget(null);
+    };
+  }, [dashboardHref]);
   // How each day column is ordered. ALWAYS opens on Oldest → Newest, and is
   // deliberately NOT persisted to the URL or storage: the default is the
   // product rule, so a stale "newest" must never be what greets you tomorrow.
@@ -903,13 +941,94 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
       onAddCommitment={focusAddCommitment}
       onCloseout={() => setPhase("closeout")}
       dashboardHref={dashboardHref}
+      searchPortalTarget={ribbonSearchTarget}
+      actionsInRibbon={Boolean(ribbonDaysTarget)}
     />
   );
 
   // The day strip sits INSIDE the DndContext on purpose: every tab is a drop
   // target, so a card can be dragged straight onto a day the kanban isn't
   // currently showing. It steps aside during the review, which is today-only.
-  const dayStrip = (
+  const ribbonPersonSelect = ribbonDaysTarget && target.roster.length > 1 ? (
+    <CompactSelect
+      value={target.employeeId}
+      onChange={(employeeId) => goToWindow(windowStart, employeeId)}
+      aria-label="Whose day to plan"
+      required
+      className="h-7 w-[145px] shrink-0 self-center rounded-[11px] border border-hairline-strong bg-surface-card px-2 text-[13px] font-bold text-ink-strong shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-hairline-strong"
+      options={target.roster.map((r) => ({ value: r.id, label: r.name }))}
+    />
+  ) : null;
+
+  const ribbonActions = ribbonDaysTarget ? (
+    <>
+      {!reviewing ? (
+        <button
+          type="button"
+          onClick={focusAddCommitment}
+          title="Add a commitment (C)"
+          aria-label="Add a commitment"
+          aria-keyshortcuts="C"
+          className="inline-flex h-7 w-[72px] self-center items-center justify-center gap-1 rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors focus-visible:outline-2"
+          style={{
+            borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
+            color: GOALS_ACCENT_DEEP,
+            background: `color-mix(in srgb, ${GOALS_ACCENT} 6%, transparent)`,
+            outlineColor: GOALS_ACCENT,
+          }}
+        >
+          <Plus size={13} /> Add
+        </button>
+      ) : null}
+      {reviewing || windowStart !== 0 ? null : phase === "plan" ? (
+        <button
+          type="button"
+          onClick={onStartDay}
+          disabled={!met || starting}
+          title={met ? "Start my day" : `Plan at least ${minItems} items on Today to start`}
+          className="inline-flex h-7 w-[122px] self-center items-center justify-center gap-1 rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors disabled:opacity-40 focus-visible:outline-2"
+          style={{
+            borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
+            color: GOALS_ACCENT_DEEP,
+            background: `color-mix(in srgb, ${GOALS_ACCENT} 6%, transparent)`,
+            outlineColor: GOALS_ACCENT,
+          }}
+        >
+          {starting ? <Loader2 size={13} className="animate-spin" /> : <Sunrise size={13} />} Start My Day
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPhase("closeout")}
+          className="inline-flex h-7 w-[122px] self-center items-center justify-center gap-1 rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors focus-visible:outline-2"
+          style={{
+            borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
+            color: GOALS_ACCENT_DEEP,
+            background: `color-mix(in srgb, ${GOALS_ACCENT} 6%, transparent)`,
+            outlineColor: GOALS_ACCENT,
+          }}
+        >
+          <ClipboardCheck size={13} /> Review My Day
+        </button>
+      )}
+      {dashboardHref ? (
+        <Link
+          href={dashboardHref}
+          className="inline-flex h-7 w-[110px] self-center items-center justify-center gap-1 rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors focus-visible:outline-2"
+          style={{
+            borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
+            color: GOALS_ACCENT_DEEP,
+            background: `color-mix(in srgb, ${GOALS_ACCENT} 6%, transparent)`,
+            outlineColor: GOALS_ACCENT,
+          }}
+        >
+          <LayoutDashboard size={13} /> Dashboard
+        </Link>
+      ) : null}
+    </>
+  ) : null;
+
+  const daySwitcher = (
     <DaySwitcher
       tabs={payload.tabs}
       windowStart={windowStart}
@@ -925,6 +1044,9 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
       railOpen={railOpen}
       onToggleRail={() => setRailOpen((v) => !v)}
       onPick={(off) => goToWindow(Math.min(off, maxWindowStart))}
+      compact={Boolean(ribbonDaysTarget)}
+      ribbonLeading={ribbonPersonSelect}
+      ribbonActions={ribbonActions}
       // Switching span re-clamps the start, so going 3 → 7 near the far end
       // can't leave the board beginning past the last planner day.
       // Switching span re-clamps the start, so widening near the far end can
@@ -932,6 +1054,21 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
       onSpan={(d) => goToWindow(Math.min(windowStart, Math.max(0, 28 - d)), target.employeeId, d)}
     />
   );
+  const dayStrip = ribbonDaysTarget ? createPortal(daySwitcher, ribbonDaysTarget) : daySwitcher;
+  const railRestoreButton = ribbonRailToggleTarget && !railOpen
+    ? createPortal(
+        <button
+          type="button"
+          onClick={() => setRailOpen(true)}
+          aria-label="Show Pull Work"
+          title="Show Pull Work"
+          className="inline-flex size-7 items-center justify-center rounded-[11px] border border-hairline-strong bg-surface-card text-ink-soft shadow-[0_4px_14px_rgba(15,23,42,0.12)] transition-colors hover:border-altus-red hover:text-altus-red focus-visible:outline-2 focus-visible:outline-altus-red"
+        >
+          <PanelRightOpen size={15} aria-hidden />
+        </button>,
+        ribbonRailToggleTarget,
+      )
+    : null;
 
   // A started day shows its own screen — UNLESS you asked to adjust the plan,
   // in which case the board comes back with the day still running.
@@ -991,6 +1128,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
     >
       {header}
       {dayStrip}
+      {railRestoreButton}
       {onReviewScreen ? (
         reviewScreen
       ) : (
@@ -1007,7 +1145,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
               (Sir), so a wide view stays readable instead of shrinking every card
               to a sliver. */}
           <div
-            className="grid min-w-0 gap-3 max-md:grid-cols-1"
+            className="group relative grid min-w-0 gap-3 max-md:grid-cols-1"
             style={{
               gridTemplateColumns:
                 shownDays.length > 3
@@ -1032,22 +1170,27 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock }: Pro
                 onSetTime={onSetTime}
                 searching={searching}
                 onAddCommitment={onAddCommitment}
+                unruledInitiatorLabel={unruledInitiatorLabel}
               />
             ))}
           </div>
 
           {railOpen ? (
-            <SourceRail
-              sources={src}
-              today={todayYmd}
-              addDayLabel={firstDay?.offset === 0 ? "Today" : (firstDay?.date ?? "Today")}
-              onAdd={onAddSource}
-              onAddOn={onAddSourceOn}
-              onAbandon={onAbandon}
-              onCollapse={() => setRailOpen(false)}
-              matches={matches}
-              searching={searching}
-            />
+            <div className="group relative min-w-0">
+              <PullRailCollapseHandle onCollapse={() => setRailOpen(false)} />
+              <SourceRail
+                sources={src}
+                today={todayYmd}
+                addDayLabel={firstDay?.offset === 0 ? "Today" : (firstDay?.date ?? "Today")}
+                onAdd={onAddSource}
+                onAddOn={onAddSourceOn}
+                onAbandon={onAbandon}
+                onCollapse={() => setRailOpen(false)}
+                matches={matches}
+                searching={searching}
+                hideGoals={wmsTasksOnly}
+              />
+            </div>
           ) : null}
         </div>
       )}
@@ -1106,6 +1249,8 @@ function PlannerBar({
   onAddCommitment,
   onCloseout,
   dashboardHref,
+  searchPortalTarget,
+  actionsInRibbon = false,
 }: {
   target: PlanTargetProp;
   hierarchy: PlanDayPayload["hierarchy"];
@@ -1130,10 +1275,40 @@ function PlannerBar({
   onCloseout: () => void;
   /** Daily Goals → Dashboard. Absent on every surface but Daily Goals. */
   dashboardHref?: Route;
+  searchPortalTarget?: HTMLElement | null;
+  actionsInRibbon?: boolean;
 }) {
   const reportsTo = [hierarchy.manager, hierarchy.managerManager].filter(Boolean) as string[];
+  const ribbonSearch = searchPortalTarget
+    ? createPortal(
+        <CollapsibleSearch scope="daily commitments" className="size-9">
+          <label className="relative inline-flex items-center">
+            <Search size={14} className="pointer-events-none absolute left-2.5 text-ink-muted" aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => onQuery(e.target.value)}
+              placeholder="Search commitments..."
+              aria-label="Search daily commitments"
+              className="h-9 w-[260px] rounded-xl border border-hairline bg-surface-card pl-9 pr-8 text-[13px] text-ink-strong outline-none placeholder:text-ink-muted/70 hover:border-hairline-strong focus:border-altus-red max-md:w-[190px]"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => onQuery("")}
+                aria-label="Clear search"
+                className="absolute right-1.5 inline-flex size-6 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong"
+              >
+                <X size={13} />
+              </button>
+            ) : null}
+          </label>
+        </CollapsibleSearch>,
+        searchPortalTarget,
+      )
+    : null;
   return (
     <div className="mb-2 flex flex-nowrap items-center gap-x-3">
+      {ribbonSearch}
       {/* NO TITLE HERE. The global top bar already names this page — it said
           "Daily Goals" while this row said "Daily Goals & Commitments" directly
           underneath, which is the same page named twice. The bar's name is the
@@ -1142,7 +1317,7 @@ function PlannerBar({
           instead of after a heading. */}
       {/* WHOSE day. The caption is gone — the selected name says it, and the
           "Reports to …" line beside it gives the org context (rule 9). */}
-      {target.roster.length > 1 ? (
+      {!actionsInRibbon && target.roster.length > 1 ? (
         <CompactSelect
           value={target.employeeId}
           onChange={onPerson}
@@ -1171,7 +1346,7 @@ function PlannerBar({
 
       {/* SEARCH — filters the columns AND the pull rail as you type. Sits after
           the reporting line and before the day's own buttons (Sir). */}
-      <CollapsibleSearch scope="tasks" className="relative -top-[3px] size-9">
+      {!searchPortalTarget && <CollapsibleSearch scope="tasks" className="relative -top-[3px] size-9">
       <label className="relative -top-[3px] inline-flex min-w-0 shrink items-center">
         <Search size={14} className="pointer-events-none absolute left-2.5 shrink-0 text-ink-muted" aria-hidden />
         <input
@@ -1192,7 +1367,7 @@ function PlannerBar({
           </button>
         ) : null}
       </label>
-      </CollapsibleSearch>
+      </CollapsibleSearch>}
 
       {/* The header's right-hand cluster — ONE ROW: Recycle Bin · Add ·
           Start/Review My Day · Dashboard.
@@ -1226,7 +1401,7 @@ function PlannerBar({
           drops the cursor straight into the day column's own composer, which is
           where the commitment actually lands. Pressing C still does the same,
           and the key is named on the button so it can be discovered. */}
-      {reviewing ? null : (
+      {!actionsInRibbon && !reviewing ? (
         <button
           type="button"
           onClick={onAddCommitment}
@@ -1243,9 +1418,9 @@ function PlannerBar({
         >
           <Plus size={13} /> Add
         </button>
-      )}
+      ) : null}
 
-      {reviewing || windowStart !== 0 ? null : phase === "plan" ? (
+      {actionsInRibbon || reviewing || windowStart !== 0 ? null : phase === "plan" ? (
         <button
           type="button"
           onClick={onStart}
@@ -1279,7 +1454,7 @@ function PlannerBar({
           h-8 and text-[11.5px] to match Add and Start My Day beside it. On its
           own line the old py-1.5/text-[12px] passed unnoticed; in the row it
           would have stood a couple of pixels taller than everything else. */}
-      {dashboardHref ? (
+      {!actionsInRibbon && dashboardHref ? (
         <Link
           href={dashboardHref}
           className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-chip border px-3 text-[11.5px] font-bold transition-colors focus-visible:outline-2"
@@ -1316,11 +1491,13 @@ function DayTab({
   lead,
   inWindow,
   onPick,
+  compact = false,
 }: {
   t: PlanDayTab;
   lead: boolean;
   inWindow: boolean;
   onPick: (off: number) => void;
+  compact?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `${DAY_TAB_DROP}${t.offset}` });
   return (
@@ -1330,7 +1507,7 @@ function DayTab({
       role="tab"
       aria-selected={lead}
       onClick={() => onPick(t.offset)}
-      className={`flex min-w-[62px] shrink-0 flex-col items-center rounded-lg px-2.5 py-1 leading-tight transition-colors ${
+      className={`flex shrink-0 flex-col items-center justify-center rounded-lg leading-tight transition-colors ${compact ? "h-7 min-w-[51px] px-1 py-0" : "min-w-[62px] px-2.5 py-1"} ${
         lead ? "text-white" : "text-ink-soft hover:bg-surface-soft hover:text-ink-strong"
       }`}
       style={
@@ -1350,8 +1527,8 @@ function DayTab({
               : undefined
       }
     >
-      <span className="text-[12.5px] font-bold">{t.word}</span>
-      <span className={`text-[10.5px] font-semibold tabular-nums ${lead ? "opacity-85" : "text-ink-subtle"}`}>
+      <span className={compact ? "text-[10.5px] font-bold" : "text-[12.5px] font-bold"}>{t.word}</span>
+      <span className={`${compact ? "text-[8px]" : "text-[10.5px]"} font-semibold tabular-nums ${lead ? "opacity-85" : "text-ink-subtle"}`}>
         {t.date}
       </span>
     </button>
@@ -1381,6 +1558,9 @@ function DaySwitcher({
   onPick,
   onSpan,
   onToggleRail,
+  compact = false,
+  ribbonLeading,
+  ribbonActions,
 }: {
   tabs: PlanDayTab[];
   windowStart: number;
@@ -1399,6 +1579,12 @@ function DaySwitcher({
   onPick: (off: number) => void;
   onSpan: (days: number) => void;
   onToggleRail: () => void;
+  /** Use smaller controls when the switcher is hosted in the narrow page ribbon. */
+  compact?: boolean;
+  /** Content that belongs immediately before the day-count control in the page ribbon. */
+  ribbonLeading?: React.ReactNode;
+  /** Planner actions that belong beside Pull Work when this strip is in the page ribbon. */
+  ribbonActions?: React.ReactNode;
 }) {
   /* ONE DAY PER CLICK, not one week.
 
@@ -1418,18 +1604,19 @@ function DaySwitcher({
     onPick(Math.max(minWindowStart, Math.min(maxWindowStart, windowStart + delta)));
 
   return (
-    <div className="mb-2.5 flex items-stretch gap-1.5">
+    <div className={`${compact ? "mb-0 w-max min-w-max gap-1" : "mb-2.5 gap-1.5"} flex items-stretch`}>
       <StripNavButton
         label="Previous day"
         disabled={!canPrev}
         onClick={() => page(-1)}
         icon={<ChevronLeft size={15} />}
+        compact={compact}
       />
 
       {/* w-fit, NOT flex-1 — the strip used to stretch the full width and left
           a dead gap after the last tab, pushing › to the far edge (Sir). */}
       <div
-        className="flex w-fit min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-hairline bg-surface-card p-0.5"
+        className={`${compact ? "max-w-none overflow-visible" : "min-w-0 max-w-full overflow-x-auto"} flex w-fit items-center gap-1 rounded-xl border border-hairline bg-surface-card p-0.5`}
         role="tablist"
         aria-label="Choose which days to plan"
       >
@@ -1440,6 +1627,7 @@ function DaySwitcher({
             lead={t.offset === windowStart}
             inWindow={windowOffsets.includes(t.offset)}
             onPick={onPick}
+            compact={compact}
           />
         ))}
       </div>
@@ -1449,6 +1637,7 @@ function DaySwitcher({
         disabled={!canNext}
         onClick={() => page(1)}
         icon={<ChevronRight size={15} />}
+        compact={compact}
       />
 
       {/* OUTSIDE the strip, set apart from the arrow (Sir) — they control how
@@ -1459,13 +1648,14 @@ function DaySwitcher({
           end of the page, and `items-stretch` on the row above gives all three
           the strip's own height. Nothing here is a fixed size — a longer strip
           simply takes more of the row and these take less. */}
-      <div className="ml-4 flex min-w-0 flex-1 items-stretch gap-1.5">
+      <div className={`${compact ? "ml-2 flex-none gap-1" : "ml-4 min-w-0 flex-1 gap-1.5"} flex items-stretch`}>
+      {ribbonLeading}
       {showSpan ? (
         <select
           value={windowDays}
           onChange={(e) => onSpan(Number(e.target.value))}
           aria-label="How many days to show"
-          className="min-w-0 flex-1 rounded-xl border border-hairline bg-surface-card px-3 text-center text-[15px] font-bold text-ink-strong outline-none hover:border-hairline-strong focus:border-altus-red"
+          className={`${compact ? "h-7 w-[112px] self-center rounded-[11px] border-hairline-strong px-2 text-[13px] shadow-[0_1px_2px_rgba(15,23,42,0.05)]" : "min-w-0 flex-1 rounded-xl border-hairline px-3 text-[15px]"} border bg-surface-card text-center font-bold text-ink-strong outline-none hover:border-hairline-strong focus:border-altus-red`}
         >
           <option value={1}>1 day</option>
           <option value={2}>2 days</option>
@@ -1479,22 +1669,24 @@ function DaySwitcher({
           neither changes the plan, both change what of it you are looking at.
           It is a VIEW over each column (lib/goals/plan-sort.ts) — drag-to-reorder
           still writes the real order underneath, and is what breaks ties here. */}
-      <select
-        value={sort}
-        onChange={(e) => onSort(e.target.value as PlanSort)}
-        aria-label="Order the day's work"
-        className="min-w-0 flex-1 rounded-xl border border-hairline bg-surface-card px-3 text-center text-[15px] font-bold text-ink-strong outline-none hover:border-hairline-strong focus:border-altus-red"
-      >
-        <option value="oldest">{PLAN_SORT_LABELS.oldest}</option>
-        <option value="newest">{PLAN_SORT_LABELS.newest}</option>
-      </select>
+      {!compact ? (
+        <select
+          value={sort}
+          onChange={(e) => onSort(e.target.value as PlanSort)}
+          aria-label="Order the day's work"
+          className="min-w-0 flex-1 rounded-xl border border-hairline bg-surface-card px-3 text-center text-[15px] font-bold text-ink-strong outline-none hover:border-hairline-strong focus:border-altus-red"
+        >
+          <option value="oldest">{PLAN_SORT_LABELS.oldest}</option>
+          <option value="newest">{PLAN_SORT_LABELS.newest}</option>
+        </select>
+      ) : null}
 
       <button
         type="button"
         onClick={() => onPick(0)}
         disabled={windowStart === 0}
         title="Back to today"
-        className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 text-[15px] font-bold transition-colors disabled:opacity-40"
+        className={`${compact ? "h-7 w-[112px] self-center gap-1 rounded-[11px] px-2 text-[13px] shadow-[0_1px_2px_rgba(15,23,42,0.05)]" : "min-w-0 flex-1 gap-1.5 rounded-xl px-3 text-[15px]"} inline-flex items-center justify-center border font-bold transition-colors disabled:opacity-40`}
         style={{
           borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 30%, transparent)`,
           color: GOALS_ACCENT_DEEP,
@@ -1510,20 +1702,23 @@ function DaySwitcher({
           so the same button you reached for is the one that puts it away.
           Pressed state is shown, not just implied — the button stays lit while
           the rail is open so you can see which way the switch is thrown. */}
-      <button
-        type="button"
-        onClick={onToggleRail}
-        aria-expanded={railOpen}
-        title={railOpen ? "Hide the work panel" : "Show WMS To-Do, Goals and Unfinished"}
-        className={
-          "inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 text-[15px] font-bold transition-colors " +
-          (railOpen
-            ? "border-hairline-strong bg-surface-soft text-ink-strong"
-            : "border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong")
-        }
-      >
-        <PanelRightOpen size={16} /> Pull Work
-      </button>
+      {!compact ? (
+        <button
+          type="button"
+          onClick={onToggleRail}
+          aria-expanded={railOpen}
+          title={railOpen ? "Hide the work panel" : "Show work panel"}
+          className={
+            "inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 text-[15px] font-bold transition-colors " +
+            (railOpen
+              ? "border-hairline-strong bg-surface-soft text-ink-strong"
+              : "border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong")
+          }
+        >
+          <PanelRightOpen size={16} /> Pull Work
+        </button>
+      ) : null}
+      {ribbonActions}
       </div>
     </div>
   );
@@ -1535,11 +1730,13 @@ function StripNavButton({
   disabled,
   onClick,
   icon,
+  compact = false,
 }: {
   label: string;
   disabled: boolean;
   onClick: () => void;
   icon: React.ReactNode;
+  compact?: boolean;
 }) {
   return (
     <button
@@ -1548,9 +1745,53 @@ function StripNavButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl border border-hairline bg-surface-card text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong disabled:opacity-30 disabled:hover:border-hairline"
+      className={`${compact ? "size-7 self-center rounded-[11px] border-hairline-strong shadow-[0_1px_2px_rgba(15,23,42,0.05)]" : "size-8 rounded-xl border-hairline"} inline-flex shrink-0 items-center justify-center border bg-surface-card text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong disabled:opacity-30 disabled:hover:border-hairline`}
     >
       {icon}
+    </button>
+  );
+}
+
+/**
+ * Divider handle for the Pull Work rail. A rightward drag means the planner
+ * should take that space back; a click is the keyboard/mouse shortcut for the
+ * same collapse action. The rail itself remains available through Pull Work.
+ */
+function PullRailCollapseHandle({ onCollapse }: { onCollapse: () => void }) {
+  const startX = React.useRef<number | null>(null);
+  const didDrag = React.useRef(false);
+
+  return (
+    <button
+      type="button"
+      aria-label="Hide Pull Work"
+      title="Drag right or click to hide Pull Work"
+      onClick={() => {
+        if (!didDrag.current) onCollapse();
+        didDrag.current = false;
+      }}
+      onPointerDown={(event) => {
+        startX.current = event.clientX;
+        didDrag.current = false;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerUp={(event) => {
+        const deltaX = startX.current === null ? 0 : event.clientX - startX.current;
+        const movedRight = deltaX >= 24;
+        didDrag.current = Math.abs(deltaX) >= 4;
+        startX.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        if (movedRight) onCollapse();
+      }}
+      onPointerCancel={() => {
+        startX.current = null;
+      }}
+      className="absolute -left-7 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border border-hairline-strong bg-surface-card text-ink-soft opacity-0 shadow-[0_4px_14px_rgba(15,23,42,0.12)] transition-all group-hover:opacity-100 hover:border-altus-red hover:text-altus-red focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-altus-red"
+      style={{ touchAction: "none" }}
+    >
+      <ChevronLeft size={16} aria-hidden />
     </button>
   );
 }
@@ -1593,6 +1834,7 @@ function SourceRail({
   onCollapse,
   matches,
   searching,
+  hideGoals = false,
 }: {
   sources: PlanSources;
   today: string;
@@ -1607,6 +1849,7 @@ function SourceRail({
   /** The header search — the rail filters on the same query the board does. */
   matches: (...text: (string | null | undefined)[]) => boolean;
   searching: boolean;
+  hideGoals?: boolean;
 }) {
   const [tab, setTab] = React.useState<RailTab>("task");
   const [filter, setFilter] = React.useState<WmsFilter>(DEFAULT_WMS_FILTER);
@@ -1631,7 +1874,7 @@ function SourceRail({
 
   const tabs: { key: RailTab; label: string; icon: React.ReactNode; count: number }[] = [
     { key: "task", label: "WMS To-Do", icon: <ListTodo size={13} />, count: sources.task.length },
-    { key: "goal", label: "Goals", icon: <Layers size={13} />, count: goalItems.filter((i) => !i.added).length },
+    ...(!hideGoals ? [{ key: "goal" as const, label: "Goals", icon: <Layers size={13} />, count: goalItems.filter((i) => !i.added).length }] : []),
     {
       key: "unfinished",
       label: "Unfinished",

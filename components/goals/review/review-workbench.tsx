@@ -41,6 +41,7 @@ import { pctTone, fmtNum } from "@/components/goals/cascade/util";
 import { useCountUp } from "@/lib/use-count-up";
 import { transferPlanItem } from "@/app/(app)/goals/plan/actions";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /* ------------------------------------------------------------------ */
 /* Level metadata — order is the product order: Daily → Yearly          */
@@ -809,12 +810,14 @@ function ReviewOverview({
   items,
   activeFilter,
   onFilterChange,
-  onOpenSearch,
+  search,
+  onSearchChange,
 }: {
   items: ReviewItem[];
   activeFilter: ReviewOverviewFilter;
   onFilterChange: (filter: ReviewOverviewFilter) => void;
-  onOpenSearch: () => void;
+  search: string;
+  onSearchChange: (value: string) => void;
 }) {
   const reviewed = items.filter((item) => item.approvable && item.acceptPct != null).length;
   const awaitingApproval = items.filter((item) => item.approvable && item.acceptPct == null && item.pctDone > 0).length;
@@ -844,15 +847,25 @@ function ReviewOverview({
           onClick={() => onFilterChange(metric.key === "all" || activeFilter === metric.key ? "all" : metric.key)}
         />
       ))}
-      <button
-        type="button"
-        onClick={onOpenSearch}
-        aria-label="Search review items"
-        title="Search"
-        className="ml-auto translate-x-3 grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-hairline-strong bg-surface-card text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
-      >
-        <Search size={19} aria-hidden />
-      </button>
+      <div className="ml-auto shrink-0">
+        <CollapsibleSearch scope="review items, areas, categories, and notes">
+          <label className="relative block">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" aria-hidden />
+            <input
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search review items"
+              aria-label="Search review items, areas, categories, and notes"
+              className="h-8 w-[230px] rounded-lg border border-hairline-strong bg-surface-card pl-8 pr-7 text-[12.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+            />
+            {search && (
+              <button type="button" onClick={() => onSearchChange("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-ink-strong">
+                <X size={13} strokeWidth={2.5} />
+              </button>
+            )}
+          </label>
+        </CollapsibleSearch>
+      </div>
     </section>
   );
 }
@@ -913,7 +926,6 @@ export function ReviewWorkbench({
   );
   const items = data.levels[level];
   const [search, setSearch] = React.useState("");
-  const [searchOpen, setSearchOpen] = React.useState(false);
   const [overviewFilter, setOverviewFilter] = React.useState<ReviewOverviewFilter>("all");
   const [pageSize, setPageSize] = React.useState(20);
   const [page, setPage] = React.useState(1);
@@ -991,7 +1003,8 @@ export function ReviewWorkbench({
           items={items}
           activeFilter={overviewFilter}
           onFilterChange={setOverviewFilter}
-          onOpenSearch={() => setSearchOpen(true)}
+          search={search}
+          onSearchChange={setSearch}
         />
       </header>
       {/* scoped slider styling - tone-filled track, tactile thumb */}
@@ -1099,7 +1112,7 @@ export function ReviewWorkbench({
       {/* ── (3) review cards / (4) empty state ── */}
       {items.length === 0 ? (
         <>
-          <div className="mb-3 flex flex-nowrap items-center gap-1 overflow-hidden rounded-lg border border-hairline bg-surface-card p-0.5" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
+          <div className="wg-rise mb-3 flex flex-nowrap items-center gap-1 overflow-hidden rounded-none border border-hairline bg-surface-card px-3 py-2" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 26px -20px rgba(15,23,42,0.18)" }}>
             {compactTabs}
             <div className="ml-auto flex shrink-0 items-center gap-1">{headerControls}</div>
             <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">
@@ -1114,32 +1127,7 @@ export function ReviewWorkbench({
         </>
       ) : (
         <div key={level}>
-          <div className="mb-3 flex flex-nowrap items-center gap-1 overflow-hidden rounded-lg border border-hairline bg-surface-card p-0.5" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-            {searchOpen ? (
-              <div className="relative min-w-[260px] flex-1">
-                <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" aria-hidden />
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search goals, category or notes"
-                  aria-label="Search goals in this review period"
-                  className="h-9 w-full rounded-lg border border-transparent bg-surface-soft pl-9 pr-8 text-[13px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setSearchOpen(false);
-                  }}
-                  aria-label="Close goal search"
-                  className="absolute right-2 top-1/2 rounded p-1 text-ink-subtle hover:text-ink-strong"
-                  style={{ transform: "translateY(-50%)" }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : null}
+          <div className="wg-rise mb-3 flex flex-nowrap items-center gap-1 overflow-hidden rounded-none border border-hairline bg-surface-card px-3 py-2" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 26px -20px rgba(15,23,42,0.18)" }}>
             {compactTabs}
             <div className="ml-auto flex shrink-0 items-center gap-1">{headerControls}</div>
             <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">

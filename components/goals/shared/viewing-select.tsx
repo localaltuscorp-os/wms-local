@@ -34,6 +34,7 @@ export function ViewingSelect({
   label = "Viewing",
   ariaLabel = "View another person's goals",
   className,
+  compact = false,
 }: {
   people: ViewingPerson[];
   value: string;
@@ -46,6 +47,8 @@ export function ViewingSelect({
   label?: string;
   ariaLabel?: string;
   className?: string;
+  /** Yearly Goals' dense command line uses the same picker at a smaller size. */
+  compact?: boolean;
 }) {
   // The viewed person is not always ON the roster — `resolveCascadeView` falls
   // back to the signed-in user's own name when their row isn't among the fetched
@@ -58,8 +61,8 @@ export function ViewingSelect({
     : [{ id: value, name: viewedName }, ...people];
 
   return (
-    <div className={cn("inline-flex shrink-0 items-center gap-2 max-md:w-full", className)}>
-      <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-subtle max-lg:hidden">
+    <div className={cn("inline-flex shrink-0 items-center max-md:w-full", compact ? "gap-1.5" : "gap-2", className)}>
+      <span className={cn("shrink-0 font-bold uppercase tracking-[0.1em] text-ink-subtle max-lg:hidden", compact ? "text-[10px]" : "text-[11px]")}>
         {label}
       </span>
       <Select
@@ -70,8 +73,8 @@ export function ViewingSelect({
         ariaLabel={ariaLabel}
         unstyled
         className={cn(
-          "h-9 w-[188px] cursor-pointer rounded-pill border border-hairline-strong bg-surface-card px-3",
-          "text-[13.5px] font-semibold text-ink-strong transition-colors",
+          compact ? "h-8 w-[148px] px-2 text-[12px]" : "h-9 w-[188px] px-3 text-[13.5px]",
+          "cursor-pointer rounded-pill border border-hairline-strong bg-surface-card font-semibold text-ink-strong transition-colors",
           "hover:border-[color-mix(in_srgb,var(--color-altus-red)_35%,var(--color-hairline-strong))]",
           "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40",
           "max-md:w-full",

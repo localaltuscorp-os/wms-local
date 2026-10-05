@@ -29,6 +29,9 @@ import {
   type RegisterLevel,
 } from "@/lib/project-plan/register";
 import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
+import { effectivePlanStatus, isSelfRaisedNode } from "@/lib/project-plan/status";
+import { approverDisplay } from "@/lib/status/approver-status";
+import { PlanStatusKpiStrip, type PlanStatusPerspective } from "./plan-status-kpi-strip";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
@@ -137,6 +140,9 @@ export function PlanRegister({
   const pathname = usePathname();
   const [search, setSearch] = React.useState("");
   const [projectIds, setProjectIds] = React.useState<string[]>([]);
+  const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
+  const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
+  const [statusPerspective, setStatusPerspective] = React.useState<PlanStatusPerspective>("doer");
   const [sortKey, setSortKey] = React.useState<SortKey>("plan");
   const [asc, setAsc] = React.useState(true);
   /** Which level the create dialog is opening on, or null when it is closed. */
@@ -179,7 +185,7 @@ export function PlanRegister({
   );
 
   /** Project filter → text search → sort. */
-  const rows = React.useMemo(() => {
+  const scopedRows = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     let r = allRows;
 
@@ -243,6 +249,35 @@ export function PlanRegister({
       }
     });
   }, [allRows, tree, projectIds, search, sortKey, asc]);
+
+  const statusCounts = React.useMemo(() => {
+    const next: Record<string, number> = {};
+    for (const row of scopedRows) {
+      const doer = effectivePlanStatus(
+        isExecutable(row.node.kind) && row.node.task ? row.node.task.status : row.node.status,
+        null,
+        false,
+      );
+      const initiator = approverDisplay(row.node.approvalStatus, isSelfRaisedNode(row.node));
+      next[doer] = (next[doer] ?? 0) + 1;
+      next[initiator] = (next[initiator] ?? 0) + 1;
+    }
+    return next;
+  }, [scopedRows]);
+
+  const rows = React.useMemo(
+    () => scopedRows.filter((row) => {
+      const doer = effectivePlanStatus(
+        isExecutable(row.node.kind) && row.node.task ? row.node.task.status : row.node.status,
+        null,
+        false,
+      );
+      const initiator = approverDisplay(row.node.approvalStatus, isSelfRaisedNode(row.node));
+      return (doerStatus.length === 0 || doerStatus.includes(doer)) &&
+        (initiatorStatus.length === 0 || initiatorStatus.includes(initiator));
+    }),
+    [scopedRows, doerStatus, initiatorStatus],
+  );
 
   /**
    * Open the linked WMS record. `?task=` is the SAME contract /tasks uses, and
@@ -567,6 +602,18 @@ export function PlanRegister({
         </Link>
       </div>
 
+      <PlanStatusKpiStrip
+        perspective={statusPerspective}
+        onPerspectiveChange={setStatusPerspective}
+        counts={statusCounts}
+        total={scopedRows.length}
+        activeStatus={(statusPerspective === "doer" ? doerStatus : initiatorStatus)[0] ?? null}
+        onStatusChange={(status) => {
+          if (statusPerspective === "doer") setDoerStatus(status ? [status] : []);
+          else setInitiatorStatus(status ? [status] : []);
+        }}
+      />
+
       {/* ── Search + project filter ──────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex min-w-[280px] flex-1 items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2">
@@ -647,6 +694,7 @@ export function PlanRegister({
           statusLabels={labels}
           onClear={() => setPicked(new Set())}
           showArchive={false}
+          showViewDetails={false}
           showTaskActions={false}
           showDelete={me.isAdmin}
           onDeleteOverride={bulkPurgeRows}

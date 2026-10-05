@@ -1,10 +1,7 @@
 "use client";
 
-import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
 import {
   ADMIN_PANEL_ENTRY,
   MODULE_ORDER,
@@ -95,17 +92,6 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
   // it away. Tying visibility to continued hover would mean holding the cursor
   // inside a 46px strip while reading the labels, which is exactly the fiddly
   // behaviour this replaces.
-  const [visible, setVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!visible) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setVisible(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [visible]);
-
   return (
     <div
       // THE REVEAL STRIP — the end of the page, and the dock's own hover target.
@@ -125,7 +111,13 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
       // of every page would otherwise intercept every click meant for the
       // content behind it. The band is transparent to the mouse; only the
       // grabber below re-enables itself, and the dock does so when revealed.
-      className="module-footer pointer-events-none sticky bottom-0 z-40 mt-auto w-full pt-6 print:hidden"
+      className="module-footer sticky bottom-0 z-40 mt-auto w-full border-t pt-0 print:hidden"
+      style={{
+        color: "var(--aura-ink, #0a0f22)",
+        background: "linear-gradient(180deg, #fdfdff, #f3f5fc)",
+        borderColor: "rgba(22,32,68,0.1)",
+        boxShadow: "0 -1px 0 rgba(255,255,255,0.95) inset, 0 -8px 24px -18px rgba(22,32,68,0.28)",
+      }}
     >
       {/* Fixed-height band: the dock is absolutely positioned inside it, so the
           space is reserved whether or not the dock is shown and revealing it
@@ -134,7 +126,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
           into it and covers nothing. While stuck mid-scroll it does overlay the
           bottom 52px, which is the price of being reachable without scrolling;
           the band is click-through so it costs the pointer nothing. */}
-      <div className="relative mx-auto flex h-[52px] w-full items-center justify-center px-3">
+      <div className="relative flex min-h-[52px] w-full items-center">
         {/* Resting affordance AND the dock's only hover target — a grabber, so
             a strip that is otherwise invisible and click-through is still
             discoverable. It fades out as the dock fades in.
@@ -148,100 +140,44 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
             the ONE live spot on an otherwise transparent strip. Its hit area is
             deliberately wider than the 36px it draws, or it would be a pixel
             hunt. */}
-        <button
-          type="button"
-          aria-label="Show module bar"
-          title="Show all modules"
-          onMouseEnter={() => setVisible(true)}
-          onClick={() => setVisible(true)}
-          className="pointer-events-auto absolute flex h-[52px] w-32 cursor-pointer items-center justify-center bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
-          style={{
-            opacity: visible ? 0 : 1,
-            pointerEvents: visible ? "none" : "auto",
-          }}
-          tabIndex={visible ? -1 : 0}
-        >
-          <span
-            aria-hidden
-            className="h-1 w-9 rounded-full transition-opacity duration-200 motion-reduce:transition-none"
-            style={{ background: "rgba(15,23,42,0.14)" }}
-          />
-        </button>
-        <nav
-          aria-label="All modules"
-          // Hidden state is inert as well as invisible: `inert` drops it out of the
-          // tab order and the accessibility tree, so a keyboard user never lands on
-          // ten invisible links. Revealing it restores both. It sits on the nav,
-          // not the wrapper — an inert wrapper would swallow its own hover.
-          inert={!visible}
-          // The dock itself is always as wide as its containing column. The
-          // dismiss button and Altus brand are fixed on the right; ONLY the
-          // module list to their left scrolls. This keeps Altus visible and
-          // prevents a long module list from pushing either control off-screen.
-          className="absolute inset-x-3 flex items-center rounded-[18px] px-2 py-2 transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
-          style={{
-            opacity: visible ? 1 : 0,
-            // A short lift rather than the old slide-off-screen: in flow there is
-            // no viewport edge to hide behind, and a long travel would read as the
-            // bar arriving from somewhere else on the page.
-            transform: visible ? "translateY(0)" : "translateY(6px)",
-            // Belt and braces with `inert`: an invisible dock must not eat a click
-            // aimed at whatever sits behind it.
-            pointerEvents: visible ? "auto" : "none",
-            background: "rgba(255,255,255,0.88)",
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
-            border: "1px solid rgba(0,0,0,0.08)",
-            boxShadow:
-              "0 6px 24px -8px rgba(15,23,42,0.18), 0 1px 2px rgba(15,23,42,0.06)",
-          }}
-        >
-          <Link
-            href="/hub"
-            aria-label="Altus — back to dashboard"
-            title="Back to dashboard"
-            className="order-2 inline-flex shrink-0 items-center gap-2 border-l border-[rgba(15,23,42,0.12)] px-3 outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
-          >
-            <Image
-              src="/logo.png"
-              alt=""
-              width={32}
-              height={32}
-              className="h-8 w-8 object-contain"
-            />
-            <span className="whitespace-nowrap text-[13px] font-bold tracking-[-0.01em] text-[#171e35]">
-              Altus
-            </span>
-          </Link>
+      <nav
+        aria-label="All modules"
+        // Hidden state is inert as well as invisible: `inert` drops it out of the
+        // tab order and the accessibility tree, so a keyboard user never lands on
+        // ten invisible links. Revealing it restores both. It sits on the nav,
+        // not the wrapper — an inert wrapper would swallow its own hover.
+        // `max-w` + `overflow-x-auto` keep it from ever exceeding its column: on
+        // a narrow screen the strip scrolls sideways inside its own glass rather
+        // than pushing the page wider.
+        className="flex w-full items-center gap-x-0.5 overflow-x-auto px-6 py-2 max-md:px-4"
+        style={{
+          // A short lift rather than the old slide-off-screen: in flow there is
+          // no viewport edge to hide behind, and a long travel would read as the
+          // bar arriving from somewhere else on the page.
+          // Belt and braces with `inert`: an invisible dock must not eat a click
+          // aimed at whatever sits behind it.
+          scrollbarWidth: "none",
+        }}
+      >
+        {modules.map((id) => {
+          const m = MODULE_THEME[id];
+          // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
+          // module (the Control Panel) is appended to `listedModules` and owns no
+          // letter, so the two lists are the same length only by coincidence —
+          // and a letter looked up by render position would move the moment one
+          // appeared or disappeared. `indexOf` returns -1 for a module with no
+          // place in the order, which resolves to no badge, which is correct.
+          const i = MODULE_ORDER.indexOf(id);
+          const allowed = canAccessWorkspace(id, access);
+          const Icon = m.Icon;
+          const shortcut = moduleShortcutHint(i);
+          // The badge is the compact "⌥Q"; the hover says it in words.
+          const shortcutLabel = moduleShortcutLabel(i);
+          const active = activeWs === id;
 
-          <div
-            // The scroll region deliberately ends BEFORE the fixed brand. `min-w-0`
-            // is load-bearing in a flex row: without it, the list would expand the
-            // dock instead of scrolling within the space before brand and close.
-            className="order-1 min-w-0 flex-1 overflow-x-auto no-scrollbar"
-            style={{ scrollbarWidth: "none" }}
-          >
-            <div className="flex w-max min-w-full items-center gap-x-0.5 px-1">
-              {modules.map((id) => {
-                const m = MODULE_THEME[id];
-                // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
-                // module (the Control Panel) is appended to `listedModules` and owns no
-                // letter, so the two lists are the same length only by coincidence —
-                // and a letter looked up by render position would move the moment one
-                // appeared or disappeared. `indexOf` returns -1 for a module with no
-                // place in the order, which resolves to no badge, which is correct.
-                const i = MODULE_ORDER.indexOf(id);
-                const allowed = canAccessWorkspace(id, access);
-                const Icon = m.Icon;
-                const shortcut = moduleShortcutHint(i);
-                // The badge is the compact "⌥Q"; the hover says it in words.
-                const shortcutLabel = moduleShortcutLabel(i);
-                const active = activeWs === id;
-
-                const inner = (
-                  <>
-                    <Icon size={15} strokeWidth={2.3} aria-hidden />
-                    {/* The same letter the hub badges show, so the shortcut is
+          const inner = (
+            <>
+              {/* The same letter the hub badges show, so the shortcut is
                   learnable from whichever surface you happen to be looking at.
                   Dimmer than the label — a hint, not a heading — and aria-hidden
                   so the row does not read as "Alt Q W M S Alt W Goals".
@@ -250,6 +186,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
                   would be advertising a shortcut that does nothing. The glyph
                   is spelled out as "Alt+Q" in this entry's hover title. */}
               {shortcut && <span aria-hidden className="opacity-55">{shortcut}</span>}
+              <Icon size={15} strokeWidth={2.3} aria-hidden />
               <span className="whitespace-nowrap">{m.label}</span>
             </>
           );
@@ -294,9 +231,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
               {inner}
             </Link>
           );
-              })}
-            </div>
-          </div>
+        })}
 
         {/* THE ADMIN PANEL — the standalone entry, admins only.
             Last in the row and after the modules, because it is not one of them:
@@ -326,24 +261,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
             by hovering the strip, so this hides rather than disables anything.
             `stopPropagation` because the wrapper's own onClick re-reveals —
             without it the X would hide and instantly show again. */}
-          <span
-            aria-hidden
-            className="order-3 mx-1 h-5 w-px shrink-0 bg-[rgba(15,23,42,0.12)]"
-          />
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setVisible(false);
-            }}
-            aria-label="Hide module bar"
-            title="Hide — hover the strip at the end of the page to bring it back"
-            className="order-3 inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 outline-none transition-colors hover:bg-[rgba(15,23,42,0.06)] focus-visible:ring-2 focus-visible:ring-[rgba(15,23,42,0.35)]"
-            style={{ color: "rgba(15,23,42,0.45)" }}
-          >
-            <X size={14} strokeWidth={2.6} />
-          </button>
-        </nav>
+      </nav>
       </div>
     </div>
   );

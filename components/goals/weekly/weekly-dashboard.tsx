@@ -30,7 +30,7 @@
  */
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ChevronRight, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Search, X } from "lucide-react";
 import {
   type GoalDTO,
   targetDateStatus,
@@ -57,6 +57,7 @@ import {
 } from "@/components/goals/board/dashboard-model";
 import { formatWeekRangeShort } from "./week-select";
 import { formatDate } from "@/lib/format";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 const FOCUS_RING =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface-soft)]";
@@ -126,6 +127,7 @@ export function WeeklyDashboard({
   const [ownerPick, setOwnerPick] = React.useState<"all" | "self" | "assigned">("all");
   const [delegatePick, setDelegatePick] = React.useState<string | null>(null);
   const [statusPick, setStatusPick] = React.useState<DisplayBand | null>(null);
+  const [search, setSearch] = React.useState("");
 
   const pillarOptions = React.useMemo(() => {
     const s = new Set<string>();
@@ -172,8 +174,13 @@ export function WeeklyDashboard({
     let rs = allRows.filter((r) => matchesFilters(r.g, r.band, dashboardFilters));
     if (lens === "risk")
       rs = rs.filter((r) => r.band === "at-risk" || r.band === "overdue" || r.band === "spillover");
+    const query = search.trim().toLowerCase();
+    if (query) {
+      rs = rs.filter((r) => [r.g.title, r.g.area, r.g.goalType, r.g.notes]
+        .some((value) => value?.toLowerCase().includes(query)));
+    }
     return rs;
-  }, [allRows, dashboardFilters, lens]);
+  }, [allRows, dashboardFilters, lens, search]);
 
   const m = React.useMemo(() => buildModel(viewRows, "week"), [viewRows]);
 
@@ -219,6 +226,10 @@ export function WeeklyDashboard({
     setStatusPick(s);
     setFocus(null);
   }, []);
+  const changeSearch = React.useCallback((value: string) => {
+    setSearch(value);
+    setFocus(null);
+  }, []);
 
   if (allRows.length === 0) {
     return <WeeklyDashboardEmpty weekNo={weekNo} weekStart={weekStart} />;
@@ -242,6 +253,8 @@ export function WeeklyDashboard({
         delegateOptions={delegateOptions}
         status={statusPick}
         onStatus={changeStatus}
+        search={search}
+        onSearch={changeSearch}
         showing={viewRows.length}
         total={allRows.length}
       />
@@ -319,6 +332,8 @@ function FilterStrip({
   delegateOptions,
   status,
   onStatus,
+  search,
+  onSearch,
   showing,
   total,
 }: {
@@ -337,11 +352,19 @@ function FilterStrip({
   delegateOptions: { value: string; label: string }[];
   status: DisplayBand | null;
   onStatus: (s: DisplayBand | null) => void;
+  search: string;
+  onSearch: (value: string) => void;
   showing: number;
   total: number;
 }) {
   const filtered =
-    pillar != null || area != null || owner !== "all" || delegate != null || status != null || lens === "risk";
+    pillar != null ||
+    area != null ||
+    owner !== "all" ||
+    delegate != null ||
+    status != null ||
+    lens === "risk" ||
+    search.trim() !== "";
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <div
@@ -461,6 +484,23 @@ function FilterStrip({
       <span className="ml-auto text-[11.5px] font-medium tabular-nums text-ink-subtle">
         {filtered ? `${showing} of ${total} goals` : `${total} goal${total === 1 ? "" : "s"}`}
       </span>
+      <CollapsibleSearch scope="weekly goals, areas, types, and notes">
+        <label className="relative shrink-0">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-subtle" aria-hidden />
+          <input
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder="Search goals"
+            aria-label="Search weekly goals, areas, types, and notes"
+            className="h-8 w-[210px] rounded-lg border border-hairline-strong bg-surface-card pl-8 pr-7 text-[12.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+          />
+          {search && (
+            <button type="button" onClick={() => onSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-ink-strong">
+              <X size={13} strokeWidth={2.5} />
+            </button>
+          )}
+        </label>
+      </CollapsibleSearch>
     </div>
   );
 }
