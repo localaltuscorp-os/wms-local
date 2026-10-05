@@ -42,6 +42,8 @@ export interface MonthInputRow {
   fy: string;
   month: string; // YYYY-MM
   daysInMonth: number;
+  /** Employee Master schedule target. This is salary's only daily-hours input. */
+  workingHoursPerDay: number;
   annualCtc: number;
   hasProfile: boolean; // false → no pay config for this basis; caller flags "attendance-only"
   input: SalaryInput; // ready for computeSalary (monthly_ctc path)
@@ -113,6 +115,7 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
       }),
       weeklyTargetHours: r.hourlyProfile.weeklyTargetHours,
       daysInMonth: r.daysInMonth,
+      workingHoursPerDay: r.workingHoursPerDay,
       workedMinutes: r.workedMinutes,
       // Interns / hourly shifts are paid for hours worked beyond the eligible
       // target too — the same requirement attendance graded for the month.
@@ -140,6 +143,7 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
     return computeDailySalary({
       monthlySalary: r.annualCtc / 12,
       daysInMonth: r.daysInMonth,
+      workingHoursPerDay: r.workingHoursPerDay,
       payableDayValue: r.payroll.payableDayValue,
       ptExempt: r.input.ptExempt,
       tdsMonthly: r.input.tdsMonthly,
@@ -284,6 +288,7 @@ export async function assembleMonthInputs(
       fy,
       month,
       daysInMonth: dim,
+      workingHoursPerDay: p.workingHoursPerDay,
       annualCtc: p.annualCtc,
       hasProfile,
       payroll,
@@ -291,6 +296,7 @@ export async function assembleMonthInputs(
         annualCtc: p.annualCtc,
         payableDays,
         daysInMonth: dim,
+        workingHoursPerDay: p.workingHoursPerDay,
         ptExempt,
         tdsMonthly: p.tdsMonthly,
         lateMarksInMonth: applyLate ? late : 0,

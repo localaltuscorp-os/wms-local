@@ -15,7 +15,7 @@ export function canReviewIncentives(isFounder: boolean): boolean {
 }
 
 /** How the reviewer is named on screens and in messages. */
-export const INCENTIVE_REVIEWER_NAME = "Manan Vasa";
+export const INCENTIVE_REVIEWER_NAME = "the Founder";
 
 /**
  * WHO MAY ADD, EDIT OR DELETE AN INCENTIVE TABLE RECORD.

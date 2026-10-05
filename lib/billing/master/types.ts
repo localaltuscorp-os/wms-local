@@ -20,6 +20,7 @@ export interface BillableProduct {
   id: string;
   name: string;
   code: string | null;
+  displayName?: string | null;
   description: string | null;
   sacCode: string | null;
   defaultRate: string | null;

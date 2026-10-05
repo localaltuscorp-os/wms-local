@@ -146,6 +146,8 @@ const MONTH: MySalaryMonth = {
   companyName: "Altus Corp",
   source: "run",
   monthlyCtc: 22000,
+  perDaySalary: 733.33,
+  workingHoursPerDay: 9,
   baseAmount: 20350,
   overtimeAmount: 650,
   attendanceDeduction: 1000,

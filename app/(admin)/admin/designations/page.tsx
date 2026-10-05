@@ -1,14 +1,16 @@
 import { BadgeCheck } from "lucide-react";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireAdmin, requireUser } from "@/lib/auth/current";
+import { canDeleteDropdownMasters } from "@/lib/auth/attendance-permissions";
 import { listDesignationsWithCounts } from "@/lib/queries/outstanding-rosters";
 import { AdminSection } from "@/components/admin/ui/section-shell";
 import { OutstandingRosterList } from "@/components/admin/outstanding-roster-list";
-import { createDesignation, updateDesignation } from "./actions";
+import { createDesignation, updateDesignation, deleteDesignations } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function DesignationsPage() {
   await requireAdmin();
+  const me = await requireUser();
   const rows = await listDesignationsWithCounts();
   const activeCount = rows.filter((r) => r.isActive).length;
 
@@ -31,6 +33,8 @@ export default async function DesignationsPage() {
         usageLabel="employees"
         // Opt-in: only this roster's table has an employee_type column.
         showEmployeeType
+        deleteAction={deleteDesignations}
+        canDelete={canDeleteDropdownMasters(me.email)}
       />
     </AdminSection>
   );

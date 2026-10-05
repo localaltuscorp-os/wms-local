@@ -8,8 +8,9 @@ import { BillingDashboard } from "@/components/incentive/billing-dashboard";
 import { IncentiveFormDialog } from "@/components/incentive/incentive-form-dialog";
 import { IncentiveTableSkeleton } from "@/components/incentive/ui/states";
 import { requireUser } from "@/lib/auth/current";
-import { canEditIncentiveTable, canReviewIncentives } from "@/lib/auth/incentive-permissions";
+import { canEditIncentiveTable } from "@/lib/auth/incentive-permissions";
 import { isFounder } from "@/lib/auth/founder";
+import { canDecideCompensation } from "@/lib/compensation/workflow";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
 import {
   getIncentiveDashboard,
@@ -83,8 +84,10 @@ export default async function IncentivePage({ searchParams }: PageProps) {
 
   // Manan Vasa — sees every request and the decision controls. Decides what is
   // RENDERED; the decision action re-checks it on the server.
-  const founder = await isFounder(me.id);
-  const canReview = canReviewIncentives(founder);
+  const [canReview, founder] = await Promise.all([
+    canDecideCompensation(me),
+    isFounder(me.id),
+  ]);
 
   // WHO THIS VIEWER MAY SEE (lib/incentive/analytics/scope.ts). Company-wide
   // viewers get the company roll-ups; everyone else gets only themselves and

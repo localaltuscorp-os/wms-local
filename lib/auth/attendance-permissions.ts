@@ -98,6 +98,18 @@ export function canEditClientLocations(email: string | null | undefined): boolea
   return matches(CLIENT_LOCATION_EDITOR_EMAILS, email);
 }
 
+/** May delete Dropdown master records. This is narrower than edit access. */
+export function canDeleteDropdownMasters(email: string | null | undefined): boolean {
+  return matches(
+    [
+      "manan@unleashed.in",
+      "ruchitaambre.altuscorp@gmail.com",
+      "omjadhav.altuscorp@gmail.com",
+    ],
+    email,
+  );
+}
+
 /**
  * Can this person administer devices and attendance settings?
  *

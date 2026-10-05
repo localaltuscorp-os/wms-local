@@ -26,11 +26,17 @@ function num(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Per-day rate, matching the sheet's pro-ration (fallback: 30-day month). */
+/**
+ * Per-day rate for a manual attendance condonation.
+ *
+ * Never invent a 30-day denominator. A malformed historical breakup row has
+ * no safe rate, so it receives no automatic add-back until its month length is
+ * repaired.
+ */
 export function perDayRate(r: WaiveOffInput): number {
   const monthly = num(r.monthlyCtc);
   const days = num(r.daysInMonth);
-  return monthly / (days > 0 ? days : 30);
+  return monthly > 0 && days > 0 ? monthly / days : 0;
 }
 
 /** Rupees added back by the condoned days (0 when nothing is waived). */

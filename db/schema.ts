@@ -1130,6 +1130,10 @@ export const hrContacts = pgTable(
     alternateNo: text("alternate_no"),
     email: text("email"),
     service: text("service").notNull().default("Other"),
+    directoryType: text("directory_type").notNull().default("vendor"),
+    contact2Name: text("contact_2_name"),
+    contact2CellNo: text("contact_2_cell_no"),
+    contact2Email: text("contact_2_email"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -1148,6 +1152,7 @@ export const hrContacts = pgTable(
   (t) => [
     index("hr_contacts_active_idx").on(t.isActive),
     index("hr_contacts_service_idx").on(t.service),
+    index("hr_contacts_directory_type_idx").on(t.directoryType, t.isActive, t.personName),
   ],
 );
 
@@ -4250,6 +4255,8 @@ export const outstandingProducts = pgTable(
     /** Short product code, e.g. "BSS" / "GP". Unique case-insensitively among
      *  the rows that have one (partial unique index in 0217). */
     code: text("code"),
+    /** Customer-facing product name. Null means use the product name. */
+    displayName: text("display_name"),
     /** Billing (0229) — additive and nullable, so Outstanding is untouched.
      *  These pre-fill a billing line the moment a product is picked. */
     sacCode: text("sac_code"),
@@ -4597,7 +4604,12 @@ export const salaryRuns = pgTable(
     fy: text("fy").notNull(),
     month: text("month").notNull(),
     annualCtc: numeric("annual_ctc", { precision: 14, scale: 2 }).notNull(),
+    /** Frozen calculation root for generated runs. Null on historical rows. */
+    monthlySalary: numeric("monthly_salary", { precision: 14, scale: 2 }),
     daysInMonth: integer("days_in_month").notNull(),
+    /** Frozen derived rate and Employee Master schedule input. */
+    perDaySalary: numeric("per_day_salary", { precision: 14, scale: 2 }),
+    workingHoursPerDay: numeric("working_hours_per_day", { precision: 8, scale: 2 }),
     payableDays: numeric("payable_days", { precision: 6, scale: 2 }).notNull(),
     lateMarks: integer("late_marks").notNull().default(0),
     lateDeductionDays: numeric("late_deduction_days", {
