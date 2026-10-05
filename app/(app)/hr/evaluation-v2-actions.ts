@@ -11,7 +11,7 @@ import {
   DESIGNATION_LADDER,
   DEFAULT_SECTION_WEIGHTS,
   RATING_SECTIONS,
-  emptyInstance,
+  resolveEvaluationInstance,
   type EvaluationInstance,
   type EvaluationV2,
   type EvaluatorRole,
@@ -64,7 +64,7 @@ export async function getEvaluationV2(
       .limit(1);
 
     const blob = (cand?.evaluationV2 ?? {}) as EvaluationV2;
-    const instance = blob[role] ?? emptyInstance();
+    const { instance, seededFromInterviewer } = resolveEvaluationInstance(blob, role);
     const other = blob[otherRoleOf(role)] ?? null;
 
     const rows = (await db
@@ -94,6 +94,7 @@ export async function getEvaluationV2(
         profilesByDesignation,
         designations: [...DESIGNATION_LADDER],
         suggestedDesignation: suggested,
+        seededFromInterviewer,
       },
     };
   } catch (e) {

@@ -9,6 +9,8 @@ import type { EvaluationInstance, EvaluatorRole } from "@/lib/hr/candidate/evalu
 export interface EvaluationV2Load {
   /** The current role's instance (empty template if none saved yet). */
   instance: EvaluationInstance;
+  /** Management sees a clone of the interviewer pass until it records its own. */
+  seededFromInterviewer: boolean;
   /** The OTHER role's instance for side-by-side comparison (null if none). */
   other: EvaluationInstance | null;
   otherRole: EvaluatorRole;

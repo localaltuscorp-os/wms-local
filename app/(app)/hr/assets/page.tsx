@@ -29,7 +29,7 @@ export default async function AssetRegisterPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell width="full">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: "#FEE2E2", color: ACCENT }}>
           <Package className="h-5 w-5" />

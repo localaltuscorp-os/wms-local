@@ -28,13 +28,13 @@ import { CARD, CARD_SHADOW, DISPLAY, HhStatusPill, Segmented, Select, Toolbar } 
 type CatFilter = "ps" | "bss" | "os" | "retainer" | "corporate" | "ambassador" | "all";
 
 const FILTERS: { value: CatFilter; label: string }[] = [
+  { value: "all", label: "All" },
   { value: "ps", label: "PS Participants" },
   { value: "bss", label: "BSS Participants" },
   { value: "os", label: "OS Participants" },
   { value: "retainer", label: "Retainer" },
   { value: "corporate", label: "Corporate" },
   { value: "ambassador", label: "Ambassadors" },
-  { value: "all", label: "All" },
 ];
 
 const mins = (m: number) => `${m} mins`;
@@ -52,7 +52,7 @@ export function EmpGrid({
   monday: string;
   weekLabel: string;
 }) {
-  const [cat, setCat] = React.useState<CatFilter>("ps");
+  const [cat, setCat] = React.useState<CatFilter>("all");
   const [who, setWho] = React.useState("");
   const [hideEmpty, setHideEmpty] = React.useState(true);
 

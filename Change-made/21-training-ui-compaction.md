@@ -1,7 +1,7 @@
 # 21 — Training UI Compaction
 
-**Date:** 26 September 2026  
-**Migration:** None  
+**Date:** 26 September 2026
+**Migration:** None
 **Scope:** Training UI presentation only
 
 ---

@@ -30,7 +30,15 @@ function parseDate(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-const DEFAULT_START = new Date("2026-01-01T00:00:00.000Z");
+/** Start of the current April-to-March financial year, in UTC calendar days. */
+export function taskFilterDefaultStart(now = new Date()): string {
+  const year = now.getUTCMonth() < 3 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+  return `${year}-04-01`;
+}
+
+function defaultStartDate(): Date {
+  return new Date(`${taskFilterDefaultStart()}T00:00:00.000Z`);
+}
 function todayUtcMidnight(): Date {
   const n = new Date();
   return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
@@ -116,7 +124,7 @@ export function parseTaskFilters(
   }
 
   return {
-    startDate: parseDate(get("start")) ?? DEFAULT_START,
+    startDate: parseDate(get("start")) ?? defaultStartDate(),
     endDate: parseDate(get("end")) ?? todayUtcMidnight(),
     statuses,
     initiatorStatuses,

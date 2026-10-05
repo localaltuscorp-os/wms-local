@@ -1,8 +1,3 @@
-import "server-only";
-
-import { and, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { templateFieldConfigs } from "@/db/schema";
 import { templateDef } from "./registry";
 
 /** Saved fields replace defaults only for this exact template variant. */
@@ -11,6 +6,13 @@ export async function configuredRequiredFields(
   variant: string,
   defaults: readonly string[],
 ): Promise<readonly string[]> {
+  // Keep database initialization inside the server-only execution path. Several
+  // workbook/parser tests import the template registry without a runtime DB.
+  const [{ and, eq }, { db }, { templateFieldConfigs }] = await Promise.all([
+    import("drizzle-orm"),
+    import("@/lib/db"),
+    import("@/db/schema"),
+  ]);
   const [row] = await db
     .select({ requiredFields: templateFieldConfigs.requiredFields })
     .from(templateFieldConfigs)

@@ -15,6 +15,14 @@ const CHIP = "rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[
 
 function Dim() { return <span style={{ color: "var(--color-ink-subtle)" }}>-</span>; }
 
+function FolderLinks({ value }: { value: string | null }) {
+  const links = (value ?? "").split(/\r?\n/).map((link) => link.trim()).filter(Boolean);
+  if (links.length === 0) return <Dim />;
+  return <div className="flex flex-col items-start gap-1">{links.map((link, index) => /^https?:\/\//i.test(link)
+    ? <a key={link} href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-bold text-altus-red hover:underline"><ExternalLink size={14} strokeWidth={2.4} /> {links.length === 1 ? "Open Folder" : `Open Folder ${index + 1}`}</a>
+    : <span key={link} className="break-all text-[13px] text-ink-soft">{link}</span>)}</div>;
+}
+
 function ValueSelect({ label, kind, options, value, onChange, placeholder }: { label: string; kind: string; options: LookupOption[]; value: string | null; onChange: (n: string | null) => void; placeholder?: string }) {
   const [opts, setOpts] = React.useState(options);
   React.useEffect(() => { setOpts((prev) => { const extra = prev.filter((p) => !options.some((o) => o.id === p.id)); return [...options, ...extra]; }); }, [options]);
@@ -107,31 +115,26 @@ export function ItMasterFolder({ rows, entityOptions }: { rows: ItFolderRow[]; e
 
       <div className="text-[13px] font-semibold text-ink-subtle">{filtered.length} {filtered.length === 1 ? "folder" : "folders"}{hasFilters ? ` · filtered from ${rows.length}` : ""}</div>
 
-      <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-        <table className="w-full border-collapse text-left" style={{ minWidth: 760 }}>
+      {(adding || editingId) && <FolderEditorDialog draft={draft} setDraft={setDraft} entityOptions={entityOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />}
+
+      <div className="accounts-inbox-shell table-scroll overflow-x-auto rounded-section border border-hairline bg-surface-card" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+        <table className="accounts-inbox-table w-full border-collapse text-left" style={{ minWidth: 760 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--color-hairline)" }}>
-              <Th>Entity</Th><Th>FY</Th><Th>Folder</Th><Th>Notes</Th><Th className="text-right">{""}</Th>
+              <Th>Entity</Th><Th>FY</Th><Th>Folder</Th><Th>Notes</Th><Th className="accounts-inbox-actions text-right">{""}</Th>
             </tr>
           </thead>
           <tbody>
-            {(adding || (editingId && filtered.every((r) => r.id !== editingId))) && <EditorRow colSpan={totalCols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} onSave={save} onCancel={cancel} busy={busy} adding={adding} />}
             {filtered.length === 0 && !adding ? (
               <tr><td colSpan={totalCols} className="px-5 py-16 text-center"><p className="text-[15px] font-semibold text-ink-muted">{hasFilters ? "No folders match." : "No income-tax folders linked yet."}</p>{!hasFilters && <button type="button" onClick={startAdd} className="mt-3 inline-flex items-center gap-1.5 text-[14px] font-bold text-altus-red"><Plus size={15} strokeWidth={2.6} /> Add the First Folder</button>}</td></tr>
             ) : (
-              filtered.map((r) => editingId === r.id ? (
-                <EditorRow key={r.id} colSpan={totalCols} draft={draft} setDraft={setDraft} entityOptions={entityOptions} onSave={save} onCancel={cancel} busy={busy} adding={false} />
-              ) : (
+              filtered.map((r) => (
                 <tr key={r.id} className="group transition-colors hover:bg-surface-soft" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
                   <Td className="font-bold text-ink-strong whitespace-nowrap">{r.entity}</Td>
                   <Td className="whitespace-nowrap font-semibold text-ink-soft">{r.fy || <Dim />}</Td>
-                  <Td>
-                    {r.folderLink && /^https?:\/\//i.test(r.folderLink) ? (
-                      <a href={r.folderLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-bold text-altus-red hover:underline"><ExternalLink size={14} strokeWidth={2.4} /> Open Folder</a>
-                    ) : r.folderLink ? <span className="text-[13px] text-ink-soft break-all">{r.folderLink}</span> : <Dim />}
-                  </Td>
+                  <Td><FolderLinks value={r.folderLink} /></Td>
                   <Td>{r.notes ? <p className="max-w-[320px] whitespace-pre-wrap break-words text-[13px] text-ink-soft" title={r.notes}>{r.notes}</p> : <Dim />}</Td>
-                  <Td className="text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
+                  <Td className="accounts-inbox-actions text-right"><RowActions onEdit={() => startEdit(r)} onDelete={() => remove(r.id)} busy={busy} /></Td>
                 </tr>
               ))
             )}
@@ -152,30 +155,36 @@ function RowActions({ onEdit, onDelete, busy }: { onEdit: () => void; onDelete: 
   const [c, setC] = React.useState(false);
   React.useEffect(() => { if (!c) return; const t = setTimeout(() => setC(false), 3500); return () => clearTimeout(t); }, [c]);
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className="accounts-inbox-action-buttons flex items-center justify-end gap-1">
       <button type="button" onClick={onEdit} disabled={busy} aria-label="Edit" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-surface-soft hover:text-ink-strong disabled:opacity-50"><Pencil size={15} strokeWidth={2.2} /></button>
       {c ? <button type="button" onClick={onDelete} disabled={busy} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50" style={{ background: "var(--color-altus-red)" }}>{busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.4} />} Confirm</button>
         : <button type="button" onClick={() => setC(true)} disabled={busy} aria-label="Delete" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] hover:text-altus-red disabled:opacity-50"><Trash2 size={15} strokeWidth={2.2} /></button>}
     </div>
   );
 }
-function EditorRow({ colSpan, draft, setDraft, entityOptions, onSave, onCancel, busy, adding }: { colSpan: number; draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; entityOptions: LookupOption[]; onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean }) {
+function FolderEditorDialog({ draft, setDraft, entityOptions, onSave, onCancel, busy, adding }: { draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; entityOptions: LookupOption[]; onSave: () => void; onCancel: () => void; busy: boolean; adding: boolean }) {
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   return (
-    <tr style={{ borderBottom: "1px solid var(--color-hairline)", background: "color-mix(in srgb, var(--color-altus-red) 3%, var(--color-surface-card))" }}>
-      <td colSpan={colSpan} className="px-5 py-5">
-        <div className="grid grid-cols-12 gap-4 max-md:grid-cols-2">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 max-md:items-end max-md:p-0" role="dialog" aria-modal="true" aria-label={adding ? "Add folder" : "Edit folder"}>
+      <button type="button" aria-label="Close folder form" onClick={busy ? undefined : onCancel} className="absolute inset-0 cursor-default bg-[rgba(15,23,42,0.44)] backdrop-blur-[2px]" />
+      <div className="relative w-full max-w-[760px] overflow-hidden rounded-2xl bg-surface-card max-md:max-w-none max-md:rounded-b-none" style={{ border: "1px solid var(--color-hairline)", boxShadow: "0 32px 90px -24px rgba(15,23,42,0.55)" }}>
+        <span aria-hidden className="absolute inset-x-0 top-0 h-1" style={{ background: "var(--color-altus-red)" }} />
+        <div className="flex items-center justify-between gap-3 px-6 py-4" style={{ borderBottom: "1px solid var(--color-hairline)" }}>
+          <div><p className="text-[11px] font-black uppercase tracking-[0.12em] text-altus-red">Income Tax Master Folder</p><h2 className="text-[20px] font-black tracking-[-0.01em] text-ink-strong">{adding ? "Add Folder" : "Edit Folder"}</h2></div>
+          <button type="button" onClick={onCancel} disabled={busy} aria-label="Cancel" className="inline-flex size-9 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong disabled:opacity-50"><X size={18} /></button>
+        </div>
+        <div className="grid grid-cols-12 gap-4 px-6 py-5 max-md:grid-cols-2">
           <Field label="Entity" className="col-span-4 max-md:col-span-1"><ValueSelect label="entity" kind="it_entity" options={entityOptions} value={draft.entity} onChange={(v) => set({ entity: v })} placeholder="Entity…" /></Field>
           <Field label="FY" className="col-span-3 max-md:col-span-1"><input value={draft.fy} onChange={(e) => set({ fy: e.target.value })} className={INPUT} placeholder="2024-25" aria-label="FY" autoFocus /></Field>
-          <Field label="Folder link" className="col-span-5 max-md:col-span-2"><input value={draft.folderLink} onChange={(e) => set({ folderLink: e.target.value })} className={INPUT} placeholder="https://drive.google.com/…" aria-label="Folder link" /></Field>
+          <Field label="Folder links" className="col-span-5 max-md:col-span-2"><textarea value={draft.folderLink} onChange={(e) => set({ folderLink: e.target.value })} className={INPUT + " min-h-[76px] resize-y"} placeholder={"https://drive.google.com/…\nhttps://drive.google.com/…"} aria-label="Folder links, one per line" /><span className="text-[11px] font-medium text-ink-subtle">Add one link per line.</span></Field>
           <Field label="Notes" className="col-span-12 max-md:col-span-2"><textarea value={draft.notes} onChange={(e) => set({ notes: e.target.value })} className={INPUT + " min-h-[48px] resize-y"} placeholder="Notes" aria-label="Notes" /></Field>
         </div>
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 px-6 py-4" style={{ borderTop: "1px solid var(--color-hairline)", background: "var(--color-surface-soft)" }}>
           <button type="button" onClick={onCancel} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-4 py-2 text-[14px] font-bold text-ink-muted hover:bg-surface-soft disabled:opacity-50"><X size={16} strokeWidth={2.4} /> Cancel</button>
           <button type="button" onClick={onSave} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[14px] font-bold text-white disabled:opacity-50" style={{ background: "var(--color-altus-red)" }}>{busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={2.6} />} {adding ? "Add Folder" : "Save Changes"}</button>
         </div>
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {

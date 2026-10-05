@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { Select } from "@/components/ui/select";
 import { describeSchedule } from "@/lib/hr/records-export/schedule";
 import type { DriveStatus } from "@/lib/hr/records-export/status";
 import type { RunSummary } from "@/lib/hr/records-export/types";
@@ -513,33 +514,28 @@ export function RecordsBackupScreen({
 
           <div className={`mt-3 flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-ink-strong ${enabled ? "" : "opacity-50"}`}>
             <span>Every</span>
-            <select
-              aria-label="How many months between saves"
-              value={months}
+            <Select
+              ariaLabel="How many months between saves"
+              value={String(months)}
               disabled={!enabled}
-              onChange={(e) => setMonths(Number(e.target.value))}
-              className="rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[13.5px] font-bold"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => setMonths(Number(value))}
+              searchable={false}
+              unstyled
+              className="h-[34px] min-w-[66px] rounded-lg border border-hairline-strong bg-white px-2.5 text-[13.5px] font-bold"
+              options={Array.from({ length: 12 }, (_, i) => i + 1).map((n) => ({ value: String(n), label: String(n) }))}
+            />
             <span>{months === 1 ? "month" : "months"}, on day</span>
-            <select
-              aria-label="Day of the month"
-              value={day}
+            <Select
+              ariaLabel="Day of the month"
+              value={String(day)}
               disabled={!enabled}
-              onChange={(e) => setDay(Number(e.target.value))}
-              className="rounded-lg border border-hairline-strong bg-white px-2.5 py-1.5 text-[13.5px] font-bold"
-            >
-              {Array.from({ length: 28 }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => setDay(Number(value))}
+              searchable={false}
+              unstyled
+              className="h-[34px] min-w-[66px] rounded-lg border border-hairline-strong bg-white px-2.5 text-[13.5px] font-bold"
+              contentClassName="max-h-[260px]"
+              options={Array.from({ length: 28 }, (_, i) => i + 1).map((n) => ({ value: String(n), label: String(n) }))}
+            />
           </div>
           <p className="mt-2 text-[12px] font-medium text-ink-subtle">Days 29–31 aren&rsquo;t offered so February is never skipped.</p>
 

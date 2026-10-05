@@ -249,10 +249,11 @@ export function ReferralDrawer({
                 <input
                   id="amb-phone"
                   className={FIELD}
+                  type="tel"
                   value={prospectPhone}
-                  maxLength={40}
-                  inputMode="tel"
-                  onChange={(e) => setProspectPhone(e.target.value)}
+                  maxLength={10}
+                  inputMode="numeric"
+                  onChange={(e) => setProspectPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="Optional"
                 />
               </Field>

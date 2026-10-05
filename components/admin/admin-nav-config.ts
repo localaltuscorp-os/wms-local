@@ -8,12 +8,15 @@ import {
   BadgeIndianRupee,
   Gift,
   IdCard,
+  Network,
   KeyRound,
   ShieldCheck,
   FileUp,
   Settings as SettingsIcon,
   ScrollText,
   ListFilter,
+  Archive,
+  Boxes,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -42,8 +45,11 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     items: [
       { href: "/admin/employees" as Route, label: "Employees", Icon: Users },
       { href: "/admin/employee-master" as Route, label: "Employee Master", Icon: IdCard },
-      { href: "/admin/salary-profiles" as Route, label: "Salary Breakup", Icon: BadgeIndianRupee },
-      { href: "/admin/salary-lineage" as Route, label: "Salary Lineage", Icon: ScrollText },
+      { href: "/admin/approvals" as Route, label: "Approvals", Icon: ShieldCheck },
+      // The org chart as a Kanban board. Sits directly under Employees because
+      // it edits the same relationship the employee editor's Manager field does
+      // — one write path (setReportingManager), two doors onto it.
+      { href: "/admin/hierarchy" as Route, label: "Reporting Hierarchy", Icon: Network },
     ],
   },
   {
@@ -54,15 +60,6 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     items: [{ href: "/admin/upload-master" as Route, label: "Upload Master", Icon: FileUp }],
   },
   {
-    label: "Billing",
-    Icon: BadgeIndianRupee,
-    items: [
-      { href: "/admin/billing-details" as Route, label: "Billing Details", Icon: BadgeIndianRupee },
-      { href: "/admin/outstanding-products" as Route, label: "Products (Legacy View)", Icon: Gift },
-      { href: "/admin/outstanding-payment-modes" as Route, label: "Payment Modes", Icon: ListFilter },
-    ],
-  },
-  {
     label: "Incentive",
     Icon: BadgeIndianRupee,
     items: [{ href: "/admin/incentive-master" as Route, label: "Incentive Master", Icon: Gift }],
@@ -70,7 +67,11 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
   {
     label: "Access",
     Icon: KeyRound,
-    items: [{ href: "/admin/access-control" as Route, label: "Task Visibility", Icon: ShieldCheck }],
+    items: [
+      { href: "/admin/access-control" as Route, label: "Task Visibility", Icon: ShieldCheck },
+      { href: "/admin/access-architecture-demo" as Route, label: "Module Ownership", Icon: Boxes },
+      { href: "/admin/security-roles" as Route, label: "Hidden Roles", Icon: ShieldCheck },
+    ],
   },
   {
     label: "System",
@@ -79,6 +80,7 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
       { href: "/admin/notifications" as Route, label: "Notifications", Icon: Bell },
       { href: "/admin/task-reminders" as Route, label: "Task Reminders", Icon: BellRing },
       { href: "/admin/logs" as Route, label: "Logs", Icon: ScrollText },
+      { href: "/admin/module-backups" as Route, label: "Module Backups", Icon: Archive },
       { href: "/admin/settings" as Route, label: "Settings", Icon: SettingsIcon },
     ],
   },

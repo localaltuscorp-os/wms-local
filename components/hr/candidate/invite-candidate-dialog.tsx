@@ -282,7 +282,7 @@ function SentPanel({ invite, onDone }: { invite: CandidateInvite; onDone: () => 
       ) : (
         <p className="flex items-start gap-2 text-[13px] leading-[1.5] text-ink-muted">
           <MailCheck size={15} className="mt-0.5 shrink-0" style={{ color: "#166534" }} />
-          The form has been emailed to the candidate. It works until {expiry}.
+          Email dispatch was accepted for <strong>{invite.recipient}</strong>. It works until {expiry}. If it is not in their inbox shortly, ask them to check Spam/Junk or use the private link below.
         </p>
       )}
 

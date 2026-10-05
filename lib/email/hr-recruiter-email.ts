@@ -2,18 +2,20 @@ import { getResend, FROM, companyBcc, clampSubject } from "./resend";
 
 /**
  * Recruiter OUTCOME email — sent to the recruiter/consultant when a candidate's
- * management decision is recorded (selected / rejected). Raw-HTML Resend body
+ * management decision is recorded. Raw-HTML Resend body
  * (same isolated pattern as report-emails.ts), on brand. Never throws; no-ops
  * gracefully when Resend is unconfigured (returns { ok:false, skipped:true }).
  */
 
 const BRAND = "#E10600";
 
-type Outcome = "selected" | "shortlisted" | "rejected";
+type Outcome = "selected" | "shortlisted" | "rejected" | "free_training" | "assignment_needed";
 
 function verdictWord(outcome: Outcome): string {
   if (outcome === "selected") return "Selected";
   if (outcome === "shortlisted") return "Shortlisted";
+  if (outcome === "free_training") return "Free Training";
+  if (outcome === "assignment_needed") return "Assignment Needed";
   return "Rejected";
 }
 
@@ -93,7 +95,7 @@ export async function sendRecruiterOutcomeEmail(args: {
     if (!resend) return { ok: false, skipped: true };
 
     const verdict = verdictWord(args.outcome);
-    const tone = args.outcome === "rejected" ? BRAND : "#059669";
+    const tone = args.outcome === "rejected" ? BRAND : args.outcome === "selected" ? "#059669" : "#b45309";
     const greeting = args.recruiterName?.trim()
       ? `Hi ${esc(args.recruiterName.trim().split(" ")[0]!)},`
       : "Hello,";

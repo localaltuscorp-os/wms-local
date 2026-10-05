@@ -8,7 +8,7 @@
 
 ## Data
 
-- Migration: 0258_employee_temporary_breaks.sql (applied through the migration ledger).
+- Migration: 0262_employee_temporary_breaks.sql (apply through the migration ledger).
 - Active break is one open employee_temporary_breaks row per employee.
 - Start stores the prior manager and clears the active manager link.
 - End restores that manager only when it remains active and is not on break; otherwise no manager is assigned.

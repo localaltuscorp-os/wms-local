@@ -49,11 +49,19 @@ The supplied calendar replaces the existing published lists, including the 2026 
   tracked source/test diff, and this handoff contains no personal data or
   credentials.
 
+## Production reconciliation follow-up
+
+- The Aura dashboard's holiday card now uses the same merged reader as Attendance instead of reading only `holidays`.
+- `scripts/reconcile-published-holidays.ts` provides a transaction-scoped dry run by default and requires `--apply` to mutate data. It upserts the published dates/labels, retires obsolete `holidays` rows, and marks obsolete `event_holidays` rows as not office-closed without deleting audit history.
+- Database rollback: restore the affected rows from the JSON dry-run/release evidence (their prior labels and active/office-closed flags). Application rollback is a normal revert of the release commits; no schema migration is involved.
+- Production dry-run result: 66 authoritative dates; 12 obsolete active `holidays` rows to retire; 10 obsolete office-closed `event_holidays` rows to retain as records but mark not office-closed. The dry run rolled back without mutation.
+- Follow-up validation: focused holiday suites passed (4 files, 107 tests); targeted ESLint passed; TypeScript passed with a 6144 MB heap. The production-base Next.js build completed successfully after loading the local validation environment (compile, TypeScript, page-data collection, and 36 static pages).
+
 ## Remaining work
 
 - Commit and push this feature branch to the Development Repository for preview
   validation.
-- The shared static source needs no SQL migration or database data update.
-- The full unit-suite baseline still has 26 unrelated failures, so production
-  promotion must wait for that baseline to be repaired and release approval to
-  be completed. No production update or deployment has occurred.
+- No schema migration is required. The production data reconciliation must be run once because old active calendar rows otherwise continue to override the published list.
+- The full unit-suite baseline still has 26 unrelated pre-existing failures; the
+  focused holiday suites are clean. Production promotion requires the explicit
+  release approval and verified database reconciliation recorded above.

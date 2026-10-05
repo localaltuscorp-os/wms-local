@@ -1,5 +1,3 @@
-import "server-only";
-
 import { TEMPLATE_KEYS, type TemplateKey } from "./keys";
 
 /**

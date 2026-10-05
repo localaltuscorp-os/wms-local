@@ -15,11 +15,12 @@ import { fireToast } from "@/lib/toast";
 export type StagedDocs = {
   front: File | null;
   back: File | null;
+  gstCertificate: File | null;
   other: File[];
   brochure: File[];
   videos: File[];
 };
-export const emptyStagedDocs = (): StagedDocs => ({ front: null, back: null, other: [], brochure: [], videos: [] });
+export const emptyStagedDocs = (): StagedDocs => ({ front: null, back: null, gstCertificate: null, other: [], brochure: [], videos: [] });
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const BLOCKED = /\.(exe|com|cmd|bat|msi|scr|pif|vbs|js|mjs|cjs|jar|sh|bash|app|dmg|ps1|psm1|reg|hta|cpl|gadget|html?|xhtml|svgz?)$/i;
@@ -50,12 +51,6 @@ export function CustomerDocumentsPicker({
   return (
     <div>
       <div className="mb-3 flex items-center gap-2">
-        <span
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black text-white"
-          style={{ background: "#0F172A" }}
-        >
-          1
-        </span>
         <span className="text-[13px] font-bold text-ink-strong">Business Card &amp; Documents</span>
         <span className="h-px flex-1 bg-hairline" />
       </div>
@@ -72,6 +67,12 @@ export function CustomerDocumentsPicker({
           cta="Add back"
           file={value.back}
           onPick={(f) => onChange({ ...value, back: f })}
+        />
+        <SingleTile
+          label="GST Certificate"
+          cta="Add certificate"
+          file={value.gstCertificate}
+          onPick={(f) => onChange({ ...value, gstCertificate: f })}
         />
         <MultiTile
           label="Brochure"

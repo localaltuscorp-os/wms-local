@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { holidays, employeeEvents } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canManageHolidays } from "@/lib/hr/holiday-admins";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { refreshMonthAfterCalendarChange } from "@/lib/salary/refresh-run";
 
@@ -80,9 +81,10 @@ export async function addHoliday(input: {
 }): Promise<ActionResult<{ id: string }>> {
   const me = await requireUser();
   // NARROWED from requireAdmin() - the holiday calendar drives attendance for
-  // everyone, so it is held by two named people. See lib/hr/holiday-admins.ts.
-  if (!canManageHolidays(me.email)) {
-    return { ok: false, error: "Only Ruchita and Rutvisha can change the holiday calendar." };
+  // everyone, so it is held by HR staff and super-admins. See
+  // lib/hr/holiday-admins.ts.
+  if (!(await canManageHolidays(me, DUMMY_MODE))) {
+    return { ok: false, error: "Only HR staff and super-admins can change the holiday calendar." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -158,9 +160,10 @@ export async function updateHoliday(input: {
 }): Promise<ActionResult> {
   const me = await requireUser();
   // NARROWED from requireAdmin() - the holiday calendar drives attendance for
-  // everyone, so it is held by two named people. See lib/hr/holiday-admins.ts.
-  if (!canManageHolidays(me.email)) {
-    return { ok: false, error: "Only Ruchita and Rutvisha can change the holiday calendar." };
+  // everyone, so it is held by HR staff and super-admins. See
+  // lib/hr/holiday-admins.ts.
+  if (!(await canManageHolidays(me, DUMMY_MODE))) {
+    return { ok: false, error: "Only HR staff and super-admins can change the holiday calendar." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -215,9 +218,10 @@ export async function removeHoliday(input: {
 }): Promise<ActionResult> {
   const me = await requireUser();
   // NARROWED from requireAdmin() - the holiday calendar drives attendance for
-  // everyone, so it is held by two named people. See lib/hr/holiday-admins.ts.
-  if (!canManageHolidays(me.email)) {
-    return { ok: false, error: "Only Ruchita and Rutvisha can change the holiday calendar." };
+  // everyone, so it is held by HR staff and super-admins. See
+  // lib/hr/holiday-admins.ts.
+  if (!(await canManageHolidays(me, DUMMY_MODE))) {
+    return { ok: false, error: "Only HR staff and super-admins can change the holiday calendar." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;

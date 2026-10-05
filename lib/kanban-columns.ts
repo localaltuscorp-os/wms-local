@@ -1,4 +1,5 @@
-import { USER_TASK_STATUSES, type TaskStatus } from "@/db/enums";
+import { type TaskStatus } from "@/db/enums";
+import { DOER_COLUMN_ORDER } from "@/lib/status/axes";
 
 // Sentinel id for the synthetic "Archived" column (not a real TaskStatus).
 export const ARCHIVE_COL = "__archived__" as const;
@@ -40,18 +41,7 @@ export function boardColumnFor(t: {
 // here, beside Done, as the doer axis's second terminal. Deprecated statuses
 // (follow_up_1/2/3, cancelled, transferred, on_hold) are intentionally absent.
 export const DEFAULT_ADMIN_COLUMN_ORDER: ColId[] = [
-  "dont_know",
-  "not_started",
-  "initiated",
-  "follow_up",
-  "need_info",
-  "done",
-  "abandoned",
-  "not_approved",
-  // Approved sits with the other terminal verdict, straight after Done /
-  // Not Approved and before Archived.
-  "approved",
-  ARCHIVE_COL,
+  ...DOER_COLUMN_ORDER,
 ];
 
 // Non-admins: their curated lifecycle list, plus the terminal verdicts. They can
@@ -63,10 +53,7 @@ export const DEFAULT_ADMIN_COLUMN_ORDER: ColId[] = [
 // from the board for the person who has to redo it. It is appended explicitly,
 // in the same place the admin order puts it: straight after Done.
 export const USER_COLUMN_ORDER: ColId[] = [
-  ...USER_TASK_STATUSES,
-  "not_approved",
-  "approved",
-  ARCHIVE_COL,
+  ...DOER_COLUMN_ORDER,
 ];
 
 const ADMIN_COLUMN_SET = new Set<string>(DEFAULT_ADMIN_COLUMN_ORDER);

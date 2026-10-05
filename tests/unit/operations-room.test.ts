@@ -63,7 +63,7 @@ describe("the Operations room", () => {
     // that used to sit beside it on the WMS rail was removed — /project-plan
     // is the only project surface now — so nothing maps it any more.
     expect(workspaceForPath("/project-plan")).toBe("project-plan");
-    expect(workspaceForPath("/projects")).toBeNull();
+    expect(workspaceForPath("/projects")).toBe("wms");
   });
 
   it("has a hub card, and the two absorbed rooms no longer do", () => {

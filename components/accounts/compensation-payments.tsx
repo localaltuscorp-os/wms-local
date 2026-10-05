@@ -1,0 +1,9 @@
+"use client";
+import { useTransition } from "react";
+import type { ApprovalRow } from "@/lib/compensation/workflow";
+import { payApprovedCompensation } from "@/app/(app)/accounts/approvals/actions";
+
+export function CompensationPayments({ rows }: { rows: ApprovalRow[] }) {
+  const [pending, start] = useTransition();
+  return <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="min-w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Employee</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Period</th><th className="px-4 py-3">Approved amount</th><th className="px-4 py-3"></th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.kind}:${row.subjectId}`} className="border-t border-slate-100"><td className="px-4 py-3 font-semibold">{row.employeeName}</td><td className="px-4 py-3 capitalize">{row.kind}</td><td className="px-4 py-3">{row.periodMonth ?? "—"}</td><td className="px-4 py-3">Rs. {row.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td><td className="px-4 py-3 text-right"><button disabled={pending} onClick={() => start(async () => { const result = await payApprovedCompensation({ kind: row.kind, subjectId: row.subjectId }); if (!result.ok) window.alert(result.error); })} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{pending ? "Recording…" : "Record payment"}</button></td></tr>)}{rows.length === 0 && <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">No approved payments are waiting for Accounts.</td></tr>}</tbody></table></div>;
+}

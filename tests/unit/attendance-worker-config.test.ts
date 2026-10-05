@@ -469,6 +469,30 @@ describe("other worker types are left alone", () => {
   });
 });
 
+describe("Regression: paired hybrid punches retain their worked duration", () => {
+  it("grades 13:20 to 19:55 as Present even with a legacy-wide schedule window", () => {
+    const cfg = resolveEffectiveConfig(
+      {
+        workerType: "hybrid",
+        attOfficialStart: "03:00",
+        attOfficialEnd: "20:00",
+        attLateAfter: "03:15",
+        attEarlyBefore: "19:50",
+      },
+      ORG,
+    );
+    const result = computeDayCode(
+      { inAt: "13:20", outAt: "19:55" },
+      toAttendanceSchedule(cfg),
+      ctx,
+      "23:59",
+    );
+
+    expect(result.workedMinutes).toBe(395);
+    expect(result.code).toBe("P");
+  });
+});
+
 describe("monthKeyOf", () => {
   it("buckets by calendar month", () => {
     expect(monthKeyOf("2025-08-31")).toBe("2025-08");

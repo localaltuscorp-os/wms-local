@@ -164,6 +164,13 @@ export function ExitHandoverForm({
   return (
     <div className="ex-step mx-auto w-full max-w-[960px] px-6 pb-40 pt-8 max-md:px-4">
       <div className="mb-6">
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-4 inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-white px-3.5 py-2 text-[13px] font-semibold text-ink-strong transition-colors hover:border-ink-soft"
+        >
+          <ArrowLeft size={15} /> Back to Exit Interview & Handover
+        </button>
         <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink-muted">Annexure A</span>
         <h1
           className="mt-1 text-ink-strong"

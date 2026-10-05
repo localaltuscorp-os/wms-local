@@ -83,13 +83,21 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "wms",
     label: "WMS",
     note: "Work management — the task system and its dashboards.",
+    // Legacy workspace entry. It forwards through `/ws/wms` to set the active
+    // workspace cookie before landing on `/dashboard`, but must be governed as
+    // WMS while the app layout evaluates the incoming request.
+    routes: ["/wms"],
     children: [
       {
         key: "wms.dashboard",
         label: "WMS Dashboard",
         routes: ["/dashboard"],
         children: [
-          { key: "wms.dashboard.done", label: "Done Dashboard", routes: ["/dashboard/done"] },
+          {
+            key: "wms.dashboard.done",
+            label: "Done Dashboard",
+            routes: ["/dashboard/done"],
+          },
           {
             key: "wms.dashboard.task-report",
             label: "Task Report",
@@ -103,53 +111,74 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Tasks",
         routes: ["/tasks"],
         children: [
-          { key: "wms.tasks.kanban", label: "Kanban", routes: ["/tasks/kanban"] },
+          {
+            key: "wms.tasks.kanban",
+            label: "Kanban",
+            routes: ["/tasks/kanban"],
+          },
           { key: "wms.tasks.new", label: "New Task", routes: ["/tasks/new"] },
-          { key: "wms.tasks.import", label: "Import", routes: ["/tasks/import"] },
-          { key: "wms.tasks.duplicates", label: "Duplicates", routes: ["/tasks/duplicates"] },
-          { key: "wms.tasks.agenda", label: "Agenda", routes: ["/tasks/agenda"] },
-          { key: "wms.tasks.time", label: "Time Intelligence", routes: ["/tasks/time"] },
+          {
+            key: "wms.tasks.import",
+            label: "Import",
+            routes: ["/tasks/import"],
+          },
+          {
+            key: "wms.tasks.duplicates",
+            label: "Duplicates",
+            routes: ["/tasks/duplicates"],
+          },
+          {
+            key: "wms.tasks.agenda",
+            label: "Agenda",
+            routes: ["/tasks/agenda"],
+          },
+          {
+            key: "wms.tasks.time",
+            label: "Time Intelligence",
+            routes: ["/tasks/time"],
+          },
         ],
       },
       { key: "wms.my-day", label: "Daily Goals", routes: ["/my-day"] },
       { key: "wms.review", label: "Review", routes: ["/review"] },
-      { key: "wms.index-hub", label: "Important Links", routes: ["/index-hub"] },
-      { key: "wms.daily-checklist", label: "Daily Checklist", routes: ["/daily-checklist"] },
+      {
+        key: "wms.index-hub",
+        label: "Important Links",
+        routes: ["/index-hub"],
+      },
+      {
+        key: "wms.daily-checklist",
+        label: "Daily Checklist",
+        routes: ["/daily-checklist"],
+      },
     ],
   },
 
   {
     key: "employees",
     label: "Employees",
-    note: "The employee-facing room: DCC, attendance, leave, salary, reimbursements.",
+    note: "The employee-facing room: compliance, attendance, leave, salary, reimbursements.",
     children: [
       {
-        key: "employees.dcc",
-        label: "DCC",
-        routes: ["/dcc"],
-        children: [
-          // WCC and MCC replaced My Day (account holder, 2026-09-18); `/dcc`
-          // itself now redirects to WCC.
-          { key: "employees.dcc.wcc", label: "WCC — Weekly Compliance Checklist", routes: ["/dcc/wcc"] },
-          { key: "employees.dcc.mcc", label: "MCC — Monthly Compliance Checklist", routes: ["/dcc/mcc"] },
-          // The SP1 sheet IS the dashboard, and the call log is typed into that
-          // sheet (2026-09-17), so neither has a node of its own. Their old
-          // addresses are listed here because both still redirect, and a
-          // redirect must not become a hole in the matrix.
-          {
-            key: "employees.dcc.dashboard",
-            label: "DCC Dashboard",
-            routes: ["/dcc/dashboard", "/dcc/sp1", "/dcc/call-log"],
-          },
-          { key: "employees.dcc.masters", label: "DCC Masters", routes: ["/dcc/masters"] },
-        ],
+        key: "employees.dashboard",
+        label: "Dashboard",
+        routes: ["/employees", "/employees/dashboard"],
+      },
+      {
+        key: "employees.cc",
+        label: "Compliance Checklist",
+        routes: ["/employees/cc"],
       },
       {
         key: "employees.attendance",
         label: "Attendance",
         routes: ["/attendance"],
         children: [
-          { key: "employees.attendance.leave", label: "Leaves", routes: ["/attendance/leave"] },
+          {
+            key: "employees.attendance.leave",
+            label: "Leaves",
+            routes: ["/attendance/leave"],
+          },
           {
             key: "employees.attendance.remote-work",
             label: "Remote Work",
@@ -198,7 +227,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           },
         ],
       },
-      { key: "employees.incentive", label: "Incentive", routes: ["/incentive"] },
+      {
+        key: "employees.incentive",
+        label: "Incentive",
+        routes: ["/incentive"],
+      },
       {
         key: "employees.my-salary",
         label: "My Salary",
@@ -217,7 +250,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           },
         ],
       },
-      { key: "employees.queries", label: "Queries & Notifications", routes: ["/queries"] },
+      {
+        key: "employees.queries",
+        label: "Queries & Notifications",
+        routes: ["/queries"],
+      },
       { key: "employees.overtime", label: "Overtime", routes: ["/overtime"] },
     ],
   },
@@ -227,51 +264,123 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     label: "HR",
     note: "The hiring and lifecycle room.",
     children: [
-      { key: "hr.overview", label: "HR Overview", routes: ["/hr", "/hr/overview"] },
+      {
+        key: "hr.overview",
+        label: "HR Overview",
+        routes: ["/hr", "/hr/overview"],
+      },
       { key: "hr.stages", label: "Lifecycle Stages", routes: ["/hr/[stage]"] },
-      { key: "hr.candidates", label: "Candidates", routes: ["/hr/candidates"] },
+      {
+        key: "hr.candidates",
+        label: "Candidates",
+        routes: ["/hr/candidates", "/api/hr/candidate-resume/pdf"],
+      },
       { key: "hr.intake", label: "Candidate Intake", routes: ["/hr/intake"] },
       { key: "hr.evaluation", label: "Evaluation", routes: ["/hr/evaluation"] },
       {
         key: "hr.management-assessment",
         label: "Management Assessment",
-        routes: ["/hr/management-assessment"],
+        routes: ["/hr/management-assessment", "/api/hr/management-assessment/upload"],
       },
-      { key: "hr.hiring-analytics", label: "Hiring Analytics", routes: ["/hr/hiring-analytics"] },
-      { key: "hr.selected-candidates", label: "Selected Candidates", routes: ["/hr/selected-candidates"] },
-      { key: "hr.rejected-candidates", label: "Rejected Candidates", routes: ["/hr/rejected-candidates"] },
+      {
+        key: "hr.hiring-analytics",
+        label: "Hiring Analytics",
+        routes: ["/hr/hiring-analytics"],
+      },
+      {
+        key: "hr.selected-candidates",
+        label: "Selected Candidates",
+        routes: ["/hr/selected-candidates"],
+      },
+      {
+        key: "hr.rejected-candidates",
+        label: "Rejected Candidates",
+        routes: ["/hr/rejected-candidates"],
+      },
       { key: "hr.induction", label: "Induction", routes: ["/hr/induction"] },
-      { key: "hr.record", label: "HR Record", routes: ["/hr/record"] },
+      {
+        key: "hr.record",
+        label: "HR Record",
+        routes: [
+          "/hr/record",
+          "/api/hr/docket",
+          "/api/hr/records/drive/connect",
+          "/api/hr/records/drive/run",
+          "/api/hr/records/[personId]/zip",
+        ],
+      },
       { key: "hr.kpi", label: "HR KPI", routes: ["/hr/kpi"] },
       { key: "hr.ctc", label: "CTC", routes: ["/hr/ctc"] },
-            /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
+      /* MOVED TO THE EMPLOYEES ROOM (2026-09-12). Both paths are listed: the
          new one is where the page lives, the old one still resolves as a
          redirect and must stay governed by the same node rather than becoming
          an ungoverned door. The KEY keeps its `hr.` prefix deliberately —
          permission keys are persisted grants, so renaming it would revoke every
          grant already written against it. */
-      { key: "hr.salary-slip", label: "Salary Slip", routes: ["/salary-slip", "/hr/salary-slip"] },
-      { key: "hr.letters", label: "Letters", routes: ["/hr/letters"] },
+      {
+        key: "hr.salary-slip",
+        label: "Salary Slip",
+        routes: ["/salary-slip", "/hr/salary-slip"],
+      },
+      {
+        key: "hr.letters",
+        label: "Letters",
+        routes: [
+          "/hr/letters",
+          "/api/hr/letters/email-pdf",
+          "/api/hr/letters/issue",
+          "/api/hr/letters/issue-rich",
+          "/api/hr/letters/pdf",
+          "/api/hr/send-letter-email",
+        ],
+      },
       // These three have NO page at the bare segment — only children. Naming
       // the real paths keeps the catalogue test honest: a route listed here that
       // does not exist on disk is a switch wired to nothing, which is worse than
       // no switch. `/hr/policies/[key]` is the literal directory name, and the
       // prefix match means it governs every policy under it.
-      { key: "hr.policies", label: "Policies", routes: ["/hr/policies/[key]"] },
+      {
+        key: "hr.policies",
+        label: "Policies",
+        routes: [
+          "/hr/policies/[key]",
+          "/api/hr/policies/acknowledge",
+          "/api/hr/policies/download",
+          "/api/hr/policies/download-all",
+        ],
+      },
       {
         key: "hr.forms",
         label: "Forms",
-        routes: ["/hr/forms/[id]", "/hr/all-forms", "/hr/my-forms"],
+        routes: [
+          "/hr/forms/[id]",
+          "/hr/all-forms",
+          "/hr/my-forms",
+          "/api/hr/forms/[id]/email",
+          "/api/hr/forms/[id]/pdf",
+        ],
       },
       { key: "hr.exit", label: "Exit Process", routes: ["/hr/exit/interview"] },
-      { key: "hr.holidays", label: "Holiday List", routes: ["/hr/holidays", "/holidays"] },
+      {
+        key: "hr.holidays",
+        label: "Holiday List",
+        routes: ["/hr/holidays", "/holidays"],
+      },
       {
         key: "hr.helpdesk",
         label: "HR Help Desk",
         routes: ["/support"],
         children: [
-          { key: "hr.helpdesk.routing", label: "Ticket Routing", routes: ["/hr/routing"] },
-          { key: "hr.helpdesk.metrics", label: "Support Metrics", routes: ["/hr/metrics"] },
+          {
+            key: "hr.helpdesk.routing",
+            label: "Ticket Routing",
+            routes: ["/hr/routing"],
+          },
+          {
+            key: "hr.helpdesk.metrics",
+            label: "Support Metrics",
+            routes: ["/hr/metrics"],
+          },
         ],
       },
     ],
@@ -311,7 +420,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           },
         ],
       },
-      { key: "sales.people-gives", label: "People Gives", routes: ["/people-gives"] },
+      {
+        key: "sales.people-gives",
+        label: "People Gives",
+        routes: ["/people-gives"],
+      },
       {
         /* Same arrangement as Ambassadors above: the key stayed, the route moved. */
         key: "sales.outstanding",
@@ -330,7 +443,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Breakthrough",
         routes: ["/participant-breakthrough"],
       },
-      { key: "sales.references", label: "References", routes: ["/record-reference"] },
+      {
+        key: "sales.references",
+        label: "References",
+        routes: ["/record-reference"],
+      },
     ],
   },
 
@@ -360,13 +477,21 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "accounts.trackers",
         label: "Trackers",
         children: [
-          { key: "accounts.trackers.cc", label: "CC Master", routes: ["/accounts/cc-tracker"] },
+          {
+            key: "accounts.trackers.cc",
+            label: "CC Master",
+            routes: ["/accounts/cc-tracker"],
+          },
           {
             key: "accounts.trackers.due-dates",
             label: "Due Dates",
             routes: ["/accounts/due-dates"],
           },
-          { key: "accounts.trackers.sip", label: "SIP", routes: ["/accounts/sip-tracker"] },
+          {
+            key: "accounts.trackers.sip",
+            label: "SIP",
+            routes: ["/accounts/sip-tracker"],
+          },
           {
             key: "accounts.trackers.fno",
             label: "FNO Income",
@@ -410,10 +535,26 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Payroll",
         routes: ["/salary"],
         children: [
-          { key: "accounts.payroll.analytics", label: "Analytics", routes: ["/salary/analytics"] },
-          { key: "accounts.payroll.ctc", label: "CTC", routes: ["/salary/ctc"] },
-          { key: "accounts.payroll.documents", label: "Documents", routes: ["/salary/documents"] },
-          { key: "accounts.payroll.policy", label: "Policy", routes: ["/salary/policy"] },
+          {
+            key: "accounts.payroll.analytics",
+            label: "Analytics",
+            routes: ["/salary/analytics"],
+          },
+          {
+            key: "accounts.payroll.ctc",
+            label: "CTC",
+            routes: ["/salary/ctc"],
+          },
+          {
+            key: "accounts.payroll.documents",
+            label: "Documents",
+            routes: ["/salary/documents"],
+          },
+          {
+            key: "accounts.payroll.policy",
+            label: "Policy",
+            routes: ["/salary/policy"],
+          },
           {
             key: "accounts.payroll.incentive-payout",
             label: "Incentive Payout",
@@ -421,7 +562,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
           },
         ],
       },
-      { key: "accounts.task-list", label: "Task List", routes: ["/accounts/task-list"] },
+      {
+        key: "accounts.task-list",
+        label: "Task List",
+        routes: ["/accounts/task-list"],
+      },
     ],
   },
 
@@ -441,7 +586,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Customer Master DD",
         routes: ["/billing/customers/dropdowns"],
       },
-      { key: "billing.documents", label: "Documents", routes: ["/billing/documents"] },
+      {
+        key: "billing.documents",
+        label: "Documents",
+        routes: ["/billing/documents"],
+      },
       {
         key: "billing.documents.new",
         label: "New Document",
@@ -457,8 +606,16 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Email a Document",
         routes: ["/billing/documents/[id]/email"],
       },
-      { key: "billing.contracts", label: "All Contracts", routes: ["/billing/contracts"] },
-      { key: "billing.contracts.new", label: "Create Contract", routes: ["/billing/contracts/new"] },
+      {
+        key: "billing.contracts",
+        label: "All Contracts",
+        routes: ["/billing/contracts"],
+      },
+      {
+        key: "billing.contracts.new",
+        label: "Create Contract",
+        routes: ["/billing/contracts/new"],
+      },
       {
         key: "billing.contracts.detail",
         label: "Contract Detail",
@@ -471,10 +628,22 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "goals",
     label: "Goals",
     children: [
-      { key: "goals.dashboard", label: "Goals Dashboard", routes: ["/goals/dashboard"] },
+      {
+        key: "goals.dashboard",
+        label: "Goals Dashboard",
+        routes: ["/goals/dashboard", "/goals/report.pdf", "/goals/template.xlsx"],
+      },
       { key: "goals.yearly", label: "Yearly Goals", routes: ["/goals/yearly"] },
-      { key: "goals.quarterly", label: "Quarterly Goals", routes: ["/goals/quarterly"] },
-      { key: "goals.monthly", label: "Monthly Goals", routes: ["/goals/monthly"] },
+      {
+        key: "goals.quarterly",
+        label: "Quarterly Goals",
+        routes: ["/goals/quarterly"],
+      },
+      {
+        key: "goals.monthly",
+        label: "Monthly Goals",
+        routes: ["/goals/monthly"],
+      },
       {
         key: "goals.weekly",
         label: "Weekly Goals",
@@ -493,12 +662,20 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         ],
       },
       { key: "goals.review", label: "Goals Review", routes: ["/goals/review"] },
-      { key: "goals.approve", label: "Goals Approve", routes: ["/goals/approve"] },
+      {
+        key: "goals.approve",
+        label: "Goals Approve",
+        routes: ["/goals/approve"],
+      },
       { key: "goals.commit", label: "Commit", routes: ["/goals/commit"] },
       { key: "goals.import", label: "Import", routes: ["/goals/import"] },
       { key: "goals.cascade", label: "Cascade", routes: ["/goals/cascade"] },
       { key: "goals.plan", label: "Plan", routes: ["/goals/plan"] },
-      { key: "goals.recycle-bin", label: "Recycle Bin", routes: ["/goals/recycle-bin"] },
+      {
+        key: "goals.recycle-bin",
+        label: "Recycle Bin",
+        routes: ["/goals/recycle-bin"],
+      },
     ],
   },
 
@@ -506,7 +683,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "productivity",
     label: "Performance",
     children: [
-      { key: "productivity.mine", label: "My Productivity", routes: ["/productivity"] },
+      {
+        key: "productivity.mine",
+        label: "My Productivity",
+        routes: ["/productivity"],
+      },
       {
         key: "productivity.team",
         label: "Team Performance",
@@ -518,12 +699,28 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         label: "Appraisal",
         routes: ["/productivity/appraisal", "/appraisal"],
         children: [
-          { key: "productivity.appraisal.admin", label: "Appraisal Admin", routes: ["/appraisal/admin"] },
-          { key: "productivity.appraisal.config", label: "Appraisal Config", routes: ["/appraisal/config"] },
-          { key: "productivity.appraisal.culture", label: "Culture", routes: ["/appraisal/culture"] },
+          {
+            key: "productivity.appraisal.admin",
+            label: "Appraisal Admin",
+            routes: ["/appraisal/admin"],
+          },
+          {
+            key: "productivity.appraisal.config",
+            label: "Appraisal Config",
+            routes: ["/appraisal/config"],
+          },
+          {
+            key: "productivity.appraisal.culture",
+            label: "Culture",
+            routes: ["/appraisal/culture"],
+          },
         ],
       },
-      { key: "productivity.report", label: "Report", routes: ["/productivity/report"] },
+      {
+        key: "productivity.report",
+        label: "Report",
+        routes: ["/productivity/report", "/api/productivity/report/[id]/pdf"],
+      },
     ],
   },
 
@@ -543,21 +740,73 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "training",
     label: "Training",
     children: [
-      { key: "training.library", label: "Library", routes: ["/training"] },
-      { key: "training.calendar", label: "Calendar", routes: ["/training/calendar"] },
-      { key: "training.self-learning", label: "Self-Learning", routes: ["/training/self-learning"] },
+      {
+        key: "training.library",
+        label: "Library",
+        routes: ["/training", "/api/training/summarize-audio", "/api/training/upload"],
+      },
+      {
+        key: "training.calendar",
+        label: "Calendar",
+        routes: ["/training/calendar"],
+      },
+      {
+        key: "training.self-learning",
+        label: "Self-Learning",
+        routes: ["/training/self-learning"],
+      },
       { key: "training.share", label: "Share", routes: ["/training/share"] },
-      { key: "training.obligations", label: "Obligations", routes: ["/training/obligations"] },
-      { key: "training.induction", label: "Induction", routes: ["/training/induction"] },
-      { key: "training.feedback", label: "Feedback", routes: ["/training/feedback"] },
-      { key: "training.dashboard", label: "Training Dashboard", routes: ["/training/dashboard"] },
+      {
+        key: "training.obligations",
+        label: "Obligations",
+        routes: ["/training/obligations"],
+      },
+      {
+        key: "training.induction",
+        label: "Induction",
+        routes: ["/training/induction"],
+      },
+      {
+        key: "training.feedback",
+        label: "Feedback",
+        routes: ["/training/feedback", "/api/training/feedback-upload"],
+      },
+      {
+        key: "training.dashboard",
+        label: "Training Dashboard",
+        routes: ["/training/dashboard"],
+      },
       { key: "training.new", label: "New Training", routes: ["/training/new"] },
-      { key: "training.schedule", label: "Schedule Training", routes: ["/training/schedule"] },
-      { key: "training.attendance", label: "Attendance", routes: ["/training/attendance"] },
-      { key: "training.surveys", label: "Feedback Surveys", routes: ["/training/surveys"] },
-      { key: "training.targets", label: "Targets", routes: ["/training/targets"] },
-      { key: "training.analytics", label: "Analytics", routes: ["/training/analytics"] },
-      { key: "training.configuration", label: "Configuration", routes: ["/training/configuration"] },
+      {
+        key: "training.schedule",
+        label: "Schedule Training",
+        routes: ["/training/schedule"],
+      },
+      {
+        key: "training.attendance",
+        label: "Attendance",
+        routes: ["/training/attendance"],
+      },
+      {
+        key: "training.surveys",
+        label: "Feedback Surveys",
+        routes: ["/training/surveys"],
+      },
+      {
+        key: "training.targets",
+        label: "Targets",
+        routes: ["/training/targets"],
+      },
+      {
+        key: "training.analytics",
+        label: "Analytics",
+        routes: ["/training/analytics"],
+      },
+      {
+        key: "training.configuration",
+        label: "Configuration",
+        routes: ["/training/configuration"],
+      },
     ],
   },
 
@@ -576,8 +825,16 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "operations",
     label: "Operations",
     children: [
-      { key: "operations.home", label: "Operations Home", routes: ["/operations"] },
-      { key: "operations.checklist", label: "Checklist", routes: ["/operations/checklist"] },
+      {
+        key: "operations.home",
+        label: "Operations Home",
+        routes: ["/operations"],
+      },
+      {
+        key: "operations.checklist",
+        label: "Checklist",
+        routes: ["/operations/checklist"],
+      },
       {
         key: "operations.client-engagement",
         label: "Client Engagement",
@@ -602,15 +859,18 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "PCA Grid",
             routes: ["/operations/client-engagement/pca"],
           },
-          {
-            key: "operations.client-engagement.team",
-            label: "Team & Log",
-            routes: ["/operations/client-engagement/team"],
-          },
         ],
       },
-      { key: "operations.directory", label: "Directory", routes: ["/operations/directory"] },
-      { key: "operations.guidelines", label: "Guidelines", routes: ["/operations/guidelines"] },
+      {
+        key: "operations.directory",
+        label: "Directory",
+        routes: ["/operations/directory"],
+      },
+      {
+        key: "operations.guidelines",
+        label: "Guidelines",
+        routes: ["/operations/guidelines"],
+      },
       /* One switch for all of Masters, including Recruitment JD — which moved
          here from the HR rail on 2026-09-17 and gave up its own `hr.recruitment-jd`
          node in the process. The old path is listed beside the new one for the
@@ -620,7 +880,7 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
       {
         key: "operations.masters",
         label: "Masters",
-        routes: ["/operations/masters", "/hr/recruitment-jd"],
+        routes: ["/operations/masters", "/hr/recruitment-jd", "/api/jd/attachments/[id]"],
       },
     ],
   },
@@ -629,11 +889,24 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "events",
     label: "Monthly Events Master",
     children: [
-      { key: "events.overview", label: "Overview", routes: ["/events", "/api/events/export"] },
-      { key: "events.calendar", label: "Calendar", routes: ["/events/calendar"] },
-      { key: "events.masters", label: "Masters", routes: ["/events/masters"] },
-      { key: "events.batches", label: "Batches", routes: ["/events/batches"] },
-      { key: "events.obligations", label: "Obligations", routes: ["/events/obligations"] },
+      {
+        key: "events.overview",
+        label: "Overview",
+        routes: ["/events", "/api/events/export"],
+      },
+      {
+        key: "events.calendar",
+        label: "Calendar",
+      },
+      // These persisted permission keys govern their controls within the single
+      // Executive Calendar screen. Their former standalone URLs no longer
+      // exist, so they intentionally claim no phantom route.
+      { key: "events.masters", label: "Masters" },
+      { key: "events.batches", label: "Batches" },
+      {
+        key: "events.obligations",
+        label: "Obligations",
+      },
     ],
   },
 
@@ -641,7 +914,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "people-allocation",
     label: "Hand-holding",
     children: [
-      { key: "people-allocation.board", label: "Hand-holding", routes: ["/people-allocation"] },
+      {
+        key: "people-allocation.board",
+        label: "Hand-holding",
+        routes: ["/people-allocation"],
+      },
       {
         key: "people-allocation.participants",
         label: "All Participants",
@@ -670,17 +947,41 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     key: "project-plan",
     label: "Project",
     children: [
-      { key: "project-plan.views", label: "Project Views", routes: ["/project-plan/views"] },
-      { key: "project-plan.projects", label: "Projects", routes: ["/project-plan"] },
-      { key: "project-plan.milestones", label: "Milestones", routes: ["/project-plan/milestones"] },
-      { key: "project-plan.results", label: "Results", routes: ["/project-plan/results"] },
-      { key: "project-plan.actions", label: "Actions", routes: ["/project-plan/actions"] },
+      {
+        key: "project-plan.views",
+        label: "Project Views",
+        routes: ["/project-plan/views"],
+      },
+      {
+        key: "project-plan.projects",
+        label: "Projects",
+        routes: ["/project-plan"],
+      },
+      {
+        key: "project-plan.milestones",
+        label: "Milestones",
+        routes: ["/project-plan/milestones"],
+      },
+      {
+        key: "project-plan.results",
+        label: "Results",
+        routes: ["/project-plan/results"],
+      },
+      {
+        key: "project-plan.actions",
+        label: "Actions",
+        routes: ["/project-plan/actions"],
+      },
       {
         key: "project-plan.sub-actions",
         label: "Sub-Actions",
         routes: ["/project-plan/sub-actions"],
       },
-      { key: "project-plan.kanban", label: "Kanban", routes: ["/project-plan/kanban"] },
+      {
+        key: "project-plan.kanban",
+        label: "Kanban",
+        routes: ["/project-plan/kanban"],
+      },
     ],
   },
 
@@ -702,7 +1003,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         key: "admin.people",
         label: "People",
         children: [
-          { key: "admin.people.employees", label: "Employees", routes: ["/admin/employees"] },
+          {
+            key: "admin.people.employees",
+            label: "Employees",
+            routes: ["/admin/employees", "/api/admin/exit-register"],
+          },
           {
             key: "admin.people.hierarchy",
             label: "Reporting Hierarchy",
@@ -727,7 +1032,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "Designations",
             routes: ["/admin/designations"],
           },
-          { key: "admin.people.holidays", label: "Holidays", routes: ["/admin/holidays"] },
+          {
+            key: "admin.people.holidays",
+            label: "Holidays",
+            routes: ["/admin/holidays"],
+          },
         ],
       },
       {
@@ -768,9 +1077,21 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "Billing Master · Files",
             note: "The logo, signature and billing documents. View = see them; Edit = upload, replace and remove. Deliberately separate from entity edit, and additionally requires Billing Master view.",
           },
-          { key: "admin.masters.clients", label: "Client Master", routes: ["/admin/clients"] },
-          { key: "admin.masters.subjects", label: "Subject Master", routes: ["/admin/subjects"] },
-          { key: "admin.masters.products", label: "Product Master", routes: ["/admin/products"] },
+          {
+            key: "admin.masters.clients",
+            label: "Client Master",
+            routes: ["/admin/clients"],
+          },
+          {
+            key: "admin.masters.subjects",
+            label: "Subject Master",
+            routes: ["/admin/subjects"],
+          },
+          {
+            key: "admin.masters.products",
+            label: "Product Master",
+            routes: ["/admin/products"],
+          },
           {
             key: "admin.masters.payment-modes",
             label: "Payment Modes",
@@ -867,6 +1188,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/admin/access-control"],
         note: "Elevated TASK visibility — who may read work outside their own reporting line. Writing a grant is additionally limited to a master admin; this node only decides whether the screen is reachable.",
       },
+      {
+        key: "admin.module-ownership",
+        label: "Module Ownership",
+        routes: ["/admin/access-architecture-demo"],
+        note: "Head and Associate are equivalent operational owners; Developer is technical ownership only. Assignment changes are Super-Admin-only.",
+      },
       // ── THE CONTROL PANEL IS NOT HERE ANY MORE (2026-09-24) ──────────────
       // It left the Admin Panel and became a module of its own. The nodes that
       // govern its screens are on the top-level `control-panel` node below,
@@ -886,12 +1213,25 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
             label: "Task Reminders",
             routes: ["/admin/task-reminders"],
           },
-          { key: "admin.system.settings", label: "Settings", routes: ["/admin/settings"] },
+          {
+            key: "admin.system.settings",
+            label: "Settings",
+            routes: ["/admin/settings"],
+          },
           {
             key: "admin.system.logs",
             label: "Logs",
             routes: ["/admin/logs"],
             note: "The immutable global activity log. View opens the investigation screen; export is a separate audited event.",
+          },
+          {
+            key: "admin.system.module-backups",
+            label: "Module Backups",
+            routes: [
+              "/admin/module-backups",
+              "/api/modules/backup/connect",
+              "/api/modules/[moduleId]/export",
+            ],
           },
         ],
       },
@@ -935,7 +1275,11 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     note: "Who can reach what: role templates, the per-employee permission matrix and temporary access. Switching this node off hides the whole module — it does not appear in the navigation and its screens refuse a direct URL. Write actions are still limited by their own checks (a master admin for roles) and this cannot widen them.",
     routes: ["/control-panel"],
     children: [
-      { key: "control-panel.roles", label: "Roles", routes: ["/control-panel/roles"] },
+      {
+        key: "control-panel.roles",
+        label: "Roles",
+        routes: ["/control-panel/roles"],
+      },
       {
         key: "control-panel.permissions",
         label: "Permissions",
@@ -955,15 +1299,33 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
     label: "Platform",
     note: "Surfaces that belong to no single room and are reached from the avatar menu.",
     children: [
-      { key: "platform.hub", label: "Hub", routes: ["/hub"] },
-      { key: "platform.profile", label: "Profile", routes: ["/profile"] },
+      { key: "platform.hub", label: "Hub", routes: ["/hub", "/ws/[id]"] },
+      {
+        key: "platform.profile",
+        label: "Profile",
+        routes: ["/profile", "/api/profile/avatar"],
+      },
+      {
+        key: "platform.reports",
+        label: "Report Exports",
+        routes: ["/api/reports/section-pdf", "/api/reports/send-email"],
+        note: "Shared report export and email endpoints, available from several dashboards.",
+      },
       { key: "platform.inbox", label: "Inbox", routes: ["/inbox"] },
       { key: "platform.archived", label: "Archived", routes: ["/archived"] },
       { key: "platform.documents", label: "Documents", routes: ["/documents"] },
       { key: "platform.policies", label: "Policies", routes: ["/policies"] },
       { key: "platform.letters", label: "Letters", routes: ["/letters"] },
-      { key: "platform.agreements", label: "Agreements", routes: ["/agreements"] },
-      { key: "platform.communications", label: "Communications", routes: ["/communications"] },
+      {
+        key: "platform.agreements",
+        label: "Agreements",
+        routes: ["/agreements"],
+      },
+      {
+        key: "platform.communications",
+        label: "Communications",
+        routes: ["/communications"],
+      },
       { key: "platform.dossier", label: "Dossier", routes: ["/dossier"] },
       { key: "platform.portal", label: "Portal", routes: ["/portal"] },
     ],
@@ -1012,7 +1374,9 @@ export function allPermissionNodes(): readonly FlatNode[] {
   return FLAT;
 }
 
-const BY_KEY: ReadonlyMap<string, FlatNode> = new Map(FLAT.map((n) => [n.key, n]));
+const BY_KEY: ReadonlyMap<string, FlatNode> = new Map(
+  FLAT.map((n) => [n.key, n]),
+);
 
 export function permissionNode(key: string): FlatNode | undefined {
   return BY_KEY.get(key);
@@ -1031,9 +1395,17 @@ export function isPermissionNodeKey(key: string): boolean {
  * before `wms.tasks`. Built once; the lookup is a linear scan of ~200 entries,
  * which is far cheaper than the query it guards.
  */
-const ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) =>
-  (n.routes ?? []).map((route) => ({ route, key: n.key })),
-).sort((a, b) => b.route.length - a.route.length);
+const ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap(
+  (n) => (n.routes ?? []).map((route) => ({ route, key: n.key })),
+).sort((a, b) => {
+  // A concrete route must beat a parameterised one even when the latter is
+  // longer (`/hr/ctc` is CTC, never the catch-all `/hr/[stage]`). Dynamic
+  // routes then remain available for the paths without a concrete owner.
+  const aDynamic = a.route.includes("[");
+  const bDynamic = b.route.includes("[");
+  if (aDynamic !== bDynamic) return Number(aDynamic) - Number(bDynamic);
+  return b.route.length - a.route.length;
+});
 
 /**
  * The most specific node governing `pathname`, or null when nothing does.
@@ -1046,7 +1418,12 @@ const ROUTE_INDEX: readonly { route: string; key: string }[] = FLAT.flatMap((n) 
 export function nodeKeyForPath(pathname: string): string | null {
   const path = pathname.split("?")[0]!.replace(/\/+$/, "") || "/";
   for (const { route, key } of ROUTE_INDEX) {
-    if (path === route || path.startsWith(`${route}/`)) return key;
+    const routePattern = new RegExp(
+      `^${route
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        .replace(/\\\[[^/]+\\\]/g, "[^/]+")}(?:/|$)`,
+    );
+    if (routePattern.test(path)) return key;
   }
   return null;
 }

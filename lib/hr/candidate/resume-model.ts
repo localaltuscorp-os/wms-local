@@ -62,6 +62,8 @@ function valWithFallback(data: ResumeData, sectionId: string, key: string): stri
 
 export function resumeHeader(data: ResumeData): ResumeHeader {
   const dob = val(data, "personal", "dob");
+  const selectedCity = val(data, "personal", "city");
+  const city = selectedCity === "Other" ? val(data, "personal", "cityOther") : selectedCity;
   return {
     name: val(data, "personal", "fullName") || "Unnamed Candidate",
     position: valWithFallback(data, "jobDetails", "position"),
@@ -74,7 +76,7 @@ export function resumeHeader(data: ResumeData): ResumeHeader {
     // concise "City, State" for the header (the full address lines still render
     // in the Personal body group).
     location:
-      [val(data, "personal", "city"), val(data, "personal", "state")].filter(Boolean).join(", ") ||
+      [city, val(data, "personal", "state")].filter(Boolean).join(", ") ||
       val(data, "personal", "addressLine1"),
   };
 }

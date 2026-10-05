@@ -260,11 +260,11 @@ export function OvertimeClient({
   };
 
   return (
-    <div className="grid grid-cols-[minmax(0,380px)_minmax(0,1fr)] gap-6 max-lg:grid-cols-1">
+    <div className="grid grid-cols-[minmax(0,330px)_minmax(0,1fr)] gap-4 max-lg:grid-cols-1">
       {/* ── Log form ─────────────────────────────────────────────────── */}
       <form
         onSubmit={onSubmit}
-        className="wg-rise relative h-fit overflow-hidden rounded-[22px] bg-surface-card p-6 max-md:p-5 lg:sticky lg:top-6"
+        className="wg-rise relative h-fit overflow-hidden rounded-xl bg-surface-card p-4 max-md:p-4 lg:sticky lg:top-4"
         style={{ boxShadow: CARD_SHADOW }}
       >
         <span
@@ -274,7 +274,7 @@ export function OvertimeClient({
             background: `radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, ${GREEN} 8%, transparent), transparent 60%)`,
           }}
         />
-        <div className="relative mb-5 flex items-center gap-2.5">
+        <div className="relative mb-3 flex items-center gap-2.5">
           <span
             className="grid h-9 w-9 place-items-center rounded-xl text-white"
             style={{
@@ -297,7 +297,7 @@ export function OvertimeClient({
           </div>
         </div>
 
-        <div className="relative flex flex-col gap-4">
+        <div className="relative flex flex-col gap-3">
           {canPickPerson && (
             <div>
               <label htmlFor="ot-employee" className={LABEL}>

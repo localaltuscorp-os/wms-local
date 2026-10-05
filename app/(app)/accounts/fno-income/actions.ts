@@ -32,29 +32,40 @@ const ItemFields = z.object({
   agency: z.string().trim().min(1, "An agency is required.").max(2000),
   capital: z.any(),
 });
+const CreateSchema = ItemFields.extend({
+  selectedMonth: z.number().int().min(1).max(12),
+  monthlyIncome: z.any(),
+});
 const UpdateSchema = ItemFields.omit({ fyStartYear: true }).extend({ id: z.string().uuid() });
 
 export async function createFnoItem(input: unknown): Promise<ActionResult<{ id: string }>> {
   const { me } = await requireAccountsAccess();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
-  const parsed = ItemFields.safeParse(input);
+  const parsed = CreateSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid input.");
   const d = parsed.data;
   try {
-    const maxRows = (await db
-      .select({ next: sql<number>`COALESCE(MAX(${accountsFnoItems.sortOrder}), 0) + 1` })
-      .from(accountsFnoItems)
-      .where(eq(accountsFnoItems.fyStartYear, d.fyStartYear))) as Array<{ next: number }>;
-    const [row] = await db
-      .insert(accountsFnoItems)
-      .values({
-        fyStartYear: d.fyStartYear, code: d.code, entity: d.entity, agency: d.agency,
-        capital: amt(d.capital), sortOrder: maxRows[0]?.next ?? 1, createdById: me.id,
-      })
-      .returning({ id: accountsFnoItems.id });
+    const id = await db.transaction(async (tx) => {
+      const maxRows = (await tx
+        .select({ next: sql<number>`COALESCE(MAX(${accountsFnoItems.sortOrder}), 0) + 1` })
+        .from(accountsFnoItems)
+        .where(eq(accountsFnoItems.fyStartYear, d.fyStartYear))) as Array<{ next: number }>;
+      const [row] = await tx
+        .insert(accountsFnoItems)
+        .values({
+          fyStartYear: d.fyStartYear, code: d.code, entity: d.entity, agency: d.agency,
+          capital: amt(d.capital), sortOrder: maxRows[0]?.next ?? 1, createdById: me.id,
+        })
+        .returning({ id: accountsFnoItems.id });
+      const monthlyIncome = amt(d.monthlyIncome);
+      if (monthlyIncome !== null) {
+        await tx.insert(accountsFnoMonths).values({ itemId: row!.id, month: d.selectedMonth, amount: monthlyIncome, updatedById: me.id });
+      }
+      return row!.id;
+    });
     revalidatePath(PATH);
-    return { ok: true, id: row!.id };
+    return { ok: true, id };
   } catch (err) { return fail(err instanceof Error ? err.message : String(err)); }
 }
 

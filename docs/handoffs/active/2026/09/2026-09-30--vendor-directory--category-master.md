@@ -16,11 +16,11 @@ Make Vendor Category Master the live source of truth for Vendor Directory and it
 - Reused the shared browser dictation hook for Notes and the existing private Storage signed-upload pattern for Business Card front/back and PPT/Catalogue.
 - Replaced the browser-only hard-coded Vendor template with the shared Upload Master resolver. Its generated fallback workbook loads active categories from the master into a hidden list and Category dropdown; a static Upload Master override still wins unchanged.
 - The same active master values are enforced server-side by `saveVendor` and `bulkCreateVendors`.
-- Added migration `0257_vendor_category_master.sql`, which seeds the old suggested values and distinct existing categories, and copies legacy Cell No. to WhatsApp where blank.
+- Added migration `0261_vendor_category_master.sql`, which seeds the old suggested values and distinct existing categories, and copies legacy Cell No. to WhatsApp where blank.
 
 ## Database impact
 
-`0257_vendor_category_master.sql` is forward-only. It adds the category master and nullable/compatibility-safe vendor fields. It does not make legacy rows invalid or delete data. Apply only through the normal migration process; it has not been run here.
+`0261_vendor_category_master.sql` is forward-only. It adds the category master and nullable/compatibility-safe vendor fields. It does not make legacy rows invalid or delete data. Apply only through the normal migration process; it has not been run here.
 
 ## Remaining verification
 

@@ -1,7 +1,7 @@
 # WMS Admin Panel, Masters and Control Panel Audit
 
-Audit date: 2026-09-26  
-Repository scope: `wms-local-main/`  
+Audit date: 2026-09-26
+Repository scope: `wms-local-main/`
 Method: static repository audit. No application, database, migration, UI, API, permission, or data changes made.
 
 ## Evidence rules

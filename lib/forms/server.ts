@@ -3,7 +3,12 @@ import { asc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, employeeDepartments, departments, formConfigs, productOptions } from "@/db/schema";
 import { type FormFieldDef } from "./field-types";
-import { MODULES, SALESPERSON_FIELD_KEY, type ModuleKey } from "./modules";
+import {
+  MODULES,
+  SALESPERSON_FIELD_KEY,
+  completeReimbursementRequestFields,
+  type ModuleKey,
+} from "./modules";
 import { listActiveProductNames } from "@/lib/queries/products";
 
 /** form_key helpers — keep request/admin keys consistent everywhere. */
@@ -132,5 +137,6 @@ export async function resolveAdminFields(module: ModuleKey): Promise<FormFieldDe
 }
 
 export async function resolveRequestFields(module: ModuleKey): Promise<FormFieldDef[]> {
-  return resolveFields(requestKey(module), MODULES[module].requestFields);
+  const fields = await resolveFields(requestKey(module), MODULES[module].requestFields);
+  return module === "reimbursement" ? completeReimbursementRequestFields(fields) : fields;
 }

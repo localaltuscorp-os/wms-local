@@ -9,7 +9,9 @@
  * Both flags are held by more people than the two named here, and the point of
  * the rule is that this document has a named custodian. Note in particular that
  * MANAN IS DELIBERATELY ABSENT: the brief named three parties and he was not one
- * of them. The same shape as lib/hr/holiday-admins.ts, which also excludes him.
+ * of them. (lib/hr/holiday-admins.ts used to exclude him the same way; it has
+ * since moved to a role check — HR staff and super-admins — so this file is
+ * the list-based holdout now, not a matching pair.)
  * Adding him is one line in DECLARATION_ADMINS_BY_EMAIL, visible in review.
  *
  * ── MATCHED ON EMAIL, WITH A NAME FALLBACK ───────────────────────────────

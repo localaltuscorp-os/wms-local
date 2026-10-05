@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Download, Printer, Loader2, PenLine, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Building2, Download, Printer, Loader2, PenLine, CheckCircle2, ArrowLeft, PencilLine } from "lucide-react";
 import { PolicyDocument } from "@/components/hr/policies/policy-document";
 import { ENTITY_LIST, type EntityId } from "@/lib/hr/entities";
 import type { PolicyDoc } from "@/lib/hr/policies/types";
@@ -28,11 +29,15 @@ export function PolicyView({
   doc,
   signedAt,
   outdated = false,
+  backHref,
+  editHref,
 }: {
   doc: PolicyDoc;
   signedAt?: string | null;
   /** Signed, but only an OLDER version — a newer one has been published since. */
   outdated?: boolean;
+  backHref?: string;
+  editHref?: string;
 }) {
   const [entity, setEntity] = useState<EntityId>(doc.entityDefault ?? "altus-corp");
   const [signing, setSigning] = useState(false);
@@ -66,6 +71,20 @@ export function PolicyView({
   return (
     <div className="apv-wrap">
       <style>{VIEW_CSS}</style>
+      {(backHref || editHref) && (
+        <div className="apv-page-actions no-print">
+          {backHref && (
+            <Link href={backHref} className="apv-btn apv-btn-ghost">
+              <ArrowLeft size={15} strokeWidth={2.4} /> Back to Policies
+            </Link>
+          )}
+          {editHref && (
+            <Link href={editHref} className="apv-btn apv-btn-ghost">
+              <PencilLine size={15} strokeWidth={2.4} /> Edit Policy
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* ── Toolbar (does not print) ─────────────────────────────── */}
       <div className="apv-toolbar no-print">
@@ -147,6 +166,10 @@ export function PolicyView({
 
 const VIEW_CSS = `
 .apv-wrap{width:100%;}
+.apv-page-actions{
+  display:flex;align-items:center;justify-content:flex-start;gap:10px;
+  margin:0 0 12px;
+}
 .apv-toolbar{
   position:sticky;top:0;z-index:20;
   display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;
@@ -203,6 +226,8 @@ const VIEW_CSS = `
 .apv-stage{display:flex;justify-content:center;padding-bottom:40px;}
 
 @media (max-width:720px){
+  .apv-page-actions{align-items:stretch;flex-direction:column;}
+  .apv-page-actions .apv-btn{justify-content:center;}
   .apv-pick select{min-width:160px;}
   .apv-actions{width:100%;margin-left:0;}
 }

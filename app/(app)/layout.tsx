@@ -30,6 +30,7 @@ import { ModuleShortcuts } from "@/components/layout/module-shortcuts";
 import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 import { FocusMode } from "@/components/layout/focus-mode";
 import { listedModules } from "@/lib/module-theme";
+import { visibleModules } from "@/lib/permissions/visible-modules";
 import { IdleTimerClient } from "@/components/auth/idle-timer-client";
 import { ActivityTracker } from "@/components/logs/activity-tracker";
 import { workspaceForPath, canAccessWorkspace } from "@/lib/workspaces";
@@ -38,6 +39,7 @@ import { ManagerDailyTaskGate } from "@/components/manager-gates/manager-daily-t
 import { BroadcastPopup } from "@/components/ecos/broadcast-popup";
 import { pendingLockBroadcastForEmployee } from "@/lib/ecos/queries";
 import { BroadcastLockGate } from "@/components/communications/broadcast-lock-gate";
+import { TaskRealtimeProvider } from "@/components/layout/task-realtime-provider";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   // Load directly (no timeout wrapper). A slow read completes; wrapping auth in
@@ -53,6 +55,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // bottom both need it, and `accessFor` hits the DB for the employee's
   // departments — computing it twice would double that on every page.
   const access = await accessFor(me);
+  const navigationModules = await visibleModules(listedModules(access));
 
   // Workspace access control: department-restricted rooms (e.g. Sales) are
   // reachable only by super-admins or members of that department. Everyone else
@@ -228,7 +231,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const delegation = await getDelegation();
 
   return (
-    <>
+    <TaskRealtimeProvider>
       {/* FIRST-LOGIN DEVICE REGISTRATION (0222). Mounted first and outside
           ChromeShell so it covers the whole shell, not a pane of it. Renders
           nothing for an already-registered device, an exempt actor, or with
@@ -256,7 +259,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           not a workspace, so it cannot travel in `allowed`; `access.isAdmin` is
           the same test the hub card and `/admin`'s own layout guard read. */}
       <ModuleShortcuts
-        allowed={listedModules(access)}
+        allowed={navigationModules}
         adminAllowed={access.isAdmin}
       />
       {/* DEV_AUTH_BYPASS=true (.env.local, non-production only) — the idle
@@ -298,14 +301,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       />
       <ChromeShell
         sidebar={<DashboardSidebar />}
-        footer={<ModuleFooter access={access} />}
+        footer={<ModuleFooter access={access} modules={navigationModules} />}
         topBar={
-          /* The Aura bar — one glass strip on every screen in every module, and
-             the app's room switcher. `rooms` is resolved from the SAME `access`
-             the route gate and the module footer already used, so adding the bar
-             cost no extra query. */
           <AuraTopBar
-            rooms={roomsFor(listedModules(access))}
+            rooms={roomsFor(navigationModules)}
             bell={<NotificationBell />}
             userMenu={<UserMenuServer />}
           />
@@ -313,6 +312,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       >
         {children}
       </ChromeShell>
-    </>
+    </TaskRealtimeProvider>
   );
 }

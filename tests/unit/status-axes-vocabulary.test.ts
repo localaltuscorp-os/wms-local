@@ -78,8 +78,8 @@ describe("the initiator dropdown", () => {
     ]);
   });
 
-  it("labels them the way the screenshot does, No Verdict included", () => {
-    expect(INITIATOR_COLUMN_LABEL[NO_VERDICT_COL]).toBe("No Verdict");
+  it("labels the empty Initiator Status as pending with no verdict", () => {
+    expect(INITIATOR_COLUMN_LABEL[NO_VERDICT_COL]).toBe("Pending / No Verdict");
     expect(INITIATOR_STATUS_LABEL.approved).toBe("Approved");
     expect(INITIATOR_STATUS_LABEL.not_approved).toBe("Not Approved");
     expect(INITIATOR_STATUS_LABEL.on_hold).toBe("On Hold");

@@ -280,6 +280,16 @@ export async function listRecycleBin(): Promise<BinRow[]> {
     .where(isNotNull(billingLookups.deletedAt))
     .orderBy(desc(billingLookups.deletedAt));
 
+  // A user may add the same option again after removing it. The older deleted
+  // row cannot be restored without duplicating the live value, so it is not a
+  // useful Recycle Bin item. Keep its audit row in the database, but do not
+  // offer a Restore action that must fail.
+  const liveOptions = await db
+    .select({ kind: billingLookups.kind, value: billingLookups.value })
+    .from(billingLookups)
+    .where(isNull(billingLookups.deletedAt));
+  const liveOptionKeys = new Set(liveOptions.map((o) => `${o.kind}:${o.value.trim().toLowerCase()}`));
+
   const out: BinRow[] = [
     ...customers.map((c) => ({
       id: c.id,
@@ -289,7 +299,7 @@ export async function listRecycleBin(): Promise<BinRow[]> {
       deletedAt: c.deletedAt!,
       deletedByName: c.deletedByName,
     })),
-    ...options.map((o) => ({
+    ...options.filter((o) => !liveOptionKeys.has(`${o.kind}:${o.value.trim().toLowerCase()}`)).map((o) => ({
       id: o.id,
       kind: "option" as const,
       title: o.value,

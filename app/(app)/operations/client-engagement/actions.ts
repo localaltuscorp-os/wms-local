@@ -687,6 +687,42 @@ export async function ceSaveMember(input: MemberInput): Promise<Result<{ id: str
   }
 }
 
+/**
+ * Delete a team member. Only allowed while they are inactive AND hold no
+ * PCA (no ce_accounts row currently assigned to them) — an active member or
+ * one still carrying a caseload must be reassigned/deactivated first, not
+ * deleted out from under their accounts.
+ */
+export async function ceDeleteMember(id: string): Promise<Result> {
+  const { me, error } = await guard();
+  if (error) return { ok: false, error };
+  if (!(await isManager(me))) return { ok: false, error: `Only ${CE_MANAGER_NAMES} can change the team.` };
+
+  const [member] = await db.select().from(ceTeamMembers).where(eq(ceTeamMembers.id, id)).limit(1);
+  if (!member) return { ok: true };
+  if (member.isActive) return { ok: false, error: "Deactivate them first." };
+  const [held] = await db.select({ id: ceAccounts.id }).from(ceAccounts).where(eq(ceAccounts.assignedTo, id)).limit(1);
+  if (held) return { ok: false, error: "They still carry participants, clients or ambassadors — reassign those first." };
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(ceTeamMembers).where(eq(ceTeamMembers.id, id));
+      await audit(tx, {
+        entityType: "team_member",
+        entityId: id,
+        action: "delete",
+        summary: `Deleted team member ${member.name}`,
+        before: member,
+        actorId: me.id,
+      });
+    });
+    revalidate();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Reference pipeline                                                  */
 /* ------------------------------------------------------------------ */

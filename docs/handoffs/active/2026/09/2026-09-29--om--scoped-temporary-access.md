@@ -8,14 +8,14 @@ Status: Implemented locally; migration not applied.
 
 Changes:
 
-- Added additive scoped grant, recipient, and scope tables in migration `0254_scoped_temporary_access.sql`.
+- Added additive scoped grant, recipient, and scope tables in migration `0258_scoped_temporary_access.sql` (renumbered during integration because `0254` already existed on `origin/main`).
 - Preserved legacy `delegated_access_grants` token flow unchanged.
 - Added overlay resolver: existing authorization AND temporary scope.
 - Rebuilt Temporary Access form for multi-employee module scopes, custom navigation choices, preset/custom dates, and selected-recipient revoke confirmation.
 
 Database:
 
-- Apply `db/migrations/0254_scoped_temporary_access.sql` before deploying code that writes scoped grants.
+- Apply `db/migrations/0257_role_assignment_expiration.sql` and then `db/migrations/0258_scoped_temporary_access.sql` before deploying code that writes scoped grants.
 - Rollback: stop issuing scoped grants; existing delegated grants are unaffected. Do not drop tables while audit/history may be needed.
 
 Security:

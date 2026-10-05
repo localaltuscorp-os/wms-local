@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { Download, ExternalLink, FileText, Link2, Loader2, Mail, MapPin, Phone, User, Calendar, PencilLine } from "lucide-react";
 import type { IntakeSection } from "@/lib/hr/candidate/intake-schema";
 import { resumeHeader, resumeGroups } from "@/lib/hr/candidate/resume-model";
 import { fireToast } from "@/lib/toast";
 import { WORK_SAMPLES_KEY, parseWorkSamples, type WorkSample } from "@/lib/hr/candidate/work-samples";
 import { RESUME_KEY } from "@/lib/hr/candidate/resume";
+import type { PhotoReadUrlFn } from "./candidate-photo-field";
 import type { WorkFileUrlFn } from "./candidate-work-samples-field";
 
 const ALTUS_RED = "#E10600";
@@ -26,16 +26,32 @@ export function IntakeReviewStep({
   values,
   instances,
   onEdit,
+  photoReadUrl,
   workFileUrl,
 }: {
   sections: IntakeSection[];
   values: Record<string, string>;
   instances: Record<string, string[]>;
   onEdit: (i: number) => void;
+  photoReadUrl?: PhotoReadUrlFn;
   workFileUrl?: WorkFileUrlFn;
 }) {
   const samples = parseWorkSamples(values[WORK_SAMPLES_KEY]);
   const resumePath = values[RESUME_KEY] ?? "";
+  const photoPath = values["personal.photo"] ?? "";
+  const [resolvedPhoto, setResolvedPhoto] = React.useState({ path: "", url: "" });
+  const photoUrl = resolvedPhoto.path === photoPath ? resolvedPhoto.url : "";
+
+  React.useEffect(() => {
+    let live = true;
+    if (!photoPath || !photoReadUrl) return;
+    void photoReadUrl(photoPath).then((result) => {
+      if (live && result.ok) setResolvedPhoto({ path: photoPath, url: result.url });
+    });
+    return () => {
+      live = false;
+    };
+  }, [photoPath, photoReadUrl]);
 
   async function openSample(s: WorkSample) {
     if (s.kind === "link") {
@@ -105,7 +121,7 @@ export function IntakeReviewStep({
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full max-w-none">
       {/* HEADER BAND */}
       <section className="overflow-hidden rounded-2xl border border-hairline bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
         <div
@@ -120,7 +136,12 @@ export function IntakeReviewStep({
             className="relative h-28 w-28 shrink-0 overflow-hidden rounded-2xl border border-hairline bg-neutral-50 shadow-sm"
             style={{ width: 112, height: 112 }}
           >
-            {
+            {photoUrl ? (
+              // A signed Storage URL is external and short-lived, so a native image is the
+              // appropriate renderer rather than Next's configured image optimizer.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt={`${header.name || "Candidate"} photograph`} className="h-full w-full object-cover" />
+            ) : (
               <div
                 className="grid h-full w-full place-items-center"
                 style={{ color: ALTUS_RED }}
@@ -133,7 +154,7 @@ export function IntakeReviewStep({
                   <User size={44} strokeWidth={1.6} />
                 )}
               </div>
-            }
+            )}
           </div>
 
           {/* Identity */}

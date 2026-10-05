@@ -91,6 +91,9 @@ export function OnboardingForm({
   const [busy, setBusy] = React.useState<null | "draft" | "submitted">(null);
   const [values, setValues] = React.useState<Record<string, string>>(() => ({ ...initial.fields }));
   const [picked, setPicked] = React.useState<Record<string, File>>({});
+  // Removing a saved attachment needs to be communicated to the server; a
+  // locally picked file only needs to be cleared from this form state.
+  const [removedFiles, setRemovedFiles] = React.useState<Record<string, true>>({});
   /**
    * PICKED FILES UPLOAD STRAIGHT AWAY. They used to wait for Save Draft /
    * Submit, so anyone who picked their documents and then left the tab (to find
@@ -128,7 +131,31 @@ export function OnboardingForm({
 
   function pickFile(key: string, file: File) {
     setPicked((p) => ({ ...p, [key]: file }));
+    setRemovedFiles((p) => {
+      if (!p[key]) return p;
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
     void uploadPicked(key, file);
+  }
+
+  function removeFile(key: string) {
+    // Ignore a slower, already-running upload if it finishes after removal.
+    pendingUploads.current.delete(key);
+    setPicked((p) => {
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
+    setUploaded((p) => {
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
+    if (initial.files[key]?.fileName || initial.files[key]?.signedUrl) {
+      setRemovedFiles((p) => ({ ...p, [key]: true }));
+    }
   }
 
   // Repeater rows (e.g. Emergency Contacts) - seeded from saved JSON, else N empty rows.
@@ -177,6 +204,7 @@ export function OnboardingForm({
     setValues((prev) => {
       const next = { ...prev, [key]: v };
       if (key === "sameAsPermanent" && v === "YES") for (const [p, c] of PERM_TO_CURR) next[c] = prev[p] ?? "";
+      if (key === "addressProofType" && v !== ONB_PROOF_OTHER) next.addressProofOther = "";
       return next;
     });
   }
@@ -221,7 +249,7 @@ export function OnboardingForm({
           key={f.key}
           field={f}
           sourceLabel={ONB_FIELD_BY_KEY.get(via)?.label ?? "attachment"}
-          source={initial.files[via] ?? null}
+          source={removedFiles[via] ? null : initial.files[via] ?? null}
           picked={picked[via] ?? null}
         />
       );
@@ -232,9 +260,10 @@ export function OnboardingForm({
         field={{ ...f, required: isOnbFieldRequired(f, values) }}
         value={values[f.key] ?? ""}
         onChange={(v) => setVal(f.key, v)}
-        existingFile={initial.files[f.key] ?? null}
+        existingFile={removedFiles[f.key] ? null : initial.files[f.key] ?? null}
         pickedFile={picked[f.key] ?? null}
         onPick={(file) => pickFile(f.key, file)}
+        onRemove={() => removeFile(f.key)}
         disabled={sectionKey === "current" && f.key !== "sameAsPermanent" && sameAsPerm}
         inGrid={opts.inGrid}
         compact={opts.compact}
@@ -301,8 +330,8 @@ export function OnboardingForm({
    * no attachment keeps every attachment saved before.
    */
   const draft = React.useMemo(
-    () => ({ values, repeaters, files: uploadedRefs }),
-    [values, repeaters, uploadedRefs],
+    () => ({ values, repeaters, files: uploadedRefs, removedFiles }),
+    [values, repeaters, uploadedRefs, removedFiles],
   );
 
   const autosave = useAutosave({
@@ -323,6 +352,7 @@ export function OnboardingForm({
       }
       for (const f of repeaterFields) fd.set(f.key, JSON.stringify(d.repeaters[f.key] ?? []));
       for (const [key, ref] of Object.entries(d.files)) fd.set(`${key}__uploaded`, JSON.stringify(ref));
+      for (const key of Object.keys(d.removedFiles)) fd.set(`${key}__remove`, "1");
       const res = await submitAction(fd);
       return res.ok ? { ok: true } : { ok: false, error: res.error };
     },
@@ -338,7 +368,7 @@ export function OnboardingForm({
         const complete = (repeaters[f.key] ?? []).filter((row) => isRepeaterRowComplete(f, row)).length;
         const need = f.min ?? 1;
         if (complete < need) {
-          fireToast({ message: `Add at least ${need} complete ${f.itemLabel ?? f.label} (Name, Relation & Mobile each).`, type: "error" });
+          fireToast({ message: `Add at least ${need} complete ${f.itemLabel ?? f.label} (Name, Relation & a 10-digit Mobile each).`, type: "error" });
           document.getElementById("sec-emergency")?.scrollIntoView({ behavior: "smooth", block: "start" });
           return;
         }
@@ -351,7 +381,7 @@ export function OnboardingForm({
         if (!isOnbFieldRequired(f, values)) continue;
         if (f.type === "repeater") continue; // handled above
         if (f.type === "file") {
-          const attached = (key: string) => !!picked[key] || !!initial.files[key]?.signedUrl || !!initial.files[key]?.fileName;
+          const attached = (key: string) => !removedFiles[key] && (!!picked[key] || !!initial.files[key]?.signedUrl || !!initial.files[key]?.fileName);
           // Address Proof = "Aadhaar Card" is met by the Aadhaar attachment itself.
           const via = usesOtherAttachment(f.key);
           if (!attached(via ?? f.key)) {
@@ -409,11 +439,16 @@ export function OnboardingForm({
       if (values.sameAsPermanent === "YES") for (const [p, c] of PERM_TO_CURR) fd.set(c, values[p] ?? "");
       for (const f of repeaterFields) fd.set(f.key, JSON.stringify(repeaters[f.key] ?? []));
       for (const [key, ref] of Object.entries(refs)) fd.set(`${key}__uploaded`, JSON.stringify(ref));
+      for (const key of Object.keys(removedFiles)) fd.set(`${key}__remove`, "1");
       const res = await submitAction(fd);
       if (!res.ok) { fireToast({ message: res.error, type: "error" }); return; }
       // Stored now - drop the local picks so the fields show the saved "View" link
       // from the refreshed server data rather than the transient picked name.
-      if (Object.keys(refs).length) { setPicked({}); setUploaded({}); }
+      if (Object.keys(refs).length || Object.keys(removedFiles).length) {
+        setPicked({});
+        setUploaded({});
+        setRemovedFiles({});
+      }
       fireToast({ message: status === "draft" ? "Draft saved" : "Onboarding submitted", type: "success" });
       router.refresh();
     } catch (e) {
@@ -542,7 +577,7 @@ export function OnboardingForm({
 }
 
 function Field({
-  field, value, onChange, existingFile, pickedFile, onPick, disabled, inGrid, compact,
+  field, value, onChange, existingFile, pickedFile, onPick, onRemove, disabled, inGrid, compact,
 }: {
   field: OnbField;
   value: string;
@@ -550,6 +585,7 @@ function Field({
   existingFile: OnboardingView["files"][string] | null;
   pickedFile: File | null;
   onPick: (f: File) => void;
+  onRemove: () => void;
   disabled?: boolean;
   /** In a layout row: fills its cell, hint on its own line, control pinned to the row's bottom edge. */
   inGrid?: boolean;
@@ -576,7 +612,7 @@ function Field({
         {label}
         <div className={`flex gap-1.5${push}`}>
           {(field.options ?? []).map((opt) => (
-            <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(opt)} className={compact ? "w-[124px] shrink-0" : "flex-1"} />
+            <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(value === opt ? "" : opt)} className={compact ? "w-[124px] shrink-0" : "flex-1"} />
           ))}
         </div>
       </div>
@@ -600,6 +636,16 @@ function Field({
           )}
           {hasExisting && existingFile!.signedUrl && (
             <a href={existingFile!.signedUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="relative z-10 inline-flex items-center gap-1 rounded-pill bg-white px-2 py-0.5 text-[10.5px] font-bold text-ink-soft hover:text-ink-strong"><Eye size={11} /> View</a>
+          )}
+          {(hasPicked || hasExisting) && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
+              className="relative z-10 inline-flex items-center gap-1 rounded-pill bg-white px-2 py-0.5 text-[10.5px] font-bold text-[color:var(--color-altus-red)] hover:bg-red-50"
+              aria-label={`Remove ${field.label}`}
+            >
+              <Trash2 size={11} /> Remove
+            </button>
           )}
           <input type="file" accept={ONB_ACCEPT} onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])} className="absolute inset-0 cursor-pointer opacity-0" />
         </div>
@@ -670,7 +716,7 @@ function SameAsPermanentChoice({ field, value, onChange }: { field: OnbField; va
       </span>
       <div className="flex gap-1.5">
         {(field.options ?? []).map((opt) => (
-          <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(opt)} className="w-[76px] shrink-0" />
+          <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(value === opt ? "" : opt)} className="w-[76px] shrink-0" />
         ))}
       </div>
     </div>
@@ -696,9 +742,10 @@ function AddressProofChoice({
       <GridLabel label={field.label} required={field.required} />
       <div className="mt-auto flex gap-1.5">
         {[ONB_PROOF_AADHAAR, ONB_PROOF_ELECTRIC].map((opt) => (
-          <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(opt)} className="w-[124px] shrink-0" />
+          <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(value === opt ? "" : opt)} className="w-[124px] shrink-0" />
         ))}
-        {value === ONB_PROOF_OTHER ? (
+        <ChoiceButton label={ONB_PROOF_OTHER} on={value === ONB_PROOF_OTHER} onClick={() => onChange(value === ONB_PROOF_OTHER ? "" : ONB_PROOF_OTHER)} className="w-[124px] shrink-0" />
+        {value === ONB_PROOF_OTHER && (
           <input
             autoFocus
             value={otherValue}
@@ -709,8 +756,6 @@ function AddressProofChoice({
             className="w-[180px] shrink-0 rounded-lg px-2.5 py-2 text-[12.5px] font-semibold text-ink-strong outline-none"
             style={{ background: `color-mix(in srgb, ${RED} 6%, white)`, boxShadow: `inset 0 0 0 1.5px ${RED}` }}
           />
-        ) : (
-          <ChoiceButton label={ONB_PROOF_OTHER} on={false} onClick={() => onChange(ONB_PROOF_OTHER)} className="w-[124px] shrink-0" />
         )}
       </div>
     </div>
@@ -755,7 +800,7 @@ function RepeaterField({
 }) {
   const min = field.min ?? 1;
   const max = field.max ?? 20;
-  const complete = rows.filter((r) => (field.sub ?? []).every((s) => String(r?.[s.key] ?? "").trim().length > 0)).length;
+  const complete = rows.filter((r) => isRepeaterRowComplete(field, r)).length;
   const enough = complete >= min;
   return (
     <div className="flex w-full flex-col gap-2" style={{ flexBasis: "100%" }}>
@@ -788,10 +833,11 @@ function RepeaterField({
                   <span className="text-[11px] font-bold text-ink-soft">{s.label}<span className="text-[color:var(--color-altus-red)]"> *</span></span>
                   <input
                     type={s.type === "tel" ? "tel" : "text"}
-                    inputMode={s.type === "tel" ? "tel" : undefined}
+                    inputMode={s.type === "tel" ? "numeric" : undefined}
                     value={row[s.key] ?? ""}
-                    onChange={(e) => onCell(rowIdx, s.key, e.target.value)}
-                    maxLength={200}
+                    onChange={(e) => onCell(rowIdx, s.key, s.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
+                    maxLength={s.type === "tel" ? 10 : 200}
+                    pattern={s.type === "tel" ? "[0-9]{10}" : undefined}
                     className="rounded-lg border border-hairline bg-white px-2.5 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
                   />
                 </label>

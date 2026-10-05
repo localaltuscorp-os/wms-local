@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { X, UploadCloud, Loader2, Paperclip } from "lucide-react";
+import { X, UploadCloud, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { DOC_TYPES, docTypeMeta, type DossierDocType } from "@/lib/dossier/types";
 import { uploadEmployeeDocument } from "@/app/(app)/dossier/actions";
@@ -28,7 +28,9 @@ export function UploadDialog({
   const [busy, setBusy] = React.useState(false);
   const [docType, setDocType] = React.useState<DossierDocType>(presetDocType ?? "appointment");
   const [file, setFile] = React.useState<File | null>(null);
+  const [effectiveDate, setEffectiveDate] = React.useState("");
   const titleRef = React.useRef<HTMLInputElement>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => setMounted(true), []);
   React.useEffect(() => {
@@ -47,6 +49,7 @@ export function UploadDialog({
     const form = new FormData(e.currentTarget);
     form.set("employeeId", employeeId);
     form.set("docType", docType);
+    form.set("effectiveDate", effectiveDate);
     if (!(form.get("file") instanceof File) || (form.get("file") as File).size === 0) {
       fireToast({ message: "Pick a file to upload.", type: "error" });
       return;
@@ -132,8 +135,12 @@ export function UploadDialog({
             {/* effective date */}
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Letter date <span className="font-medium normal-case text-ink-subtle">(optional)</span></span>
-              <DateField name="effectiveDate"
-        className="rounded-xl border border-hairline bg-surface-soft px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]" />
+              <DateField
+                name="effectiveDate"
+                value={effectiveDate}
+                onChange={(e) => setEffectiveDate(e.target.value)}
+                className="rounded-xl border border-hairline bg-surface-soft px-3.5 py-2.5 text-[14px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"
+              />
             </label>
             {/* file */}
             <label className="flex flex-col gap-1.5">
@@ -141,7 +148,17 @@ export function UploadDialog({
               <div className="relative flex items-center gap-2 rounded-xl border border-solid border-hairline-strong bg-surface-soft px-3.5 py-2.5">
                 <Paperclip size={15} className="shrink-0 text-ink-subtle" />
                 <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-muted">{file ? file.name : "Choose PDF / image…"}</span>
-                <input name="file" type="file" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="absolute inset-0 cursor-pointer opacity-0" />
+                {file && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+                    className="relative z-10 inline-flex items-center gap-1 rounded-pill bg-white px-2 py-1 text-[11px] font-bold text-[color:var(--color-altus-red)] hover:bg-red-50"
+                    aria-label="Remove selected file"
+                  >
+                    <Trash2 size={12} /> Remove
+                  </button>
+                )}
+                <input ref={fileRef} name="file" type="file" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="absolute inset-0 cursor-pointer opacity-0" />
               </div>
             </label>
           </div>

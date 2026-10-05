@@ -1,5 +1,6 @@
 import { FINE_BUCKET_SLUGS } from "@/lib/transforms/aging-buckets-fine";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/header";
 import { FilterBar } from "@/components/layout/filter-bar";
 import { TaskListPage } from "@/components/tasks/task-list-page";
@@ -14,10 +15,11 @@ import type { TaskListFilters } from "@/lib/types";
 import { listActiveClientNames } from "@/lib/queries/clients";
 import { listWeekGoalsAsTasks } from "@/lib/weekly-goals/as-task-row";
 import { goalScopeFor } from "@/lib/weekly-goals/hierarchy";
-import { parseTaskFilters } from "@/lib/task-filters";
+import { parseTaskFilters, taskFilterDefaultStart } from "@/lib/task-filters";
 import { currentTaskVisibility } from "@/lib/tasks/scope";
 import { requireUser } from "@/lib/auth/current";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
+import { resolveTeamScopes } from "@/lib/queries/team-scope";
 import { TASK_STATUSES, isDeprecatedStatus } from "@/db/enums";
 import type { TaskStatus, StatusColorToken } from "@/db/enums";
 
@@ -34,6 +36,21 @@ const TASK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function TasksPage({ searchParams }: PageProps) {
   const sp = await searchParams;
+  // Upgrade the prior hard-coded Tasks default (Jan 1 through today) once.
+  // This is deliberately narrow so a person who intentionally chooses a
+  // January range is not silently moved to the financial-year range.
+  const rawStart = Array.isArray(sp.start) ? sp.start[0] : sp.start;
+  const rawEnd = Array.isArray(sp.end) ? sp.end[0] : sp.end;
+  const today = new Date().toISOString().slice(0, 10);
+  if (rawStart === "2026-01-01" && rawEnd === today) {
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(sp)) {
+      const first = Array.isArray(value) ? value[0] : value;
+      if (typeof first === "string" && key !== "start") next.set(key, first);
+    }
+    next.set("start", taskFilterDefaultStart());
+    redirect(`/tasks?${next.toString()}`);
+  }
   const me = await requireUser();
   // Who may reassign a doer: managers, Manan, Om. Resolved on the SERVER and
   // passed down as a boolean — the table is a client component and has no
@@ -41,6 +58,8 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const mayChangeDoer = await canChangeDoerFor(me);
   const rawTask = Array.isArray(sp.task) ? sp.task[0] : sp.task;
   const selectedTaskId = rawTask && TASK_ID.test(rawTask) ? rawTask : null;
+  const rawView = Array.isArray(sp.view) ? sp.view[0] : sp.view;
+  const kpiView = rawView === "initiator" ? "initiator" : "doer";
   // EVERYONE defaults to "assigned to me" when no explicit ?emp= is set —
   // admins and team leaders included. Being an admin is not a reason to open
   // on the whole organisation's work, and a list that starts as everybody's
@@ -82,19 +101,34 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const scopeFilters: TaskListFilters = {
     ...filters,
     statuses: [],
+    initiatorStatuses: [],
     priorities: [],
     unread: false,
   };
+  const initiatorStatuses = filters.initiatorStatuses ?? [];
   const sameScope =
-    filters.statuses.length === 0 && filters.priorities.length === 0 && !filters.unread;
+    filters.statuses.length === 0 &&
+    initiatorStatuses.length === 0 &&
+    filters.priorities.length === 0 &&
+    !filters.unread;
 
-  const [allEmployees, rows, scopeRows, subjects, clients, statusDisplay, weeklyGoals] =
+  // The Tasks navigation badge answers “how many tasks belong to this selected
+  // employee/team scope?”, rather than “how many happen to fall in the visible
+  // date window?”. The table keeps its date range unchanged.
+  const sidebarCountFilters: TaskListFilters = {
+    ...filters,
+    startDate: null,
+    endDate: null,
+  };
+
+  const [allEmployees, rows, scopeRows, sidebarTaskRows, subjects, clients, statusDisplay, weeklyGoals, teamMemberIds] =
     await Promise.all([
       listEmployeeOptions(),
       listTasks(filters),
       // With no status/priority filter the two reads are identical, so skip the
       // second query entirely and reuse the first result below.
       sameScope ? Promise.resolve(null) : listTasks(scopeFilters),
+      listTasks(sidebarCountFilters),
       listDistinctSubjects(),
       listActiveClientNames(),
       getStatusDisplayMap(),
@@ -106,6 +140,9 @@ export default async function TasksPage({ searchParams }: PageProps) {
           clients: filters.clients,
         },
       }).catch(() => []),
+      filters.teams.length > 0
+        ? resolveTeamScopes(filters.teams, me.id)
+        : Promise.resolve(null),
     ]);
 
   // Read-receipt for the drawer, matching /tasks/[id]: opening a task in the
@@ -165,12 +202,19 @@ export default async function TasksPage({ searchParams }: PageProps) {
         // All employees, so a second My Tasks / All Tasks switch is redundant.
         hideScopeToggle
         assigneeMode={filters.assigneeMode}
-        taskCount={rows.length}
+        taskCount={sidebarTaskRows.length}
+        teamSummary={
+          teamMemberIds
+            ? { taskCount: sidebarTaskRows.length, peopleCount: teamMemberIds.length }
+            : undefined
+        }
+        teamEmployeeIds={teamMemberIds ?? undefined}
+        teamScopeKey={filters.teams.join(",")}
         initial={{
           start:  isoDay(filters.startDate),
           end:    isoDay(filters.endDate),
           emp:    filters.doerIds,
-          view:   "doer",
+          view:   kpiView,
           dept:   filters.departments,
           prio:   filters.priorities,
           subj:   filters.subjects,
@@ -224,6 +268,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
             </Suspense>
           ) : null
         }
+        kpiView={kpiView}
       />
     </>
   );

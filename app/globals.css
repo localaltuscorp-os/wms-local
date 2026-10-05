@@ -2159,6 +2159,28 @@ html {
 }
 
 /* Task detail drawer — slides in from the right edge on row click. */
+/* Frozen table cells need a single, explicit stacking contract. A sticky cell
+   creates its own stacking context, so a frozen row label can otherwise paint
+   over a header while a table is scrolled in both axes. Body cells stay lowest,
+   totals sit above data, and headers always sit above both. Do not use
+   `!important` here: a frozen cell's inline layer must be able to sit above a
+   normal sticky header while the table scrolls horizontally. */
+table > thead.sticky,
+table > thead > tr > .sticky {
+  z-index: 20;
+  background-clip: padding-box;
+}
+
+table > tbody > tr > .sticky {
+  z-index: 10;
+  background-clip: padding-box;
+}
+
+table > tfoot > tr > .sticky {
+  z-index: 30;
+  background-clip: padding-box;
+}
+
 @keyframes drawerIn {
   from {
     transform: translateX(24px);
@@ -2766,6 +2788,51 @@ html {
   display: none;
 }
 
+/* Compact, scan-first financial registers — patterned after the inbox and the
+   tasks list while retaining the month-grid logic used by Accounts. */
+.accounts-inbox-shell { isolation: isolate; }
+.accounts-inbox-module table > thead > tr > th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.075em;
+}
+.accounts-inbox-module table > tbody > tr > td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 13px;
+}
+.accounts-inbox-module table > tbody > tr:not(:last-child) {
+  transition: background-color 140ms ease;
+}
+.accounts-inbox-module table > tbody > tr.group:hover {
+  background: rgba(15, 23, 42, 0.025) !important;
+}
+.accounts-inbox-table > thead > tr > th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.075em;
+}
+.accounts-inbox-table > tbody > tr > td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 13px;
+}
+.accounts-inbox-table > tbody > tr.group { transition: background-color 140ms ease; }
+.accounts-inbox-table > tbody > tr.group:hover { background: rgba(15, 23, 42, 0.025) !important; }
+.accounts-inbox-table .accounts-inbox-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  min-width: 72px;
+  background: var(--color-surface-card);
+}
+.accounts-inbox-table > tbody > tr.group:hover .accounts-inbox-actions { background: var(--color-surface-soft); }
+.accounts-inbox-table .accounts-inbox-action-buttons { opacity: 0.48; transition: opacity 140ms ease; }
+.accounts-inbox-table > tbody > tr.group:hover .accounts-inbox-action-buttons,
+.accounts-inbox-table .accounts-inbox-action-buttons:focus-within { opacity: 1; }
+
 /* A DATA TABLE'S scrollbar. `slim-scroll` above is 6px with an #e2e8f0 thumb —
    tuned for short side-lists, and on a white card the size of a full data table
    it is close to invisible, so nothing tells you there are 40 more rows below
@@ -2784,6 +2851,20 @@ html {
 .table-scroll {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+  /* Data grids use a consistent rectangular surface across modules. Individual
+     controls inside the grid (badges, inputs and buttons) keep their own
+     rounding; this affects only the table viewport. */
+  border-radius: 0 !important;
+}
+.table-scroll > table,
+table {
+  border-radius: 0 !important;
+}
+/* Most data grids have a separate bordered shell around the scroll viewport.
+   Square that shell too, otherwise a rectangular table still appears rounded
+   at its outer edge (for example, the Tasks register). */
+:where(div, section, article):has(> .table-scroll) {
+  border-radius: 0 !important;
 }
 .table-scroll::-webkit-scrollbar {
   width: 8px;
@@ -3002,6 +3083,46 @@ html {
   /* Rows scroll UNDER this, so it cannot be transparent. A component that
      wants a different colour sets `bg-*` on the <th> — a class beats this. */
   background-color: var(--table-head-bg, var(--color-surface-card));
+}
+
+/* Address Book: keep the customer identity and address type visible while
+   the remaining address columns scroll horizontally. */
+.customer-address-book-view th:nth-child(2),
+.customer-address-book-view td:nth-child(2) {
+  position: sticky;
+  left: 3.5rem;
+  min-width: 27.5rem;
+  background: var(--color-surface-card);
+}
+.customer-address-book-view th:nth-child(3),
+.customer-address-book-view td:nth-child(3) {
+  position: sticky;
+  left: 31rem;
+  min-width: 7.5rem;
+  background: var(--color-surface-card);
+}
+.customer-address-book-view th:nth-child(2),
+.customer-address-book-view th:nth-child(3) {
+  z-index: 40;
+  background: var(--table-head-bg, var(--color-surface-card));
+}
+.customer-address-book-view td:nth-child(2),
+.customer-address-book-view td:nth-child(3) {
+  z-index: 10;
+}
+
+/* Billing uses the same quiet, cool-grey table header as the reference ledger.
+   The variable is inherited by every Billing table, including tables added
+   later, while tables in every other module retain their existing surface. */
+.billing-module {
+  --table-head-bg: #f5f6f8;
+}
+
+/* Keep the Billing table head compact: less side space reduces the total table
+   width, and the tighter vertical rhythm keeps the header row slim. */
+.billing-module :where(thead) > tr > th {
+  padding-block: 0.55rem !important;
+  padding-inline: 0.7rem !important;
 }
 
 /* PRINT: a sheet has no viewport to stick to and no scrollport to cap. Both

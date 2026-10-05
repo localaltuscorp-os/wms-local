@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   billingCustomerAddresses,
@@ -94,6 +94,10 @@ function whereFromFilters(f: Partial<BillingListFilters>) {
   // ticked - so "show everything" survives the change untouched.
   if (f.type?.length) clauses.push(inArray(billingDocuments.docType, f.type));
   if (f.status?.length) clauses.push(inArray(billingDocuments.status, f.status));
+  if (f.overdue) {
+    clauses.push(inArray(billingDocuments.status, ["generated", "sent"]));
+    clauses.push(lt(billingDocuments.dueDate, todayISO()));
+  }
   if (f.customerId?.length) clauses.push(inArray(billingDocuments.customerId, f.customerId));
   if (f.entityId?.length) clauses.push(inArray(billingDocuments.entityId, f.entityId));
   if (f.finYear?.length) {

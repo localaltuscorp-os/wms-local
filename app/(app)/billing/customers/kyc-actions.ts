@@ -427,7 +427,7 @@ export async function saveCustomerKycAction(
   
     const customerId = String(fd.get("customerId") ?? "");
     const slotRaw = String(fd.get("slot") ?? "other");
-    const slot = (["front", "back", "brochure", "video"] as const).find((x) => x === slotRaw) ?? "other";
+    const slot = (["front", "back", "gst_certificate", "brochure", "video"] as const).find((x) => x === slotRaw) ?? "other";
     const file = fd.get("file");
     if (!z.string().uuid().safeParse(customerId).success) return { ok: false, error: "Unknown client." };
     if (!(file instanceof File)) return { ok: false, error: "No file provided." };

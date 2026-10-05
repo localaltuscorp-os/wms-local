@@ -241,7 +241,7 @@ export function CeDialog({
   }, [portal, portalReady]);
 
   const frame = (
-    <div className={`fixed inset-0 ${portal ? "z-[10000] grid place-items-center overflow-hidden p-3 sm:p-5" : "z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center"}`}>
+    <div className={`fixed inset-0 ${portal ? "z-[10000] grid place-items-center overflow-hidden p-3 sm:p-5" : "z-[60] flex items-start justify-center overflow-y-auto p-4 sm:items-center"}`}>
       <button
         type="button"
         aria-label="Close"

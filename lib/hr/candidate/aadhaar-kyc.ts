@@ -234,7 +234,7 @@ export function mapKycResponse(raw: unknown, provider: KycProvider = "generic"):
 
 /** The 28 states + 8 union territories, longest-first so "Andhra Pradesh" wins
  *  over a bare "Pradesh"-style partial and multi-word names match before short ones. */
-const INDIAN_STATES: readonly string[] = [
+export const INDIAN_STATES: readonly string[] = [
   "Andaman and Nicobar Islands", "Arunachal Pradesh", "Andhra Pradesh",
   "Dadra and Nagar Haveli and Daman and Diu", "Himachal Pradesh", "Madhya Pradesh",
   "Uttar Pradesh", "Jammu and Kashmir", "West Bengal", "Tamil Nadu",

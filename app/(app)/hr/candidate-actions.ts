@@ -12,7 +12,7 @@ import { requireHrIntake } from "@/lib/hr/intake-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { ALL_CRITERION_IDS } from "@/lib/hr/candidate/evaluation-checklist";
-import { intakeProgress } from "@/lib/hr/candidate/intake-schema";
+import { intakeProgress, isValidCandidateMobile, missingIntakeRequiredKeys } from "@/lib/hr/candidate/intake-schema";
 import { sendRecruiterIntakeEmail } from "@/lib/email/hr-recruiter-email";
 import { disableCandidateAccountByIntakeId } from "@/lib/hr/candidate/account-lifecycle";
 import { revokeAccessLinks } from "@/lib/hr/candidate/access-link";
@@ -23,6 +23,7 @@ import { listEmployeeOptions } from "@/lib/queries/employees";
 // one answer in this codebase, and a second would drift from it.
 import { normalizeMobile } from "@/lib/hr/candidate/aadhaar-kyc";
 import { isWorkSamplePath, safeWorkFileName, workFileProblem } from "@/lib/hr/candidate/work-samples";
+import { isCandidatePhotoPath } from "@/lib/hr/candidate/photo";
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -56,7 +57,7 @@ const PHOTO_EXT: Record<string, string> = {
 export async function createCandidatePhotoUploadUrl(input: {
   mime?: string | null;
   size?: number | null;
-}): Promise<Result<{ path: string; token: string; bucket: string }>> {
+}): Promise<Result<{ path: string; token: string; bucket: string; signedUrl: string }>> {
   const me = await requireHrIntake();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -71,7 +72,7 @@ export async function createCandidatePhotoUploadUrl(input: {
       .storage.from(DOCUMENTS_BUCKET)
       .createSignedUploadUrl(path);
     if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
-    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET, signedUrl: data.signedUrl };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
   }
@@ -86,7 +87,7 @@ export async function createCandidateWorkUploadUrl(input: {
   fileName: string;
   mime?: string | null;
   size?: number | null;
-}): Promise<Result<{ path: string; token: string; bucket: string }>> {
+}): Promise<Result<{ path: string; token: string; bucket: string; signedUrl: string }>> {
   const me = await requireHrIntake();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -98,7 +99,7 @@ export async function createCandidateWorkUploadUrl(input: {
   try {
     const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(path);
     if (error || !data) return { ok: false, error: error?.message ?? "Could not start the upload." };
-    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET };
+    return { ok: true, path, token: data.token, bucket: DOCUMENTS_BUCKET, signedUrl: data.signedUrl };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not start the upload." };
   }
@@ -110,6 +111,15 @@ export async function getCandidateWorkFileUrl(path: string): Promise<Result<{ ur
   if (!isWorkSamplePath(path)) return { ok: false, error: "Not a work-sample file." };
   const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
   if (error || !data) return { ok: false, error: error?.message ?? "Could not open the file." };
+  return { ok: true, url: data.signedUrl };
+}
+
+/** Short-lived read URL for an intake photo shown in the review header. */
+export async function getCandidatePhotoUrl(path: string): Promise<Result<{ url: string }>> {
+  await requireHrIntake();
+  if (!isCandidatePhotoPath(path)) return { ok: false, error: "Not a candidate photo." };
+  const { data, error } = await getSupabaseAdmin().storage.from(DOCUMENTS_BUCKET).createSignedUrl(path, 600);
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not open the photo." };
   return { ok: true, url: data.signedUrl };
 }
 
@@ -242,6 +252,22 @@ export async function submitCandidateDraft(id: string): Promise<{ ok: true } | {
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
   if (!z.string().uuid().safeParse(id).success) return { ok: false, error: "Invalid candidate." };
+  const [beforeSubmit] = await db
+    .select({ data: candidateIntake.data, instances: candidateIntake.instances })
+    .from(candidateIntake)
+    .where(eq(candidateIntake.id, id))
+    .limit(1);
+  if (!beforeSubmit) return { ok: false, error: "Candidate not found." };
+  if (!isValidCandidateMobile((beforeSubmit.data as Record<string, string>)["personal.mobile"])) {
+    return { ok: false, error: "Enter a valid 10-digit mobile number." };
+  }
+  if (missingIntakeRequiredKeys(
+    "hr",
+    beforeSubmit.data as Record<string, string>,
+    (beforeSubmit.instances ?? {}) as Record<string, string[]>,
+  ).length > 0) {
+    return { ok: false, error: "Complete every required section before saving the candidate." };
+  }
   await db
     .update(candidateIntake)
     .set({ submittedAt: new Date(), updatedAt: new Date() })

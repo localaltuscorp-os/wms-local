@@ -26,8 +26,8 @@ export async function accountsAccess(): Promise<AccountsAccess | null> {
     const departments = me.department ? [...structured, me.department] : structured;
     if (!matchesDepartment(departments, ACCOUNTS_DEPARTMENT)) return null;
   }
-  // CA Handover (credential vault) is reserved for super-admins; the rest of the
-  // module is open to the accounts team.
+  // CA Handover contains a credential vault. It remains super-admin-only even
+  // though the rest of the Accounts module is available to the Accounts team.
   return { me, isAdmin: superAdmin, canViewCaHandover: superAdmin };
 }
 

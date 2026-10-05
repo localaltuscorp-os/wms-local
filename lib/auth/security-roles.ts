@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, securityRoleEvents, securityRoleGrants, type Employee } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import type { SecurityRole } from "@/lib/auth/security-roles-catalog";
+import { isSecurityRole, type SecurityRole } from "@/lib/auth/security-roles-catalog";
 
 /**
  * WHO HOLDS AN ASSIGNABLE ROLE (migration 0238).
@@ -73,6 +73,31 @@ export interface RoleHolder {
   name: string;
   email: string;
   grantedAt: string | null;
+}
+
+export interface SecurityRoleAssignment {
+  employeeId: string;
+  role: SecurityRole;
+  grantedAt: string | null;
+}
+
+/** All hidden-role assignments for the Super Admin matrix. */
+export async function listSecurityRoleAssignments(): Promise<SecurityRoleAssignment[]> {
+  const rows = await db
+    .select({
+      employeeId: securityRoleGrants.employeeId,
+      role: securityRoleGrants.role,
+      createdAt: securityRoleGrants.createdAt,
+    })
+    .from(securityRoleGrants)
+    .orderBy(asc(securityRoleGrants.createdAt));
+  return rows
+    .filter((row): row is typeof row & { role: SecurityRole } => isSecurityRole(row.role))
+    .map((row) => ({
+      employeeId: row.employeeId,
+      role: row.role,
+      grantedAt: row.createdAt.toISOString(),
+    }));
 }
 
 /** Everyone who has an explicit database grant. */

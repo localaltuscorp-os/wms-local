@@ -12,6 +12,8 @@ import {
   DEVICE_COOKIE_MAX_AGE_SECONDS,
 } from "@/lib/security/device-access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import { auditLog } from "@/lib/logs/audit";
+import { ensureDailySession } from "@/lib/logs/sessions";
 import {
   TWO_STEP_PASS_COOKIE,
   createTwoStepPass,
@@ -76,6 +78,17 @@ export async function mintSessionForIdToken(
   if (!emp || !isLoginLive(emp)) {
     // A candidate guest-account mints a cookie only while candidate_active; a
     // deactivated candidate (or inactive employee) is refused here.
+    void auditLog({
+      eventType: "LOGIN_FAILED",
+      route: "/login",
+      module: "Platform",
+      page: "Login",
+      resourceType: "email",
+      resourceName: email,
+      status: "FAILED",
+      reason: "not-enrolled",
+      actorType: "system",
+    }).catch(() => {});
     return NextResponse.json({ error: "not-enrolled" }, { status: 403 });
   }
 
@@ -260,6 +273,25 @@ export async function mintSessionForIdToken(
     }
     // Same rule as the device cookie: a raw appended header, never res.cookies.set().
     if (passSetCookie) res.headers.append("Set-Cookie", passSetCookie);
+
+    // Auditing cannot hold up a successful sign-in. Keeping it in the shared
+    // mint ensures password, Google, set-password, and two-step sign-ins are
+    // all recorded consistently.
+    void (async () => {
+      try {
+        await auditLog({
+          eventType: "LOGIN",
+          employeeId: emp.id,
+          route: "/login",
+          module: "Platform",
+          page: "Login",
+          status: "SUCCESS",
+        });
+        await ensureDailySession(emp.id);
+      } catch (err) {
+        console.warn("[logs] login audit failed (non-fatal):", err);
+      }
+    })();
     return res;
   } catch (err) {
     console.error("setAuthCookies failed", err);

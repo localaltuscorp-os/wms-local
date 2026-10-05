@@ -31,7 +31,8 @@ import { differenceInCalendarDays } from "date-fns";
    Restoring real paging is therefore a change of STATE, not of machinery:
    sorting, grouping, selection and the phone card list all keep working off
    the same slice for free, exactly as they did. */
-const PAGE_SIZE_OPTIONS = [10, 20, 25, 50] as const;
+const ALL_PAGE_SIZE = Number.MAX_SAFE_INTEGER;
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100, 250, ALL_PAGE_SIZE] as const;
 const DEFAULT_PAGE_SIZE = 20;
 
 
@@ -83,7 +84,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Search,
   SearchX,
   X,
   Building2,
@@ -186,7 +186,6 @@ import {
   setSectionSearch,
 } from "@/lib/client/section-search";
 import { taskMatchesQuery } from "@/lib/tasks/task-search";
-import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 // Friendly labels for the column show/hide menu (#11).
 const COLUMN_LABELS: Record<string, string> = {
@@ -496,6 +495,9 @@ function buildColumns(
         (STATUS_ORDER[a.original.status] ?? 99) - (STATUS_ORDER[b.original.status] ?? 99),
       cell: (info) => {
         const row = info.row.original;
+        // Legacy approval verdicts stored in `status` read as Done on the
+        // Doer axis; the verdict itself remains in Initiator Status.
+        const doerStatus = taskDoerShown(row.status);
         const canEdit = canEditTaskFields({
           employee: me,
           task: {
@@ -512,12 +514,12 @@ function buildColumns(
               // An approved / rejected row was Done — its doer side reads Done.
               // Only a read-only chip shows it; editing still starts from the
               // stored status, which the server validates.
-              status={canEdit ? row.status : taskDoerShown(row.status)}
+              status={doerStatus}
               updatedAt={row.updatedAt}
               labels={statusLabels}
               tones={statusTones}
               isAdmin={me.isAdmin}
-              editable={canEdit}
+              editable={canEdit && doerStatus === row.status}
             />
             {isDoneLate({ status: row.status, completedAt: row.completedAt, dueAt: row.dueAt }) && (
               <LateBadge />
@@ -1159,6 +1161,15 @@ export function TaskTable({
   }
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original.id);
+  const matchingTaskIds = table.getPrePaginationRowModel().rows.map((r) => r.original.id);
+  const allMatchingSelected =
+    matchingTaskIds.length > 0 && matchingTaskIds.every((id) => rowSelection[id]);
+
+  function selectMatchingTasks(limit: number) {
+    const nextSelection: RowSelectionState = {};
+    for (const id of matchingTaskIds.slice(0, limit)) nextSelection[id] = true;
+    setRowSelection(nextSelection);
+  }
 
   // The active pill's name, appended so the count says which set it counted.
   // "Showing all 175 tasks" and "Showing all 175 tasks (Not Read)" are the
@@ -1190,11 +1201,43 @@ export function TaskTable({
       >
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <GroupByControl value={groupBy} onChange={setGroupBy} />
-          <div className="w-full sm:w-[220px] md:w-[260px] min-w-[150px]">
-            <SearchBox value={query} onChange={setQuery} resultCount={visibleRows.length} />
-          </div>
         </div>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
+          {matchingTaskIds.length > 0 && (
+            <div className="flex items-center gap-1 rounded-md border border-hairline bg-white p-0.5 text-[11px] font-bold text-ink-soft">
+              {[100, 200, 500].filter((size) => size < matchingTaskIds.length).map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => selectMatchingTasks(size)}
+                  className="rounded px-1.5 py-1 transition-colors hover:bg-surface-soft hover:text-ink-strong"
+                  title={`Select up to ${size} matching tasks`}
+                >
+                  {Math.min(size, matchingTaskIds.length)}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  if (allMatchingSelected) {
+                    table.resetRowSelection();
+                    return;
+                  }
+                  selectMatchingTasks(matchingTaskIds.length);
+                }}
+                className="rounded bg-altus-red px-2 py-1 text-white transition-colors hover:bg-altus-red-deep"
+                title={
+                  allMatchingSelected
+                    ? "Clear the matching-task selection"
+                    : `Select all ${matchingTaskIds.length.toLocaleString("en-IN")} matching tasks`
+                }
+              >
+                {allMatchingSelected
+                  ? "Clear all"
+                  : `All (${matchingTaskIds.length.toLocaleString("en-IN")})`}
+              </button>
+            </div>
+          )}
           {/* The pager sits beside the search box, where it was before Load
               More replaced it — the two controls answer the same question
               ("show me a different part of this list") and belong on one rail. */}
@@ -2038,7 +2081,7 @@ function TablePager({
         >
           {PAGE_SIZE_OPTIONS.map((n) => (
             <option key={n} value={n}>
-              {n}
+              {n === ALL_PAGE_SIZE ? "All" : n}
             </option>
           ))}
         </select>
@@ -2094,53 +2137,6 @@ function TablePager({
   );
 }
 
-function SearchBox({
-  value,
-  onChange,
-  resultCount,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  resultCount: number;
-}) {
-  return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <CollapsibleSearch scope="tasks">
-      <div className="relative w-full max-w-md">
-        <Search
-          size={16}
-          strokeWidth={2.2}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle pointer-events-none"
-        />
-        <input
-          type="search"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Local search - task no. (#1042), title, subject, client, doer"
-          title="Local search - filters only the list on this page"
-          aria-label="Local search - tasks on this page only"
-          className="w-full h-10 pl-10 pr-9 rounded-pill border border-hairline bg-surface-card text-[15px] text-ink-strong placeholder:text-ink-subtle shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] outline-none transition-all focus:border-altus-red focus:ring-2 focus:ring-altus-red/25"
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            aria-label="Clear search"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-ink-strong transition-colors"
-          >
-            <X size={16} strokeWidth={2.4} />
-          </button>
-        )}
-      </div>
-      </CollapsibleSearch>
-      {value.trim() && (
-        <span className="text-[13px] font-semibold text-ink-subtle tabular-nums">
-          {resultCount} {resultCount === 1 ? "match" : "matches"}
-        </span>
-      )}
-    </div>
-  );
-}
 
 
 // "Group By" control — a single compact pill that reflects the current

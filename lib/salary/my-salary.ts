@@ -10,7 +10,6 @@ import {
 } from "@/lib/attendance/worker-type";
 import {
   isHoursPayrollMonth,
-  PAYROLL_HOURS_FROM,
   payrollMonthFor,
 } from "@/lib/attendance/payroll-month";
 import {
@@ -20,6 +19,7 @@ import {
   type LedgerPay,
 } from "@/lib/salary/day-ledger";
 import { localDateString } from "@/lib/format";
+import { prioritizeActiveSalaryMonth } from "@/lib/salary/period";
 import {
   NOT_JOINED_CODE,
   employeeEffectiveConfig,
@@ -70,10 +70,6 @@ export interface MySalaryMonth {
 
   // Money. `base + overtimeAmount === gross`, always.
   monthlyCtc: number;
-  /** Frozen daily rate for generated runs. Null on historical rows. */
-  perDaySalary: number | null;
-  /** Frozen Employee Master schedule input for generated runs. */
-  workingHoursPerDay: number | null;
   baseAmount: number;
   overtimeAmount: number;
   /**
@@ -208,21 +204,11 @@ export async function loadMySalaryMonths(
   // (paid out, recomputed moments ago) simply leaves the stored run in place.
   await refreshSalaryRun(employeeId, open, now);
 
-  let months = await loadStoredMonths(employeeId, hourly);
+  let months = prioritizeActiveSalaryMonth(await loadStoredMonths(employeeId, hourly), open);
 
-  // September 2026 begins canonical attendance-priced payroll. Earlier history
-  // stays read-only. A later page view can backfill only a missing September
-  // run; it never duplicates or reprices an existing record.
-  if (open > PAYROLL_HOURS_FROM) {
-    const cutoff = await refreshSalaryRun(employeeId, PAYROLL_HOURS_FROM, now, {
-      missingOnly: true,
-    });
-    if (cutoff === "refreshed") months = await loadStoredMonths(employeeId, hourly);
-  }
-
-  // `months` is newest-first, so "first" is the month the page opens on. Pinned
-  // to a value rather than read through `months` on every call, because the
-  // refresh below may replace that array.
+  // The active month is first when it exists, so "first" is the month the page
+  // opens on. It is pinned to a value rather than read through `months` on every
+  // call, because the refresh below may replace that array.
   const want = opts.ledgerMonths ?? "none";
   const firstMonth = months[0]?.month;
   const ledgerFor: (month: string) => boolean =
@@ -260,7 +246,9 @@ export async function loadMySalaryMonths(
     const outcomes = await Promise.all(
       restale.map((m) => refreshSalaryRun(employeeId, m, now)),
     );
-    if (outcomes.includes("refreshed")) months = await loadStoredMonths(employeeId, hourly);
+    if (outcomes.includes("refreshed")) {
+      months = prioritizeActiveSalaryMonth(await loadStoredMonths(employeeId, hourly), open);
+    }
   }
 
   return withRealAttendance(employeeId, months, wt, now, ledgerFor);
@@ -306,8 +294,6 @@ async function loadStoredMonths(
       companyName: r.companyName ?? null,
       source: "legacy",
       monthlyCtc: num(r.monthlyCtc),
-      perDaySalary: null,
-      workingHoursPerDay: null,
       // Legacy rows predate overtime entirely, so everything is base.
       baseAmount: num(r.payableAfterLeave),
       overtimeAmount: 0,
@@ -357,17 +343,13 @@ async function loadStoredMonths(
       designation: r.designationName ?? null,
       companyName: r.payingEntityName ?? null,
       source: "run",
-      // New runs freeze this root. Historical rows retain their original
-      // annual-CTC fallback until a payroll refresh writes the new columns.
-      monthlyCtc: r.monthlySalary ?? r.annualCtc / 12,
-      perDaySalary: r.perDaySalary,
-      workingHoursPerDay: r.workingHoursPerDay,
+      monthlyCtc: r.annualCtc / 12,
       baseAmount: r.gross - overtimeAmount,
       overtimeAmount,
       // Hourly staff never "lose" salary (paid per hour → ₹0); a full-timer's
       // loss is the monthly shortfall, rounded to the rupee EXACTLY as the
       // Attendance KPI does (Math.round) so the two never differ by a paisa.
-      attendanceDeduction: hourly ? 0 : Math.max(0, Math.round((r.monthlySalary ?? r.annualCtc / 12) - (r.gross - overtimeAmount))),
+      attendanceDeduction: hourly ? 0 : Math.max(0, Math.round(r.annualCtc / 12 - (r.gross - overtimeAmount))),
       gross: r.gross,
       pt: r.pt,
       tds: r.tds,
@@ -661,9 +643,6 @@ function ledgerPayFor(m: MySalaryMonth, wt: WorkerType): LedgerPay {
     }
     return {
       mode: "daily",
-      // Use the frozen monthly root with full precision. `perDaySalary` is a
-      // two-decimal audit/display snapshot; multiplying it across 28–31 rows
-      // can leave a paisa short of the gross payroll result.
       dailyRate: m.monthlyCtc / m.daysInMonth,
       gross: m.gross,
     };

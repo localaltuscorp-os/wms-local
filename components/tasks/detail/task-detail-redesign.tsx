@@ -36,7 +36,12 @@ import {
   PRIORITY_LABELS,
   type TaskStatus,
 } from "@/db/enums";
-import { setTaskStatus, archiveTask, deleteTask } from "@/app/(app)/tasks/actions";
+import {
+  setTaskStatus,
+  setTaskInitiatorStatus,
+  archiveTask,
+  deleteTask,
+} from "@/app/(app)/tasks/actions";
 import { duplicateTask } from "@/app/(app)/tasks/duplicate-action";
 import { setTaskEstimatedMinutes } from "@/app/(app)/tasks/estimate-action";
 import { markDoneAction, decideApprovalAction } from "@/app/(app)/tasks/time-actions";
@@ -57,6 +62,12 @@ import {
 import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
 import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
 import type { PlanBreadcrumb } from "@/lib/queries/project-plan";
+import {
+  effectiveInitiatorStatus,
+  INITIATOR_STATUSES,
+  INITIATOR_STATUS_LABEL,
+  type InitiatorStatus,
+} from "@/lib/status/axes";
 
 type Me = { id: string; name: string; avatarUrl: string | null; department: string | null; isAdmin: boolean };
 
@@ -112,7 +123,7 @@ export function TaskDetailRedesign(props: Props) {
   const [tab, setTab] = React.useState<Tab>("overview");
   const [editing, setEditing] = React.useState(false);
   const [pending, start] = React.useTransition();
-  const [statusOpen, setStatusOpen] = React.useState(false);
+  const [openStatusMenu, setOpenStatusMenu] = React.useState<"doer" | "initiator" | null>(null);
 
   const expectedUpdatedAt = task.updatedAt instanceof Date ? task.updatedAt.toISOString() : String(task.updatedAt);
   const locked = task.approvalStatus === "approved";
@@ -124,6 +135,13 @@ export function TaskDetailRedesign(props: Props) {
   // (hold / approve / decline / cancel) live in the bulk "Mark Status" control
   // and, per-task, in this drawer's Edit form, which carries approvalStatus.
   const statusList: readonly TaskStatus[] = DOER_TASK_STATUSES;
+  const initiatorStatus = effectiveInitiatorStatus(task.approvalStatus, task.archived);
+  const canChangeDoerStatus =
+    me.isAdmin ||
+    me.id === task.doerId ||
+    me.id === task.initiatorId ||
+    me.id === task.createdById;
+  const canChangeInitiatorStatus = me.isAdmin || me.id === task.initiatorId;
   // Submitted, not yet signed off, and this viewer is the one who signs off.
   const awaitingApproval =
     Boolean(timePanel?.canApprove) && task.status === "done" && task.approvalStatus !== "approved";
@@ -138,9 +156,15 @@ export function TaskDetailRedesign(props: Props) {
   }
 
   function changeStatus(s: TaskStatus) {
-    setStatusOpen(false);
+    setOpenStatusMenu(null);
     if (s === task.status) return;
     run(() => setTaskStatus(task.id, s, expectedUpdatedAt));
+  }
+
+  function changeInitiatorStatus(s: InitiatorStatus) {
+    setOpenStatusMenu(null);
+    if (s === initiatorStatus) return;
+    run(() => setTaskInitiatorStatus(task.id, s, expectedUpdatedAt));
   }
 
   if (editing) {
@@ -364,20 +388,58 @@ export function TaskDetailRedesign(props: Props) {
                 {task.subject}
               </span>
             )}
-              {/* Status pill */}
+              {/* The two axes answer different questions: the doer reports the
+                  work's progress, while the initiator records the business
+                  decision. Keep both visible rather than letting one overwrite
+                  the other in a shared "Status" chip. */}
               <div className="relative">
-                <button onClick={() => setStatusOpen((v) => !v)} className="inline-flex h-8 items-center gap-1.5 rounded-pill bg-surface-soft px-3.5 text-[12.5px] font-bold text-ink-strong hover:bg-hairline">
+                <button
+                  type="button"
+                  disabled={!canChangeDoerStatus}
+                  onClick={() => setOpenStatusMenu((v) => v === "doer" ? null : "doer")}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-pill bg-surface-soft px-3.5 text-[12.5px] font-bold text-ink-strong hover:bg-hairline disabled:cursor-default disabled:hover:bg-surface-soft"
+                  aria-haspopup="menu"
+                  aria-expanded={openStatusMenu === "doer"}
+                >
+                  <span className="text-[10px] uppercase tracking-wide text-ink-muted">Doer Status</span>
                   <span className="h-2 w-2 rounded-full bg-ink-subtle" /> {statusLabels[task.status] ?? task.status}
-                  <ChevronDown size={13} />
+                  {canChangeDoerStatus && <ChevronDown size={13} />}
                 </button>
-                {statusOpen && (
+                {openStatusMenu === "doer" && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setStatusOpen(false)} />
-                    <div className="absolute left-0 z-20 mt-1 w-52 rounded-xl border border-hairline bg-white p-1 shadow-lg">
+                    <div className="fixed inset-0 z-10" onClick={() => setOpenStatusMenu(null)} />
+                    <div role="menu" className="absolute left-0 z-20 mt-1 w-52 rounded-xl border border-hairline bg-white p-1 shadow-lg">
                       {statusList.map((s) => (
-                        <button key={s} onClick={() => changeStatus(s)} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold hover:bg-surface-soft ${s === task.status ? "text-altus-red-deep" : "text-ink-strong"}`}>
+                        <button type="button" role="menuitem" key={s} onClick={() => changeStatus(s)} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold hover:bg-surface-soft ${s === task.status ? "text-altus-red-deep" : "text-ink-strong"}`}>
                           {statusLabels[s] ?? s}
                           {s === task.status && <CheckCircle2 size={14} />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  disabled={!canChangeInitiatorStatus}
+                  onClick={() => setOpenStatusMenu((v) => v === "initiator" ? null : "initiator")}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-pill bg-[color-mix(in_srgb,#B80D22_9%,white)] px-3.5 text-[12.5px] font-bold text-ink-strong hover:bg-[color-mix(in_srgb,#B80D22_14%,white)] disabled:cursor-default disabled:hover:bg-[color-mix(in_srgb,#B80D22_9%,white)]"
+                  aria-haspopup="menu"
+                  aria-expanded={openStatusMenu === "initiator"}
+                >
+                  <span className="text-[10px] uppercase tracking-wide text-ink-muted">Initiator Status</span>
+                  <span className="h-2 w-2 rounded-full bg-[#B80D22]" /> {initiatorStatus ? INITIATOR_STATUS_LABEL[initiatorStatus] : "No verdict"}
+                  {canChangeInitiatorStatus && <ChevronDown size={13} />}
+                </button>
+                {openStatusMenu === "initiator" && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setOpenStatusMenu(null)} />
+                    <div role="menu" className="absolute left-0 z-20 mt-1 w-52 rounded-xl border border-hairline bg-white p-1 shadow-lg">
+                      {INITIATOR_STATUSES.map((s) => (
+                        <button type="button" role="menuitem" key={s} onClick={() => changeInitiatorStatus(s)} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold hover:bg-surface-soft ${s === initiatorStatus ? "text-altus-red-deep" : "text-ink-strong"}`}>
+                          {INITIATOR_STATUS_LABEL[s]}
+                          {s === initiatorStatus && <CheckCircle2 size={14} />}
                         </button>
                       ))}
                     </div>

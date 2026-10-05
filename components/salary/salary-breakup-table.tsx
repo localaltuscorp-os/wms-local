@@ -1004,7 +1004,7 @@ function PayslipLink({ row, month }: { row: SalaryRow; month?: string }) {
 /* Sticky-header surfaces (solid enough to cover scrolled rows). The header is a
  * SINGLE row now — the group tier and its 30px height went with the attendance
  * and build-up column blocks it existed to label. */
-const HEAD_BG = "rgba(248, 250, 252, 0.94)";
+const HEAD_BG = "var(--color-surface-soft)";
 /* Fixed width of the frozen EMPLOYEE column → the left offset the frozen
  * ENTITY column pins to. Both stay put on horizontal scroll. */
 const EMP_W = 236;

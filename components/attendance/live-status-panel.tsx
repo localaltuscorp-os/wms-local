@@ -32,20 +32,20 @@ const ROWS: Array<{
 export function LiveStatusPanel({ status }: { status: LiveStatus }) {
   return (
     <section
-      className="wg-rise rounded-[22px] bg-surface-card p-5 max-md:p-4"
+      className="wg-rise rounded-xl bg-surface-card p-3.5 max-md:p-3"
       style={{
         boxShadow:
           "inset 0 0 0 1px var(--color-hairline), 0 6px 24px -18px rgba(15,23,42,0.25)",
         animationDelay: "120ms",
       }}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
           <span
-            className="relative inline-grid size-9 place-items-center rounded-xl"
+            className="relative inline-grid size-8 place-items-center rounded-lg"
             style={{ background: "color-mix(in srgb, #16a34a 12%, transparent)", color: "#15803d" }}
           >
-            <Activity size={17} strokeWidth={2.4} />
+            <Activity size={15} strokeWidth={2.4} />
           </span>
           <div>
             <h2
@@ -53,7 +53,7 @@ export function LiveStatusPanel({ status }: { status: LiveStatus }) {
               style={{
                 fontFamily: "var(--font-display), system-ui, sans-serif",
                 fontWeight: 900,
-                fontSize: 18,
+                fontSize: 16,
                 letterSpacing: "-0.02em",
                 lineHeight: 1.1,
               }}
@@ -76,10 +76,10 @@ export function LiveStatusPanel({ status }: { status: LiveStatus }) {
           return (
             <li
               key={key}
-              className="flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-surface-soft"
+              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-soft"
             >
               <span
-                className="inline-grid size-8 shrink-0 place-items-center rounded-lg"
+                className="inline-grid size-7 shrink-0 place-items-center rounded-lg"
                 style={{
                   background: dim
                     ? "var(--color-surface-soft)"
@@ -87,14 +87,14 @@ export function LiveStatusPanel({ status }: { status: LiveStatus }) {
                   color: dim ? "var(--color-ink-soft)" : accent,
                 }}
               >
-                <Icon size={16} strokeWidth={2.4} />
+                <Icon size={14} strokeWidth={2.4} />
               </span>
-              <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink-strong">
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-strong">
                 {label}
               </span>
               <span
                 className="tabular-nums font-black"
-                style={{ fontSize: 17, color: dim ? "var(--color-ink-soft)" : accent }}
+                style={{ fontSize: 15, color: dim ? "var(--color-ink-soft)" : accent }}
               >
                 {value}
               </span>
@@ -105,7 +105,7 @@ export function LiveStatusPanel({ status }: { status: LiveStatus }) {
 
       <a
         href="/attendance/insights"
-        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-pill py-2 text-[13px] font-bold text-ink-muted transition-colors hover:text-[var(--color-altus-red-deep)] hover:bg-surface-soft outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40"
+        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12.5px] font-bold text-ink-muted transition-colors hover:text-[var(--color-altus-red-deep)] hover:bg-surface-soft outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]/40"
       >
         View All <ArrowRight size={14} strokeWidth={2.6} />
       </a>

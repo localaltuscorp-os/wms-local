@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { salaryRuns, salaryBreakup } from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { isFinanceViewer } from "@/lib/auth/finance-access";
+import { compensationApprovalIsPayable, isAccountsPayer } from "@/lib/compensation/workflow";
 import {
   amountPaidOf,
   clampAmount,
@@ -29,6 +29,7 @@ import {
   type PayslipMailSummary,
 } from "@/lib/salary/notify-paid";
 import { afterResponse } from "@/lib/after";
+import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -99,6 +100,7 @@ export async function generateSalary(input: unknown): Promise<ActionResult<{ gen
 
   revalidatePath(PATH);
   revalidatePath("/salary");
+  if (generated > 0) afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
   return { ok: true, generated };
 }
 
@@ -212,6 +214,7 @@ export async function generateSalaryAll(
   }
 
   revalidatePath(PATH);
+  if (created > 0) afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
   return { ok: true, created, skipped, failed, firstError };
 }
 
@@ -381,8 +384,8 @@ async function writePayment(
   nextAmountRaw: number | "full",
 ): Promise<ActionResult<PaymentWriteResult>> {
   const me = await requireUser();
-  if (!(await isFinanceViewer(me))) {
-    return { ok: false, error: "You don't have access to record salary payments." };
+  if (!(await isAccountsPayer(me))) {
+    return { ok: false, error: "Only the Accounts department can record salary payments." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -398,6 +401,9 @@ async function writePayment(
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
   if (!row) return { ok: false, error: "That salary row no longer exists." };
+  if (nextAmountRaw !== 0 && !(await compensationApprovalIsPayable("salary", id))) {
+    return { ok: false, error: "This salary must be approved in People → Approvals before Accounts can pay it." };
+  }
 
   const payable = totalPayable(row);
   // "full" resolves against the server's own payable, and is never reported as
