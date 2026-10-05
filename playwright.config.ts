@@ -35,6 +35,8 @@ export default defineConfig({
     command: "pnpm build && pnpm start",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    // A cold production build can exceed two minutes in GitHub Actions.
+    // Keep the visual check reliable without bypassing it.
+    timeout: 600_000,
   },
 });
