@@ -11,6 +11,9 @@ import {
   listPaymentTerms,
   listSeriesDefaults,
 } from "@/lib/queries/billing-documents";
+import { billingEntityAccess, listBillingEntities } from "@/lib/queries/billing-entities";
+import { mayDeleteBillingEntity } from "@/lib/billing/delete-guard";
+import { BillingMasterTable } from "@/components/admin/billing-master/master-table";
 import { SERIES_BASE, financialYear, todayISO } from "@/lib/billing/numbering";
 import {
   BillingProfileEditor,
@@ -46,6 +49,9 @@ export default async function BillingProfilesPage() {
      These four rows-tables are tiny and cost ~600ms end to end in a row, so the
      parallelism was buying milliseconds and paying minutes. */
   const profiles = await listEntityBillingProfiles();
+  const billingRows = await listBillingEntities();
+  const billingAccess = await billingEntityAccess();
+  const billingCanDelete = await mayDeleteBillingEntity();
   const terms = await listPaymentTerms(true);
   const seriesDefaults = await listSeriesDefaults();
   const liveSeries = await db.select().from(billingNumberSeries);
@@ -116,8 +122,8 @@ export default async function BillingProfilesPage() {
 
   return (
     <AdminSection
-      eyebrow="Admin · Masters"
-      title="Billing profiles"
+      eyebrow="Admin · Billing"
+      title="Billing Details"
       subtitle="PAN, GSTIN, address, bank, signatory and number series for each issuing entity. Every invoice fills its company block from here."
       icon={Building2}
       stats={[
@@ -131,6 +137,9 @@ export default async function BillingProfilesPage() {
         paymentTerms={terms.map((t) => ({ id: t.id, label: t.label }))}
         canEdit={canEdit}
       />
+      <div className="mt-8">
+        <BillingMasterTable rows={billingRows} access={billingAccess} canDelete={billingCanDelete} />
+      </div>
     </AdminSection>
   );
 }

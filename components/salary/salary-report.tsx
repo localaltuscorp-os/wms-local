@@ -209,7 +209,7 @@ export function SalaryReport({ month, monthLabel, rows }: Props) {
 function SalaryRow({ row, rowIndex }: { row: SalaryRunRow; rowIndex: number }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const monthlyCtc = row.annualCtc / 12;
+  const monthlyCtc = row.monthlySalary ?? row.annualCtc / 12;
 
   function toggleDisbursed() {
     const next = !row.disbursed;

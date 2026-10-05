@@ -35,6 +35,7 @@ export interface ProductOption {
    *  0217 deliberately declined to invent one. */
   code: string | null;
   name: string;
+  displayName: string | null;
 }
 
 export interface ProductRow extends ProductOption {
@@ -60,6 +61,7 @@ export const listActiveProducts = unstable_cache(
         id: outstandingProducts.id,
         code: outstandingProducts.code,
         name: outstandingProducts.name,
+        displayName: outstandingProducts.displayName,
       })
       .from(outstandingProducts)
       .where(eq(outstandingProducts.isActive, true))
@@ -130,6 +132,7 @@ export async function listProductsWithCounts(): Promise<ProductRow[]> {
       id: outstandingProducts.id,
       code: outstandingProducts.code,
       name: outstandingProducts.name,
+      displayName: outstandingProducts.displayName,
       isActive: outstandingProducts.isActive,
       sortOrder: outstandingProducts.sortOrder,
       usageCount: sql<number>`count(${outstandingContracts.id})::int`,
@@ -157,6 +160,7 @@ export async function productById(id: string): Promise<ProductRow | null> {
       id: outstandingProducts.id,
       code: outstandingProducts.code,
       name: outstandingProducts.name,
+      displayName: outstandingProducts.displayName,
       isActive: outstandingProducts.isActive,
       sortOrder: outstandingProducts.sortOrder,
       usageCount: sql<number>`0::int`,
