@@ -95,3 +95,8 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 - Integrated `origin/main` through `5a4b55b4` in merge commit `7895ec95`.
 - The only conflict was `components/layout/module-footer.tsx`. The task branch deliberately retains its rectangular, full-width footer treatment; all other incoming main changes were preserved.
 - Generated `.next-dev-cache-backup/` and `.pnpm-store/` remain local-only and are excluded from commits.
+
+## CI follow-up
+
+- PR #11's required `test` check failed at TypeScript validation. The follow-up corrects the flat Goal Kanban card wiring by passing its required stable empty `childGoals` list, defaults an unspecified Tasks Doer-column visibility to visible, and narrows persisted column-order ids before checking the fixed workflow-order tuple.
+- A local `pnpm typecheck` was started for the follow-up but did not return a completion result within the execution window. Rely on the replacement PR check before merge.

@@ -39,6 +39,7 @@ const COLUMNS: Array<{ id: TaskStatus; label: string; color: string }> = [
   { id: "done", label: "Done", color: "#059669" },
   { id: "abandoned", label: "Abandoned", color: "#0284c7" },
 ];
+const EMPTY_CHILDREN: GoalDTO[] = [];
 
 const columnDropId = (status: TaskStatus) => `goal-status:${status}`;
 const kpiDropId = (status: TaskStatus) => `goal-kpi-status:${status}`;
@@ -213,6 +214,7 @@ function StatusColumn({
               key={goal.id}
               goal={goal}
               srNo={cardProps.rankOf(goal)}
+              childGoals={EMPTY_CHILDREN}
               {...cardProps}
               dragMode="status"
               variant="kanban"

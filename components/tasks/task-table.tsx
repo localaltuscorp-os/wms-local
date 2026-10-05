@@ -781,7 +781,7 @@ export function TaskTable({
   const effectiveColumnVisibility = React.useMemo<VisibilityState>(
     () => ({
       ...columnVisibility,
-      doerName: hideDoerWhenOnlyMe && !doerVisibilityExplicit ? false : columnVisibility.doerName,
+      doerName: hideDoerWhenOnlyMe && !doerVisibilityExplicit ? false : (columnVisibility.doerName ?? true),
     }),
     [columnVisibility, hideDoerWhenOnlyMe, doerVisibilityExplicit],
   );
@@ -828,7 +828,7 @@ export function TaskTable({
     const ids = columns.map((c) => colId(c));
     return [
       ...TASK_WORKFLOW_COLUMN_ORDER.filter((id) => ids.includes(id)),
-      ...ids.filter((id) => !TASK_WORKFLOW_COLUMN_ORDER.includes(id)),
+      ...ids.filter((id) => !TASK_WORKFLOW_COLUMN_ORDER.includes(id as (typeof TASK_WORKFLOW_COLUMN_ORDER)[number])),
     ];
   }, [columns]);
   const [columnOrder, setColumnOrder] = React.useState<string[]>(defaultOrder);
