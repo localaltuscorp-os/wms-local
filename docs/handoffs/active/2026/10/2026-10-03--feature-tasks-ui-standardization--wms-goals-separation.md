@@ -89,3 +89,9 @@ No migration. The existing `approval_status` enum already contains `cancelled`. 
 ## Rollback
 
 Revert the focused changes above. If Cancelled statuses have been assigned after release, they will remain stored unless intentionally changed to another Initiator Status; no schema rollback is required.
+
+## Main integration
+
+- Integrated `origin/main` through `5a4b55b4` in merge commit `7895ec95`.
+- The only conflict was `components/layout/module-footer.tsx`. The task branch deliberately retains its rectangular, full-width footer treatment; all other incoming main changes were preserved.
+- Generated `.next-dev-cache-backup/` and `.pnpm-store/` remain local-only and are excluded from commits.
