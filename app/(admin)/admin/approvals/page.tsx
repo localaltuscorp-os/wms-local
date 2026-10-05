@@ -1,14 +1,19 @@
-import { ShieldCheck } from "lucide-react";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { redirect } from "next/navigation";
-import { listCompensationApprovals } from "@/lib/compensation/workflow";
-import { AdminSection } from "@/components/admin/ui/section-shell";
+import { canDecideCompensation, canEditCompensationApprovals, canViewCompensationApprovals, isCompensationApprovalWorkflowReady, listCompensationApprovals } from "@/lib/compensation/workflow";
 import { ApprovalWorkbench } from "@/components/admin/approvals/approval-workbench";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import { AdminSection } from "@/components/admin/ui/section-shell";
 
 export const dynamic = "force-dynamic";
 export default async function ApprovalsPage() {
-  const me = await requireUser(); if (!isSuperAdmin(me.email)) redirect("/hub");
-  const rows = await listCompensationApprovals();
-  return <AdminSection title="Approvals" subtitle="Approve each employee's attendance, incentive, reimbursement, and salary item before Accounts can pay." icon={ShieldCheck} stats={[{ label: "Pending", value: rows.filter((r) => r.status === "pending").length }, { label: "Approved", value: rows.filter((r) => r.status === "approved").length }]}><ApprovalWorkbench rows={rows}/></AdminSection>;
+  const me = await requireUser();
+  const [canView, canDecide, allowEdit] = await Promise.all([
+    canViewCompensationApprovals(me),
+    canDecideCompensation(me),
+    canEditCompensationApprovals(me),
+  ]);
+  if (!canView) redirect("/hub");
+  const [workflowReady, rows] = await Promise.all([isCompensationApprovalWorkflowReady(), listCompensationApprovals()]);
+  return <AdminSection title="Approvals"><ApprovalWorkbench rows={rows} canDecide={canDecide} canDecideIncentive={canDecide} workflowReady={workflowReady} allowEdit={allowEdit} testingMode={DUMMY_MODE}/></AdminSection>;
 }

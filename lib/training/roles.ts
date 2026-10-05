@@ -1,7 +1,7 @@
 import "server-only";
 import type { Employee } from "@/db/schema";
 import type { LearningRoleGroup } from "@/db/enums";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isManagerWithReports } from "@/lib/manager-gates";
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
@@ -13,7 +13,7 @@ import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
  * lookup.
  */
 export async function canTrain(emp: Employee): Promise<boolean> {
-  if (isFounderEmail(emp.email)) return true;
+  if (await isFounder(emp.id)) return true;
   if (emp.isTeamLead) return true;
   return isManagerWithReports(emp.id);
 }
@@ -30,7 +30,7 @@ export async function canManageTraining(emp: Employee): Promise<boolean> {
  * `manager`; everyone else is `employee`.
  */
 export async function learningRoleGroupFor(emp: Employee): Promise<LearningRoleGroup> {
-  if (isFounderEmail(emp.email)) return "manan";
+  if (await isFounder(emp.id)) return "manan";
   if (emp.isTeamLead) return "tl";
   if (emp.isAdmin || (await isManagerWithReports(emp.id))) return "manager";
   return "employee";
@@ -43,7 +43,7 @@ export async function learningRoleGroupFor(emp: Employee): Promise<LearningRoleG
  * query). Fail-closed to self-only on error.
  */
 export async function learningVisibleIds(viewer: Employee): Promise<string[]> {
-  if (viewer.isAdmin || isFounderEmail(viewer.email)) return [];
+  if (viewer.isAdmin || (await isFounder(viewer.id))) return [];
   const downline = await getDownlineIds(viewer.id).catch(() => [] as string[]);
   return [viewer.id, ...downline];
 }

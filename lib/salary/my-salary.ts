@@ -70,6 +70,10 @@ export interface MySalaryMonth {
 
   // Money. `base + overtimeAmount === gross`, always.
   monthlyCtc: number;
+  /** Frozen daily rate for generated runs; null on historical rows. */
+  perDaySalary: number | null;
+  /** Frozen schedule input for generated runs; null on historical rows. */
+  workingHoursPerDay: number | null;
   baseAmount: number;
   overtimeAmount: number;
   /**
@@ -294,6 +298,8 @@ async function loadStoredMonths(
       companyName: r.companyName ?? null,
       source: "legacy",
       monthlyCtc: num(r.monthlyCtc),
+      perDaySalary: null,
+      workingHoursPerDay: null,
       // Legacy rows predate overtime entirely, so everything is base.
       baseAmount: num(r.payableAfterLeave),
       overtimeAmount: 0,
@@ -344,6 +350,8 @@ async function loadStoredMonths(
       companyName: r.payingEntityName ?? null,
       source: "run",
       monthlyCtc: r.annualCtc / 12,
+      perDaySalary: r.perDaySalary,
+      workingHoursPerDay: r.workingHoursPerDay,
       baseAmount: r.gross - overtimeAmount,
       overtimeAmount,
       // Hourly staff never "lose" salary (paid per hour → ₹0); a full-timer's

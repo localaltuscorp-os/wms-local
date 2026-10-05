@@ -16,6 +16,7 @@ import {
   Plus,
   Target,
   ScrollText,
+  BookUser,
   type LucideIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -75,6 +76,7 @@ const CARDS: Card[] = [
   { slug: "/policies", title: "Policies", Icon: ScrollText, popup: "policies" as const },
   { slug: "/support", title: "HR Help Desk", Icon: LifeBuoy, popup: "help-desk" as const },
   { slug: "/hr/record", title: "HR Record", Icon: IdCard },
+  { slug: "/hr/directory", title: "Directory", Icon: BookUser },
   { slug: "/hr/kpi", title: "KPI Management", Icon: Target },
   // Saved form submissions (staff-only view of everyone's). This MUST live on
   // this deck: the HR module is rail-less (see the Help Desk note below), so a

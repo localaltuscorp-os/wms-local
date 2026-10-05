@@ -1,10 +1,34 @@
-// lib/auth/founder.ts
-/** The single founder. The "Founder / Management" bucket on the Manager
- *  Initiator dashboard is keyed off THIS, never `manager_id IS NULL` (managers
- *  currently have no manager assigned and must not count as founders). */
-export const FOUNDER_EMAIL = "manan@unleashed.in";
+import "server-only";
+import { and, eq } from "drizzle-orm";
+import { cache } from "react";
+import { securityRoleGrants } from "@/db/schema";
+import { db } from "@/lib/db";
 
-export function isFounderEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return email.trim().toLowerCase() === FOUNDER_EMAIL;
-}
+/** Database-backed Founder authority. No name or email grants this role. */
+export const isFounder = cache(async (employeeId: string | null | undefined): Promise<boolean> => {
+  if (!employeeId) return false;
+  try {
+    const [row] = await db
+      .select({ id: securityRoleGrants.id })
+      .from(securityRoleGrants)
+      .where(and(eq(securityRoleGrants.employeeId, employeeId), eq(securityRoleGrants.role, "founder")))
+      .limit(1);
+    return Boolean(row);
+  } catch (error) {
+    console.error("[founder] grant lookup failed", error);
+    return false;
+  }
+});
+
+export const founderEmployeeIds = cache(async (): Promise<Set<string>> => {
+  try {
+    const rows = await db
+      .select({ employeeId: securityRoleGrants.employeeId })
+      .from(securityRoleGrants)
+      .where(eq(securityRoleGrants.role, "founder"));
+    return new Set(rows.map((row) => row.employeeId));
+  } catch (error) {
+    console.error("[founder] grant roster lookup failed", error);
+    return new Set();
+  }
+});

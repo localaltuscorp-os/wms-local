@@ -211,16 +211,12 @@ describe("checkResubmission", () => {
 });
 
 describe("who may decide", () => {
-  it("is Manan Vasa, case-insensitively", () => {
-    expect(canReviewIncentives("manan@unleashed.in")).toBe(true);
-    expect(canReviewIncentives("  MANAN@unleashed.in ")).toBe(true);
+  it("allows the database-backed Founder", () => {
+    expect(canReviewIncentives(true)).toBe(true);
   });
 
   it("is nobody else — not other super-admins, not admins, not a missing session", () => {
-    expect(canReviewIncentives("rohanchoudhary.altuscorp@gmail.com")).toBe(false);
-    expect(canReviewIncentives("vinalpatil.altuscorp@gmail.com")).toBe(false);
-    expect(canReviewIncentives(null)).toBe(false);
-    expect(canReviewIncentives("")).toBe(false);
+    expect(canReviewIncentives(false)).toBe(false);
   });
 });
 
@@ -230,11 +226,11 @@ describe("server-side boundaries (structural)", () => {
   const mobile = code("app/api/mobile/incentive/route.ts");
   const migration = code("db/migrations/0230_incentive_approval_workflow.sql");
 
-  it("checks the reviewer permission inside the decision action, before any write", () => {
+  it("checks the Super Admin permission inside the decision action, before any write", () => {
     const fn = actions.slice(actions.indexOf("export async function decideIncentiveRequest"));
     const body = fn.slice(0, fn.indexOf("\nexport async function"));
-    expect(body.indexOf("canReviewIncentives(me.email)")).toBeGreaterThan(-1);
-    expect(body.indexOf("canReviewIncentives(me.email)")).toBeLessThan(body.indexOf("recordIncentiveDecision("));
+    expect(body.indexOf("await canDecideCompensation(me)")).toBeGreaterThan(-1);
+    expect(body.indexOf("await canDecideCompensation(me)")).toBeLessThan(body.indexOf("recordIncentiveDecision("));
     // The old "any admin, any verdict" path is gone: nothing imports or calls
     // requireAdmin (the doc comment is allowed to say it USED to).
     expect(actions).not.toMatch(/import\s*\{[^}]*\brequireAdmin\b[^}]*\}\s*from/);

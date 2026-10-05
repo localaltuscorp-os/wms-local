@@ -55,7 +55,7 @@ export const DELEGATION_CHANNEL_LABELS: Record<DelegationChannel, string> = {
 export function buildDelegationClassifier(
   managerId: string,
   employees: InitiatorEmployee[],
-  isFounder: (email: string | null) => boolean,
+  isFounder: (employeeId: string) => boolean,
 ): (doerId: string) => DelegationChannel {
   const byId = new Map(employees.map((e) => [e.id, e]));
   const childrenOf = new Map<string, InitiatorEmployee[]>();
@@ -76,7 +76,7 @@ export function buildDelegationClassifier(
     if (doerId === managerId) return "self";
     if (reportIds.has(doerId)) return "direct";
     if (downlineIds.has(doerId)) return "downline";
-    if (isFounder(byId.get(doerId)?.email ?? null)) return "founder";
+    if (isFounder(doerId)) return "founder";
     return "counterpart";
   };
 }
@@ -85,7 +85,7 @@ export function computeInitiatorScorecard(
   tasks: InitiatedTask[],
   employees: InitiatorEmployee[],
   workingDays: number,
-  isFounder: (email: string | null) => boolean,
+  isFounder: (employeeId: string) => boolean,
 ): InitiatorScorecard[] {
   const byId = new Map(employees.map((e) => [e.id, e]));
   // Direct reports per manager id.
@@ -138,7 +138,7 @@ export function computeInitiatorScorecard(
           toDownline++;
           const branch = branchOf.get(t.doerId);
           if (branch) downlineByReport.set(branch, (downlineByReport.get(branch) ?? 0) + 1);
-        } else if (isFounder(byId.get(t.doerId)?.email ?? null)) {
+        } else if (isFounder(t.doerId)) {
           toFounderMgmt++;
         } else {
           toCounterparts++;

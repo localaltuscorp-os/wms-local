@@ -318,7 +318,9 @@ async function renderPayslip(
   doc.y = blockTop + blockH + 20;
 
   // ── Earnings / deductions table ──
-  const monthlyCtc = run.annualCtc / 12;
+  // Preserve the frozen calculation root on a generated run. Historical rows
+  // intentionally keep their legacy annual-CTC fallback.
+  const monthlyCtc = run.monthlySalary ?? run.annualCtc / 12;
 
   /** "2h" not "2.00h"; "1.5h" keeps its half. */
   const trimHours = (h: number): string =>

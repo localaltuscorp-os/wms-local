@@ -73,7 +73,7 @@ export function HrModuleRail({
       // two could disagree — widening only the wrapper left the rail at its
       // old width, truncating labels while an empty gap opened beside it.
       // One source of truth avoids that entirely.
-      className="flex h-full w-full shrink-0 flex-col border-r border-hairline bg-surface-card"
+      className="flex h-full min-h-full w-full shrink-0 flex-col border-r border-hairline bg-surface-card"
     >
       {/* Box 1 — navigation controls + brand */}
       {/* Matches components/layout/dashboard-sidebar.tsx box for box: the same
@@ -140,7 +140,7 @@ export function HrModuleRail({
                overflows this rail at that size, so it is stepped down a notch.
                Everything that carries the brand - face, weight, tracking,
                gradient, animation - is identical. */
-            <span className={cn("module-wordmark inline-flex items-center px-1", collapsed ? "gap-0" : "gap-2.5")}>
+            <span className={cn("module-wordmark inline-flex items-center px-1", collapsed ? "gap-0" : "gap-2")}>
               <span
                 className="module-wordmark-icon inline-grid shrink-0 place-items-center rounded-2xl text-white"
                 style={{
@@ -160,7 +160,7 @@ export function HrModuleRail({
                   {
                     "--mw-a": "var(--color-altus-red, #E10600)",
                     "--mw-b": "var(--color-altus-red-deep, #A80400)",
-                    fontSize: "clamp(14px, 1.15vw, 17px)",
+                    fontSize: "14px",
                   } as CSSProperties
                 }
               >
@@ -173,13 +173,9 @@ export function HrModuleRail({
       </div>
 
       {/* Box 2 — the module list */}
-      <nav aria-label="HR modules" className={cn("min-h-0 flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-2")}>
-        {!collapsed && (
-          <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-muted">
-            Modules
-          </p>
-        )}
-        <ul className="space-y-0.5">
+      <div aria-hidden className="mx-4 border-t border-hairline" />
+      <nav aria-label="HR modules" className={cn("min-h-0 flex-1 overflow-y-auto py-2", collapsed ? "px-2" : "px-3")}>
+        <ul className="space-y-1">
           {modules.map((mod) => {
             // `onRoute` is real navigation (drives aria-current, for a11y —
             // not paint). `selected` is what's actually highlighted: the
@@ -220,7 +216,7 @@ export function HrModuleRail({
             // the rail to its content. Flex lets the label size to its own
             // text; the external-link arrow right-aligns itself via ml-auto.
             const className = cn(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold transition-colors",
+              "flex w-full items-center gap-2.5 rounded-xl px-3 py-[9px] text-left text-[14px] font-semibold transition-colors",
               collapsed && "justify-center",
               selected
                 ? "bg-[color-mix(in_srgb,var(--color-altus-red-soft)_35%,var(--color-altus-red-wash))] text-altus-red"

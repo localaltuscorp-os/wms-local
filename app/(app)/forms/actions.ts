@@ -19,7 +19,7 @@ import {
   buildClaimAttachmentRows,
   type ClaimUploadRef,
 } from "@/lib/reimbursements/attachment-rows";
-import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
+import { notifyCompensationApproversOfPendingApproval } from "@/lib/compensation/workflow";
 import { afterResponse } from "@/lib/after";
 
 type ActionResult<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
@@ -94,7 +94,7 @@ export async function submitModule(input: {
 
     revalidateModule(input.module);
     if (input.module === "reimbursement") {
-      afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "reimbursement", actorId: me.id, employeeName: me.name }));
+      afterResponse(() => notifyCompensationApproversOfPendingApproval({ kind: "reimbursement", actorId: me.id, employeeName: me.name }));
     }
     return { ok: true, id };
   } catch (err) {

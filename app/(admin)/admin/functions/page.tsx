@@ -1,5 +1,6 @@
 import { Building2 } from "lucide-react";
-import { requireAdmin } from "@/lib/auth/current";
+import { requireAdmin, requireUser } from "@/lib/auth/current";
+import { canDeleteDropdownMasters } from "@/lib/auth/attendance-permissions";
 import { listDepartmentsWithCounts } from "@/lib/queries/departments";
 import { AdminSection } from "@/components/admin/ui/section-shell";
 import { DepartmentList } from "@/components/admin/department-list";
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function FunctionsPage() {
   await requireAdmin();
+  const me = await requireUser();
   const rows = await listDepartmentsWithCounts();
   const activeCount = rows.filter((r) => r.isActive).length;
   const totalEmployees = rows.reduce((sum, r) => sum + r.employeeCount, 0);
@@ -38,7 +40,7 @@ export default async function FunctionsPage() {
       ]}
       actions={<CreateDepartmentDialog />}
     >
-      <DepartmentList departments={rows} />
+      <DepartmentList departments={rows} canDelete={canDeleteDropdownMasters(me.email)} />
     </AdminSection>
   );
 }

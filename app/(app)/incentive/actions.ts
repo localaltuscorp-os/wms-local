@@ -6,7 +6,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { incentiveRequestDecisions, incentiveRequests } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { canReviewIncentives, INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
+import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
+import { isFounder } from "@/lib/auth/founder";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { afterResponse } from "@/lib/after";
 import type { IncentiveRequestInput } from "@/lib/incentive-fields";
@@ -24,7 +25,7 @@ import {
   notifyIncentiveDecision,
   notifyIncentiveResubmitted,
 } from "@/lib/incentive/notifications/service";
-import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
+import { canDecideCompensation, notifyCompensationApproversOfPendingApproval } from "@/lib/compensation/workflow";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -60,7 +61,7 @@ export async function createIncentiveRequest(
   }
 
   revalidatePath("/incentive");
-  afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "incentive", actorId: me.id, employeeName: me.name }));
+  afterResponse(() => notifyCompensationApproversOfPendingApproval({ kind: "incentive", actorId: me.id, employeeName: me.name }));
   return { ok: true, id: inserted.id };
 }
 
@@ -75,11 +76,11 @@ const DecideSchema = z
   .strict();
 
 /**
- * MANAN VASA'S DECISION on an incentive request.
+ * SUPER ADMIN DECISION on an incentive request.
  *
  * ── WHO ────────────────────────────────────────────────────────────────────
- * Only Manan (`canReviewIncentives`), checked HERE on every call — not "any
- * admin". This used to be `requireAdmin()` with a free approved/rejected verdict
+ * Only an audited database-backed Super Admin, checked HERE on every call — not
+ * any admin or identity allow-list. This used to be `requireAdmin()` with a free approved/rejected verdict
  * that could re-decide anything at any time; that was exactly the arbitrary
  * status change the approval workflow exists to stop, so it now runs through
  * the controlled transitions in lib/incentive/workflow.ts.
@@ -102,8 +103,8 @@ export async function decideIncentiveRequest(input: {
   note?: string;
 }): Promise<ActionResult<{ newStatus: string }>> {
   const me = await requireUser();
-  if (!canReviewIncentives(me.email)) {
-    return { ok: false, error: `Only ${INCENTIVE_REVIEWER_NAME} can decide incentive requests.` };
+  if (!(await canDecideCompensation(me))) {
+    return { ok: false, error: "Only Super Admins can decide incentive requests." };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
@@ -309,7 +310,7 @@ export async function getIncentiveRequestHistory(
     .select({ employeeId: incentiveRequests.employeeId })
     .from(incentiveRequests)
     .where(eq(incentiveRequests.id, parsedId.data));
-  const allowed = !!row && (row.employeeId === me.id || me.isAdmin || canReviewIncentives(me.email));
+  const allowed = !!row && (row.employeeId === me.id || me.isAdmin || canReviewIncentives(await isFounder(me.id)));
   if (!allowed) return { ok: false, error: "That incentive request was not found." };
 
   const history = await loadIncentiveRequestHistory(parsedId.data);

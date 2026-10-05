@@ -1,4 +1,5 @@
 import { requireAccountsAccess } from "@/lib/accounts/access";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 /**
  * Accounts module gate. Restricts the ENTIRE module to admins/managers
@@ -10,6 +11,9 @@ export default async function AccountsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireAccountsAccess();
+  // A disposable dummy workspace is used to test the approval-to-payment
+  // handoff. The normal Accounts department gate remains mandatory everywhere
+  // outside local dummy mode.
+  if (!DUMMY_MODE) await requireAccountsAccess();
   return <div className="accounts-inbox-module">{children}</div>;
 }

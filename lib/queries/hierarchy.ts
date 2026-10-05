@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { employeeTemporaryBreaks, employees, functions } from "@/db/schema";
 import { loadSortOrders } from "@/lib/employees/sort-order";
 import { loadManagerFlags } from "@/lib/employees/is-manager";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 
 export type HierarchyStatus = "active" | "break" | "inactive";
 export type HierarchyRole = "Founder" | "Manager" | "Employee";
@@ -13,6 +13,7 @@ export type HierarchyRole = "Founder" | "Manager" | "Employee";
 export interface HierarchyPerson {
   id: string;
   name: string;
+  avatarUrl: string | null;
   functionName: string | null;
   managerId: string | null;
   role: HierarchyRole;
@@ -34,6 +35,7 @@ export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Pr
   const rows = await db.select({
     id: employees.id,
     name: employees.name,
+    avatarUrl: employees.avatarUrl,
     email: employees.email,
     functionName: functions.name,
     managerId: employees.managerId,
@@ -50,14 +52,15 @@ export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Pr
       .where(and(isNull(employeeTemporaryBreaks.endedAt), inArray(employeeTemporaryBreaks.employeeId, eligible.map((row) => row.id))))
     : [];
   const breaks = new Map(activeBreakRows.map((row) => [row.employeeId, row.previousManagerId]));
-  const [sortOrders, managerFlags] = await Promise.all([loadSortOrders(), loadManagerFlags()]);
+  const [sortOrders, managerFlags, founderIds] = await Promise.all([loadSortOrders(), loadManagerFlags(), founderEmployeeIds()]);
 
   const toPerson = (row: (typeof staff)[number], status: HierarchyStatus): HierarchyPerson => {
-    const isRoot = isFounderEmail(row.email);
+    const isRoot = founderIds.has(row.id);
     const isManager = managerFlags.get(row.id) ?? false;
     return {
       id: row.id,
       name: row.name,
+      avatarUrl: row.avatarUrl ?? null,
       functionName: row.functionName,
       managerId: isRoot ? null : status === "break" ? (breaks.get(row.id) ?? row.managerId) : row.managerId,
       role: isRoot ? "Founder" : isManager ? "Manager" : "Employee",

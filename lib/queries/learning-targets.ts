@@ -11,7 +11,7 @@ import {
 } from "@/db/schema";
 import type { LearningMetric, LearningRoleGroup } from "@/db/enums";
 import { LEARNING_METRICS, LEARNING_ROLE_GROUPS } from "@/db/enums";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 
 /**
  * The DEFAULT targets, per role — used when no explicit `tc_learning_targets`
@@ -181,8 +181,7 @@ export async function computePersonActuals(
 /** The trainer is "Manan" when the session's trainer is the founder email holder. */
 export async function isMananTrainer(trainerId: string | null): Promise<boolean> {
   if (!trainerId) return false;
-  const [e] = await db.select({ email: employees.email }).from(employees).where(eq(employees.id, trainerId)).limit(1);
-  return e ? isFounderEmail(e.email) : false;
+  return isFounder(trainerId);
 }
 
 export { LEARNING_METRICS, LEARNING_ROLE_GROUPS };

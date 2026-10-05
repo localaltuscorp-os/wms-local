@@ -11,7 +11,7 @@ import {
 //   Jeevan (manager) → Pratik, Purvi        Pratik → Sagar   (Jeevan's DOWNLINE)
 //   Rohan  (manager) → Hardik
 const emps: InitiatorEmployee[] = [
-  { id: "manan", name: "Manan Vasa", managerId: null, email: "manan@unleashed.in" },
+  { id: "founder", name: "Test Founder", managerId: null, email: "founder@example.invalid" },
   { id: "jeevan", name: "Jeevan", managerId: null, email: "jeevan@x.in" },
   { id: "rohan", name: "Rohan", managerId: null, email: "rohan@x.in" },
   { id: "pratik", name: "Pratik", managerId: "jeevan", email: "pratik@x.in" },
@@ -19,7 +19,7 @@ const emps: InitiatorEmployee[] = [
   { id: "sagar", name: "Sagar", managerId: "pratik", email: "sagar@x.in" },
   { id: "hardik", name: "Hardik", managerId: "rohan", email: "hardik@x.in" },
 ];
-const isFounder = (e: string | null) => e === "manan@unleashed.in";
+const isFounder = (employeeId: string) => employeeId === "founder";
 
 describe("computeInitiatorScorecard", () => {
   it("classifies every task into exactly one channel; only Direct scores", () => {
@@ -30,7 +30,7 @@ describe("computeInitiatorScorecard", () => {
       { initiatorId: "jeevan", doerId: "sagar" },  // DOWNLINE (under Pratik)
       { initiatorId: "jeevan", doerId: "rohan" },  // counterpart (peer manager)
       { initiatorId: "jeevan", doerId: "hardik" }, // counterpart (other team)
-      { initiatorId: "jeevan", doerId: "manan" },  // founder (upward)
+      { initiatorId: "jeevan", doerId: "founder" }, // founder (upward)
       { initiatorId: "jeevan", doerId: "jeevan" }, // SELF
     ];
     const cards = computeInitiatorScorecard(tasks, emps, 3, isFounder); // 3 working days

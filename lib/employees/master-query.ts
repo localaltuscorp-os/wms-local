@@ -19,6 +19,7 @@ import { codeHistoryFor } from "./code-registry";
 import { resolveEmployeeType, type EmployeeTypeCode } from "./employee-type";
 import { backgroundCheckStatusesAll, type BackgroundCheckStatus } from "@/lib/hr/background-check";
 import { activeTemporaryBreakEmployeeIds } from "./temporary-break";
+import { defaultProbationEnd } from "./probation";
 
 /**
  * THE EMPLOYEE MASTER — one read across every existing source of truth.
@@ -305,6 +306,8 @@ export interface EmployeeMasterRow {
 
   joinedAt: Date | null;
   probationEnd: string | null;
+  /** False means displayed date is the 180-day default, not stored data. */
+  probationEndExplicit: boolean;
   /** Date of Completion — the last working day. */
   dateOfCompletion: string | null;
   /** True when probation_end is set and still in the future (§2's tag). */
@@ -452,7 +455,14 @@ export async function loadEmployeeMasterRows(
     // ON PROBATION means the date is set AND still ahead of us. A probation end
     // in the past is somebody who finished it, and tagging them would be wrong
     // on most of the roster.
-    const onProbation = !!r.probationEnd && r.probationEnd >= today;
+    const effectiveEmployeeType = resolveEmployeeType({
+      override: r.employeeType,
+      designationType: r.designationEmployeeType,
+    });
+    const probationEnd = effectiveEmployeeType === "intern"
+      ? (r.probationEnd ? String(r.probationEnd).slice(0, 10) : null)
+      : defaultProbationEnd(r.joinedAt, r.probationEnd);
+    const onProbation = !!probationEnd && probationEnd >= today;
     const onTemporaryBreak = temporaryBreakIds.has(r.id);
     const annual = r.annualCtc == null ? null : Number(r.annualCtc);
     return {
@@ -460,13 +470,12 @@ export async function loadEmployeeMasterRows(
       monthlyPayAtTarget: r.monthlyPayAtTarget == null ? null : Number(r.monthlyPayAtTarget),
       weeklyTargetHours: r.weeklyTargetHours == null ? null : Number(r.weeklyTargetHours),
       monthlyFee: r.monthlyFee == null ? null : Number(r.monthlyFee),
+      probationEnd,
+      probationEndExplicit: Boolean(r.probationEnd),
       // The EFFECTIVE type, resolved once here so no screen has to re-derive it
       // (and so a screen cannot leave the override in charge and forget the
       // designation behind it).
-      effectiveEmployeeType: resolveEmployeeType({
-        override: r.employeeType,
-        designationType: r.designationEmployeeType,
-      }),
+      effectiveEmployeeType,
       officeEmail: r.officialEmail ?? r.email,
       officialEmail: r.officialEmail,
       loginEmail: r.email,

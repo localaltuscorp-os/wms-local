@@ -1,5 +1,3 @@
-import { isFounderEmail } from "@/lib/auth/founder";
-
 /**
  * WHO MAY APPROVE — pure, I/O-free predicates (same style as
  * lib/auth/task-permissions.ts) so they can be unit-tested and called from both
@@ -12,7 +10,8 @@ import { isFounderEmail } from "@/lib/auth/founder";
  *
  * TWO THINGS THAT MUST NOT BE GOT WRONG:
  *
- * 1. "Only Manan" is `isFounderEmail`, NOT `isSuperAdmin`. Super-admin covers
+ * 1. Founder-only authority comes from the database-backed Founder role, NOT
+ *    `isSuperAdmin`. Super-admin covers
  *    TWO people (Manan and Hetesh), so using it would silently hand final
  *    sign-off to someone the rule excludes.
  *
@@ -25,8 +24,8 @@ export type ApprovalLevel = "none" | "manager" | "admin";
 
 export interface ApprovalActor {
   id: string;
-  email: string | null;
   isAdmin: boolean;
+  isFounder: boolean;
 }
 
 export interface ApprovalTask {
@@ -91,7 +90,7 @@ export function canManagerApprove(
  * Such a task stops at Manager Approved, which is a complete, valid state.
  */
 export function canAdminApprove(actor: ApprovalActor, task: ApprovalTask): boolean {
-  if (!isFounderEmail(actor.email)) return false;
+  if (!actor.isFounder) return false;
   if (isSelf(actor, task)) return false;
   if (task.approvalLevel === "admin") return false;
   return task.status === "done" || task.approvalLevel === "manager";
@@ -118,7 +117,7 @@ export function canManagerSendBack(
  * admin-approved task is never a dead end that has to be fixed in the database.
  */
 export function canAdminSendBack(actor: ApprovalActor, task: ApprovalTask): boolean {
-  if (!isFounderEmail(actor.email)) return false;
+  if (!actor.isFounder) return false;
   return (
     task.approvalLevel === "manager" ||
     task.approvalLevel === "admin" ||

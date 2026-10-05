@@ -1,7 +1,7 @@
 import "server-only";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { CACHE_TAGS, type CacheTag } from "@/lib/cache-tags";
@@ -16,6 +16,7 @@ import {
 import { EMPLOYEE_TYPES } from "@/db/enums";
 import { requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { canDeleteDropdownMasters } from "@/lib/auth/attendance-permissions";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -85,6 +86,26 @@ const UpdateSchema = z
 
 export type CreateRosterInput = z.infer<typeof CreateSchema>;
 export type UpdateRosterInput = z.infer<typeof UpdateSchema>;
+
+export async function deleteRosterItems(
+  table: RosterTable,
+  revalidatePaths: string[],
+  ids: string[],
+): Promise<ActionResult<{ deleted: number }>> {
+  const me = await requireAdmin();
+  if (!canDeleteDropdownMasters(me.email)) {
+    return { ok: false, error: "You cannot delete Dropdown master records." };
+  }
+  const validIds = [...new Set(ids)].filter((id) => z.string().uuid().safeParse(id).success);
+  if (validIds.length === 0) return { ok: false, error: "Select at least one record." };
+  try {
+    await db.delete(table).where(inArray(table.id, validIds));
+  } catch (err: unknown) {
+    return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  bustRoster(table, revalidatePaths);
+  return { ok: true, deleted: validIds.length };
+}
 
 /**
  * WHICH CACHE TAG A ROSTER FEEDS.

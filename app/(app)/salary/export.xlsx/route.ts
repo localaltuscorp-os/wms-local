@@ -63,7 +63,7 @@ export async function GET(request: Request): Promise<Response> {
       r.employeeName,
       r.designationName ?? "",
       r.payingEntityName ?? "",
-      r.annualCtc / 12,
+      r.monthlySalary ?? r.annualCtc / 12,
       r.payableDays,
       r.lateDeductionDays,
       r.gross,

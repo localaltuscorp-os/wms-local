@@ -16,7 +16,7 @@ import {
   inKpiBucket,
   isOpenTask,
 } from "@/lib/dashboard/kpi-buckets";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import {
   distributeDoneFine,
   distributePendingFine,
@@ -574,11 +574,12 @@ export async function loadDashboardDataUncached(
   // ③ Manager Initiator — split the 7-day scan into 3-day and 7-day windows.
   const holidaySet = new Set(holidayRows.map((h) => h.holidayDate));
   const initEmployees = allEmployees.map((e) => ({ id: e.id, name: e.name, managerId: e.managerId, email: e.email }));
+  const founderIds = await founderEmployeeIds();
   const board = (since: Date, windowDays: number): InitiatorBoard => {
     const wd = countWorkingDays(since, now, holidaySet); // Sunday off (default)
     const windowTasks = initiatorTasksRaw.filter((t) => t.createdAt >= since)
       .map((t) => ({ initiatorId: t.initiatorId, doerId: t.doerId }));
-    return { windowDays, workingDays: wd, managers: computeInitiatorScorecard(windowTasks, initEmployees, wd, isFounderEmail) };
+    return { windowDays, workingDays: wd, managers: computeInitiatorScorecard(windowTasks, initEmployees, wd, (id) => founderIds.has(id)) };
   };
   // DESCRIPTIONS FOR THE DRILL-DOWNS.
   //
