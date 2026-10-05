@@ -31,6 +31,7 @@
 
 - Never hardcode real names, email addresses, phone numbers, employee or user identifiers, access lists, credentials, passwords, API keys, tokens, or other personal or sensitive data in application code, tests, seeds, SQL, documentation, screenshots, comments, or sample requests.
 - Represent access through existing database records, roles, permissions, capability grants, authentication and authorization mechanisms, or approved configuration.
+- Runtime authorization must never depend on a hardcoded employee name, email address, or identity allow-list. Use an audited database-backed role or permission tied to the employee record; any one-time migration backfill must not become a runtime fallback.
 - When asked to give a specific person access, do not hardcode that identity. Determine the appropriate role, permission, capability, or approved configuration source first.
 - Use clearly fake identities and data in tests and examples, such as `Test User` and `test@example.com`.
 - Before committing, inspect the diff for secrets, credentials, PII, and real production data.
