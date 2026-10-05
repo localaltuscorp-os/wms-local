@@ -2,7 +2,7 @@
 
 Date: 2026-10-05  
 Branch: `feature/database-permission-grants`  
-Status: implemented locally; database migration and deployment not yet performed.
+Status: feature branch pushed and preview deployed; runtime guard migration remains pending.
 
 ## Objective
 
@@ -31,11 +31,10 @@ The panel persists and audits every listed role now. Only `account_unlock` is cu
 - `NODE_OPTIONS=--max-old-space-size=4096 pnpm.cmd typecheck`: passed.
 - `pnpm.cmd test tests/unit/security-roles.test.ts`: passed, 10/10.
 - `pnpm.cmd check:leaks`: passed; zero watched-package and PGlite trace leaks.
+- Vercel Preview: Ready at `https://wms-local-btafv0to8-altus-corp2.vercel.app` (deployment `dpl_3rrKEKUP3ooNSnzmDKUhpdV7VLJr`).
 
 ## Next steps
 
-1. Run focused tests, review diff and security scan.
-2. Commit and push the feature branch.
-3. Deploy a Vercel preview and test the panel using a database-backed Super Admin.
-4. Migrate legacy email/name guards one role at a time, with direct server-side enforcement tests.
-5. Do not modify production `fork/main` without separate release approval.
+1. Test the deployed panel using a database-backed Super Admin.
+2. Migrate legacy email/name guards one role at a time, with direct server-side enforcement tests.
+3. Do not modify production `fork/main` without separate release approval.
