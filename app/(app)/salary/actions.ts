@@ -29,7 +29,7 @@ import {
   type PayslipMailSummary,
 } from "@/lib/salary/notify-paid";
 import { afterResponse } from "@/lib/after";
-import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
+import { notifyCompensationApproversOfPendingApproval } from "@/lib/compensation/workflow";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -100,7 +100,7 @@ export async function generateSalary(input: unknown): Promise<ActionResult<{ gen
 
   revalidatePath(PATH);
   revalidatePath("/salary");
-  if (generated > 0) afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
+  if (generated > 0) afterResponse(() => notifyCompensationApproversOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
   return { ok: true, generated };
 }
 
@@ -214,7 +214,7 @@ export async function generateSalaryAll(
   }
 
   revalidatePath(PATH);
-  if (created > 0) afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
+  if (created > 0) afterResponse(() => notifyCompensationApproversOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
   return { ok: true, created, skipped, failed, firstError };
 }
 
