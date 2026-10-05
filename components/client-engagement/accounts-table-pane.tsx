@@ -3,10 +3,9 @@
 import * as React from "react";
 import { fireToast } from "@/lib/toast";
 import { ceAssignAccount } from "@/app/(app)/operations/client-engagement/actions";
-import { accountLabel } from "@/lib/client-engagement/constants";
+import { accountLabel, type CeProductOption } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
-import type { CeProductOption } from "@/lib/client-engagement/constants";
 import { AccountDialog } from "./account-dialog";
 import { TransferDialog } from "./transfer-dialog";
 import { AccountsTable } from "./accounts-table";
@@ -42,6 +41,7 @@ export function AccountsTablePane({
   myMemberId: string | null;
   /** Batch codes offered in the Edit dialog's own datalist. */
   batches: string[];
+  /** Active Product Master choices used by the shared add/edit dialog. */
   productOptions: CeProductOption[];
   /** The category a NEW account defaults to — irrelevant here, this pane never opens "new". */
   defaultCategory?: string;

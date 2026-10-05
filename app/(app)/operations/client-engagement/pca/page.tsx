@@ -20,12 +20,12 @@ export default async function ClientEngagementPca({ searchParams }: { searchPara
     );
   }
   const { members, accounts, engagements } = ctx.snapshot;
-  const productOptions = ceProductOptions(await listActiveProducts());
   const { columns, total } = buildPca(members, accounts, engagements, ctx.monday);
   const capacity = buildCapacity(members, accounts, engagements, ctx.monday);
   const loads: Record<string, Load> = Object.fromEntries(weeklyLoadByAccount(engagements, ctx.monday));
   const callCounts: Record<string, number> = {};
   for (const e of engagements) callCounts[e.accountId] = (callCounts[e.accountId] ?? 0) + 1;
+  const productOptions = ceProductOptions(await listActiveProducts());
 
   return (
     <PageShell width="full">
@@ -37,9 +37,9 @@ export default async function ClientEngagementPca({ searchParams }: { searchPara
         loads={loads}
         capacity={capacity}
         callCounts={callCounts}
+        productOptions={productOptions}
         canManage={ctx.canManage}
         myMemberId={ctx.myMemberId}
-        productOptions={productOptions}
       />
     </PageShell>
   );

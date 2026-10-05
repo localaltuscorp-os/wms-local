@@ -33,9 +33,9 @@ export function PcaGrid({
   loads,
   capacity,
   callCounts,
+  productOptions,
   canManage,
   myMemberId,
-  productOptions,
 }: {
   columns: PcaColumn[];
   total: PcaMatrixRow;
@@ -44,9 +44,9 @@ export function PcaGrid({
   loads: Record<string, Load>;
   capacity: MemberCapacity[];
   callCounts: Record<string, number>;
+  productOptions: CeProductOption[];
   canManage: boolean;
   myMemberId: string | null;
-  productOptions: CeProductOption[];
 }) {
   const [view, setView] = React.useState<View>("all");
   const batches = React.useMemo(
