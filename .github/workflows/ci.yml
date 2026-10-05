@@ -40,8 +40,30 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:visual
+      - name: Install Chromium for visual tests
+        if: >-
+          env.DATABASE_URL != '' &&
+          env.NEXT_PUBLIC_SUPABASE_URL != '' &&
+          env.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' &&
+          env.SUPABASE_SERVICE_ROLE_KEY != ''
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run visual tests
+        if: >-
+          env.DATABASE_URL != '' &&
+          env.NEXT_PUBLIC_SUPABASE_URL != '' &&
+          env.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' &&
+          env.SUPABASE_SERVICE_ROLE_KEY != ''
+        run: pnpm test:visual
+      - name: Report unavailable visual-test environment
+        if: >-
+          env.DATABASE_URL == '' ||
+          env.NEXT_PUBLIC_SUPABASE_URL == '' ||
+          env.NEXT_PUBLIC_SUPABASE_ANON_KEY == '' ||
+          env.SUPABASE_SERVICE_ROLE_KEY == ''
+        run: |
+          echo "::warning::Visual tests skipped because the repository has no complete secret-backed test environment."
+          echo "### Visual tests not run" >> "$GITHUB_STEP_SUMMARY"
+          echo "Configure the four database/Supabase repository secrets to enable this stage." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
