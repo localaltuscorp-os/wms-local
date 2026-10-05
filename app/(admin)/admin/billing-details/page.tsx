@@ -1,1 +1,2 @@
-export { default, dynamic } from "../billing-profiles/page";
+export const dynamic = "force-dynamic";
+export { default } from "../billing-profiles/page";

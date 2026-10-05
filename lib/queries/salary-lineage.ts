@@ -21,6 +21,7 @@ export interface SalaryLineageData {
   ctcBreakup: { annualCtc: number; components: Array<{ label: string; annual: number }>; updatedAt: string } | null;
   run: {
     id: string;
+    month: string;
     annualCtc: number;
     monthlySalary: number | null;
     perDaySalary: number | null;
@@ -137,7 +138,7 @@ export async function getSalaryLineage(employeeId: string, month: string): Promi
       updatedAt: dateText(ctc.updatedAt),
     } : null,
     run: run ? {
-      id: run.id, annualCtc: num(run.annualCtc), monthlySalary: run.monthlySalary == null ? null : num(run.monthlySalary), perDaySalary: run.perDaySalary == null ? null : num(run.perDaySalary), workingHoursPerDay: run.workingHoursPerDay == null ? null : num(run.workingHoursPerDay), payableDays: num(run.payableDays), gross: num(run.gross), pt: num(run.pt), tds: num(run.tds), advances: num(run.advances), pendingBalanceIn: num(run.pendingBalanceIn), netPayable: num(run.netPayable), payType: run.payType, workedHours: run.workedHours == null ? null : num(run.workedHours), targetHours: run.targetHours == null ? null : num(run.targetHours), hourlyRate: run.hourlyRate == null ? null : num(run.hourlyRate), overtimeHours: num(run.overtimeHours), overtimeAmount: num(run.overtimeAmount), disbursed: run.disbursed, disbursedAmount: run.disbursedAmount == null ? null : num(run.disbursedAmount), source: run.source, createdAt: dateText(run.createdAt),
+      id: run.id, month: run.month, annualCtc: num(run.annualCtc), monthlySalary: run.monthlySalary == null ? null : num(run.monthlySalary), perDaySalary: run.perDaySalary == null ? null : num(run.perDaySalary), workingHoursPerDay: run.workingHoursPerDay == null ? null : num(run.workingHoursPerDay), payableDays: num(run.payableDays), gross: num(run.gross), pt: num(run.pt), tds: num(run.tds), advances: num(run.advances), pendingBalanceIn: num(run.pendingBalanceIn), netPayable: num(run.netPayable), payType: run.payType, workedHours: run.workedHours == null ? null : num(run.workedHours), targetHours: run.targetHours == null ? null : num(run.targetHours), hourlyRate: run.hourlyRate == null ? null : num(run.hourlyRate), overtimeHours: num(run.overtimeHours), overtimeAmount: num(run.overtimeAmount), disbursed: run.disbursed, disbursedAmount: run.disbursedAmount == null ? null : num(run.disbursedAmount), source: run.source, createdAt: dateText(run.createdAt),
     } : null,
     breakup: sheet ? { id: sheet.id, monthlyCtc: num(sheet.monthlyCtc), payableAfterLeave: num(sheet.payableAfterLeave), pt: num(sheet.pt), payableAfterPt: num(sheet.payableAfterPt), advance: num(sheet.advance), previousPending: num(sheet.previousPending), finalPayment: num(sheet.finalPayment), waiveOffDays: num(sheet.waiveOffDays), waiveOffNote: sheet.waiveOffNote, payoutAdjustment: num(sheet.payoutAdjustment), payoutAdjustmentNote: sheet.payoutAdjustmentNote, salaryGiven: sheet.salaryGiven == null ? null : num(sheet.salaryGiven), amountPaid: num(sheet.amountPaid), paid: sheet.paid } : null,
     advances: advances.map((row) => ({ id: row.id, amount: row.amount, advanceDate: row.advanceDate, note: row.note })),

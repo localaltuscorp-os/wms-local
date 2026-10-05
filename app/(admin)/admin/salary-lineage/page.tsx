@@ -16,8 +16,11 @@ export default async function SalaryLineagePage({ searchParams }: Props) {
   const selectedEmployee = typeof params.employee === "string" && employees.some((row) => row.id === params.employee)
     ? params.employee
     : employees[0]?.id ?? "";
-  const months = storedMonths.length ? storedMonths : [new Date().toISOString().slice(0, 7)];
-  const selectedMonth = typeof params.month === "string" && /^\d{4}-\d{2}$/.test(params.month) ? params.month : months[0];
+  const fallbackMonth = new Date().toISOString().slice(0, 7);
+  const months = storedMonths.length ? storedMonths : [fallbackMonth];
+  const selectedMonth = typeof params.month === "string" && /^\d{4}-\d{2}$/.test(params.month)
+    ? params.month
+    : months[0] ?? fallbackMonth;
   const data = selectedEmployee ? await getSalaryLineage(selectedEmployee, selectedMonth) : null;
 
   return <AdminSection title="Salary Lineage" subtitle="Trace salary, tax, payroll and financial connections.">

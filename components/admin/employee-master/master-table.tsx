@@ -294,8 +294,8 @@ function matchesKpi(row: EmployeeMasterRow, filter: KpiFilter): boolean {
     case "confirmed": return !intern && !row.onProbation;
     case "probation": return !intern && row.onProbation;
     case "employees": return !intern;
-    case "fullTimeInterns": return intern && row.workerType === "full_time";
-    case "partTimeInterns": return intern && row.workerType !== "full_time";
+    case "full_time_interns": return intern && row.workerType === "full_time";
+    case "part_time_interns": return intern && row.workerType !== "full_time";
     case "interns": return intern;
   }
 }
