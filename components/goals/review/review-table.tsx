@@ -432,11 +432,10 @@ export function ReviewTable({
   void sortButton;
   return (
     <div
-      className="table-scroll wg-rise max-h-[72vh] overflow-auto rounded-2xl border"
+      className="table-scroll wg-rise max-h-[72vh] overflow-auto rounded-section border border-hairline bg-surface-card"
       style={{
-        borderColor: "var(--color-hairline-strong)",
-        background: "var(--color-surface-card)",
-        boxShadow: "0 1px 2px rgba(15,23,42,0.05), 0 18px 44px -30px rgba(15,23,42,0.28)",
+        borderColor: "var(--color-hairline)",
+        boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 16px 40px -24px rgba(15,23,42,0.20)",
       }}
     >
       <style>{`

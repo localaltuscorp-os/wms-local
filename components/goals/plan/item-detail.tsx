@@ -621,6 +621,7 @@ export function PlanItemDetailModal({
   onClose,
   onRename,
   onSetTime,
+  unruledInitiatorLabel,
 }: {
   item: PlanItem;
   /** The viewer — what the two status controls test against. OPTIONAL, because
@@ -630,6 +631,7 @@ export function PlanItemDetailModal({
   onClose: () => void;
   onRename?: (id: string, title: string) => void;
   onSetTime?: (item: PlanItem, time: { startMin: number | null; durationMin: number | null }) => void;
+  unruledInitiatorLabel?: string;
 }) {
   const [title, setTitle] = React.useState(item.title);
   const [at, setAt] = React.useState(item.startMin != null ? minToHhmm(item.startMin) : "");
@@ -831,6 +833,7 @@ export function PlanItemDetailModal({
                 approvalStatus={item.approvalStatus ?? null}
                 archived={item.isPutAway ?? false}
                 actor={statusActor}
+                unruledLabel={unruledInitiatorLabel}
                 onCommit={async (next) => {
                   const res = await setPlanItemInitiatorStatus(item.id, next);
                   return res.ok ? { ok: true } : { ok: false, error: res.error };

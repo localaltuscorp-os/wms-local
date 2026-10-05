@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
 import { archiveRailFor } from "@/lib/archive/sections";
@@ -94,11 +95,18 @@ export function SidebarArchive({ isAdmin }: { isAdmin: boolean }): React.JSX.Ele
 /** The mobile top-bar module label (module colour = identity only). */
 export function MobileModuleLabel(): React.JSX.Element | null {
   const ws = workspaceForPath(usePathname() ?? "/");
-  const theme = ws && ws !== "wms" ? MODULE_THEME[ws] : null;
+  const theme = ws ? MODULE_THEME[ws] : null;
   if (!theme) return null;
+  const Icon = theme.Icon;
   return (
-    <span className="font-extrabold tracking-tight" style={{ color: "var(--color-altus-red-deep, #A80400)", fontSize: 16 }}>
+    <Link
+      href={"/hub" as Route}
+      aria-label={`Back to Hub from ${theme.label}`}
+      className="inline-flex items-center gap-1.5 font-extrabold tracking-tight"
+      style={{ color: "var(--color-altus-red-deep, #A80400)", fontSize: 16 }}
+    >
+      <Icon size={17} strokeWidth={2.4} aria-hidden />
       {theme.label}
-    </span>
+    </Link>
   );
 }

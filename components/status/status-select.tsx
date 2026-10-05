@@ -235,6 +235,8 @@ export interface InitiatorStatusSelectProps {
    * away — so this stays a narrow, named exception rather than a default.
    */
   hideArchived?: boolean;
+  /** Display-only label for an unruled status on a scoped surface. */
+  unruledLabel?: string;
   className?: string;
 }
 
@@ -247,6 +249,7 @@ export function InitiatorStatusSelect({
   compact,
   readOnlyFallback = true,
   hideArchived = false,
+  unruledLabel = "No Verdict",
   className,
 }: InitiatorStatusSelectProps) {
   const stored = effectiveInitiatorStatus(approvalStatus, archived);
@@ -270,7 +273,7 @@ export function InitiatorStatusSelect({
 
   if (!canRule) {
     if (!readOnlyFallback) return null;
-    const label = shown ? INITIATOR_STATUS_LABEL[shown] : "No Verdict";
+    const label = shown ? INITIATOR_STATUS_LABEL[shown] : unruledLabel;
     return (
       <StatusBadge
         label={label}
@@ -289,7 +292,7 @@ export function InitiatorStatusSelect({
       ariaLabel="Initiator status"
       title="The initiator's ruling — separate from the progress reported beside it."
       value={shown ?? ""}
-      placeholder="No Verdict"
+      placeholder={unruledLabel}
       placeholderStyle={NO_VERDICT_BADGE}
       options={options}
       // A row that IS archived on the board that hides Archived still has to

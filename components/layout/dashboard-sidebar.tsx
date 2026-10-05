@@ -51,9 +51,6 @@ export async function DashboardSidebar() {
       }}
     >
       <MobileMenuServer isAdmin={isAdmin} />
-      <a href="/hub" aria-label="Back to Hub" className="shrink-0">
-        <img src="/logo.png" alt="Altus Corp" className="h-8 w-auto" />
-      </a>
       <MobileModuleLabel />
       {/* Far right on phones too. The desktop AppTopBar is `max-md:hidden` — a
           second 56px strip would eat a third of a small screen — so the bell

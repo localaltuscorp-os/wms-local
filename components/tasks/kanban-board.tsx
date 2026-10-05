@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
@@ -26,6 +27,7 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
+  useDroppable,
   closestCenter,
   closestCorners,
   pointerWithin,
@@ -67,6 +69,61 @@ import { WeeklyGoalBadge } from "@/components/weekly-goals/weekly-goal-badge";
 import { isDoneLate } from "@/lib/task-late";
 import type { BoardTask } from "@/lib/queries/tasks";
 import type { VirtualTaskRow } from "@/lib/weekly-goals/as-task-row";
+import { DOER_KPI_DROP_STATUS } from "@/lib/tasks/kpi-drop";
+
+const KPI_DROP_PREFIX = "__kpi_status__:";
+const KPI_DROP_SPECS = [
+  ["notRead", "Not read"],
+  ["notStarted", "Not started"],
+  ["initiated", "Initiated"],
+  ["followUp", "Follow up"],
+  ["needInfo", "Need info"],
+  ["done", "Done"],
+  ["abandoned", "Abandoned"],
+] as const;
+
+const KPI_PILL_STYLE: Record<keyof typeof DOER_KPI_DROP_STATUS | "total", { pill: string; border: string; dot: string }> = {
+  total: { pill: "bg-slate-100 text-slate-900", border: "border-slate-300", dot: "bg-slate-500" },
+  notRead: { pill: "bg-violet-50 text-violet-950", border: "border-violet-200", dot: "bg-violet-600" },
+  notStarted: { pill: "bg-indigo-50 text-indigo-950", border: "border-indigo-200", dot: "bg-indigo-600" },
+  initiated: { pill: "bg-amber-50 text-amber-950", border: "border-amber-200", dot: "bg-amber-500" },
+  followUp: { pill: "bg-orange-50 text-orange-950", border: "border-orange-200", dot: "bg-orange-600" },
+  needInfo: { pill: "bg-red-50 text-red-950", border: "border-red-200", dot: "bg-red-600" },
+  done: { pill: "bg-emerald-50 text-emerald-950", border: "border-emerald-200", dot: "bg-emerald-600" },
+  abandoned: { pill: "bg-sky-50 text-sky-950", border: "border-sky-200", dot: "bg-sky-500" },
+};
+
+function kpiDropId(status: TaskStatus) {
+  return `${KPI_DROP_PREFIX}${status}`;
+}
+
+function KanbanKpiDropZone({ keyName, label, count }: { keyName: keyof typeof DOER_KPI_DROP_STATUS; label: string; count: number }) {
+  const status = DOER_KPI_DROP_STATUS[keyName];
+  const { setNodeRef, isOver } = useDroppable({ id: kpiDropId(status), data: { type: "kpi-status" } });
+  const style = KPI_PILL_STYLE[keyName];
+  return (
+    <div
+      ref={setNodeRef}
+      className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 transition-all ${style.pill} ${style.border} ${isOver ? "scale-[1.02] ring-2 ring-altus-red/35" : ""}`}
+      aria-label={`Drop a task to mark it ${label.toLowerCase()}`}
+    >
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />
+      <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{count}</span>
+      <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>{label}</span>
+    </div>
+  );
+}
+
+function KanbanKpiTotal({ count }: { count: number }) {
+  const style = KPI_PILL_STYLE.total;
+  return (
+    <div className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 ${style.pill} ${style.border}`}>
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />
+      <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{count}</span>
+      <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>Total</span>
+    </div>
+  );
+}
 
 // Priority → colour token + label for the hover-card badge.
 const PRIORITY_TONE: Record<TaskPriority, string> = {
@@ -87,6 +144,8 @@ interface Props {
   /** Ordered column ids to render (statuses + the synthetic Archive column).
    *  Admins can drag column headers to reorder; the new order is persisted. */
   columnOrder: ColId[];
+  /** An optional page-level outlet that keeps the KPI strip outside the board panel. */
+  kpiPortalTarget?: string;
 }
 
 /** Columns whose entry is an approval decision rather than a status change. */
@@ -200,7 +259,7 @@ function accentFor(col: ColId, tones: Record<TaskStatus, StatusColorToken>) {
  * reorder the whole board (persisted globally). A DragOverlay renders the
  * floating preview; dnd-kit handles auto-scroll, keyboard a11y and animation.
  */
-export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, columnOrder }: Props) {
+export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, columnOrder, kpiPortalTarget }: Props) {
   const router = useRouter();
   const [items, setItems] = React.useState(tasks);
   const [savingId, setSavingId] = React.useState<string | null>(null);
@@ -209,6 +268,11 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
   const [columns, setColumns] = React.useState<ColId[]>(columnOrder);
   // The active drag (card or column) — drives the DragOverlay + drop targeting.
   const [active, setActive] = React.useState<{ id: string; type: "card" | "column" } | null>(null);
+  const [kpiTarget, setKpiTarget] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setKpiTarget(kpiPortalTarget ? document.getElementById(kpiPortalTarget) : null);
+  }, [kpiPortalTarget]);
   const [overCol, setOverCol] = React.useState<string | null>(null);
   // Where the user has arranged each column's cards (see BoardOrder above).
   const [order, setOrder] = React.useState<BoardOrder>({});
@@ -681,6 +745,10 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
   const columnOf = React.useCallback(
     (id: string | null | undefined): ColId | null => {
       if (id == null) return null;
+      if (id.startsWith(KPI_DROP_PREFIX)) {
+        const status = id.slice(KPI_DROP_PREFIX.length) as TaskStatus;
+        return columns.includes(status) ? status : null;
+      }
       return colOfCard.get(id) ?? (columns.includes(id as ColId) ? (id as ColId) : null);
     },
     [colOfCard, columns],
@@ -881,6 +949,19 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
   }
 
   const activeCard = active?.type === "card" ? items.find((t) => t.id === active.id) ?? null : null;
+  const kpiStrip = (
+    <div className="flex flex-wrap items-center gap-2" aria-label="Task status summary and drop targets">
+      <KanbanKpiTotal count={items.filter((task) => !task.archived).length} />
+      {KPI_DROP_SPECS.map(([keyName, label]) => (
+        <KanbanKpiDropZone
+          key={keyName}
+          keyName={keyName}
+          label={label}
+          count={items.filter((task) => !task.archived && task.status === DOER_KPI_DROP_STATUS[keyName]).length}
+        />
+      ))}
+    </div>
+  );
 
   // Search matched no card in ANY column — show the answer instead of eight
   // empty columns. Only when a search is active; an unfiltered empty board
@@ -915,6 +996,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
           setOverCol(null);
         }}
       >
+        {kpiTarget ? createPortal(kpiStrip, kpiTarget) : <div className="mb-4">{kpiStrip}</div>}
         <div>
           <div
             ref={boardRef}
@@ -931,11 +1013,6 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
                 // it is rendered — so a search never disturbs the arrangement.
                 const arranged = colTasks.get(col) ?? [];
                 const visible = matchIds ? arranged.filter((t) => matchIds.has(t.id)) : arranged;
-                // This week's goals whose task-status maps to this column.
-                // Never shown in the Archive column.
-                const colGoals = isArchive
-                  ? []
-                  : weeklyGoals.filter((g) => g.status === col);
                 const limit = visibleByCol[col] ?? COL_STEP;
                 // A card dragged past the "Show more" cut-off must still render
                 // — otherwise its drop indicator would vanish exactly when the
@@ -969,7 +1046,7 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
                         </p>
                       </div>
                     )}
-                    {!isArchive && visible.length === 0 && colGoals.length === 0 && (
+                    {!isArchive && visible.length === 0 && (
                       <div
                         className="rounded-chip px-3 py-6 text-center"
                         style={{ border: "1.5px dashed var(--color-hairline-strong)" }}
@@ -979,11 +1056,6 @@ export function KanbanBoard({ tasks, weeklyGoals = [], labels, tones, isAdmin, c
                         </p>
                       </div>
                     )}
-                    {/* Pinned weekly-goal cards at the top of the column —
-                        badged, distinct accent, link out to the workspace. */}
-                    {colGoals.map((g) => (
-                      <KanbanGoalCard key={g.id} g={g} />
-                    ))}
                     {/* One sortable list per column: this is what makes the
                         neighbours slide apart and the dragged card's slot land
                         exactly where the pointer is, instead of at the end. */}

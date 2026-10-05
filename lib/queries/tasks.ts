@@ -13,6 +13,7 @@ import { resolveTeamScopes } from "@/lib/queries/team-scope";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { effectiveDueAtSql } from "@/lib/tasks/effective-due";
 import { applyTaskScope, currentTaskVisibility } from "@/lib/tasks/scope";
+import { logDbError } from "@/lib/db/error";
 import type { TaskListFilters, TaskListRow } from "@/lib/types";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -24,8 +25,6 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * sent-back task is waiting on the doer, and it is the whole point of the
  * "Sent-Back Work, by Person" drill-through.
  */
-const AGE_TERMINAL: readonly string[] = ["done", "approved", "cancelled", "transferred"];
-
 /**
  * Computed on CALL, not at module load. A module-level
  * `TASK_STATUSES.filter(...)` evaluates the moment this file is first imported,
@@ -33,10 +32,14 @@ const AGE_TERMINAL: readonly string[] = ["done", "approved", "cancelled", "trans
  * bundler chunking, a cycle introduced later) the value is `undefined` and the
  * `.filter` throws — at import time, taking down every route that touches this
  * file rather than the one query that needed it. There is no measurable cost to
- * building a nine-item array per call.
+ * building the small list per call.
  */
 function overdueOpenStatuses() {
-  return TASK_STATUSES.filter((s) => !AGE_TERMINAL.includes(s));
+  // Do not derive this from the physical `task_status` enum. That enum retains
+  // historical values (need_help and follow_up_1/2/3) so old rows can be read,
+  // but some databases have already retired those enum values. Passing them to
+  // an `IN` condition then makes the whole Due Date → Overdue query fail.
+  return PENDING_STATUSES;
 }
 
 /**
@@ -69,8 +72,13 @@ function ageRangeConditions(key: FineBucketKey) {
     new Date(todayUtc.getTime() + offset * MS_PER_DAY);
 
   const out = [];
-  if (min !== null) out.push(gte(effectiveDueAtSql(), dayStart(min)));
-  if (max !== null) out.push(lt(effectiveDueAtSql(), dayAfter(max)));
+  // postgres.js in this application does not serialize a Date bound inside a
+  // raw SQL expression. Bind ISO strings and cast them explicitly instead;
+  // this is the same safe timestamp pattern used by Daily Commitments.
+  if (min !== null)
+    out.push(sql`${effectiveDueAtSql()} >= ${dayStart(min).toISOString()}::timestamptz`);
+  if (max !== null)
+    out.push(sql`${effectiveDueAtSql()} < ${dayAfter(max).toISOString()}::timestamptz`);
   return out;
 }
 
@@ -81,7 +89,7 @@ function overdueConditions() {
   // `SQL | undefined`, and spreading two definite conditions into the existing
   // array keeps the types honest without an assertion.
   return [
-    lt(effectiveDueAtSql(), todayUtc),
+    sql`${effectiveDueAtSql()} < ${todayUtc.toISOString()}::timestamptz`,
     inArray(tasks.status, overdueOpenStatuses()),
   ];
 }
@@ -308,30 +316,32 @@ async function listTasksUncached(filters: TaskListFilters): Promise<TaskListRow[
   const doerEmp = alias(employees, "doer_emp");
   const initEmp = alias(employees, "init_emp");
 
-  const rows = await db
+  const selectFields = {
+    id: tasks.id,
+    taskNo: tasks.taskNo,
+    title: tasks.title,
+    subject: tasks.subject,
+    client: tasks.client,
+    description: tasks.description,
+    status: tasks.status,
+    priority: tasks.priority,
+    createdAt: tasks.createdAt,
+    dueAt: effectiveDueAtSql(),
+    archived: tasks.archived,
+    doerId: tasks.doerId,
+    doerName: doerEmp.name,
+    doerDept: doerEmp.department,
+    initiatorId: tasks.initiatorId,
+    initiatorName: initEmp.name,
+    createdById: tasks.createdById,
+    updatedAt: tasks.updatedAt,
+    approvalStatus: tasks.approvalStatus,
+    firstReadAt: tasks.firstReadAt,
+    completedAt: tasks.completedAt,
+  };
+  const taskRowsWithTimer = () => db
     .select({
-      id: tasks.id,
-      taskNo: tasks.taskNo,
-      title: tasks.title,
-      subject: tasks.subject,
-      client: tasks.client,
-      description: tasks.description,
-      status: tasks.status,
-      priority: tasks.priority,
-      createdAt: tasks.createdAt,
-      // Effective due (revised ?? original) so the table shows + flags overdue
-      // from the revised date.
-      dueAt: effectiveDueAtSql(),
-      archived: tasks.archived,
-      doerId: tasks.doerId,
-      doerName: doerEmp.name,
-      doerDept: doerEmp.department,
-      initiatorId: tasks.initiatorId,
-      initiatorName: initEmp.name,
-      createdById: tasks.createdById,
-      updatedAt: tasks.updatedAt,
-      approvalStatus: tasks.approvalStatus,
-      firstReadAt: tasks.firstReadAt,
+      ...selectFields,
       // "Start Time" — when the doer first hit Start on the timer. LEFT join, so
       // a task nobody has started simply has no rollup row and reads null.
       startedAt: taskTimeRollup.firstStartedAt,
@@ -348,6 +358,59 @@ async function listTasksUncached(filters: TaskListFilters): Promise<TaskListRow[
     .where(and(...conditions))
     .orderBy(desc(tasks.createdAt))
     .limit(1000);
+
+  let rows: Awaited<ReturnType<typeof taskRowsWithTimer>>;
+  try {
+    rows = await taskRowsWithTimer();
+  } catch (err) {
+    logDbError("tasks.list.enriched", err);
+    // The driver can discard the underlying SQLSTATE while wrapping a query,
+    // so an older database's missing timer projection cannot always be
+    // recognised reliably here. Retry the core list query instead. A real
+    // database outage or task-table failure also fails this retry and rethrows
+    // the original error; only an optional timer-projection problem is hidden.
+    try {
+      rows = await db
+        .select({
+          // This is deliberately the original Tasks-table shape. Local
+          // databases can predate revised targets, approvals, read receipts,
+          // completion timestamps, and the timer projection while still
+          // holding valid task records.
+          id: tasks.id,
+          taskNo: tasks.taskNo,
+          title: tasks.title,
+          subject: tasks.subject,
+          client: tasks.client,
+          description: tasks.description,
+          status: tasks.status,
+          priority: tasks.priority,
+          createdAt: tasks.createdAt,
+          dueAt: tasks.dueAt,
+          archived: tasks.archived,
+          doerId: tasks.doerId,
+          doerName: doerEmp.name,
+          doerDept: doerEmp.department,
+          initiatorId: tasks.initiatorId,
+          initiatorName: initEmp.name,
+          createdById: tasks.createdById,
+          updatedAt: tasks.updatedAt,
+          approvalStatus: sql<ApprovalStatus | null>`null`,
+          firstReadAt: sql<Date | null>`null`,
+          completedAt: sql<Date | null>`null`,
+          startedAt: sql<Date | null>`null`,
+          openSessions: sql<number>`0`,
+        })
+        .from(tasks)
+        .leftJoin(doerEmp, eq(tasks.doerId, doerEmp.id))
+        .leftJoin(initEmp, eq(tasks.initiatorId, initEmp.id))
+        .where(and(...conditions))
+        .orderBy(desc(tasks.createdAt))
+        .limit(1000);
+    } catch (fallbackErr) {
+      logDbError("tasks.list.core-fallback", fallbackErr);
+      throw err;
+    }
+  }
 
   const now = Date.now();
   const nowDay = dayIndex(new Date(now));

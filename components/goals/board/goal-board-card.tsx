@@ -110,6 +110,9 @@ export interface SharedCardProps {
   onRequestArchive: (g: GoalDTO) => void;
   /** Reorder/bucket drag off while a filter narrows the list (partial-order guard). */
   dragDisabled: boolean;
+  /** Status Kanban drags change a goal's status, so they do not require the
+   * separate structural reorder permission. */
+  dragMode?: "reorder" | "status";
   /**
    * Stable DENSE goal code (Y1 / AQ1 / AprM1) — the goal's rank within its
    * bucket (sorted by position), NOT the raw stored position. One source for
@@ -149,6 +152,7 @@ function GoalBoardCardImpl({
   mutation,
   onRequestArchive,
   dragDisabled,
+  dragMode = "reorder",
   codeOf,
   childGoals,
   autoFocus = false,
@@ -159,8 +163,9 @@ function GoalBoardCardImpl({
   const [copying, setCopying] = React.useState(false);
   const cardRef = React.useRef<HTMLDivElement>(null);
 
+  const canDrag = canWrite && !dragDisabled && (dragMode === "status" || policy.canReorder);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
-    useSortable({ id: goal.id, disabled: dragDisabled || !canWrite || !policy.canReorder });
+    useSortable({ id: goal.id, disabled: !canDrag });
 
   React.useEffect(() => {
     if (autoFocus) cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -273,7 +278,7 @@ function GoalBoardCardImpl({
         if (variant === "kanban") setActivatorNodeRef(el);
         cardRef.current = el;
       }}
-      {...(variant === "kanban" && canWrite && policy.canReorder && !dragDisabled
+      {...(variant === "kanban" && canDrag
         ? { ...attributes, ...listeners }
         : {})}
       style={{
@@ -291,7 +296,7 @@ function GoalBoardCardImpl({
       }}
       className={
         variant === "kanban"
-          ? `group relative rounded-2xl transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-altus-red)_40%,var(--color-hairline-strong))] hover:shadow-[0_14px_30px_-14px_color-mix(in_srgb,var(--color-altus-red)_45%,transparent)] ${canWrite && policy.canReorder && !dragDisabled ? "cursor-grab touch-none active:cursor-grabbing" : ""}`
+          ? `group relative rounded-2xl transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-altus-red)_40%,var(--color-hairline-strong))] hover:shadow-[0_14px_30px_-14px_color-mix(in_srgb,var(--color-altus-red)_45%,transparent)] ${canDrag ? "cursor-grab touch-none active:cursor-grabbing" : ""}`
           : "group relative"
       }
     >
@@ -304,7 +309,7 @@ function GoalBoardCardImpl({
           style={{ background: "linear-gradient(180deg, var(--color-altus-red), var(--color-altus-red-deep))" }}
         />
         {/* Drag handle — the keyboard-sortable activator. */}
-        {canWrite && policy.canReorder && !dragDisabled && (
+        {canDrag && (
           <button
             type="button"
             ref={setActivatorNodeRef}

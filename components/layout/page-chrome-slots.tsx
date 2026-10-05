@@ -23,8 +23,11 @@ type PageChromeSlots = {
   title: HTMLElement | null;
   /** Where a page's own controls go - immediately left of the global cluster. */
   actions: HTMLElement | null;
+  /** The optional page-filter ribbon rendered directly beneath the top bar. */
+  ribbon: HTMLElement | null;
   setTitle: (el: HTMLElement | null) => void;
   setActions: (el: HTMLElement | null) => void;
+  setRibbon: (el: HTMLElement | null) => void;
   /** True while a page has put its own title in `title`. AppTopBar shows the
    *  route-derived name only when this is false, so the bar never carries two
    *  titles at once. */
@@ -37,10 +40,11 @@ const PageChromeSlotsContext = React.createContext<PageChromeSlots | null>(null)
 export function PageChromeSlotsProvider({ children }: { children: React.ReactNode }) {
   const [title, setTitle] = React.useState<HTMLElement | null>(null);
   const [actions, setActions] = React.useState<HTMLElement | null>(null);
+  const [ribbon, setRibbon] = React.useState<HTMLElement | null>(null);
   const [hasPageTitle, setHasPageTitle] = React.useState(false);
   const value = React.useMemo(
-    () => ({ title, actions, setTitle, setActions, hasPageTitle, setHasPageTitle }),
-    [title, actions, hasPageTitle],
+    () => ({ title, actions, ribbon, setTitle, setActions, setRibbon, hasPageTitle, setHasPageTitle }),
+    [title, actions, ribbon, hasPageTitle],
   );
   return (
     <PageChromeSlotsContext.Provider value={value}>{children}</PageChromeSlotsContext.Provider>
@@ -57,4 +61,26 @@ export function PageChromeSlotsProvider({ children }: { children: React.ReactNod
  */
 export function usePageChromeSlots(): PageChromeSlots | null {
   return React.useContext(PageChromeSlotsContext);
+}
+
+/**
+ * The shared landing point for a page's existing local filters. It stays empty
+ * (and therefore takes no space) until a client page portals controls into it.
+ */
+export function PageFilterRibbonSlot() {
+  const slots = usePageChromeSlots();
+  const setRibbon = slots?.setRibbon;
+  const ribbonRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!setRibbon) return;
+    setRibbon(ribbonRef.current);
+    return () => setRibbon(null);
+  }, [setRibbon]);
+  if (!slots) return null;
+  return (
+    <div
+      ref={ribbonRef}
+      className="empty:hidden border-y border-hairline bg-surface-card shadow-[0_6px_18px_-18px_rgba(15,23,42,0.32)]"
+    />
+  );
 }

@@ -38,7 +38,7 @@ import {
 } from "@/db/enums";
 import {
   setTaskStatus,
-  setTaskInitiatorStatus,
+  setTaskApproverStatus,
   archiveTask,
   deleteTask,
 } from "@/app/(app)/tasks/actions";
@@ -63,11 +63,12 @@ import { useElapsedSeconds } from "@/components/tasks/time/use-elapsed";
 import { PlanPlacePanel } from "@/components/project-plan/plan-place-panel";
 import type { PlanBreadcrumb } from "@/lib/queries/project-plan";
 import {
-  effectiveInitiatorStatus,
-  INITIATOR_STATUSES,
-  INITIATOR_STATUS_LABEL,
-  type InitiatorStatus,
-} from "@/lib/status/axes";
+  APPROVER_LABEL,
+  selectableApproverChoices,
+  taskApproverShown,
+  taskDoerShown,
+  type ApproverChoice,
+} from "@/lib/status/approver-status";
 
 type Me = { id: string; name: string; avatarUrl: string | null; department: string | null; isAdmin: boolean };
 
@@ -135,13 +136,33 @@ export function TaskDetailRedesign(props: Props) {
   // (hold / approve / decline / cancel) live in the bulk "Mark Status" control
   // and, per-task, in this drawer's Edit form, which carries approvalStatus.
   const statusList: readonly TaskStatus[] = DOER_TASK_STATUSES;
-  const initiatorStatus = effectiveInitiatorStatus(task.approvalStatus, task.archived);
+  const isSelfRaised = !!task.initiatorId && task.initiatorId === task.doerId;
+  const initiatorStatus = taskApproverShown(task.approvalStatus, task.status, isSelfRaised);
   const canChangeDoerStatus =
     me.isAdmin ||
     me.id === task.doerId ||
     me.id === task.initiatorId ||
     me.id === task.createdById;
-  const canChangeInitiatorStatus = me.isAdmin || me.id === task.initiatorId;
+  const initiatorChoices = selectableApproverChoices(
+    {
+      isAdmin: me.isAdmin,
+      isInitiator: me.id === task.initiatorId && !isSelfRaised,
+      isDoersManager: false,
+      isDoer: me.id === task.doerId,
+      isSelfRaised,
+    },
+    taskDoerShown(task.status),
+  );
+  const wmsInitiatorChoices = initiatorChoices.filter(
+    (choice) =>
+      choice === "pending" ||
+      choice === "approved" ||
+      choice === "not_approved" ||
+      choice === "on_hold" ||
+      choice === "archived" ||
+      choice === "cancelled",
+  );
+  const canChangeInitiatorStatus = wmsInitiatorChoices.length > 0;
   // Submitted, not yet signed off, and this viewer is the one who signs off.
   const awaitingApproval =
     Boolean(timePanel?.canApprove) && task.status === "done" && task.approvalStatus !== "approved";
@@ -161,10 +182,10 @@ export function TaskDetailRedesign(props: Props) {
     run(() => setTaskStatus(task.id, s, expectedUpdatedAt));
   }
 
-  function changeInitiatorStatus(s: InitiatorStatus) {
+  function changeInitiatorStatus(s: ApproverChoice) {
     setOpenStatusMenu(null);
     if (s === initiatorStatus) return;
-    run(() => setTaskInitiatorStatus(task.id, s, expectedUpdatedAt));
+    run(() => setTaskApproverStatus(task.id, s));
   }
 
   if (editing) {
@@ -429,16 +450,16 @@ export function TaskDetailRedesign(props: Props) {
                   aria-expanded={openStatusMenu === "initiator"}
                 >
                   <span className="text-[10px] uppercase tracking-wide text-ink-muted">Initiator Status</span>
-                  <span className="h-2 w-2 rounded-full bg-[#B80D22]" /> {initiatorStatus ? INITIATOR_STATUS_LABEL[initiatorStatus] : "No verdict"}
+                  <span className="h-2 w-2 rounded-full bg-[#B80D22]" /> {APPROVER_LABEL[initiatorStatus]}
                   {canChangeInitiatorStatus && <ChevronDown size={13} />}
                 </button>
                 {openStatusMenu === "initiator" && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setOpenStatusMenu(null)} />
                     <div role="menu" className="absolute left-0 z-20 mt-1 w-52 rounded-xl border border-hairline bg-white p-1 shadow-lg">
-                      {INITIATOR_STATUSES.map((s) => (
+                          {wmsInitiatorChoices.map((s) => (
                         <button type="button" role="menuitem" key={s} onClick={() => changeInitiatorStatus(s)} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold hover:bg-surface-soft ${s === initiatorStatus ? "text-altus-red-deep" : "text-ink-strong"}`}>
-                          {INITIATOR_STATUS_LABEL[s]}
+                          {APPROVER_LABEL[s]}
                           {s === initiatorStatus && <CheckCircle2 size={14} />}
                         </button>
                       ))}

@@ -203,9 +203,12 @@
      (which is what broke Radix portals before — see the density note below). */
   --content-narrow:   1120px;
   --content-standard: 1280px;
-  --content-wide:     1400px;
+  /* Tasks is the reference wide work surface. Keep the shared default at its
+     1560px content column so conventional WMS pages use the same horizontal
+     rhythm rather than each module inventing a slightly narrower maximum. */
+  --content-wide:     1560px;
   --content-full:     1760px;
-  --page-gutter: clamp(1rem, 4vw, 2rem);
+  --page-gutter: clamp(1rem, 2.5vw, 1.75rem);
 
   /* Profile v2 — filled-input and subtle-stripe surfaces. Used heavily
      in /profile cards. Override in dark theme for legible inputs. */
@@ -3284,6 +3287,23 @@ table {
 .kanban-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--color-ink-subtle) 55%, transparent);
   background-clip: padding-box;
+}
+
+/* APP-WIDE HORIZONTAL SCROLL RAILS
+   Module toolbars, wide tables and boards must still be scrollable when their
+   content overflows, but the browser's horizontal rail takes up a visual row
+   and reads as stray UI below the content. Match the module footer: hide only
+   the painted horizontal rail and leave wheel, touch, drag and keyboard
+   scrolling intact. This deliberately does not affect vertical scrollbars. */
+.overflow-x-auto::-webkit-scrollbar:horizontal,
+.overflow-x-scroll::-webkit-scrollbar:horizontal,
+.overflow-auto::-webkit-scrollbar:horizontal,
+.scroll-x-only::-webkit-scrollbar:horizontal,
+.table-scroll::-webkit-scrollbar:horizontal,
+.table-scroll.table-scroll-bold::-webkit-scrollbar:horizontal,
+.kanban-scroll::-webkit-scrollbar:horizontal {
+  display: none;
+  height: 0;
 }
 
 /* Scroll container for the header pill nav and the sidebars — the row still

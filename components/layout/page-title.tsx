@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
+import { ModuleSectionTitle } from "@/components/layout/module-section-title";
 
 /**
  * A page's own name, rendered into the app's GLOBAL TOP BAR instead of into the
@@ -46,5 +47,5 @@ export function PageTitle({ title }: { title: React.ReactNode }) {
   // title uses, so a page that names itself looks identical to one that does
   // not. truncate + min-w-0 so a long name ellipses instead of pushing the
   // search/create/bell cluster off the right edge.
-  return createPortal(<h1 className="topbar-heading min-w-0 truncate">{title}</h1>, slots.title);
+  return createPortal(<ModuleSectionTitle section={title} />, slots.title);
 }

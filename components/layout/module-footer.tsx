@@ -111,7 +111,13 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
       // of every page would otherwise intercept every click meant for the
       // content behind it. The band is transparent to the mouse; only the
       // grabber below re-enables itself, and the dock does so when revealed.
-      className="module-footer sticky bottom-0 z-40 mt-auto w-full pt-6 print:hidden"
+      className="module-footer sticky bottom-0 z-40 mt-auto w-full border-t pt-0 print:hidden"
+      style={{
+        color: "var(--aura-ink, #0a0f22)",
+        background: "linear-gradient(180deg, #fdfdff, #f3f5fc)",
+        borderColor: "rgba(22,32,68,0.1)",
+        boxShadow: "0 -1px 0 rgba(255,255,255,0.95) inset, 0 -8px 24px -18px rgba(22,32,68,0.28)",
+      }}
     >
       {/* Fixed-height band: the dock is absolutely positioned inside it, so the
           space is reserved whether or not the dock is shown and revealing it
@@ -120,7 +126,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
           into it and covers nothing. While stuck mid-scroll it does overlay the
           bottom 52px, which is the price of being reachable without scrolling;
           the band is click-through so it costs the pointer nothing. */}
-      <div className="relative mx-auto flex h-[52px] w-full items-center justify-center px-3">
+      <div className="relative flex min-h-[52px] w-full items-center">
         {/* Resting affordance AND the dock's only hover target — a grabber, so
             a strip that is otherwise invisible and click-through is still
             discoverable. It fades out as the dock fades in.
@@ -143,18 +149,13 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
         // `max-w` + `overflow-x-auto` keep it from ever exceeding its column: on
         // a narrow screen the strip scrolls sideways inside its own glass rather
         // than pushing the page wider.
-        className="flex max-w-[calc(100%-24px)] items-center gap-x-0.5 overflow-x-auto rounded-[18px] px-2 py-2"
+        className="flex w-full items-center gap-x-0.5 overflow-x-auto px-6 py-2 max-md:px-4"
         style={{
           // A short lift rather than the old slide-off-screen: in flow there is
           // no viewport edge to hide behind, and a long travel would read as the
           // bar arriving from somewhere else on the page.
           // Belt and braces with `inert`: an invisible dock must not eat a click
           // aimed at whatever sits behind it.
-          background: "rgba(255,255,255,0.88)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
-          border: "1px solid rgba(0,0,0,0.08)",
-          boxShadow: "0 6px 24px -8px rgba(15,23,42,0.18), 0 1px 2px rgba(15,23,42,0.06)",
           scrollbarWidth: "none",
         }}
       >
