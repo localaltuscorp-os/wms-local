@@ -100,3 +100,11 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 
 - PR #11's required `test` check failed at TypeScript validation. The follow-up corrects the flat Goal Kanban card wiring by passing its required stable empty `childGoals` list, defaults an unspecified Tasks Doer-column visibility to visible, and narrows persisted column-order ids before checking the fixed workflow-order tuple.
 - A local `pnpm typecheck` was started for the follow-up but did not return a completion result within the execution window. Rely on the replacement PR check before merge.
+
+## Billing schema-drift repair (2026-10-05)
+
+- The New Billing Document page failed while reading billable products because the configured database lacked `outstanding_products.display_name`, though the current Drizzle schema and query both require that optional field.
+- Added `db/migrations/0268_ensure_outstanding_product_display_name.sql`. It contains only `ALTER TABLE ... ADD COLUMN IF NOT EXISTS display_name text`; it neither changes nor deletes existing rows. The historical `0259_masters_billing_part2.sql` was deliberately not replayed because it also performs unrelated product and subject cleanup.
+- Applied and verified the same additive column repair against the configured database. The exact previously failing billable-products query then succeeded.
+- Database impact: adds a nullable `display_name` column only. Rollback, if ever required, should be planned separately; do not drop a live column merely to undo this change.
+- Verification: `git diff --check` passed; the exact `outstanding_products` billing-product read returned successfully after the column was added.
