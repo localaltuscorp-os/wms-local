@@ -541,7 +541,7 @@ function ClaimCard({
               // The SAME predicate the server enforces, so the controls appear
               // exactly when the action would accept them. This only decides
               // what is SHOWN — the server refuses regardless.
-              canEdit={canChangeClaimDocuments(row, { id: myEmployeeId })}
+              canEdit={canChangeClaimDocuments(row, { id: myEmployeeId, isAdmin })}
             />
           </div>
           {isAdmin && adminFields.length > 0 && (

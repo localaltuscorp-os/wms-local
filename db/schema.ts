@@ -1130,6 +1130,10 @@ export const hrContacts = pgTable(
     alternateNo: text("alternate_no"),
     email: text("email"),
     service: text("service").notNull().default("Other"),
+    directoryType: text("directory_type").notNull().default("vendor"),
+    contact2Name: text("contact_2_name"),
+    contact2CellNo: text("contact_2_cell_no"),
+    contact2Email: text("contact_2_email"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -1148,6 +1152,7 @@ export const hrContacts = pgTable(
   (t) => [
     index("hr_contacts_active_idx").on(t.isActive),
     index("hr_contacts_service_idx").on(t.service),
+    index("hr_contacts_directory_type_idx").on(t.directoryType, t.isActive, t.personName),
   ],
 );
 

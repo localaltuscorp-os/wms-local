@@ -8,6 +8,7 @@ import { localAllWorkspaces } from "@/lib/auth/local-session";
 import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { canAccessWorkspace, type WorkspaceId, type WorkspaceAccessInput } from "@/lib/workspaces";
 import { canShowModule } from "@/lib/permissions/resolve";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 /**
  * The permission node that governs the Control Panel MODULE — not one of its
@@ -35,7 +36,9 @@ export const accessFor = cache(async (me: Employee): Promise<WorkspaceAccessInpu
   // DEV_ALL_WORKSPACES reopens every room on a dev machine when the local
   // session user isn't in the needed department. Inert on any deployment
   // (localAllWorkspaces() is gated by localSessionEnabled()).
-  const isSuper = isSuperAdmin(me.email) || localAllWorkspaces();
+  // The synthetic dummy admin is a local-only integration tester. DUMMY_MODE
+  // is hard-false in production, so this cannot broaden a deployed account.
+  const isSuper = isSuperAdmin(me.email) || localAllWorkspaces() || DUMMY_MODE;
 
   // ── THE CONTROL PANEL'S VISIBILITY ───────────────────────────────────────
   //
