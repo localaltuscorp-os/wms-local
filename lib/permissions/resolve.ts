@@ -24,6 +24,8 @@ import {
 } from "./catalog";
 import { auditAccessDenied } from "@/lib/logs/audit";
 import { activeScopedAccess, applyScopedAccess } from "./scoped-temporary-access";
+import { ownershipPermission } from "./ownership";
+import { hasDatabaseSuperAdminGrant } from "@/lib/security/super-admin-grants";
 
 /**
  * THE SERVER SIDE OF THE PERMISSION MATRIX.
@@ -127,9 +129,19 @@ export async function modulePermission(nodeKey: string): Promise<EffectivePermis
   // node. Before a scoped grant exists, preserve the catalogue's historic
   // fail-open behaviour for unclassified routes.
   if (!isPermissionNodeKey(nodeKey)) return scoped === null ? allowAll() : { show: false, view: false, edit: false };
-  const existing = (await governedByMatrix(me))
-    ? effectiveFor(nodeKey, await loadOverrides(me.id))
-    : allowAll();
+  // Database-backed Super Admin must always retain the recovery path to the
+  // ownership editor, even when a node is configured as restricted.
+  if (await hasDatabaseSuperAdminGrant(me.id)) {
+    return applyScopedAccess(allowAll(), nodeKey, scoped);
+  }
+  // A configured ownership policy becomes the catalogue-level answer. Existing
+  // feature-specific guards remain additive and can still refuse sensitive data.
+  const ownership = await ownershipPermission(nodeKey, me.id);
+  const existing = ownership ?? (
+    (await governedByMatrix(me))
+      ? effectiveFor(nodeKey, await loadOverrides(me.id))
+      : allowAll()
+  );
   return applyScopedAccess(existing, nodeKey, scoped);
 }
 

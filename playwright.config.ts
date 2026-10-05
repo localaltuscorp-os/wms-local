@@ -35,8 +35,8 @@ export default defineConfig({
     command: "pnpm build && pnpm start",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    // The production build regularly takes more than two minutes on the
-    // shared GitHub runner before Playwright can reach the server.
-    timeout: 300_000,
+    // A cold production build can exceed two minutes in GitHub Actions.
+    // Keep the visual check reliable without bypassing it.
+    timeout: 600_000,
   },
 });

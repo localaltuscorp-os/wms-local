@@ -31,6 +31,7 @@
 
 - Never hardcode real names, email addresses, phone numbers, employee or user identifiers, access lists, credentials, passwords, API keys, tokens, or other personal or sensitive data in application code, tests, seeds, SQL, documentation, screenshots, comments, or sample requests.
 - Represent access through existing database records, roles, permissions, capability grants, authentication and authorization mechanisms, or approved configuration.
+- Runtime authorization must never depend on a hardcoded employee name, email address, or identity allow-list. Use an audited database-backed role or permission tied to the employee record; any one-time migration backfill must not become a runtime fallback.
 - When asked to give a specific person access, do not hardcode that identity. Determine the appropriate role, permission, capability, or approved configuration source first.
 - Use clearly fake identities and data in tests and examples, such as `Test User` and `test@example.com`.
 - Before committing, inspect the diff for secrets, credentials, PII, and real production data.
@@ -65,13 +66,6 @@ Available repository commands:
 - `pnpm deploy`
 
 Run only checks appropriate to the change. Do not claim a check is enforced by GitHub unless the repository configuration actually enforces it.
-
-### Maintainer test waivers
-
-- The repository owner or an explicitly authorized maintainer may waive non-security checks when appropriate for the specific change.
-- Every waiver must record which checks were skipped and why; do not infer a waiver from a person's name, email address, commit metadata, login session, or repository ownership alone.
-- Production application changes must still pass `pnpm build` and `pnpm check:leaks`.
-- PII, secret, authentication, authorization, data-integrity, repository-history, and production-safety reviews cannot be waived.
 
 ## Codex behavior
 
@@ -233,6 +227,19 @@ Never casually use destructive commands or history rewriting, including `git res
 
 Development is `origin` → `localaltuscorp-os/wms-local` → `origin/main`. Production is `fork` → `localaltuscorp-os/Altus-OS` → `fork/main`. `origin/main` is not production. Developers and interns must not directly modify production application code; production fixes first go through Development review and testing. Only an authorized release owner promotes approved code to production.
 
+## GitHub pull-request and CI workflow
+
+- The automatic branch → pull request → CI-monitoring workflow in this section is mandatory for developers and interns. It does not automatically bind an explicitly authorized maintainer or release owner acting within their permitted scope.
+- Do not hardcode a person's identity to create an exception. A maintainer exception must come from the repository's existing permissions plus an explicit instruction for the particular operation. If that authority or instruction is unclear, follow the pull-request workflow.
+- Every developer or intern change intended for `origin/main` must be pushed to its own `feature/*`, `bugfix/*`, or other approved task branch and merged through a GitHub pull request. Do not push directly to `origin/main` unless the repository policy explicitly permits it and an authorized maintainer has expressly requested that exceptional operation.
+- When a developer or intern asks Codex to push a development change, Codex must push the task branch, create a pull request or update the existing pull request for that branch, and report the pull-request URL. A push request is not complete merely because `git push` succeeded. An authorized maintainer may explicitly request a different permitted workflow.
+- After every pull-request push, Codex must automatically inspect and monitor the checks attached to the current pull-request head SHA until they reach a terminal state. Do not rely on a green result from an older commit.
+- The required GitHub Actions check is `test`. It must install dependencies with the frozen lockfile, run TypeScript validation, and run the unit-test suite. Treat a missing, pending, cancelled, timed-out, or failed required check as not ready to merge.
+- If CI fails, inspect the exact failing job and step, reproduce it locally where practical, implement the smallest correct fix on the same task branch, run appropriate local checks, push the fix, and monitor the replacement CI run. Do not bypass, disable, rename, or weaken a required check merely to make a pull request green.
+- Confirm that the pull request is mergeable and that all required checks on the latest head SHA pass before describing it as ready. Clearly report skipped optional suites, missing test infrastructure, warnings, unrelated external checks, and any remaining review or ruleset requirement.
+- Vercel preview deployments are manual and are not part of pull-request CI. Do not enable or require automatic Vercel PR checks unless the repository owner explicitly requests a workflow change.
+- Creating or updating a pull request does not authorize merging it. Merge only when the user explicitly requests it and repository protections, approvals, required checks, and release rules are satisfied.
+
 ## Handoff requirements
 
 Every non-trivial completed task should provide enough information for the next developer to continue without guessing.
@@ -282,13 +289,3 @@ UNDERSTAND → INSPECT → EXPLAIN → PLAN → IMPLEMENT → TEST → REVIEW �
 ```
 
 Optimize for correct implementation, repository safety, security, maintainability, testability, traceability, and intern learning—not merely for a prompt to appear completed.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->

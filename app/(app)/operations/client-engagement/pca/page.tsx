@@ -3,8 +3,8 @@ import { loadCePage } from "@/lib/client-engagement/page-context";
 import { buildCapacity, buildPca, weeklyLoadByAccount, type Load } from "@/lib/client-engagement/grids";
 import { CeNotReady } from "@/components/client-engagement/not-ready";
 import { PcaGrid } from "@/components/client-engagement/pca-grid";
-import { ceProductOptions } from "@/lib/client-engagement/constants";
 import { listActiveProducts } from "@/lib/queries/products";
+import { ceProductOptions } from "@/lib/client-engagement/constants";
 
 export const dynamic = "force-dynamic";
 

@@ -1188,6 +1188,12 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         routes: ["/admin/access-control"],
         note: "Elevated TASK visibility — who may read work outside their own reporting line. Writing a grant is additionally limited to a master admin; this node only decides whether the screen is reachable.",
       },
+      {
+        key: "admin.module-ownership",
+        label: "Module Ownership",
+        routes: ["/admin/access-architecture-demo"],
+        note: "Head and Associate are equivalent operational owners; Developer is technical ownership only. Assignment changes are Super-Admin-only.",
+      },
       // ── THE CONTROL PANEL IS NOT HERE ANY MORE (2026-09-24) ──────────────
       // It left the Admin Panel and became a module of its own. The nodes that
       // govern its screens are on the top-level `control-panel` node below,

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { Employee } from "@/db/schema";
 import { requireUser, forbiddenError } from "@/lib/auth/current";
@@ -28,7 +29,7 @@ export const CONTROL_PANEL_NODE = "control-panel";
  * back-compat. One small indexed lookup; called on the workspace-entry path,
  * not the heavy dashboard path.
  */
-export async function accessFor(me: Employee): Promise<WorkspaceAccessInput> {
+export const accessFor = cache(async (me: Employee): Promise<WorkspaceAccessInput> => {
   const structured = await employeeDepartmentNames(me.id).catch(() => [] as string[]);
   const departments = me.department ? [...structured, me.department] : structured;
   // DEV_ALL_WORKSPACES reopens every room on a dev machine when the local
@@ -64,7 +65,7 @@ export async function accessFor(me: Employee): Promise<WorkspaceAccessInput> {
     isSuperAdmin: isSuper,
     canControlPanel,
   };
-}
+});
 
 /**
  * Require workspace access at the DATA layer — route handlers, server actions
