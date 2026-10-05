@@ -9,6 +9,7 @@ import { IncentiveFormDialog } from "@/components/incentive/incentive-form-dialo
 import { IncentiveTableSkeleton } from "@/components/incentive/ui/states";
 import { requireUser } from "@/lib/auth/current";
 import { canEditIncentiveTable } from "@/lib/auth/incentive-permissions";
+import { isFounder } from "@/lib/auth/founder";
 import { canDecideCompensation } from "@/lib/compensation/workflow";
 import { listIncentiveRequests } from "@/lib/queries/incentive";
 import {
@@ -83,7 +84,10 @@ export default async function IncentivePage({ searchParams }: PageProps) {
 
   // Manan Vasa — sees every request and the decision controls. Decides what is
   // RENDERED; the decision action re-checks it on the server.
-  const canReview = await canDecideCompensation(me);
+  const [canReview, founder] = await Promise.all([
+    canDecideCompensation(me),
+    isFounder(me.id),
+  ]);
 
   // WHO THIS VIEWER MAY SEE (lib/incentive/analytics/scope.ts). Company-wide
   // viewers get the company roll-ups; everyone else gets only themselves and
@@ -286,7 +290,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
                   `catalog-actions.ts`; this decides only what is drawn. */}
               <IncentiveCatalogDialog
                 rows={catalog}
-                canEdit={canEditIncentiveTable(me.email)}
+                canEdit={canEditIncentiveTable(founder)}
                 defaultOpen={openTable}
               />
               {/* The module's primary action, on every area — it used to sit in

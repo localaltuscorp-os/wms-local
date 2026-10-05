@@ -32,7 +32,7 @@ import { resolveEmployeeType } from "@/lib/employees/employee-type";
 import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { auditLog } from "@/lib/logs/audit";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 import {
   hasCapabilityGrant,
   isMasterAdmin,
@@ -594,7 +594,7 @@ export async function editEmployee(
     if (parsed.data.managerId !== emp.managerId && !isSuperAdmin(me.email)) {
       return { ok: false, error: "Only a super-admin can change reporting relationships." };
     }
-    if (parsed.data.managerId !== null && isFounderEmail(emp.email)) {
+    if (parsed.data.managerId !== null && (await isFounder(emp.id))) {
       return { ok: false, error: "Founder cannot be assigned a manager." };
     }
     if (await isEmployeeOnTemporaryBreak(emp.id)) {

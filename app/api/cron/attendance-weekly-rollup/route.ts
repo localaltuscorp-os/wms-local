@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FOUNDER_EMAIL } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import { buildWeeklyAttendanceRollup } from "@/lib/reports/weekly-attendance-rollup";
 import { sendWeeklyAttendanceTeamEmail } from "@/lib/email/report-emails";
 
@@ -32,7 +32,8 @@ async function run(request: Request): Promise<NextResponse> {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  const rollup = await buildWeeklyAttendanceRollup({ founderEmailLogin: FOUNDER_EMAIL });
+  const [founderId] = await founderEmployeeIds();
+  const rollup = await buildWeeklyAttendanceRollup({ founderEmployeeId: founderId ?? null });
 
   if (rollup.graded === 0) {
     return NextResponse.json({ ok: true, skipped: "no employee had a working day this week" });

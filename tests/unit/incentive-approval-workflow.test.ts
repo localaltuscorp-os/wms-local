@@ -211,16 +211,12 @@ describe("checkResubmission", () => {
 });
 
 describe("who may decide", () => {
-  it("is Manan Vasa, case-insensitively", () => {
-    expect(canReviewIncentives("manan@unleashed.in")).toBe(true);
-    expect(canReviewIncentives("  MANAN@unleashed.in ")).toBe(true);
+  it("allows the database-backed Founder", () => {
+    expect(canReviewIncentives(true)).toBe(true);
   });
 
   it("is nobody else — not other super-admins, not admins, not a missing session", () => {
-    expect(canReviewIncentives("rohanchoudhary.altuscorp@gmail.com")).toBe(false);
-    expect(canReviewIncentives("vinalpatil.altuscorp@gmail.com")).toBe(false);
-    expect(canReviewIncentives(null)).toBe(false);
-    expect(canReviewIncentives("")).toBe(false);
+    expect(canReviewIncentives(false)).toBe(false);
   });
 });
 

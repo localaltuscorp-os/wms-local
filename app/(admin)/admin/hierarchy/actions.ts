@@ -4,7 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { requireAdmin, forbiddenError } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -119,8 +119,8 @@ export async function setEmployeeIsManager(
   if (limited) return { ok: false, error: limited.error };
   if (!z.string().uuid().safeParse(employeeId).success) return { ok: false, error: "Invalid id" };
 
-  const [employee] = await db.select({ email: employees.email }).from(employees).where(eq(employees.id, employeeId)).limit(1);
-  if (!employee || isFounderEmail(employee.email)) return { ok: false, error: "Founder role cannot be changed." };
+  const [employee] = await db.select({ id: employees.id }).from(employees).where(eq(employees.id, employeeId)).limit(1);
+  if (!employee || (await isFounder(employee.id))) return { ok: false, error: "Founder role cannot be changed." };
 
   const wrote = await setIsManager(employeeId, isManager);
   if (!wrote) return { ok: false, error: "Manager designation isn't set up on this database yet." };
