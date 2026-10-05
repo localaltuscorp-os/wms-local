@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -20,16 +21,20 @@ import {
   Minimize2,
   ArrowUpDown,
   Download,
+  Search,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { fireToast } from "@/lib/toast";
-import { addWeekGoal } from "@/app/(app)/goals/weekly/actions";
+import { addWeekGoal, updateWeeklyCascadeFields } from "@/app/(app)/goals/weekly/actions";
 import { WeeklyGoalDrawer } from "@/components/weekly-goals/goal-drawer";
 import { WeeklyGoalsImport } from "@/components/weekly-goals/weekly-goals-import";
 import { GoalLookupSelect } from "@/components/goals/board/goal-lookup-select";
 import { Select } from "@/components/ui/select";
 import { DateInput } from "@/components/ui/date-input";
 import { ViewingSelect } from "@/components/goals/shared/viewing-select";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { WeekSelect, formatWeekRangeShort } from "./week-select";
 import { TeamWeightsField, type TeamMemberWeight } from "@/components/goals/board/team-weights-field";
 import { CascadeGoalCard } from "./cascade-goal-card";
@@ -50,7 +55,7 @@ import {
   useColOrder,
   type SortKey,
 } from "@/components/goals/board/goals-level-board";
-import { GOAL_TYPE_LABELS, type GoalType } from "@/db/enums";
+import { GOAL_TYPE_LABELS, type GoalType, type TaskStatus } from "@/db/enums";
 import type { BoardMe, CascadeWeeklyGoal, MonthGoalOption, RosterMember } from "./types";
 
 const FOCUS_RING =
@@ -58,6 +63,66 @@ const FOCUS_RING =
 
 /** localStorage key for the weekly board's List ⇄ Kanban preference. */
 const WEEKLY_VIEW_STORE_KEY = "goals-weekly-view";
+
+type WeeklyStatusAxis = "doer" | "initiator";
+type WeeklyStatusKpi =
+  | "total"
+  | "not_read"
+  | "not_started"
+  | "initiated"
+  | "follow_up"
+  | "need_info"
+  | "done"
+  | "abandoned"
+  | "pending"
+  | "approved"
+  | "not_approved"
+  | "on_hold"
+  | "cancelled"
+  | "archived";
+
+const WEEKLY_DOER_KPIS = [
+  { key: "total", label: "Total", tone: "neutral" as const },
+  { key: "not_read", label: "Not Read", tone: "blue" as const },
+  { key: "not_started", label: "Not Started", tone: "slate" as const },
+  { key: "initiated", label: "Initiated", tone: "amber" as const },
+  { key: "follow_up", label: "Follow Up", tone: "orange" as const },
+  { key: "need_info", label: "Need Info", tone: "red" as const },
+  { key: "done", label: "Done", tone: "green" as const },
+  { key: "abandoned", label: "Abandoned", tone: "blue" as const },
+] as const;
+
+const WEEKLY_INITIATOR_KPIS = [
+  { key: "total", label: "Total", tone: "neutral" as const },
+  { key: "done", label: "Done", tone: "green" as const },
+  { key: "abandoned", label: "Abandoned", tone: "blue" as const },
+  { key: "pending", label: "Pending", tone: "amber" as const },
+  { key: "approved", label: "Approved", tone: "green" as const },
+  { key: "not_approved", label: "Not Approved", tone: "red" as const },
+  { key: "on_hold", label: "On Hold", tone: "yellow" as const },
+  { key: "cancelled", label: "Cancelled", tone: "orange" as const },
+  { key: "archived", label: "Archived", tone: "slate" as const },
+] as const;
+
+const WEEKLY_DOER_STATUS_LABELS: Record<string, string> = {
+  not_read: "Not Read",
+  not_started: "Not Started",
+  initiated: "Initiated",
+  follow_up: "Follow Up",
+  need_info: "Need Info",
+  done: "Done",
+  abandoned: "Abandoned",
+};
+
+const WEEKLY_INITIATOR_STATUS_LABELS: Record<string, string> = {
+  not_applicable: "Not Applicable",
+  pending: "Pending",
+  approved: "Approved",
+  not_approved: "Not Approved",
+  on_hold: "On Hold",
+  archived: "Archived",
+  cancelled: "Cancelled",
+};
 
 /** Map a weekly cascade row onto the shared inline table's GoalDTO shape.
  *  `nameOf` resolves the creator's display name from the loaded roster so an
@@ -176,6 +241,7 @@ export function WeeklyCascadeBoard({
   commit: { member: CommitMember; nextWeekLabel: string; weekStart: string } | null;
 }) {
   const router = useRouter();
+  const pageChromeSlots = usePageChromeSlots();
   const [commitOpen, setCommitOpen] = React.useState(false);
 
   // Full screen — the same toggle the Yearly/Quarterly/Monthly boards use.
@@ -288,30 +354,101 @@ export function WeeklyCascadeBoard({
     [],
   );
 
-  // Header stat chips — the same Total/Done/On track/Behind read the Yearly/
-  // Quarterly/Monthly boards use, computed over the adopted (not crossed-out)
-  // goals for this week. Clicking one narrows the LIST view the same way.
-  const [completion, setCompletion] = React.useState<"all" | "done" | "ontrack" | "behind">("all");
-  const chipCounts = React.useMemo(() => {
-    let done = 0;
-    let ontrack = 0;
-    let behind = 0;
-    for (const g of adoptedGoals) {
-      const p = effectiveGoalPct(g);
-      if (p >= 100) done++;
-      else if (p >= 50) ontrack++;
-      else behind++;
-    }
-    return { all: adoptedGoals.length, done, ontrack, behind };
-  }, [adoptedGoals]);
-
   // Sort · Area · Type filters, Rows-per-page + Columns — the SAME toolbar
   // controls the Yearly/Quarterly/Monthly boards have.
   const [sortKey, setSortKey] = React.useState<SortKey>("position");
+  const [search, setSearch] = React.useState("");
+  const deferredSearch = React.useDeferredValue(search);
   const [areaFilter, setAreaFilter] = React.useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = React.useState<Set<string>>(new Set());
   const [doerStatusFilter, setDoerStatusFilter] = React.useState<Set<string>>(new Set());
   const [initiatorStatusFilter, setInitiatorStatusFilter] = React.useState<Set<string>>(new Set());
+  // The top-bar View switch dispatches this local event for Goals pages. Weekly
+  // reads the exact same two perspectives as Yearly without changing the URL,
+  // permissions, or any persisted goal data.
+  const [weeklyStatusAxis, setWeeklyStatusAxis] = React.useState<WeeklyStatusAxis>("doer");
+  React.useEffect(() => {
+    const onAxisChange = (event: Event) => {
+      const axis = (event as CustomEvent<unknown>).detail;
+      if (axis === "doer" || axis === "initiator") setWeeklyStatusAxis(axis);
+    };
+    window.addEventListener("altus:module-status-axis", onAxisChange);
+    return () => window.removeEventListener("altus:module-status-axis", onAxisChange);
+  }, []);
+
+  const weeklyStatusCounts = React.useMemo<Record<WeeklyStatusKpi, number>>(() => {
+    const counts: Record<WeeklyStatusKpi, number> = {
+      total: adoptedGoals.length,
+      not_read: 0,
+      not_started: 0,
+      initiated: 0,
+      follow_up: 0,
+      need_info: 0,
+      done: 0,
+      abandoned: 0,
+      pending: 0,
+      approved: 0,
+      not_approved: 0,
+      on_hold: 0,
+      cancelled: 0,
+      archived: 0,
+    };
+    for (const goal of adoptedGoals) {
+      const doer = goal.status === "dont_know" ? "not_read" : (goal.status ?? "not_started");
+      if (doer in counts) counts[doer as WeeklyStatusKpi]++;
+      const initiator = goal.isPutAway
+        ? "archived"
+        : (goal.approverStatus ?? goal.approvalStatus ?? "pending");
+      if (initiator in counts) counts[initiator as WeeklyStatusKpi]++;
+    }
+    return counts;
+  }, [adoptedGoals]);
+
+  const weeklyStatusKpis = weeklyStatusAxis === "doer" ? WEEKLY_DOER_KPIS : WEEKLY_INITIATOR_KPIS;
+  const weeklyStatusKpiActive = (key: WeeklyStatusKpi) => {
+    if (key === "total") return doerStatusFilter.size === 0 && initiatorStatusFilter.size === 0;
+    const isDoer = WEEKLY_DOER_STATUS_LABELS[key] !== undefined;
+    const selected = isDoer ? doerStatusFilter : initiatorStatusFilter;
+    return selected.size === 1 && selected.has(key);
+  };
+  const toggleWeeklyStatusKpi = (key: WeeklyStatusKpi) => {
+    if (key === "total") {
+      setDoerStatusFilter(new Set());
+      setInitiatorStatusFilter(new Set());
+      return;
+    }
+    const setFilter = WEEKLY_DOER_STATUS_LABELS[key] !== undefined
+      ? setDoerStatusFilter
+      : setInitiatorStatusFilter;
+    setFilter((current) => current.size === 1 && current.has(key) ? new Set() : new Set([key]));
+  };
+
+  /** List rows carry the same native drag payload as the higher-level Goals
+   * boards. A KPI drop updates only the persisted Doer status; it intentionally
+   * does not change the weekly goal's percentage or its Kanban placement. */
+  const dropWeeklyGoalOnKpi = React.useCallback(
+    (event: React.DragEvent<HTMLButtonElement>, kpiStatus: string) => {
+      event.preventDefault();
+      if (!canWrite || !(kpiStatus in WEEKLY_DOER_STATUS_LABELS)) return;
+
+      const id = event.dataTransfer.getData("application/x-altus-goal-id");
+      const goal = adoptedGoals.find((item) => item.id === id);
+      if (!goal) return;
+
+      const status = (kpiStatus === "not_read" ? "dont_know" : kpiStatus) as TaskStatus;
+      if (goal.status === status) return;
+
+      void updateWeeklyCascadeFields({ id: goal.id, status }).then((result) => {
+        if (!result.ok) {
+          fireToast({ message: result.error, type: "error" });
+          return;
+        }
+        fireToast({ message: `Doer status changed to ${WEEKLY_DOER_STATUS_LABELS[kpiStatus]}.`, type: "success" });
+        router.refresh();
+      });
+    },
+    [adoptedGoals, canWrite, router],
+  );
   const [rowsPerPage, setRowsPerPage] = React.useState<number | "all">(25);
   const [visibleCols, setVisibleCols] = React.useState<Set<string>>(() => new Set(ALL_VISIBLE_COLS));
   const [colOrder, setColOrder] = useColOrder();
@@ -328,20 +465,19 @@ export function WeeklyCascadeBoard({
 
   const filterGoal = React.useCallback(
     (g: GoalDTO) => {
-      if (completion !== "all") {
-        const p = effectiveGoalPct(g);
-        if (completion === "behind" && p >= 50) return false;
-        if (completion === "ontrack" && (p < 50 || p >= 100)) return false;
-        if (completion === "done" && p < 100) return false;
-      }
       if (areaFilter.size > 0 && !areaFilter.has(g.area ?? "")) return false;
       if (typeFilter.size > 0 && !typeFilter.has(goalTypeLabel(g))) return false;
-      if (doerStatusFilter.size > 0 && !doerStatusFilter.has(g.status ?? "not_started")) return false;
-      const initiatorStatus = g.approvalStatus ?? "pending";
+      const doerStatus = g.status === "dont_know" ? "not_read" : (g.status ?? "not_started");
+      if (doerStatusFilter.size > 0 && !doerStatusFilter.has(doerStatus)) return false;
+      const initiatorStatus = g.isPutAway
+        ? "archived"
+        : (g.approverStatus ?? g.approvalStatus ?? "pending");
       if (initiatorStatusFilter.size > 0 && !initiatorStatusFilter.has(initiatorStatus)) return false;
+      const query = deferredSearch.trim().toLowerCase();
+      if (query && ![g.title, g.area, g.notes].some((value) => value?.toLowerCase().includes(query))) return false;
       return true;
     },
-    [completion, areaFilter, typeFilter, doerStatusFilter, initiatorStatusFilter, goalTypeLabel],
+    [areaFilter, typeFilter, doerStatusFilter, initiatorStatusFilter, deferredSearch, goalTypeLabel],
   );
 
   // Sort comparator — mirrors the level boards' (Sr. No. / Score /
@@ -411,6 +547,43 @@ export function WeeklyCascadeBoard({
   const viewedName =
     people.find((p) => p.id === scopeEmp)?.name ?? rows[0]?.employeeName ?? (isSelf ? "My goals" : "Teammate");
 
+  const weeklyFilterControls = [
+    { key: "areas", active: areaFilter.size > 0, control: <MultiPickFilter label="Areas" options={areaFilterOptions} selected={areaFilter} onChange={setAreaFilter} taskStyle /> },
+    { key: "types", active: typeFilter.size > 0, control: <MultiPickFilter label="Types" options={QUARTER_TYPE_OPTIONS} selected={typeFilter} onChange={setTypeFilter} taskStyle /> },
+    { key: "doer", active: doerStatusFilter.size > 0, control: <MultiPickFilter label="Doer Status" options={["Not Read", "Not Started", "Initiated", "Follow Up", "Need Info", "Done", "Abandoned"]} selected={new Set([...doerStatusFilter].map((status) => ({ not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" })[status] ?? status))} onChange={(labels) => setDoerStatusFilter(new Set(Object.entries({ not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" }).filter(([, label]) => labels.has(label)).map(([status]) => status)))} taskStyle /> },
+    { key: "initiator", active: initiatorStatusFilter.size > 0, control: <MultiPickFilter label="Initiator Status" options={["Not Applicable", "Pending", "Approved", "Not Approved", "On Hold", "Archived", "Cancelled"]} selected={new Set([...initiatorStatusFilter].map((status) => ({ not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" })[status] ?? status))} onChange={(labels) => setInitiatorStatusFilter(new Set(Object.entries({ not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" }).filter(([, label]) => labels.has(label)).map(([status]) => status)))} taskStyle /> },
+  ].sort((left, right) => Number(right.active) - Number(left.active));
+
+  const weeklyActiveFilterChips = [
+    ...[...areaFilter].map((value) => ({
+      key: `area-${value}`,
+      label: `Area: ${value}`,
+      clear: () => setAreaFilter((current) => new Set([...current].filter((item) => item !== value))),
+    })),
+    ...[...typeFilter].map((value) => ({
+      key: `type-${value}`,
+      label: `Type: ${value}`,
+      clear: () => setTypeFilter((current) => new Set([...current].filter((item) => item !== value))),
+    })),
+    ...[...doerStatusFilter].map((value) => ({
+      key: `doer-${value}`,
+      label: `Doer: ${WEEKLY_DOER_STATUS_LABELS[value] ?? value}`,
+      clear: () => setDoerStatusFilter((current) => new Set([...current].filter((item) => item !== value))),
+    })),
+    ...[...initiatorStatusFilter].map((value) => ({
+      key: `initiator-${value}`,
+      label: `Initiator: ${WEEKLY_INITIATOR_STATUS_LABELS[value] ?? value}`,
+      clear: () => setInitiatorStatusFilter((current) => new Set([...current].filter((item) => item !== value))),
+    })),
+  ];
+
+  function clearWeeklyFilters() {
+    setAreaFilter(new Set());
+    setTypeFilter(new Set());
+    setDoerStatusFilter(new Set());
+    setInitiatorStatusFilter(new Set());
+  }
+
   return (
     <div
       className={
@@ -420,6 +593,60 @@ export function WeeklyCascadeBoard({
       }
       style={{ color: "var(--color-ink-strong)" }}
     >
+      {view === "list" && pageChromeSlots?.ribbon && createPortal(
+        <div className="no-scrollbar mx-auto flex w-full min-w-0 max-w-[1600px] flex-nowrap items-center gap-x-1 overflow-x-auto px-6 py-2.5 max-md:px-4">
+          {weeklyActiveFilterChips.length > 0 && (
+            <>
+              <span className="shrink-0 text-[13px] font-bold tabular-nums text-ink-muted">
+                {weeklyActiveFilterChips.length} active
+              </span>
+              {weeklyActiveFilterChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={chip.clear}
+                  className={`filter-pill text-[11.5px] font-bold ${FOCUS_RING}`}
+                  data-active="true"
+                  style={{ ["--filter-pill-tint" as string]: "var(--color-altus-red)" }}
+                  aria-label={`Remove ${chip.label} filter`}
+                >
+                  <span className="max-w-[190px] truncate">{chip.label}</span>
+                  <X size={14} strokeWidth={2.5} aria-hidden />
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={clearWeeklyFilters}
+                className={`shrink-0 px-1 text-[13px] font-bold text-altus-red transition-colors hover:text-altus-red-deep ${FOCUS_RING}`}
+              >
+                Clear all
+              </button>
+            </>
+          )}
+          {weeklyFilterControls.map(({ key, control }) => <React.Fragment key={key}>{control}</React.Fragment>)}
+          <div className="ml-auto shrink-0">
+            <CollapsibleSearch scope="goals, areas, notes">
+              <div className="relative min-w-[180px] max-w-[360px]">
+                <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search goals, areas, notes"
+                  title="Search goals, areas, and notes in this weekly list"
+                  aria-label="Search goals, areas, and notes in this weekly list"
+                  className={`h-9 w-full rounded-pill border border-hairline bg-surface-card pl-9 pr-9 text-[13.5px] font-medium text-ink-strong transition-colors focus:border-altus-red ${FOCUS_RING}`}
+                />
+                {search && (
+                  <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className={`absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-full text-ink-subtle hover:text-ink-strong ${FOCUS_RING}`}>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </CollapsibleSearch>
+          </div>
+        </div>,
+        pageChromeSlots.ribbon,
+      )}
       {/* ── HEADER — the SAME Tasks-page treatment as Yearly/Quarterly/Monthly:
           a slim title+stat-chip header, then a compact glass-strip control row
           for Week / Viewing. ── */}
@@ -431,59 +658,29 @@ export function WeeklyCascadeBoard({
                here travelled into that class unchanged; the brand red and
                the sheen belong to the chrome (the rail's wordmark and the
                top bar), not to the page body. */
-            className="page-heading shrink-0"
+            className="page-heading hidden shrink-0"
           >
             Weekly Goals
           </h1>
           <div className="flex flex-wrap items-center gap-1.5">
-            <GoalStatChip
-              /* `neutral` here too — the two boards' chip rows have to agree. */
-              label="Total"
-              value={chipCounts.all}
-              tone="neutral"
-              active={completion === "all"}
-              onClick={() => setCompletion("all")}
-            />
-            <GoalStatChip
-              label="Done"
-              value={chipCounts.done}
-              tone="green"
-              active={completion === "done"}
-              onClick={() => setCompletion(completion === "done" ? "all" : "done")}
-            />
-            <GoalStatChip
-              label="On track"
-              value={chipCounts.ontrack}
-              tone="amber"
-              active={completion === "ontrack"}
-              onClick={() => setCompletion(completion === "ontrack" ? "all" : "ontrack")}
-            />
-            <GoalStatChip
-              label="Behind"
-              value={chipCounts.behind}
-              tone="red"
-              active={completion === "behind"}
-              onClick={() => setCompletion(completion === "behind" ? "all" : "behind")}
-            />
+            {weeklyStatusKpis.map((kpi) => (
+              <GoalStatChip
+                key={kpi.key}
+                label={kpi.label}
+                value={weeklyStatusCounts[kpi.key]}
+                tone={kpi.tone}
+                active={weeklyStatusKpiActive(kpi.key)}
+                dropStatus={weeklyStatusAxis === "doer" && kpi.key !== "total" ? kpi.key : undefined}
+                onGoalDrop={dropWeeklyGoalOnKpi}
+                onClick={() => toggleWeeklyStatusKpi(kpi.key)}
+              />
+            ))}
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setFullscreen((v) => !v)}
-            aria-pressed={fullscreen}
-            aria-label={fullscreen ? "Exit full screen" : "Full screen"}
-            title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
-            className={`inline-flex shrink-0 items-center gap-1.5 h-9 px-3.5 rounded-pill text-[13px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all cursor-pointer ${FOCUS_RING}`}
-          >
-            {fullscreen ? <Minimize2 size={14} strokeWidth={2.4} /> : <Maximize2 size={14} strokeWidth={2.4} />}
-            {fullscreen ? "Exit" : "Full screen"}
-          </button>
         </div>
       </header>
 
       <div
-        className="wg-rise mb-3 flex items-center gap-2 flex-wrap rounded-section border border-hairline px-3 py-2 max-md:px-3"
+        className="wg-rise mb-3 flex items-center gap-2 flex-wrap rounded-none border border-hairline px-3 py-2 max-md:px-3"
         style={{
           background: "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
           backdropFilter: "blur(14px) saturate(140%)",
@@ -493,7 +690,16 @@ export function WeeklyCascadeBoard({
       >
         {/* Week selector + Add Goal + the person picker, all grouped on the
             RIGHT: ..... [ W19 · 10 Aug – 16 Aug ▾ ] [ + Add Goal ] [ Viewing ]. */}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="no-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto">
+          <div
+            role="group"
+            aria-label="Board view"
+            className="inline-flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-soft"
+          >
+            <ViewToggleButton active={view === "list"} label="List" icon={<List size={12} strokeWidth={2.4} />} onClick={() => pickView("list")} />
+            <ViewToggleButton active={view === "kanban"} label="Kanban" icon={<Columns3 size={12} strokeWidth={2.4} />} onClick={() => pickView("kanban")} />
+            <ViewToggleButton active={view === "dashboard"} label="Dashboard" icon={<LayoutDashboard size={12} strokeWidth={2.4} />} onClick={() => pickView("dashboard")} />
+          </div>
           <WeekSelect value={weekStart} thisWeek={thisWeek} onPick={goWeek} />
 
           <button
@@ -524,9 +730,72 @@ export function WeeklyCascadeBoard({
           >
             <Download size={13} strokeWidth={2.4} /> Export
           </button>
+          {adopted.length > 0 && (
+            <>
+              {commit ? (
+                <button
+                  type="button"
+                  onClick={() => setCommitOpen(true)}
+                  title="Freeze next week (Saturday commit)"
+                  className={`inline-flex h-8 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-2 text-[11px] font-bold transition-colors hover:bg-surface-soft ${FOCUS_RING}`}
+                  style={
+                    committedCount === adopted.length
+                      ? { borderColor: "rgba(21,128,61,0.35)", color: "#166534", background: "rgba(21,128,61,0.08)" }
+                      : {
+                          borderColor: "var(--color-hairline-strong)",
+                          color: "var(--color-ink-soft)",
+                          background: "var(--color-surface-card)",
+                        }
+                  }
+                >
+                  <Snowflake size={11} strokeWidth={2.4} />
+                  {committedCount === adopted.length ? "Frozen" : "Commit"}
+                </button>
+              ) : (
+                <RitualChip
+                  href={"/goals/commit" as Route}
+                  icon={<CheckCircle2 size={11} strokeWidth={2.4} />}
+                  label={`Committed ${committedCount}/${adopted.length}`}
+                  done={committedCount === adopted.length}
+                  title="Open the Saturday commit ritual"
+                />
+              )}
+              {(me.isAdmin || canPickPerson) && (
+                <RitualChip
+                  href={"/goals/approve" as Route}
+                  icon={<BadgeCheck size={11} strokeWidth={2.4} />}
+                  label={`Approved ${approvedCount}/${adopted.length}`}
+                  done={approvedCount === adopted.length}
+                  title="Open the Monday approve ritual"
+                />
+              )}
+              {(me.isAdmin || canPickPerson) && (
+                <RitualChip
+                  href={"/goals/review" as Route}
+                  icon={<ClipboardList size={11} strokeWidth={2.4} />}
+                  label="Review"
+                  done={false}
+                  title="Open the weekly review scorecard"
+                />
+              )}
+            </>
+          )}
           <div className="shrink-0">
             <WeeklyGoalsImport employeeId={scopeEmp} weekStart={weekStart} weekLabel={weekLabel} isAdmin={me.isAdmin} />
           </div>
+          {view === "list" && (
+            <>
+              <div className="relative inline-flex h-8 shrink-0 items-center rounded-lg border border-hairline bg-surface-card pl-5 pr-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
+                <ArrowUpDown size={12} strokeWidth={2.4} className="pointer-events-none absolute left-1.5 text-ink-subtle" />
+                <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)} ariaLabel="Sort goals" unstyled className="flex min-w-[4.25rem] cursor-pointer items-center gap-1 text-[11px] font-bold text-ink-soft" options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
+              </div>
+              <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-hairline bg-surface-card px-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
+                <span className="text-[11px] font-semibold text-ink-subtle">Rows</span>
+                <Select value={String(rowsPerPage)} onValueChange={(v) => setRowsPerPage(v === "all" ? "all" : Number(v))} ariaLabel="Rows per page" unstyled className="flex min-w-[2rem] cursor-pointer items-center gap-1 text-[11px] font-bold text-ink-strong" options={[{ value: "25", label: "25" }, { value: "50", label: "50" }, { value: "100", label: "100" }, { value: "all", label: "All" }]} />
+              </div>
+              <ColumnsPicker visibleCols={visibleCols} onChange={setVisibleCols} colOrder={colOrder} onReorder={setColOrder} compact />
+            </>
+          )}
         </div>
       </div>
 
@@ -536,7 +805,7 @@ export function WeeklyCascadeBoard({
           order as the Yearly/Quarterly/Monthly toolbar. Add Goal now lives in
           the row above, right after the week selector. ── */}
       <div
-        className="wg-rise mb-3 flex flex-nowrap items-center gap-1 overflow-x-auto rounded-section border border-hairline px-2 py-1.5 max-md:px-2"
+        className="hidden"
         style={{
           background: "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
           backdropFilter: "blur(14px) saturate(140%)",
@@ -544,32 +813,6 @@ export function WeeklyCascadeBoard({
           boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px -20px rgba(15, 23, 42, 0.18)",
         }}
       >
-        {/* View toggle — List | Kanban | Dashboard */}
-        <div
-          role="group"
-          aria-label="Board view"
-          className="inline-flex h-7 shrink-0 items-center overflow-hidden rounded-pill border border-hairline-strong bg-surface-soft"
-        >
-          <ViewToggleButton
-            active={view === "list"}
-            label="List"
-            icon={<List size={11} strokeWidth={2.4} />}
-            onClick={() => pickView("list")}
-          />
-          <ViewToggleButton
-            active={view === "kanban"}
-            label="Kanban"
-            icon={<Columns3 size={11} strokeWidth={2.4} />}
-            onClick={() => pickView("kanban")}
-          />
-          <ViewToggleButton
-            active={view === "dashboard"}
-            label="Dashboard"
-            icon={<LayoutDashboard size={11} strokeWidth={2.4} />}
-            onClick={() => pickView("dashboard")}
-          />
-        </div>
-
         {/* Ritual state — Saturday commit / Monday approve, reachable in context.
             The chips read the existing stamps; the ritual pages keep the logic. */}
         {adopted.length > 0 && (
@@ -632,53 +875,6 @@ export function WeeklyCascadeBoard({
             sizing here — Weekly's line carries the ritual chips too), only
             shown for the list view (Kanban/Dashboard lay out every matching
             goal, unpaged). */}
-        {view === "list" && (
-          <>
-            <div className="relative inline-flex h-7 shrink-0 items-center rounded-pill border border-hairline bg-surface-card pl-5 pr-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
-              <ArrowUpDown size={11} strokeWidth={2.4} className="pointer-events-none absolute left-1.5 text-ink-subtle" />
-              <Select
-                value={sortKey}
-                onValueChange={(v) => setSortKey(v as SortKey)}
-                ariaLabel="Sort goals"
-                unstyled
-                className="flex min-w-[4.25rem] cursor-pointer items-center gap-1 text-[11px] font-bold text-ink-soft"
-                options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-              />
-            </div>
-
-            <MultiPickFilter label="Areas" options={areaFilterOptions} selected={areaFilter} onChange={setAreaFilter} compact />
-            <MultiPickFilter label="Types" options={QUARTER_TYPE_OPTIONS} selected={typeFilter} onChange={setTypeFilter} compact />
-            <MultiPickFilter label="Doer Status" options={["Not Read", "Not Started", "Initiated", "Follow Up", "Need Info", "Done", "Abandoned"]} selected={new Set([...doerStatusFilter].map((status) => ({ not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" })[status] ?? status))} onChange={(labels) => setDoerStatusFilter(new Set(Object.entries({ not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" }).filter(([, label]) => labels.has(label)).map(([status]) => status)))} compact />
-            <MultiPickFilter label="Initiator Status" options={["Not Applicable", "Pending", "Approved", "Not Approved", "On Hold", "Archived", "Cancelled"]} selected={new Set([...initiatorStatusFilter].map((status) => ({ not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" })[status] ?? status))} onChange={(labels) => setInitiatorStatusFilter(new Set(Object.entries({ not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" }).filter(([, label]) => labels.has(label)).map(([status]) => status)))} compact />
-
-            <div className="inline-flex h-7 shrink-0 items-center gap-1 rounded-pill border border-hairline bg-surface-card px-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
-              <span className="text-[11px] font-semibold text-ink-subtle">Rows</span>
-              <Select
-                value={String(rowsPerPage)}
-                onValueChange={(v) => setRowsPerPage(v === "all" ? "all" : Number(v))}
-                ariaLabel="Rows per page"
-                unstyled
-                className="flex min-w-[2rem] cursor-pointer items-center gap-1 text-[11px] font-bold text-ink-strong"
-                options={[
-                  { value: "25", label: "25" },
-                  { value: "50", label: "50" },
-                  { value: "100", label: "100" },
-                  { value: "all", label: "All" },
-                ]}
-              />
-            </div>
-
-            <ColumnsPicker
-              visibleCols={visibleCols}
-              onChange={setVisibleCols}
-              colOrder={colOrder}
-              onReorder={setColOrder}
-              compact
-            />
-
-          </>
-        )}
-
         {/* Bulk upload — the weekly cascade engine's own bulk file import. */}
       </div>
 
@@ -748,6 +944,11 @@ export function WeeklyCascadeBoard({
             visibleCols={visibleCols}
             colOrder={colOrder}
             onColOrderChange={setColOrder}
+            onRowDragStart={(goal, event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("application/x-altus-goal-id", goal.id);
+              event.dataTransfer.setData("text/plain", goal.title);
+            }}
           />
 
           {rowsPerPage !== "all" && displayed.length > pagedGoals.length && (

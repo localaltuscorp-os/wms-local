@@ -1203,9 +1203,6 @@ export function SalaryBreakupTable({
             <option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="all">All</option>
           </select>
         </label>
-        <button type="button" onClick={() => setFullscreen((value) => !value)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft hover:text-ink-strong" title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}>
-          {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{fullscreen ? "Exit" : "Full screen"}
-        </button>
         <details className="relative">
           <summary className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft">Columns</summary>
           <div className="absolute right-0 z-40 mt-1 max-h-64 w-52 overflow-auto rounded-lg border border-hairline bg-surface-card p-2 shadow-lg">

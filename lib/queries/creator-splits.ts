@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db, employees, tasks, weeklyGoals, dailyChecklist } from "@/lib/db";
 import { withRetry } from "@/lib/db/with-timeout";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import { daysBefore } from "@/lib/dashboard/manager-activity-contract";
 import {
   emptyRelationSplit,
@@ -95,13 +95,12 @@ export async function loadCreatorSplits(
 
   const reportsOf = new Map<string, OrgPerson[]>();
   const managerOf = new Map<string, string | null>();
-  const founders = new Set<string>();
+  const founders = await founderEmployeeIds();
   for (const p of people) {
     managerOf.set(p.id, p.managerId ?? null);
     // Keyed off the email, never `manager_id IS NULL` — managers currently have
     // no manager assigned and must not all count as founders. See
     // lib/auth/founder.ts.
-    if (isFounderEmail(p.email)) founders.add(p.id);
     if (!p.managerId) continue;
     const list = reportsOf.get(p.managerId) ?? [];
     list.push({ id: p.id, name: p.name, managerId: p.managerId });

@@ -27,9 +27,11 @@ const OPTIONS = TEAM_ROSTER.map((t) => ({ value: t.value, label: t.label }));
 export function TeamFilter({
   selected,
   onChange,
+  summary,
 }: {
   selected: string[];
   onChange: (v: string[]) => void;
+  summary?: { taskCount: number; peopleCount: number };
 }) {
   return (
     <MultiSelect
@@ -40,7 +42,11 @@ export function TeamFilter({
         <FilterPill
           icon={<Network size={16} strokeWidth={2} />}
           name="Team"
-          value={summarizeSelection(selectedLabels, "All Teams")}
+          value={
+            summary && selected.length > 0
+              ? `${summarizeSelection(selectedLabels, "All Teams")} · ${summary.taskCount} tasks · ${summary.peopleCount} people`
+              : summarizeSelection(selectedLabels, "All Teams")
+          }
           tint="#0d9488"
           active={selected.length > 0}
         />

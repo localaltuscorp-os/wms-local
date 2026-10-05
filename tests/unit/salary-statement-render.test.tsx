@@ -269,10 +269,10 @@ describe("the statement is three parts", () => {
 
   it("prints the slip's figures from the data, not from its own arithmetic", () => {
     show();
-    expect(screen.getByText("₹22,000")).toBeDefined(); // monthly CTC
-    expect(screen.getAllByText("₹21,000").length).toBeGreaterThan(0); // earned / gross
-    expect(screen.getAllByText("₹20,800").length).toBeGreaterThan(0); // net salary payable
-    expect(screen.getByText("₹22,300")).toBeDefined(); // total earnings this month
+    expect(screen.getByText("Rs. 22,000")).toBeDefined(); // monthly CTC
+    expect(screen.getAllByText("Rs. 21,000").length).toBeGreaterThan(0); // earned / gross
+    expect(screen.getAllByText("Rs. 20,800").length).toBeGreaterThan(0); // net salary payable
+    expect(screen.getByText("Rs. 22,300")).toBeDefined(); // total earnings this month
   });
 
   it("points the PDF link at this person and this month", () => {
@@ -352,8 +352,8 @@ describe("the weekly summary view", () => {
 
   it("prints the engine's own week figures", () => {
     show();
-    expect(screen.getByText("₹3,000")).toBeDefined(); // week 3 earned
-    expect(screen.getByText("−₹3")).toBeDefined(); // week 3 adjustment
+    expect(screen.getByText("Rs. 3,000")).toBeDefined(); // week 3 earned
+    expect(screen.getByText("−Rs. 3")).toBeDefined(); // week 3 adjustment
   });
 });
 
@@ -363,7 +363,7 @@ describe("choosing a week", () => {
     expect(viewSelect().value).toBe("week-3");
     expect(screen.getByText("Week 3 calculation")).toBeDefined();
     // Seven day rows plus the calculation block all carry this week's figure.
-    expect(screen.getAllByText("₹3,000").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rs. 3,000").length).toBeGreaterThan(0);
   });
 
   it("shows ONLY the chosen week — no other week's calculation is on the page", () => {
@@ -399,7 +399,7 @@ describe("the incentive statement", () => {
     show();
     expect(screen.getAllByText("Earned").length).toBeGreaterThan(0);
     expect(screen.getByText("Negative Payable Adjustment")).toBeDefined();
-    expect(screen.getAllByText("−₹250").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("−Rs. 250").length).toBeGreaterThan(0);
   });
 
   it("offers the five windows the data supports", () => {

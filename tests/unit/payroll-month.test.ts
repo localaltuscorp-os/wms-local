@@ -228,9 +228,9 @@ describe("requiredElapsedMinutes", () => {
 
 describe("the hours-payroll cutover", () => {
   it("is one named boundary, not a string repeated in four files", () => {
-    expect(PAYROLL_HOURS_FROM).toBe("2026-08");
+    expect(PAYROLL_HOURS_FROM).toBe("2026-09");
     expect(isHoursPayrollMonth("2026-07")).toBe(false);
-    expect(isHoursPayrollMonth("2026-08")).toBe(true);
+    expect(isHoursPayrollMonth("2026-08")).toBe(false);
     expect(isHoursPayrollMonth("2026-09")).toBe(true);
     expect(isHoursPayrollMonth("2027-01")).toBe(true);
     expect(isHoursPayrollMonth("2025-12")).toBe(false);

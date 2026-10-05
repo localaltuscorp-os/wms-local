@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, FileSignature, Loader2, Paperclip, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Eye, FileSignature, Loader2, Paperclip, Plus, Save, Trash2, UserPlus, X } from "lucide-react";
 import { DictateTextarea } from "@/components/billing/dictate-textarea";
 import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { fireToast } from "@/lib/toast";
@@ -333,7 +333,7 @@ export function ContractForm({
     return (
       <>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-separate border-spacing-0 text-[13px]">
+          <table className="w-full min-w-[720px] whitespace-nowrap border-separate border-spacing-0 text-[13px]">
             <thead>
               <tr className="text-left text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">
                 <th className="w-[110px] pb-2 pr-2">{kind === "milestone" ? "Milestone" : "No."}</th>
@@ -434,19 +434,42 @@ export function ContractForm({
       }}
     >
       {/* BACK — to the contract being edited, or to All Contracts. */}
-      <Link
-        href={(initial ? `/billing/contracts/${initial.id}` : "/billing/contracts") as Route}
-        className="mb-2 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-muted hover:text-ink-strong"
-      >
-        <ArrowLeft size={14} /> {initial ? "Back to the contract" : "All Contracts"}
-      </Link>
-      <h1
-        style={PAGE_COMMAND_BAR_TITLE_STYLE}
-      >
-        {editing ? "Edit Contract" : "Create Contract"}
-      </h1>
+      <header className="flex flex-wrap items-center gap-3">
+        <Link
+          href={(initial ? `/billing/contracts/${initial.id}` : "/billing/contracts") as Route}
+          className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-muted hover:text-ink-strong"
+        >
+          <ArrowLeft size={14} /> {initial ? "Back to the contract" : "All Contracts"}
+        </Link>
+        <div>
+          <h1
+            className="text-ink-strong"
+            style={{
+              fontFamily: "var(--font-display), system-ui, sans-serif",
+              fontWeight: 900,
+              fontSize: "clamp(24px,2.8vw,34px)",
+              letterSpacing: "-0.025em",
+            }}
+          >
+            {editing ? "Edit Contract" : "Create Contract"}
+          </h1>
+        </div>
+      </header>
+
       {/* ── THE CONTRACT ─────────────────────────────────────────── */}
-      <Section title="Contract Details" hint="Who it is with, what it is worth and when it runs." accent="#E10600">
+      <Section
+        title="Contract Details"
+        accent="#E10600"
+        action={
+          <Link
+            href={"/billing/customers/new" as Route}
+            className="inline-flex h-10 items-center gap-2 rounded-chip px-3 text-[13px] font-bold text-ink-muted"
+            style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}
+          >
+            <UserPlus size={15} /> New Customer KYC
+          </Link>
+        }
+      >
         <Grid cols={3}>
           <Field label="Billing Entity" required error={shown("entityId")}>
             <select value={f.entityId} onChange={(e) => set("entityId", e.target.value)} className={INPUT}>
@@ -479,7 +502,7 @@ export function ContractForm({
             label="Total Contract Value"
             required
             error={shown("totalValue")}
-            hint={total > 0 ? rupees(total) : "The most that can ever be billed under this contract."}
+            hint={total > 0 ? rupees(total) : undefined}
           >
             <MoneyBox value={f.totalValue} onChange={(v) => set("totalValue", v)} label="Total contract value" invalid={Boolean(shown("totalValue"))} />
           </Field>
@@ -497,14 +520,14 @@ export function ContractForm({
               className={INPUT + (f.endDate && f.endDate < f.startDate ? ERR : "")}
             />
           </Field>
-          <Field label="Billing Date" required hint="The first bill's date. Retainer periods count from it.">
+          <Field label="Billing Date" required>
             <input type="date" value={f.billingDate} onChange={(e) => set("billingDate", e.target.value)} className={INPUT} />
           </Field>
         </Grid>
       </Section>
 
       {/* ── PAYMENT TYPE ─────────────────────────────────────────── */}
-      <Section title="Payment Type" hint="How the contract value is billed. The schedule below follows your choice." accent="#E10600">
+      <Section title="Payment Type" accent="#E10600">
         <div role="radiogroup" aria-label="Payment type" className="mb-4 flex flex-wrap gap-2">
           {CONTRACT_PAYMENT_TYPES.map((t) => {
             const active = f.paymentType === t;
@@ -627,7 +650,6 @@ export function ContractForm({
                 label="Billing Amount"
                 required
                 error={shown("items.0.amount") ?? (exceeded ? CONTRACT_TOTAL_EXCEEDED : undefined)}
-                hint={!fullTouched ? "Follows the Total Contract Value." : undefined}
               >
                 <MoneyBox
                   value={rowsForType[0]?.amount ?? ""}
@@ -738,7 +760,7 @@ export function ContractForm({
         </div>
         {pdcs.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] border-separate border-spacing-0 text-[13px]">
+            <table className="w-full min-w-[820px] whitespace-nowrap border-separate border-spacing-0 text-[13px]">
               <thead>
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">
                   <th className="w-[64px] pb-2 pr-2">Sr. No.</th>
@@ -948,19 +970,24 @@ function Section({
   title,
   hint,
   accent,
+  action,
   children,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   accent: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="mt-4 rounded-[22px] p-5 max-md:p-4" style={{ ...CARD_STYLE, borderLeft: `3px solid ${accent}` }}>
-      <h2 className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: accent }}>
-        {title}
-      </h2>
-      <p className="mb-3 mt-0.5 text-[12.5px] text-ink-muted">{hint}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: accent }}>
+          {title}
+        </h2>
+        {action}
+      </div>
+      {hint ? <p className="mb-3 mt-0.5 text-[12.5px] text-ink-muted">{hint}</p> : null}
       {children}
     </section>
   );

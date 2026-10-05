@@ -1,9 +1,25 @@
-import { MONTH_SHORT, weeksOfMonth, type WeekOfMonth } from "@/lib/accounts/weekly";
+import {
+  MONTH_SHORT,
+  weeksOfMonth,
+  type WeekOfMonth,
+} from "@/lib/accounts/weekly";
 
 /** The shared status set and colours used by the Accounts checklists. */
-export { WEEKLY_CHECK_STATUSES as COMPLIANCE_PERIOD_STATUSES, weeklyStatusTone as compliancePeriodTone } from "@/lib/accounts/weekly";
+export {
+  WEEKLY_CHECK_STATUSES as COMPLIANCE_PERIOD_STATUSES,
+  weeklyStatusTone as compliancePeriodTone,
+} from "@/lib/accounts/weekly";
 
-export type CompliancePeriodKind = "wcc" | "mcc";
+/** Storage discriminator for the Employees CC tracking cells. */
+export type CompliancePeriodKind =
+  | "wcc"
+  | "mcc"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "quarterly"
+  | "half_yearly"
+  | "yearly";
 
 export type CompliancePeriodColumn = {
   key: string;
@@ -19,7 +35,10 @@ export type CompliancePeriodColumn = {
 export function wccPeriodColumns(today: string): CompliancePeriodColumn[] {
   const year = Number(today.slice(0, 4));
   const month = Number(today.slice(5, 7));
-  const currentWeek = Math.min(5, Math.floor((Number(today.slice(8, 10)) - 1) / 7) + 1);
+  const currentWeek = Math.min(
+    5,
+    Math.floor((Number(today.slice(8, 10)) - 1) / 7) + 1,
+  );
   return weeksOfMonth(year, month).map((week: WeekOfMonth) => ({
     key: `wcc:${year}:${month}:${week.weekNo}`,
     label: `WK${week.weekNo}`,
@@ -51,6 +70,9 @@ export function mccPeriodColumns(today: string): CompliancePeriodColumn[] {
   });
 }
 
-export function compliancePeriodKey(itemId: string, period: Pick<CompliancePeriodColumn, "periodYear" | "periodMonth" | "weekNo">) {
+export function compliancePeriodKey(
+  itemId: string,
+  period: Pick<CompliancePeriodColumn, "periodYear" | "periodMonth" | "weekNo">,
+) {
   return `${itemId}:${period.periodYear}:${period.periodMonth}:${period.weekNo}`;
 }

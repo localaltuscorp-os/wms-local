@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Bell } from "lucide-react";
 import { requireUser } from "@/lib/auth/current";
-import { getUnreadCount } from "@/lib/queries/notifications";
+import { getCachedUnreadCount } from "@/lib/queries/notifications";
 
 /**
  * NOTIFICATION BELL — the Inbox entry point, in the header's right cluster on
@@ -21,7 +21,7 @@ export async function NotificationBell() {
   let unread = 0;
   try {
     const me = await requireUser();
-    unread = await getUnreadCount(me.id);
+    unread = await getCachedUnreadCount(me.id);
   } catch {
     /* not signed in / count unavailable — render a plain bell */
   }

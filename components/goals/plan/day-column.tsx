@@ -43,6 +43,7 @@ interface Props {
     title: string,
     time?: { startMin: number | null; durationMin: number | null },
   ) => void;
+  unruledInitiatorLabel?: string;
 }
 
 /**
@@ -67,6 +68,7 @@ export function DayColumn({
   onSetTime,
   searching,
   onAddCommitment,
+  unruledInitiatorLabel,
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: dayDropId(day.offset) });
   const [draft, setDraft] = React.useState("");
@@ -208,6 +210,7 @@ export function DayColumn({
                   onRename={onRename}
                   onTransfer={onTransfer}
                   onSetTime={onSetTime}
+                  unruledInitiatorLabel={unruledInitiatorLabel}
                   dayOffset={day.offset}
                   dayYmd={day.ymd}
                 />

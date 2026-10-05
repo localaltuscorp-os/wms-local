@@ -1,50 +1,36 @@
-import { BILLING_PURPLE, CARD_STYLE, rupees } from "@/lib/billing/ui";
+import { CARD_STYLE, rupees } from "@/lib/billing/ui";
 import type { BucketTotals } from "@/lib/billing/contracts";
+import type { ContractSummary } from "@/lib/queries/billing-contracts";
+import Link from "next/link";
 
-/** The reference sheet's summary: No. / Amount of Bills × Paid / Unpaid / Not Due. */
-export function BillsGrid({ totals, title = "All Contracts View" }: { totals: BucketTotals; title?: string }) {
-  const cols = [
-    { label: "Bills Paid", b: totals.paid, color: "#15803D" },
-    { label: "Bills Unpaid", b: totals.unpaid, color: "#C2410C" },
-    { label: "Bills Not Due", b: totals.notDue, color: "#475569" },
+/** Compact contract KPIs, matching the Documents summary cards. */
+export function BillsGrid({ totals, rows }: { totals: BucketTotals; rows: ContractSummary[] }) {
+  const contractValue = rows.reduce((sum, row) => sum + row.totalValue, 0);
+  const billedValue = rows.reduce((sum, row) => sum + row.billedAmount, 0);
+  const billedCount = totals.paid.count + totals.unpaid.count + totals.notDue.count;
+  const cards = [
+    { label: "Contract Value", amount: contractValue, caption: `${rows.length} contract${rows.length === 1 ? "" : "s"}`, metric: "all" },
+    { label: "Billed", amount: billedValue, caption: `${billedCount} bill${billedCount === 1 ? "" : "s"}`, metric: "billed" },
+    { label: "Bills Paid", amount: totals.paid.amount, caption: `${totals.paid.count} bill${totals.paid.count === 1 ? "" : "s"}`, metric: "paid" },
+    { label: "Bills Unpaid", amount: totals.unpaid.amount, caption: `${totals.unpaid.count} bill${totals.unpaid.count === 1 ? "" : "s"}`, metric: "unpaid" },
+    { label: "Bills Not Due", amount: totals.notDue.amount, caption: `${totals.notDue.count} bill${totals.notDue.count === 1 ? "" : "s"}`, metric: "not_due" },
   ];
+
   return (
-    <section className="mb-5 overflow-x-auto rounded-[22px] p-5 max-md:p-4" style={CARD_STYLE}>
-      <table className="w-full min-w-[560px] border-separate border-spacing-0 text-[13.5px]">
-        <thead>
-          <tr>
-            <th className="pb-2 pr-3 text-left text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BILLING_PURPLE }}>
-              {title}
-            </th>
-            {cols.map((c) => (
-              <th key={c.label} className="pb-2 pr-3 text-right text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: c.color }}>
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="border-t border-hairline py-2.5 pr-3 font-bold text-ink-strong">No. of Bills</td>
-            {cols.map((c) => (
-              <td key={c.label} className="border-t border-hairline py-2.5 pr-3 text-right text-[18px] font-black tabular-nums">
-                {c.b.count}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <td className="border-t border-hairline py-2.5 pr-3 font-bold text-ink-strong">Amount of Bills</td>
-            {cols.map((c) => (
-              <td key={c.label} className="border-t border-hairline py-2.5 pr-3 text-right text-[18px] font-black tabular-nums">
-                {rupees(c.b.amount)}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-      <p className="mt-2 text-[11.5px] text-ink-muted">
-        Amounts are before GST. Paid is read from the invoice in Documents; Not Due means the due date is still ahead.
-      </p>
+    <section className="mb-5 grid grid-cols-5 gap-3 max-lg:grid-cols-3 max-md:grid-cols-2">
+      {cards.map(({ label, amount, caption, metric }) => (
+        <Link key={label} href={`/billing/contracts${metric === "all" ? "" : `?metric=${metric}`}`} className="block rounded-[20px] px-4 py-3.5 transition hover:-translate-y-px" style={CARD_STYLE}>
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink-muted">
+            {label}
+          </p>
+          <p className="mt-1 text-[20px] font-black tabular-nums text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
+            {rupees(amount)}
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-ink-muted">
+            {caption}
+          </p>
+        </Link>
+      ))}
     </section>
   );
 }

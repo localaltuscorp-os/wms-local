@@ -31,8 +31,6 @@ import {
   Loader2,
   Search,
   X,
-  Maximize2,
-  Minimize2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -43,6 +41,7 @@ import { pctTone, fmtNum } from "@/components/goals/cascade/util";
 import { useCountUp } from "@/lib/use-count-up";
 import { transferPlanItem } from "@/app/(app)/goals/plan/actions";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /* ------------------------------------------------------------------ */
 /* Level metadata — order is the product order: Daily → Yearly          */
@@ -811,10 +810,14 @@ function ReviewOverview({
   items,
   activeFilter,
   onFilterChange,
+  search,
+  onSearchChange,
 }: {
   items: ReviewItem[];
   activeFilter: ReviewOverviewFilter;
   onFilterChange: (filter: ReviewOverviewFilter) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
 }) {
   const reviewed = items.filter((item) => item.approvable && item.acceptPct != null).length;
   const awaitingApproval = items.filter((item) => item.approvable && item.acceptPct == null && item.pctDone > 0).length;
@@ -822,33 +825,88 @@ function ReviewOverview({
   const pending = items.length - selfComplete;
   const inProgress = items.filter((item) => item.pctDone > 0 && item.pctDone < 100).length;
   const notStarted = items.filter((item) => item.pctDone === 0).length;
-  const metrics: { key: ReviewOverviewFilter; label: string; value: number; tone: string }[] = [
-    { key: "all", label: "Total", value: items.length, tone: "#1d4ed8" },
-    { key: "selfComplete", label: "Self complete", value: selfComplete, tone: "#16a34a" },
-    { key: "pending", label: "Pending", value: pending, tone: "#dc2626" },
-    { key: "awaitingApproval", label: "Awaiting approval", value: awaitingApproval, tone: "#d97706" },
-    { key: "reviewed", label: "Reviewed", value: reviewed, tone: "#7c3aed" },
-    { key: "inProgress", label: "In progress", value: inProgress, tone: "#0891b2" },
-    { key: "notStarted", label: "Not started", value: notStarted, tone: "#94a3b8" },
+  const metrics: { key: ReviewOverviewFilter; label: string; value: number; tone: "neutral" | "green" | "blue" | "yellow" | "orange" | "red" | "slate" }[] = [
+    { key: "all", label: "Total", value: items.length, tone: "neutral" },
+    { key: "selfComplete", label: "Self complete", value: selfComplete, tone: "green" },
+    { key: "pending", label: "Pending", value: pending, tone: "red" },
+    { key: "awaitingApproval", label: "Awaiting approval", value: awaitingApproval, tone: "yellow" },
+    { key: "reviewed", label: "Reviewed", value: reviewed, tone: "blue" },
+    { key: "inProgress", label: "In progress", value: inProgress, tone: "orange" },
+    { key: "notStarted", label: "Not started", value: notStarted, tone: "slate" },
   ];
 
   return (
-    <section aria-label="Review overview" className="flex shrink-0 flex-nowrap items-center gap-2">
+    <section aria-label="Review overview" className="flex w-full flex-wrap items-center gap-1.5">
       {metrics.map((metric) => (
-        <button
+        <ReviewFilterChip
           key={metric.key}
-          type="button"
-          aria-pressed={activeFilter === metric.key}
+          label={metric.label}
+          value={metric.value}
+          tone={metric.tone}
+          active={activeFilter === metric.key}
           onClick={() => onFilterChange(metric.key === "all" || activeFilter === metric.key ? "all" : metric.key)}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-hairline bg-surface-card px-3 text-[13px] transition-colors hover:bg-surface-soft"
-          style={activeFilter === metric.key ? { borderColor: metric.tone, boxShadow: `0 0 0 2px color-mix(in srgb, ${metric.tone} 18%, transparent)` } : undefined}
-        >
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: metric.tone }} aria-hidden />
-          <strong className="tabular-nums text-ink-strong">{metric.value}</strong>
-          <span className="font-semibold text-ink-soft">{metric.label}</span>
-        </button>
+        />
       ))}
+      <div className="ml-auto shrink-0">
+        <CollapsibleSearch scope="review items, areas, categories, and notes">
+          <label className="relative block">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" aria-hidden />
+            <input
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search review items"
+              aria-label="Search review items, areas, categories, and notes"
+              className="h-8 w-[230px] rounded-lg border border-hairline-strong bg-surface-card pl-8 pr-7 text-[12.5px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
+            />
+            {search && (
+              <button type="button" onClick={() => onSearchChange("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-ink-strong">
+                <X size={13} strokeWidth={2.5} />
+              </button>
+            )}
+          </label>
+        </CollapsibleSearch>
+      </div>
     </section>
+  );
+}
+
+function ReviewFilterChip({
+  label,
+  value,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone: "neutral" | "green" | "blue" | "yellow" | "orange" | "red" | "slate";
+  active: boolean;
+  onClick: () => void;
+}) {
+  const bg = `var(--color-${tone}-bg)`;
+  const ink = `var(--color-${tone}-deep)`;
+  const accent = `var(--color-${tone})`;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={`${active ? "Remove" : "Apply"} ${label.toLowerCase()} filter`}
+      className="inline-flex shrink-0 items-center gap-2 rounded-xl transition-all"
+      style={{
+        padding: "5px 10px",
+        background: active ? `color-mix(in srgb, ${accent} 14%, ${bg})` : bg,
+        boxShadow: active ? `inset 0 0 0 2px ${accent}` : `inset 0 0 0 1px color-mix(in srgb, ${accent} 26%, transparent)`,
+      }}
+    >
+      <span aria-hidden className="inline-block size-2 shrink-0 rounded-full" style={{ background: accent }} />
+      <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em", color: ink }}>
+        {value}
+      </span>
+      <span className="font-semibold leading-none" style={{ fontSize: 11.5, color: ink, opacity: active ? 1 : 0.88 }}>
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -866,10 +924,8 @@ export function ReviewWorkbench({
   const [level, setLevel] = React.useState<ReviewLevel>(() =>
     firstNonEmptyLevelOr("monthly", data.counts),
   );
-  const [fullscreen, setFullscreen] = React.useState(false);
   const items = data.levels[level];
   const [search, setSearch] = React.useState("");
-  const [searchOpen, setSearchOpen] = React.useState(false);
   const [overviewFilter, setOverviewFilter] = React.useState<ReviewOverviewFilter>("all");
   const [pageSize, setPageSize] = React.useState(20);
   const [page, setPage] = React.useState(1);
@@ -902,7 +958,7 @@ export function ReviewWorkbench({
   React.useEffect(() => setPage(1), [level, search, pageSize, overviewFilter]);
   const active = LEVELS.find((l) => l.key === level)!;
   const compactTabs = (
-    <nav aria-label="Review level" className="flex w-fit max-w-full overflow-x-auto rounded-lg border border-hairline-strong bg-surface-soft p-1">
+    <nav aria-label="Review level" className="flex w-fit shrink-0 rounded-lg border border-hairline-strong bg-surface-soft p-0.5">
       {LEVELS.map(({ key, label }) => {
         const activeBtn = key === level;
         return (
@@ -912,7 +968,7 @@ export function ReviewWorkbench({
             onClick={() => setLevel(key)}
             aria-pressed={activeBtn}
             aria-current={activeBtn ? "page" : undefined}
-            className="wg-btn inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-[13px] font-bold transition-colors"
+            className="wg-btn inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-bold transition-colors"
             style={
               activeBtn
                 ? {
@@ -925,7 +981,7 @@ export function ReviewWorkbench({
           >
             {label}
             <span
-              className="rounded-pill px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+              className="rounded-pill px-1 py-0.5 text-[9px] font-bold tabular-nums"
               style={{
                 color: activeBtn ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)",
                 background: activeBtn ? "rgba(255,255,255,0.9)" : "color-mix(in srgb, var(--color-ink-strong) 6%, transparent)",
@@ -939,37 +995,18 @@ export function ReviewWorkbench({
     </nav>
   );
 
-  React.useEffect(() => {
-    if (!fullscreen) return;
-    const leaveFullscreen = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFullscreen(false);
-    };
-    window.addEventListener("keydown", leaveFullscreen);
-    return () => window.removeEventListener("keydown", leaveFullscreen);
-  }, [fullscreen]);
-
   return (
-    <div className={fullscreen ? "fixed inset-0 z-[100] flex overflow-auto bg-surface-base p-5" : "flex flex-col gap-4"}>
-      <div className={fullscreen ? "mx-auto flex w-full max-w-[1800px] flex-col gap-4" : "contents"}>
+    <div className="flex flex-col gap-4">
+      <div className="contents">
       <header className="flex w-full flex-wrap items-center gap-3">
-        <h1 className="shrink-0 text-[28px] font-black leading-none text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>
-          Review &amp; Scores
-        </h1>
-        <div className="min-w-0 max-w-full">{compactTabs}</div>
+        <ReviewOverview
+          items={items}
+          activeFilter={overviewFilter}
+          onFilterChange={setOverviewFilter}
+          search={search}
+          onSearchChange={setSearch}
+        />
       </header>
-      <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto">
-        <ReviewOverview items={items} activeFilter={overviewFilter} onFilterChange={setOverviewFilter} />
-        <button
-          type="button"
-          onClick={() => setFullscreen((value) => !value)}
-          aria-pressed={fullscreen}
-          title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
-          className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-surface-soft"
-        >
-          {fullscreen ? <Minimize2 size={14} strokeWidth={2.2} /> : <Maximize2 size={14} strokeWidth={2.2} />}
-          {fullscreen ? "Exit full screen" : "Full screen"}
-        </button>
-      </div>
       {/* scoped slider styling - tone-filled track, tactile thumb */}
       <style>{`
         .rw-range{appearance:none;-webkit-appearance:none;height:6px;border-radius:999px;outline:none;cursor:pointer;
@@ -1075,17 +1112,9 @@ export function ReviewWorkbench({
       {/* ── (3) review cards / (4) empty state ── */}
       {items.length === 0 ? (
         <>
-          <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-hairline bg-surface-card p-1" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-            <button
-              type="button"
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search review items"
-              title="Search"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
-            >
-              <Search size={20} aria-hidden />
-            </button>
-            <div className="ml-auto flex shrink-0 items-center gap-2">{headerControls}</div>
+          <div className="wg-rise mb-3 flex flex-nowrap items-center gap-1 overflow-hidden rounded-none border border-hairline bg-surface-card px-3 py-2" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 26px -20px rgba(15,23,42,0.18)" }}>
+            {compactTabs}
+            <div className="ml-auto flex shrink-0 items-center gap-1">{headerControls}</div>
             <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">
               <span className="whitespace-nowrap font-semibold">0–0 / 0</span>
               <span className="inline-flex h-9 items-center rounded-lg border border-hairline bg-surface-card px-2 font-bold text-ink-strong">{pageSize}</span>
@@ -1098,43 +1127,9 @@ export function ReviewWorkbench({
         </>
       ) : (
         <div key={level}>
-          <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-lg border border-hairline bg-surface-card p-1" style={{ boxShadow: "0 1px 3px rgba(15,23,42,0.06)" }}>
-            {searchOpen ? (
-              <div className="relative min-w-[260px] flex-1">
-                <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" aria-hidden />
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search goals, category or notes"
-                  aria-label="Search goals in this review period"
-                  className="h-9 w-full rounded-lg border border-transparent bg-surface-soft pl-9 pr-8 text-[13px] font-medium text-ink-strong outline-none transition-colors focus:border-altus-red"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setSearchOpen(false);
-                  }}
-                  aria-label="Close goal search"
-                  className="absolute right-2 top-1/2 rounded p-1 text-ink-subtle hover:text-ink-strong"
-                  style={{ transform: "translateY(-50%)" }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setSearchOpen(true)}
-                aria-label="Search review items"
-                title="Search"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink-strong"
-              >
-                <Search size={20} aria-hidden />
-              </button>
-            )}
-            <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">{headerControls}</div>
+          <div className="wg-rise mb-3 flex flex-nowrap items-center gap-1 overflow-hidden rounded-none border border-hairline bg-surface-card px-3 py-2" style={{ boxShadow: "0 1px 2px rgba(15,23,42,0.04), 0 10px 26px -20px rgba(15,23,42,0.18)" }}>
+            {compactTabs}
+            <div className="ml-auto flex shrink-0 items-center gap-1">{headerControls}</div>
             <div className="flex shrink-0 items-center gap-1.5 text-[12px] text-ink-soft">
                 <span className="font-semibold">
                   Showing {pagedItems.length} {pagedItems.length === 1 ? "row" : "rows"} · {firstRow}–{lastRow} of {orderedItems.length}

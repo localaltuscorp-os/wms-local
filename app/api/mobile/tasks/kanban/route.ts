@@ -9,6 +9,7 @@ import {
   USER_COLUMN_ORDER,
   type ColId,
 } from "@/lib/kanban-columns";
+import { effectiveDoerStatus } from "@/lib/status/axes";
 import type { TaskListFilters } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -95,7 +96,9 @@ export async function GET(req: Request) {
         title: t.title,
         subject: t.subject,
         client: t.client,
-        status: t.status,
+        // Match the web Doer board: old approval verdicts are not Doer lanes,
+        // so present them through the established Doer fallback instead.
+        status: effectiveDoerStatus(t.status),
         priority: t.priority,
         archived: t.archived,
         // Wrap in new Date() so a cache-HIT ISO string and a live Date both

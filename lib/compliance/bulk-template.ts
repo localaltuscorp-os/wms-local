@@ -95,14 +95,15 @@ function examples(kind: ComplianceKind, me: string): (string | number)[][] {
     ];
   }
   return [
-    [me, "Accounts", "Pay the GST liability and file GSTR-3B", "Monthly", 20, "", "", "", "", ""],
-    [me, "Reporting", "Send the MIS report to Manan Sir", "2 times/month", 15, "Last day", "", "", "", ""],
-    [me, "Accounts", "Reconcile the bank statements", "3 times/month", 10, 20, "Last day", "", "", ""],
-    [me, "Office", "Service the air conditioners", "Alternate Month", "Last day", "", "", "February", "", ""],
-    [me, "Statutory", "File the quarterly TDS return", "Quarterly", "Last day", "", "", "July", "", ""],
-    [me, "People", "Review every employee's goals", "Half Yearly", 15, "", "", "October", "", ""],
-    [me, "Statutory", "Renew the shop and establishment licence", "Annually", "Last day", "", "", "March", "", ""],
-    [me, "Marketing", "Visit 12 client sites", "Monthly", "Last day", "", "", "", 12, "visits"],
+    [me, "Accounts", "Pay the GST liability and file GSTR-3B", "Monthly", 20, "", "", "", "", "", ""],
+    [me, "Reporting", "Send the MIS report to Manan Sir", "2 times/month", 15, "Last day", "", "", "", "", ""],
+    [me, "Accounts", "Reconcile the bank statements", "3 times/month", 10, 20, "Last day", "", "", "", ""],
+    [me, "Reporting", "Check the four monthly reconciliations", "4 times/month", 1, 5, 10, 15, "", "", ""],
+    [me, "Office", "Service the air conditioners", "Alternate Month", "Last day", "", "", "", "February", "", ""],
+    [me, "Statutory", "File the quarterly TDS return", "Quarterly", "Last day", "", "", "", "July", "", ""],
+    [me, "People", "Review every employee's goals", "Half Yearly", 15, "", "", "", "October", "", ""],
+    [me, "Statutory", "Renew the shop and establishment licence", "Annually", "Last day", "", "", "", "March", "", ""],
+    [me, "Marketing", "Visit 12 client sites", "Monthly", "Last day", "", "", "", "", 12, "visits"],
   ];
 }
 
@@ -110,8 +111,8 @@ function examples(kind: ComplianceKind, me: string): (string | number)[][] {
  * The workbook, for one checklist and the people this viewer may add
  * compliances for (the viewer first).
  */
-export async function buildComplianceTemplate(args: { kind: ComplianceKind; people: readonly BulkPerson[]; required?: ReadonlySet<string> }): Promise<Buffer> {
-  const { kind, people, required } = args;
+export async function buildComplianceTemplate(args: { kind: ComplianceKind; people: readonly BulkPerson[]; subjects?: readonly string[]; required?: ReadonlySet<string> }): Promise<Buffer> {
+  const { kind, people, subjects = [], required } = args;
   const cols = bulkColumns(kind);
   const lastCol = cols.length;
   const KIND = kind.toUpperCase();
@@ -127,6 +128,10 @@ export async function buildComplianceTemplate(args: { kind: ComplianceKind; peop
   const listSheet = wb.addWorksheet("Lists", { state: "veryHidden" });
   const sources: Record<Exclude<BulkList, null>, (string | number)[]> = {
     people: peopleList,
+    // Keep the Subject validation a list even before Admin has any active
+    // subjects; Excel then shows an empty picker instead of losing the field's
+    // validation contract.
+    subject: subjects.length > 0 ? [...subjects] : [""],
     wccFrequency: frequencyLabels("wcc"),
     mccFrequency: frequencyLabels("mcc"),
     wccDays: WCC_DAY_PRESETS,
@@ -353,6 +358,7 @@ function addHighlights(sheet: ExcelJS.Worksheet, kind: ComplianceKind, cols: rea
   const label = (f: (typeof MCC_FREQUENCIES)[number]) => MCC_FREQUENCY_LABEL[f];
   conditional("day2", MCC_FREQUENCIES.filter((f) => DEADLINES_PER_MONTH[f] >= 2).map(label));
   conditional("day3", MCC_FREQUENCIES.filter((f) => DEADLINES_PER_MONTH[f] >= 3).map(label));
+  conditional("day4", MCC_FREQUENCIES.filter((f) => DEADLINES_PER_MONTH[f] >= 4).map(label));
   conditional("dueMonth", MCC_FREQUENCIES.filter((f) => CYCLE_MONTHS[f] > 1).map(label));
 }
 
@@ -447,9 +453,12 @@ function buildHowTo(wb: ExcelJS.Workbook, kind: ComplianceKind, cols: readonly B
         ["Monthly", "1 day · —", "Every month, by the Deadline Day.", "20 → by the 20th"],
         ["2 times/month", "2 days · —", "Every month, by each of the two days; each is its own row.", "15 & Last day"],
         ["3 times/month", "3 days · —", "Every month, by each of the three days.", "10, 20 & Last day"],
+        ["4 times/month", "4 days · —", "Every month, by each of four chosen dates.", "1, 5, 10 & 15"],
         ["Alternate Month", "1 day · needed", "Every 2nd month from the Due Month.", "February → Feb, Apr, Jun, Aug, Oct, Dec"],
         ["Quarterly", "1 day · needed", "Every 3rd month from the Due Month.", "July → Jul, Oct, Jan, Apr"],
+        ["Quarterly — multiple due dates", "4 days · needed", "Every 3rd month, by four chosen dates in each due month.", "1, 5, 10 & 15 · July"],
         ["Half Yearly", "1 day · needed", "Every 6th month from the Due Month.", "October → Oct, Apr"],
+        ["Half Yearly — multiple due dates", "4 days · needed", "Every 6th month, by four chosen dates in each due month.", "1, 5, 10 & 15 · October"],
         ["Annually", "1 day · needed", "Once a year, in the Due Month.", "March → every March"],
       ],
     );

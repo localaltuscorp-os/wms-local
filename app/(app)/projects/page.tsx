@@ -1,4 +1,5 @@
 import { DashboardHeader } from "@/components/layout/header";
+import { WmsSectionShell } from "@/components/layout/wms-section-shell";
 import { ProjectsWorkspace } from "@/components/projects/projects-workspace";
 import { listProjectTree } from "@/lib/queries/projects";
 import { listEmployeeOptions } from "@/lib/queries/employees";
@@ -40,14 +41,14 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="w-full px-12 max-md:px-4 pt-10 pb-20">
+      <WmsSectionShell>
         <ProjectsWorkspace
           projects={tree}
           activeId={activeId}
           employees={employees}
           canManage={canManage}
         />
-      </main>
+      </WmsSectionShell>
     </>
   );
 }

@@ -15,6 +15,7 @@ import {
 import { recentFinancialYears } from "@/lib/billing/numbering";
 import { BILLING_PURPLE, BILLING_PURPLE_DEEP, CARD_STYLE, rupeesCompact } from "@/lib/billing/ui";
 import { BillingDocumentsList } from "@/components/billing/documents-list";
+import { DocumentYearPicker } from "@/components/billing/document-year-picker";
 
 /**
  * /billing/documents — the document ledger.
@@ -38,7 +39,7 @@ export default async function BillingDocumentsPage({ searchParams }: PageProps) 
   const sp = await searchParams;
 
   // Unknown or malformed filter values are dropped rather than 500-ing a list.
-  // YEAR — the calendar year of the document date, picked with the pills
+  // YEAR — the calendar year of the document date, picked with the dropdown
   // beside New document. Defaults to this year, like the old Billing page.
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
@@ -58,6 +59,7 @@ export default async function BillingDocumentsPage({ searchParams }: PageProps) 
     from: one(sp.from) ?? `${year}-01-01`,
     to: one(sp.to) ?? `${year}-12-31`,
     q: one(sp.q),
+    overdue: one(sp.overdue) === "true" ? true : null,
     archived: one(sp.archived) === "true" ? true : null,
   });
   const filters = parsed.success ? parsed.data : {};
@@ -67,6 +69,18 @@ export default async function BillingDocumentsPage({ searchParams }: PageProps) 
   const PAGE_SIZES = [10, 20, 50, 100];
   const size = PAGE_SIZES.includes(Number(one(sp.size))) ? Number(one(sp.size)) : 20;
   const page = Math.max(1, Math.trunc(Number(one(sp.page)) || 1));
+  const documentHref = (patch: Record<string, string | null>): Route => {
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(sp)) {
+      const first = Array.isArray(value) ? value[0] : value;
+      if (first && key !== "page" && !(key in patch)) next.set(key, first);
+    }
+    for (const [key, value] of Object.entries(patch)) {
+      if (value) next.set(key, value);
+    }
+    const qs = next.toString();
+    return `/billing/documents${qs ? `?${qs}` : ""}` as Route;
+  };
 
   const [{ rows, total }, summary, customers] = await Promise.all([
     listBillingDocuments(filters, { limit: size, offset: (page - 1) * size }),
@@ -76,58 +90,25 @@ export default async function BillingDocumentsPage({ searchParams }: PageProps) 
 
   return (
     <PageShell width="wide">
-      <header
-        className="wg-rise relative mb-5 overflow-hidden rounded-[26px] px-7 py-6 max-md:px-4 max-md:py-5"
-        style={{
-          background: [
-            `radial-gradient(120% 190% at 100% 0%, color-mix(in srgb, ${BILLING_PURPLE} 9%, transparent), transparent 55%)`,
-            `radial-gradient(80% 160% at 0% 100%, color-mix(in srgb, ${BILLING_PURPLE} 5%, transparent), transparent 52%)`,
-            "rgba(255, 255, 255, 0.72)",
-          ].join(", "),
-          backdropFilter: "blur(14px) saturate(140%)",
-          boxShadow:
-            "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 44px -28px rgba(15,23,42,0.22)",
-        }}
-      >
+      <header className="mb-5">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="min-w-0">
             <h1
-              style={PAGE_COMMAND_BAR_TITLE_STYLE}
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-display), system-ui, sans-serif",
+                fontWeight: 900,
+                fontSize: "clamp(28px,3.4vw,42px)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.02,
+              }}
             >
               Documents
             </h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Year pills first, then New document. Each keeps the other
-                filters and goes back to page 1. */}
-            <nav aria-label="Document year" className="flex flex-wrap items-center gap-2">
-              {years.map((y) => {
-                const active = y === year;
-                const next = new URLSearchParams();
-                for (const [k, v] of Object.entries(sp)) {
-                  const val = Array.isArray(v) ? v[0] : v;
-                  if (val && k !== "year" && k !== "page") next.set(k, val);
-                }
-                if (y !== currentYear) next.set("year", String(y));
-                const qs = next.toString();
-                return (
-                  <Link
-                    key={y}
-                    href={`/billing/documents${qs ? `?${qs}` : ""}` as Route}
-                    aria-current={active ? "page" : undefined}
-                    className="inline-flex h-10 items-center rounded-chip px-3.5 text-[13px] font-bold transition"
-                    style={
-                      active
-                        ? { background: `linear-gradient(135deg, ${BILLING_PURPLE}, ${BILLING_PURPLE_DEEP})`, color: "#fff" }
-                        : { boxShadow: "inset 0 0 0 1px var(--color-hairline)", color: "var(--color-ink-muted)" }
-                    }
-                  >
-                    {y}
-                  </Link>
-                );
-              })}
-            </nav>
+            <DocumentYearPicker years={years} activeYear={year} currentYear={currentYear} />
             <Link
               href={"/billing/documents/new" as Route}
               className="inline-flex h-10 items-center gap-2 rounded-chip px-4 text-[13px] font-bold text-white"
@@ -146,18 +127,21 @@ export default async function BillingDocumentsPage({ searchParams }: PageProps) 
             label={BILLING_DOC_TYPE_LABELS[t]}
             value={rupeesCompact(summary.byType[t].value)}
             caption={`${summary.byType[t].count} document${summary.byType[t].count === 1 ? "" : "s"}`}
+            href={documentHref({ type: t, status: null, overdue: null })}
           />
         ))}
         <Tile
           label="Outstanding"
           value={rupeesCompact(summary.outstandingValue)}
           caption={`${summary.outstandingCount} awaiting payment`}
+          href={documentHref({ status: "generated,sent", overdue: null })}
         />
         <Tile
           label="Overdue"
           value={rupeesCompact(summary.overdueValue)}
           caption={`${summary.overdueCount} past due date`}
           accent
+          href={documentHref({ status: "generated,sent", overdue: "true" })}
         />
       </section>
 
@@ -179,14 +163,16 @@ function Tile({
   value,
   caption,
   accent,
+  href,
 }: {
   label: string;
   value: string;
   caption: string;
   accent?: boolean;
+  href: Route;
 }) {
   return (
-    <div className="rounded-[20px] px-4 py-3.5" style={CARD_STYLE}>
+    <Link href={href} className="block rounded-[20px] px-4 py-3.5 transition hover:-translate-y-px" style={CARD_STYLE}>
       <div className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink-muted">{label}</div>
       <div
         className="mt-1 text-[20px] font-black tabular-nums"
@@ -198,6 +184,6 @@ function Tile({
         {value}
       </div>
       <div className="mt-0.5 text-[11.5px] text-ink-muted">{caption}</div>
-    </div>
+    </Link>
   );
 }

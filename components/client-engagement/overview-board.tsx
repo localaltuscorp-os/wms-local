@@ -5,6 +5,7 @@ import { Plus, Search, X } from "lucide-react";
 import { CE_CATEGORIES } from "@/lib/client-engagement/constants";
 import type { Load, MemberCapacity } from "@/lib/client-engagement/grids";
 import type { CeAccountRow, CeMemberRow } from "@/lib/queries/client-engagement";
+import type { CeProductOption } from "@/lib/client-engagement/constants";
 import { CapacityBar } from "./capacity-bar";
 import { AccountsBoard } from "./accounts-board";
 import { FIELD } from "./tokens";
@@ -34,6 +35,7 @@ export function OverviewBoard({
   initialTab,
   unassigned,
   referencesSlot,
+  productOptions,
 }: {
   accounts: CeAccountRow[];
   members: CeMemberRow[];
@@ -45,6 +47,7 @@ export function OverviewBoard({
   initialTab?: string;
   unassigned: number;
   referencesSlot: React.ReactNode;
+  productOptions: CeProductOption[];
 }) {
   const [focusMember, setFocusMember] = React.useState<{ id: string; nonce: number } | null>(null);
   const [query, setQuery] = React.useState("");
@@ -144,6 +147,7 @@ export function OverviewBoard({
           myMemberId={myMemberId}
           initialTab={initialTab}
           referencesSlot={referencesSlot}
+          productOptions={productOptions}
           focusMember={focusMember}
           query={query}
           searchJump={searchJump}

@@ -39,7 +39,7 @@ const HOME: Record<ArchiveRecordKind, { href: string; label: string }> = {
   task: { href: "/tasks", label: "Tasks" },
   "weekly-goal": { href: "/goals/weekly", label: "Weekly Goals" },
   goal: { href: "/goals", label: "Goals" },
-  "dcc-item": { href: "/dcc", label: "DCC" },
+  "dcc-item": { href: "/employees/cc", label: "Compliance Checklist" },
   // One table behind two forms — the table key says which of them this is.
   "module-submission": { href: "/reimbursements", label: "Reimbursements" },
   "kpi-assignment": { href: "/hr/kpi", label: "KPIs" },

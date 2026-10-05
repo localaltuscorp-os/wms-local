@@ -7,7 +7,7 @@
  * wrong default twice over: two thirds of the rows are always empty, and the
  * density the brief asks for — a Google-Sheets-style planner where a quarter
  * fits on a screen — is impossible when 16 of 24 hours are dead space. Since
- * 2026-09-18 the calendar shows 06:30–23:00 for everyone (DEFAULT_GRID); the
+ * The calendar now shows 07:00–23:00 in hourly rows for everyone (DEFAULT_GRID); the
  * per-person window picker was removed at the owner's request.
  *
  * Everything here takes the window as an argument instead of importing a
@@ -28,14 +28,14 @@
 export interface GridConfig {
   /** Minutes from midnight where the grid starts. Default 07:00. */
   startMin: number;
-  /** Minutes from midnight where the grid ends. Default 22:00. */
+  /** Minutes from midnight where the grid ends. Default 23:00. */
   endMin: number;
   /** Row height in minutes: 60 for hourly, 30 for half-hourly, 15 for quarter-hourly. */
   slotMin: 15 | 30 | 60;
 }
 
-/** The calendar's window: 06:30 → 23:00 in half-hour rows (fixed, 2026-09-18). */
-export const DEFAULT_GRID: GridConfig = { startMin: 6 * 60 + 30, endMin: 23 * 60, slotMin: 30 };
+/** The calendar's visible window: 07:00–23:00 in hourly rows. */
+export const DEFAULT_GRID: GridConfig = { startMin: 7 * 60, endMin: 23 * 60, slotMin: 60 };
 
 /** The escape hatch for a day with a 06:00 flight or a midnight deploy. */
 export const FULL_DAY_GRID: GridConfig = { startMin: 0, endMin: 24 * 60, slotMin: 30 };
@@ -348,7 +348,7 @@ export function layoutDay<T extends GridBlockInput>(
 ): PositionedBlock<T>[] {
   // `rs`/`re` are the REAL times and decide the cascade; `start`/`end` are what
   // is drawn (clamped to the window). Deciding on clamped times would make a
-  // 04:00 and a 06:00 block both "start at 06:30" and sit side by side.
+  // Two pre-window blocks would otherwise both clamp to the same start and sit side by side.
   type Item = { e: T; rs: number; re: number; start: number; end: number; pinned?: "before" | "after"; order: number };
   const items: Item[] = [];
   events.forEach((e, order) => {
@@ -395,10 +395,11 @@ export function layoutDay<T extends GridBlockInput>(
         span++;
       }
       const top = minToTop(p.start, cfg, slotHeight);
+      const desiredHeight = Math.max(slotHeight / 2, minToTop(p.end, cfg, slotHeight) - top);
       out.push({
         event: p.e,
         top,
-        height: Math.max(slotHeight / 2, minToTop(p.end, cfg, slotHeight) - top),
+        height: Math.min(desiredHeight, Math.max(0, gridHeight(cfg, slotHeight) - top)),
         column: p.col,
         columns,
         span,

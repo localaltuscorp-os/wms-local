@@ -1,6 +1,7 @@
 import "server-only";
 import { requireUser } from "@/lib/auth/current";
 import { loadManageablePeople } from "@/lib/queries/compliance-board";
+import { listActiveSubjectNames } from "@/lib/queries/subjects";
 import { buildComplianceTemplate } from "./bulk-template";
 import type { ComplianceKind } from "./schedule";
 import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
@@ -14,10 +15,13 @@ import { TEMPLATE_KEYS } from "@/lib/templates/keys";
  */
 export async function complianceTemplateResponse(kind: ComplianceKind): Promise<Response> {
   const me = await requireUser();
-  const people = await loadManageablePeople(me);
+  const [people, subjects] = await Promise.all([
+    loadManageablePeople(me),
+    listActiveSubjectNames(),
+  ]);
   const key = kind === "wcc" ? TEMPLATE_KEYS.wcc : TEMPLATE_KEYS.mcc;
   const required = new Set(await requiredFieldsForTemplate(key, "default"));
-  const buffer = await buildComplianceTemplate({ kind, people, required });
+  const buffer = await buildComplianceTemplate({ kind, people, subjects, required });
   return new Response(new Uint8Array(buffer), {
     status: 200,
     headers: {

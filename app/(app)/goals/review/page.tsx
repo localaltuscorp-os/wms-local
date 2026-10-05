@@ -1,5 +1,6 @@
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
+import { PageTitle } from "@/components/layout/page-title";
 import { ReviewWorkbench } from "@/components/goals/review/review-workbench";
 import { ReviewControls } from "@/components/goals/review/review-controls";
 import { loadReviewData } from "./review-data";
@@ -26,6 +27,7 @@ export default async function GoalsReviewPage({
     <>
       <DashboardHeader generatedAt={new Date()} />
       <PageShell width="full">
+        <PageTitle title="Review & Scores" />
         <ReviewWorkbench
           data={data}
           headerControls={

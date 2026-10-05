@@ -1,4 +1,5 @@
 import { DashboardHeader } from "@/components/layout/header";
+import { WmsSectionShell } from "@/components/layout/wms-section-shell";
 import { DocumentLibrary } from "@/components/documents/document-library";
 import { RecentDocumentEvents } from "@/components/documents/recent-document-events";
 import { listDocuments } from "@/lib/queries/documents";
@@ -19,7 +20,7 @@ export default async function DocumentsPage() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto max-w-[860px] px-8 max-md:px-4 pt-8 pb-16">
+      <WmsSectionShell className="max-w-[860px]">
         <header className="mb-6">
           <h1 className="text-display-lg text-ink-strong">Documents</h1>
           <p className="text-body-lg text-ink-subtle mt-1">
@@ -29,7 +30,7 @@ export default async function DocumentsPage() {
         </header>
         <DocumentLibrary documents={documents} />
         {me.isAdmin && <RecentDocumentEvents rows={events} />}
-      </main>
+      </WmsSectionShell>
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { localDateString } from "@/lib/format";
-import { FOUNDER_EMAIL } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import { loadDueCompliances } from "@/lib/queries/compliance-reminders";
 import { addDays, datesBetween, monthEnd, mondayOf } from "@/lib/compliance/schedule";
 import { downlineOf, teamGroups } from "@/lib/compliance/team";
@@ -77,9 +77,10 @@ async function run(request: Request): Promise<NextResponse> {
     const wccFrom = last3[0]! < weekStart ? last3[0]! : weekStart;
 
     const { people, due } = await loadDueCompliances({ wccFrom, wccTo: addDays(weekStart, 6), mccMonths: months });
-    const founder = people.find((p) => p.email.trim().toLowerCase() === FOUNDER_EMAIL);
+    const founderIds = await founderEmployeeIds();
+    const founder = people.find((p) => founderIds.has(p.id));
     if (!founder) {
-      return NextResponse.json({ ok: true, job, day, skipped: `No active employee with ${FOUNDER_EMAIL}.` });
+      return NextResponse.json({ ok: true, job, day, skipped: "No active Founder grant." });
     }
     const team = new Set([founder.id, ...downlineOf(founder.id, people)]);
     const visible = people.filter((p) => team.has(p.id));

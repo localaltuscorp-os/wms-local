@@ -41,7 +41,8 @@ export interface PageShellProps {
   /** Element to render. Default `main`; use `div` when already inside a main. */
   as?: ElementType;
   /**
-   * Standard vertical rhythm (pt-8 pb-16, tightened on mobile). Default true.
+ * Standard vertical rhythm from the Tasks reference (pt-4 pb-16, tightened on
+ * mobile). Default true.
    * Set false when the page owns its own vertical padding.
    */
   py?: boolean;
@@ -60,7 +61,7 @@ export function PageShell({
   const Tag: ElementType = as ?? "main";
   return (
     <Tag
-      className={`mx-auto w-full ${py ? "pt-8 pb-16 max-md:pt-6 max-md:pb-12" : ""} ${className}`}
+      className={`mx-auto w-full ${py ? "pt-4 pb-16 max-md:pt-3 max-md:pb-12" : ""} ${className}`}
       style={{
         maxWidth: WIDTH_VAR[width],
         paddingInline: "var(--page-gutter)",

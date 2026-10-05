@@ -18,7 +18,7 @@ import {
 } from "@/lib/compliance/bulk";
 import type { ComplianceKind } from "@/lib/compliance/schedule";
 import { minutesText } from "@/lib/compliance/minutes";
-import { bulkAddCompliances, type BulkProblem } from "@/app/(app)/dcc/compliance-actions";
+import { bulkAddCompliances, type BulkProblem } from "@/app/(app)/employees/cc/actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /**
@@ -90,11 +90,13 @@ export function ComplianceBulkUpload({
   onOpenChange,
   kind,
   people,
+  subjects,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   kind: ComplianceKind;
   people: readonly BulkPerson[];
+  subjects: readonly string[];
 }) {
   const router = useRouter();
   const columns = React.useMemo(() => bulkColumns(kind), [kind]);
@@ -102,7 +104,7 @@ export function ComplianceBulkUpload({
   const rowSequence = React.useRef(1);
   const blankDraft = React.useCallback((): ManualDraft => {
     const values = Object.fromEntries(
-      (["employee", "section", "compliance", "frequency", "days", "day1", "day2", "day3", "dueMonth", "mins", "target", "unit"] as BulkField[]).map((field) => [field, ""]),
+      (["employee", "section", "compliance", "frequency", "days", "day1", "day2", "day3", "day4", "dueMonth", "mins", "target", "unit"] as BulkField[]).map((field) => [field, ""]),
     ) as Record<BulkField, string>;
     values.frequency = kind === "wcc" ? "Mon to Sat" : "Monthly";
     return { id: rowSequence.current++, values };
@@ -249,7 +251,7 @@ export function ComplianceBulkUpload({
     if (field === "days") {
       return <WeekdayPicker value={value} onChange={set} disabled={draft.values.frequency !== "Each Day of the Week"} />;
     }
-    if (field === "day1" || field === "day2" || field === "day3") {
+    if (field === "day1" || field === "day2" || field === "day3" || field === "day4") {
       return (
         <select value={value} onChange={(e) => set(e.target.value)} aria-label="Deadline day" className={`${className} cursor-pointer`}>
           <option value="">Select day</option>
@@ -272,7 +274,26 @@ export function ComplianceBulkUpload({
         </select>
       );
     }
-    const placeholder = field === "compliance" ? "What must be done?" : field === "section" ? "e.g. Reporting" : field === "mins" ? "e.g. 15" : field === "target" ? "e.g. 25" : "e.g. emails";
+    if (field === "section") {
+      return (
+        <>
+          <input
+            value={value}
+            onChange={(e) => set(e.target.value)}
+            placeholder="Select or type a subject"
+            list="cc-bulk-subjects"
+            aria-label="Subject"
+            className={className}
+          />
+          <datalist id="cc-bulk-subjects">
+            {subjects.map((subject) => (
+              <option key={subject} value={subject} />
+            ))}
+          </datalist>
+        </>
+      );
+    }
+    const placeholder = field === "compliance" ? "What must be done?" : field === "mins" ? "e.g. 15" : field === "target" ? "e.g. 25" : "e.g. emails";
     return (
       <input
         value={value}
@@ -426,7 +447,7 @@ export function ComplianceBulkUpload({
                     <p className="max-w-[620px] text-[13.5px] font-medium text-ink-muted">
                       Upload a CSV or Excel file — each row becomes one {KIND} compliance. Employee names or email addresses are matched to the people you can manage.
                     </p>
-                    <a href={`/dcc/${kind}/template.xlsx`} download className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[12.5px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red">
+                    <a href={`/employees/cc/template.xlsx?kind=${kind}`} download className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[12.5px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red">
                       <Download size={15} /> Download Template
                     </a>
                   </div>
@@ -501,7 +522,7 @@ export function ComplianceBulkUpload({
                     <li>Dropdowns, a hint on every cell, red for what a row still needs — and an Examples sheet.</li>
                   </ul>
                   <a
-                    href={`/dcc/${kind}/template.xlsx`}
+                    href={`/employees/cc/template.xlsx?kind=${kind}`}
                     download
                     className="mt-3 inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-soft hover:bg-surface-soft"
                   >

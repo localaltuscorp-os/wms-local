@@ -130,7 +130,7 @@ describe("only capabilities whose guards can wait for a read are stored as data"
       codeOf("lib/hr/letters/issue-access.ts"),
       codeOf("lib/permissions/resolve.ts"),
       codeOf("lib/dcc/access.ts"),
-      codeOf("app/master-admin/layout.tsx"),
+      codeOf("app/(app)/control-panel/permissions/page.tsx"),
       codeOf("app/(app)/hr/letters/[key]/page.tsx"),
     ].join("\n");
 
@@ -199,7 +199,7 @@ describe("the code bootstrap cannot differ between local and os.altuscorp.com", 
 });
 
 describe("no bypass by URL or API", () => {
-  const layout = codeOf("app/master-admin/layout.tsx");
+  const layout = codeOf("app/(app)/control-panel/permissions/page.tsx");
   const actions = codeOf("app/master-admin/actions.ts");
 
   it("the route layout refuses on the server", () => {

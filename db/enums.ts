@@ -153,7 +153,6 @@ export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
  * spelled "Archived" there. Nothing user-facing should offer these two.
  */
 export const DEPRECATED_APPROVAL_STATUSES = [
-  "cancelled",
   "transferred",
 ] as const satisfies readonly ApprovalStatus[];
 

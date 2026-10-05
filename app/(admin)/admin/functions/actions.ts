@@ -10,10 +10,11 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, functions, settingsEvents } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
+import { canDeleteDropdownMasters } from "@/lib/auth/attendance-permissions";
 import {
   CreateDepartmentSchema,
   UpdateDepartmentSchema,
@@ -182,4 +183,19 @@ export async function updateDepartment(
   revalidatePath("/admin/departments");
   revalidatePath("/admin/employees");
   return { ok: true };
+}
+
+export async function deleteDepartments(ids: string[]): Promise<ActionResult<{ deleted: number }>> {
+  const me = await requireAdmin();
+  if (!canDeleteDropdownMasters(me.email)) return { ok: false, error: "You cannot delete Dropdown master records." };
+  const validIds = [...new Set(ids)].filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (!validIds.length) return { ok: false, error: "Select at least one Function." };
+  try {
+    await db.delete(functions).where(inArray(functions.id, validIds));
+  } catch (err: unknown) {
+    return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  revalidatePath("/admin/functions");
+  revalidatePath("/admin/employees");
+  return { ok: true, deleted: validIds.length };
 }

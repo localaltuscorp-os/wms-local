@@ -5,6 +5,8 @@
 
 export interface SalaryInput {
   annualCtc: number;        // rupees/year
+  /** Resolved from the employee attendance schedule; never salary-only input. */
+  workingHoursPerDay?: number;
   payableDays: number;      // Σ day-values for the month (PL=1, A/LWP=0, HP=2, H-H/D=1.5, H/D=0.5…)
   daysInMonth: number;      // calendar days in the month (28–31)
   ptExempt: boolean;        // professional tax exemption
@@ -44,6 +46,8 @@ export interface SalaryBreakdown {
 // Part-time hourly input. Pay = min(rate × actual hours, monthlyPayAtTarget),
 // where rate = monthlyPayAtTarget / (weeklyTargetHours × daysInMonth/7).
 export interface HourlySalaryInput {
+  /** Resolved from the employee attendance schedule. */
+  workingHoursPerDay?: number;
   monthlyPayAtTarget: number; // ₹ at full target (e.g. 3500)
   weeklyTargetHours: number;  // e.g. 27
   daysInMonth: number;        // 28–31
@@ -91,6 +95,41 @@ export interface FixedFeeSalaryInput {
 const PT_AMOUNT = 200;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
+/** Single salary-rate root for all current payroll paths. */
+export interface SalaryRateInput {
+  monthlySalary: number;
+  daysInMonth: number;
+  workingHoursPerDay: number;
+}
+
+export interface SalaryRate {
+  monthlySalary: number;
+  daysInMonth: number;
+  workingHoursPerDay: number;
+  perDayExact: number;
+  perHourExact: number;
+  perDay: number;
+  perHour: number;
+}
+
+/** Monthly salary / actual calendar days / configured daily schedule hours. */
+export function deriveSalaryRate(input: SalaryRateInput): SalaryRate {
+  const monthlySalary = Math.max(0, input.monthlySalary);
+  const daysInMonth = Math.max(0, input.daysInMonth);
+  const workingHoursPerDay = Math.max(0, input.workingHoursPerDay);
+  const perDayExact = daysInMonth > 0 ? monthlySalary / daysInMonth : 0;
+  const perHourExact = workingHoursPerDay > 0 ? perDayExact / workingHoursPerDay : 0;
+  return {
+    monthlySalary: round2(monthlySalary),
+    daysInMonth,
+    workingHoursPerDay,
+    perDayExact,
+    perHourExact,
+    perDay: round2(perDayExact),
+    perHour: round2(perHourExact),
+  };
+}
+
 /**
  * THE canonical hourly rate for an hourly-paid (shift) worker — the ONE place
  * this division lives (spec §10). Anchored to the FULL calendar realisation of
@@ -104,25 +143,28 @@ const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 1
  * dialog's preview — must call this, never re-derive it.
  */
 export function calendarHourlyRate(
-  monthlyAnchor: number,
-  weeklyTargetHours: number,
+  monthlySalary: number,
   daysInMonth: number,
+  workingHoursPerDay: number,
 ): number {
-  const targetHours = weeklyTargetHours * (daysInMonth / 7);
-  return targetHours > 0 ? monthlyAnchor / targetHours : 0;
+  return deriveSalaryRate({ monthlySalary, daysInMonth, workingHoursPerDay }).perHourExact;
 }
 
 export function computeSalary(input: SalaryInput): SalaryBreakdown {
   const monthlyCtc = round2(input.annualCtc / 12);
-  const perDay = input.daysInMonth > 0 ? monthlyCtc / input.daysInMonth : 0;
+  const rate = deriveSalaryRate({
+    monthlySalary: monthlyCtc,
+    daysInMonth: input.daysInMonth,
+    workingHoursPerDay: input.workingHoursPerDay ?? 0,
+  });
   const lateDeductionDays = Math.floor(input.lateMarksInMonth / 3) * 0.5;
   const effectiveDays = input.payableDays - lateDeductionDays;
-  const gross = round2(perDay * effectiveDays);
+  const gross = round2(rate.perDayExact * effectiveDays);
   const pt = input.ptExempt ? 0 : PT_AMOUNT;
   const net = round2(gross - pt - input.tdsMonthly - input.advances + input.pendingBalanceIn);
   return {
     monthlyCtc,
-    perDay: round2(perDay),
+    perDay: rate.perDay,
     payableDays: input.payableDays,
     lateDeductionDays,
     effectiveDays,
@@ -133,6 +175,7 @@ export function computeSalary(input: SalaryInput): SalaryBreakdown {
     pendingBalanceIn: input.pendingBalanceIn,
     net,
     basis: "monthly_ctc",
+    hourlyRate: rate.perHour,
   };
 }
 
@@ -159,7 +202,16 @@ export function computeHourlySalary(i: HourlySalaryInput): SalaryBreakdown {
       ? i.eligibleTargetHours
       : null;
   const rateTargetHours = eligible ?? calendarTarget;
-  const hourlyRate = rateTargetHours > 0 ? i.monthlyPayAtTarget / rateTargetHours : 0;
+  const salaryRate = deriveSalaryRate({
+    monthlySalary: i.monthlyPayAtTarget,
+    daysInMonth: i.daysInMonth,
+    workingHoursPerDay: i.workingHoursPerDay ?? 0,
+  });
+  // Frozen legacy callers omit schedule hours. Current payroll always supplies
+  // them through `computeForRow`; only those paths use the canonical root.
+  const hourlyRate = salaryRate.perHourExact > 0
+    ? salaryRate.perHourExact
+    : (rateTargetHours > 0 ? i.monthlyPayAtTarget / rateTargetHours : 0);
   // PAY FOR WHOLE HOURS ONLY (spec §18) — the same floor the full-time engine
   // applies: 53.8h and 53.9h both pay 53h. The precise figure is still reported.
   const workedHours = Math.floor(i.workedMinutes / 60);
@@ -186,7 +238,7 @@ export function computeHourlySalary(i: HourlySalaryInput): SalaryBreakdown {
   const pt = i.ptExempt ? 0 : PT_AMOUNT;
   const net = round2(gross - pt - i.tdsMonthly - i.advances + i.pendingBalanceIn);
   return {
-    monthlyCtc: 0, perDay: 0, payableDays: 0, lateDeductionDays: 0, effectiveDays: 0,
+    monthlyCtc: salaryRate.monthlySalary, perDay: salaryRate.perDay, payableDays: 0, lateDeductionDays: 0, effectiveDays: 0,
     gross, pt, tds: i.tdsMonthly, advances: i.advances, pendingBalanceIn: i.pendingBalanceIn, net,
     // targetHours is the EXPECTED hours (what "Required Hours" shows) so the My
     // Salary card reconciles worked − required = overtime, same as Attendance.
@@ -250,6 +302,8 @@ export function computeFixedFeeSalary(i: FixedFeeSalaryInput): SalaryBreakdown {
    ──────────────────────────────────────────────────────────────────────────── */
 
 export interface DailySalaryInput {
+  /** Resolved from the employee attendance schedule. */
+  workingHoursPerDay?: number;
   /** Monthly salary at full attendance — CTC/12 for a full-timer. */
   monthlySalary: number;
   /** CALENDAR days in this month: 28 | 29 | 30 | 31. Never assumed. */
@@ -273,18 +327,19 @@ export interface DailySalaryInput {
 }
 
 export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
-  const monthlyCtc = round2(i.monthlySalary);
-  // THE DIVISOR IS THE MONTH'S OWN LENGTH. Guarded only against a nonsense 0,
-  // which would otherwise make every day worth Infinity.
-  const perDayExact = i.daysInMonth > 0 ? i.monthlySalary / i.daysInMonth : 0;
+  const rate = deriveSalaryRate({
+    monthlySalary: i.monthlySalary,
+    daysInMonth: i.daysInMonth,
+    workingHoursPerDay: i.workingHoursPerDay ?? 0,
+  });
   const payableDays = Math.max(0, i.payableDayValue);
-  const gross = round2(perDayExact * payableDays);
+  const gross = round2(rate.perDayExact * payableDays);
   const pt = i.ptExempt ? 0 : PT_AMOUNT;
   const net = round2(gross - pt - i.tdsMonthly - i.advances + i.pendingBalanceIn);
 
   return {
-    monthlyCtc,
-    perDay: round2(perDayExact),
+    monthlyCtc: rate.monthlySalary,
+    perDay: rate.perDay,
     payableDays,
     // Late marks no longer cut pay (the day code already reflects a short day),
     // so there is no late deduction to report and `effectiveDays` is simply the
@@ -300,6 +355,7 @@ export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
     basis: "monthly_ctc",
     workedHours: i.workedHours,
     targetHours: i.targetHours,
+    hourlyRate: rate.perHour,
     // Structurally zero for this basis — see the note above.
     overtimeHours: 0,
     overtimeAmount: 0,

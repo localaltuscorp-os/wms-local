@@ -8,7 +8,7 @@ import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-b
 import { listBillingEntities } from "@/lib/billing/entities";
 import { CONTRACT_PAYMENT_TYPE_LABELS, CONTRACT_STATUS_LABELS, type ContractStatus } from "@/db/enums";
 import { listContracts } from "@/lib/queries/billing-contracts";
-import { BILLING_PURPLE, BILLING_PURPLE_DEEP, CARD_STYLE, rupees } from "@/lib/billing/ui";
+import { BILLING_PURPLE, BILLING_PURPLE_DEEP, rupees } from "@/lib/billing/ui";
 import { BillsGrid } from "@/components/billing/contract-bills-grid";
 import { ContractsTable } from "@/components/billing/contracts-table";
 
@@ -29,8 +29,9 @@ const STATUS_STYLE: Record<ContractStatus, CSSProperties> = {
   cancelled: { background: "rgba(100,116,139,0.14)", color: "#475569" },
 };
 
-export default async function ContractsPage() {
+export default async function ContractsPage({ searchParams }: { searchParams: Promise<{ metric?: string }> }) {
   await requireWorkspace("billing");
+  const { metric } = await searchParams;
   const { rows, totals } = await listContracts();
   const entityName = new Map<string, string>(
     (await listBillingEntities()).map((e) => [e.id, e.displayName]),
@@ -38,22 +39,18 @@ export default async function ContractsPage() {
 
   return (
     <PageShell width="wide">
-      <header
-        className="wg-rise relative mb-5 overflow-hidden rounded-[26px] px-7 py-6 max-md:px-4 max-md:py-5"
-        style={{
-          background: [
-            `radial-gradient(120% 190% at 100% 0%, color-mix(in srgb, ${BILLING_PURPLE} 9%, transparent), transparent 55%)`,
-            "rgba(255, 255, 255, 0.72)",
-          ].join(", "),
-          backdropFilter: "blur(14px) saturate(140%)",
-          boxShadow:
-            "inset 0 0 0 1px var(--color-hairline), inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 44px -28px rgba(15,23,42,0.22)",
-        }}
-      >
+      <header className="mb-5">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="min-w-0">
             <h1
-              style={PAGE_COMMAND_BAR_TITLE_STYLE}
+              className="text-ink-strong"
+              style={{
+                fontFamily: "var(--font-display), system-ui, sans-serif",
+                fontWeight: 900,
+                fontSize: "clamp(28px,3.4vw,42px)",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.02,
+              }}
             >
               All Contracts View
             </h1>
@@ -68,16 +65,16 @@ export default async function ContractsPage() {
         </div>
       </header>
 
-      <BillsGrid totals={totals} />
+      <BillsGrid totals={totals} rows={rows} />
 
-      <section className="rounded-[22px] p-5 max-md:p-4" style={CARD_STYLE}>
+      <section>
         {rows.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-[14px] font-bold text-ink-strong">No contracts yet</p>
             <p className="mt-1 text-[13px] text-ink-muted">Create one to start billing against a contract value.</p>
           </div>
         ) : (
-          <ContractsTable rows={rows} entityNames={Object.fromEntries(entityName)} />
+          <ContractsTable rows={rows} entityNames={Object.fromEntries(entityName)} initialMetric={metric} />
         )}
       </section>
     </PageShell>

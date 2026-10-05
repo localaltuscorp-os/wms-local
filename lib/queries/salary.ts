@@ -11,7 +11,9 @@ import {
   salaryRuns,
 } from "@/db/schema";
 import { type WorkerType, asWorkerType } from "@/lib/attendance/worker-type";
+import { resolveEffectiveConfig } from "@/lib/attendance/effective-config";
 import { withRetry } from "@/lib/db/with-timeout";
+import { defaultProbationEnd } from "@/lib/employees/probation";
 
 /** Same budgets the breakup readers use — one pooler, one class of stall. */
 const RETRY = { attempts: 3, timeoutMs: [6000, 10000, 14000] as number[] };
@@ -48,6 +50,8 @@ export interface SalaryProfileRow {
   monthlyPayAtTargetRaw: number | null;
   weeklyTargetHours: number;    // hourly: default 30 (5h × 6 days)
   monthlyFee: number;           // fixed_fee retainer
+  /** Daily target from Employee Master schedule, not salary-profile fields. */
+  workingHoursPerDay: number;
 }
 
 /**
@@ -74,8 +78,11 @@ export async function listSalaryProfiles(): Promise<SalaryProfileRow[]> {
       annualCtc: salaryProfiles.annualCtc,
       tdsMonthly: salaryProfiles.tdsMonthly,
       ptExempt: salaryProfiles.ptExempt,
+      joinedAt: employees.joinedAt,
       probationEnd: employees.probationEnd,
       workerType: employees.workerType,
+      attFullDayMinutes: employees.attFullDayMinutes,
+      weeklyTargetMinutes: employees.weeklyTargetMinutes,
       monthlyPayAtTarget: salaryProfiles.monthlyPayAtTarget,
       weeklyTargetHours: salaryProfiles.weeklyTargetHours,
       monthlyFee: salaryProfiles.monthlyFee,
@@ -87,7 +94,13 @@ export async function listSalaryProfiles(): Promise<SalaryProfileRow[]> {
     .where(eq(employees.isActive, true))
     .orderBy(asc(employees.name));
 
-  return rows.map((r) => ({
+  return rows.map((r) => {
+    const schedule = resolveEffectiveConfig({
+      workerType: r.workerType,
+      attFullDayMinutes: r.attFullDayMinutes,
+      weeklyTargetMinutes: r.weeklyTargetMinutes,
+    });
+    return {
     employeeId: r.employeeId,
     name: r.name,
     email: r.email,
@@ -100,13 +113,15 @@ export async function listSalaryProfiles(): Promise<SalaryProfileRow[]> {
     annualCtc: r.annualCtc == null ? 0 : Number(r.annualCtc),
     tdsMonthly: r.tdsMonthly == null ? 0 : Number(r.tdsMonthly),
     ptExempt: r.ptExempt ?? false,
-    probationEnd: toISODate(r.probationEnd),
+    probationEnd: defaultProbationEnd(r.joinedAt, r.probationEnd),
     workerType: asWorkerType(r.workerType),
     monthlyPayAtTarget: r.monthlyPayAtTarget == null ? 3500 : Number(r.monthlyPayAtTarget),
     monthlyPayAtTargetRaw: r.monthlyPayAtTarget == null ? null : Number(r.monthlyPayAtTarget),
     weeklyTargetHours: r.weeklyTargetHours == null ? 30 : Number(r.weeklyTargetHours),
     monthlyFee: r.monthlyFee == null ? 0 : Number(r.monthlyFee),
-  }));
+    workingHoursPerDay: schedule.dailyTargetMinutes / 60,
+  };
+  });
 }
 
 export interface AttendancePayableRow {
@@ -205,7 +220,11 @@ export interface SalaryRunRow {
   fy: string;
   month: string;
   annualCtc: number;
+  /** Frozen rate root when run was generated; null for historical rows. */
+  monthlySalary: number | null;
   daysInMonth: number;
+  perDaySalary: number | null;
+  workingHoursPerDay: number | null;
   payableDays: number;
   lateMarks: number;
   lateDeductionDays: number;
@@ -240,7 +259,10 @@ function mapRun(r: {
   fy: string;
   month: string;
   annualCtc: string;
+  monthlySalary?: string | null;
   daysInMonth: number;
+  perDaySalary?: string | null;
+  workingHoursPerDay?: string | null;
   payableDays: string;
   lateMarks: number;
   lateDeductionDays: string;
@@ -270,7 +292,10 @@ function mapRun(r: {
     fy: r.fy,
     month: r.month,
     annualCtc: Number(r.annualCtc),
+    monthlySalary: r.monthlySalary == null ? null : Number(r.monthlySalary),
     daysInMonth: r.daysInMonth,
+    perDaySalary: r.perDaySalary == null ? null : Number(r.perDaySalary),
+    workingHoursPerDay: r.workingHoursPerDay == null ? null : Number(r.workingHoursPerDay),
     payableDays: Number(r.payableDays),
     lateMarks: r.lateMarks,
     lateDeductionDays: Number(r.lateDeductionDays),
@@ -302,7 +327,10 @@ const RUN_SELECT = {
   fy: salaryRuns.fy,
   month: salaryRuns.month,
   annualCtc: salaryRuns.annualCtc,
+  monthlySalary: salaryRuns.monthlySalary,
   daysInMonth: salaryRuns.daysInMonth,
+  perDaySalary: salaryRuns.perDaySalary,
+  workingHoursPerDay: salaryRuns.workingHoursPerDay,
   payableDays: salaryRuns.payableDays,
   lateMarks: salaryRuns.lateMarks,
   lateDeductionDays: salaryRuns.lateDeductionDays,

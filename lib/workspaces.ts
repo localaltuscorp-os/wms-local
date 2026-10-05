@@ -131,10 +131,16 @@ export const WORKSPACE_DEPARTMENT: Partial<Record<WorkspaceId, string>> = {
  * the legacy free-text field), so a multi-department person gets in via any one
  * of their memberships.
  */
-export function matchesDepartment(departments: string[], required: string): boolean {
+export function matchesDepartment(
+  departments: string[],
+  required: string,
+): boolean {
   const req = required.toLowerCase();
   return departments.some((d) =>
-    (d ?? "").toLowerCase().split(/[^a-z]+/).includes(req),
+    (d ?? "")
+      .toLowerCase()
+      .split(/[^a-z]+/)
+      .includes(req),
   );
 }
 
@@ -182,7 +188,10 @@ export function canAccessWorkspace(
 
   // Super-admins see every other room.
   if (user.isSuperAdmin) return true;
-  const isAccountsRole = matchesDepartment(user.departments, ACCOUNTS_DEPARTMENT);
+  const isAccountsRole = matchesDepartment(
+    user.departments,
+    ACCOUNTS_DEPARTMENT,
+  );
   // The Admin card opens the Accounts module (/accounts). Admins OR the Accounts
   // department may enter it. (The /admin control-room is a separate route group
   // with its own isAdmin-only guard, so this does not expose it.)
@@ -235,7 +244,8 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // keeps the Goals rail instead of falling back to the `aw` cookie. Matched
   // FIRST and segment-exactly: `/archived` is the older, unrelated WMS page
   // (admin archived tasks) and a `startsWith("/archive")` would swallow it.
-  if (p === "/archive" || p.startsWith("/archive/")) return archiveWorkspaceForPath(p);
+  if (p === "/archive" || p.startsWith("/archive/"))
+    return archiveWorkspaceForPath(p);
 
   // THE CONTROL PANEL — its own room (2026-09-24), lifted out of the Admin
   // Panel, where it was a group of five pages under `/admin/control-panel`.
@@ -245,7 +255,8 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // `workspaceForPath` returns, so `/control-panel/anything` — typed,
   // bookmarked or linked — is refused for a person the matrix does not let in,
   // without depending on a catalogue entry existing for that exact path.
-  if (p === "/control-panel" || p.startsWith("/control-panel/")) return "control-panel";
+  if (p === "/control-panel" || p.startsWith("/control-panel/"))
+    return "control-panel";
 
   // Goals — the Y→Q→M→W cascade + commit/approve/plan/review surfaces, plus the
   // Weekly Goals + Daily Checklist modules (re-parented here from WMS).
@@ -270,7 +281,8 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // the Employees room the "Configure" button came from.
   // Must sit ABOVE the Employees block below, which used to own `/appraisal`.
   if (p.startsWith("/appraisal")) return "productivity";
-  if (p.startsWith("/weekly-goals") || p.startsWith("/daily-checklist")) return "goals";
+  if (p.startsWith("/weekly-goals") || p.startsWith("/daily-checklist"))
+    return "goals";
 
   // INCENTIVE — its own room (2026-09-16), lifted out of Employees.
   //
@@ -295,6 +307,7 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
   // only a redirect stub pointing here.
   // `/review` is the same arrangement for Review & Scores (`/goals/review`).
   if (
+    p === "/wms" ||
     p.startsWith("/dashboard") ||
     p.startsWith("/my-day") ||
     p.startsWith("/review") ||
@@ -323,7 +336,8 @@ export function workspaceForPath(pathname: string): WorkspaceId | null {
        is true — left to fall through, an employee's payslips would have landed
        in the finance room's rail. */
     p.startsWith("/salary-slip") ||
-    p.startsWith("/dcc") ||
+    p.startsWith("/employees/dashboard") ||
+    p.startsWith("/employees/cc") ||
     // `/incentive` is NOT here any more — Incentive became its own room and is
     // claimed by the rule above.
     p.startsWith("/reimbursements") ||

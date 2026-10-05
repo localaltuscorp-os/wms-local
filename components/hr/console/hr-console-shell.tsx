@@ -160,14 +160,15 @@ export function HrConsoleShell({
           // Matching the global rail's width fixes the logo and makes the two
           // rails the same object, which is the point of this whole file.
           //
-          // 256px, not the original 236px: the longest label ("Enterprise
+          // 228px, matching the standard WMS rail: the longest label ("Enterprise
           // Communications") renders ~161px, and the row's fixed chrome — nav
           // padding 16 + button padding 20 + icon 16 + two 10px gaps + the
           // 12px external-link arrow — eats 84px. So the row needs ~245px;
           // 236px truncated it to "Enterprise Communicati…". This leaves ~11px
           // of slack — enough to absorb font-rendering variance without
-          // stranding visibly empty rail beside the longest row.
-          railCollapsed ? "w-[74px]" : "w-[256px]",
+          // stranding visibly empty rail beside the longest row. The Directory
+          // contact table keeps its own horizontal scroll for its many columns.
+          railCollapsed ? "w-[74px]" : "w-[228px]",
         )}
       >
         <HrModuleRail

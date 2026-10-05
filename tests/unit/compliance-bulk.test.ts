@@ -22,8 +22,8 @@ const people: BulkPerson[] = [
   { id: "p-rahul2", name: "Rahul Mehta", email: "rahul.mehta2@altus.in" },
 ];
 
-const MCC_HEAD = ["Employee *", "Section", "Compliance *", "Frequency *", "Deadline Day *", "2nd Deadline Day", "3rd Deadline Day", "Due Month", "Target", "Unit"];
-const WCC_HEAD = ["Employee *", "Section", "Compliance *", "Frequency *", "Days", "Target", "Unit"];
+const MCC_HEAD = ["Employee *", "Subject", "Compliance *", "Frequency *", "Deadline Day *", "2nd Deadline Day", "3rd Deadline Day", "Due Month", "Target", "Unit"];
+const WCC_HEAD = ["Employee *", "Subject", "Compliance *", "Frequency *", "Days", "Target", "Unit"];
 /** The template's first two rows — a title and a brief — above the header. */
 const TITLE_ROWS = [["ALTUS Corp · MCC — Monthly Compliance Checklist · Bulk Upload"], ["One compliance per row"]];
 
@@ -32,9 +32,9 @@ const wcc = (...rows: unknown[][]) => readComplianceMatrix([...TITLE_ROWS, WCC_H
 
 describe("the template's columns", () => {
   it("are the checklist's own, in order", () => {
-    expect(bulkColumns("wcc").map((c) => c.header)).toEqual(["Employee", "Section", "Compliance", "Frequency", "Days", "Mins", "Target", "Unit"]);
+    expect(bulkColumns("wcc").map((c) => c.header)).toEqual(["Employee", "Subject", "Compliance", "Frequency", "Days", "Mins", "Target", "Unit"]);
     expect(bulkColumns("mcc").map((c) => c.header)).toEqual([
-      "Employee", "Section", "Compliance", "Frequency", "Deadline Day", "2nd Deadline Day", "3rd Deadline Day", "Due Month", "Target", "Unit",
+      "Employee", "Subject", "Compliance", "Frequency", "Deadline Day", "2nd Deadline Day", "3rd Deadline Day", "4th Deadline Day", "Due Month", "Target", "Unit",
     ]);
   });
 
@@ -145,7 +145,7 @@ describe("reading an MCC sheet", () => {
       "Pick the Employee.",
       "Write the Compliance.",
       "Pick the Frequency.",
-      '"Fortnightly" is not an MCC frequency — use Monthly, 2 times/month, 3 times/month, Alternate Month, Quarterly, Half Yearly, Annually.',
+      '"Fortnightly" is not an MCC frequency — use Monthly, 2 times/month, 3 times/month, 4 times/month, Alternate Month, Quarterly, Quarterly — multiple due dates, Half Yearly, Half Yearly — multiple due dates, Annually.',
       "Pick the Deadline Day.",
       "2 times/month needs its 2nd Deadline Day.",
       "The deadline days must be different and in order — e.g. the 15th, then month-end.",

@@ -32,6 +32,10 @@ export interface ContactRow {
   alternateNo: string | null;
   email: string | null;
   service: string;
+  directoryType: "vendor" | "hr_consultant";
+  contact2Name: string | null;
+  contact2CellNo: string | null;
+  contact2Email: string | null;
   notes: string | null;
   isActive: boolean;
 }
@@ -48,20 +52,56 @@ export interface EmployeeContactRow {
 }
 
 export async function listContacts(): Promise<ContactRow[]> {
-  return db
-    .select({
-      id: hrContacts.id,
-      companyName: hrContacts.companyName,
-      personName: hrContacts.personName,
-      cellNo: hrContacts.cellNo,
-      alternateNo: hrContacts.alternateNo,
-      email: hrContacts.email,
-      service: hrContacts.service,
-      notes: hrContacts.notes,
-      isActive: hrContacts.isActive,
-    })
-    .from(hrContacts)
-    .orderBy(asc(hrContacts.service), asc(hrContacts.personName));
+  const legacyColumns = {
+    id: hrContacts.id,
+    companyName: hrContacts.companyName,
+    personName: hrContacts.personName,
+    cellNo: hrContacts.cellNo,
+    alternateNo: hrContacts.alternateNo,
+    email: hrContacts.email,
+    service: hrContacts.service,
+    notes: hrContacts.notes,
+    isActive: hrContacts.isActive,
+  };
+  type ExtendedContact = Omit<ContactRow, "directoryType"> & { directoryType: string };
+  let rows: ExtendedContact[] = [];
+  try {
+    rows = await db
+      .select({
+        ...legacyColumns,
+        directoryType: hrContacts.directoryType,
+        contact2Name: hrContacts.contact2Name,
+        contact2CellNo: hrContacts.contact2CellNo,
+        contact2Email: hrContacts.contact2Email,
+      })
+      .from(hrContacts)
+      .orderBy(asc(hrContacts.service), asc(hrContacts.personName)) as ExtendedContact[];
+  } catch (error) {
+    // A deployed database can have the original Address Book table before
+    // migration 0264. Keep the directory readable rather than rendering an
+    // error boundary; those existing contacts are vendors by definition.
+    if (!isMissingRegisterTable(error)) throw error;
+    const legacyRows = await db
+      .select(legacyColumns)
+      .from(hrContacts)
+      .orderBy(asc(hrContacts.service), asc(hrContacts.personName));
+    return legacyRows.map((row) => ({
+      ...row,
+      directoryType: "vendor" as const,
+      contact2Name: null,
+      contact2CellNo: null,
+      contact2Email: null,
+    }));
+  }
+  return rows.map((row) => ({
+    ...row,
+    directoryType: row.directoryType === "hr_consultant" ? "hr_consultant" as const : "vendor" as const,
+  }));
+}
+
+/** HR Directory rows. Legacy Address Book entries safely default to Vendors. */
+export async function listDirectoryContacts(): Promise<ContactRow[]> {
+  return listContacts();
 }
 
 /**

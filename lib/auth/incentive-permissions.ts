@@ -1,5 +1,3 @@
-import { isSuperAdmin } from "@/lib/auth/super-admin";
-
 /**
  * WHO MAY DECIDE AN INCENTIVE REQUEST — Manan Vasa, and nobody else.
  *
@@ -12,12 +10,12 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
  * boundary is the server: every decision action calls this again for itself.
  * A hidden button is presentation.
  */
-export function canReviewIncentives(email: string | null | undefined): boolean {
-  return isSuperAdmin(email);
+export function canReviewIncentives(isFounder: boolean): boolean {
+  return isFounder;
 }
 
 /** How the reviewer is named on screens and in messages. */
-export const INCENTIVE_REVIEWER_NAME = "a super-admin";
+export const INCENTIVE_REVIEWER_NAME = "the Founder";
 
 /**
  * WHO MAY ADD, EDIT OR DELETE AN INCENTIVE TABLE RECORD.
@@ -34,6 +32,6 @@ export const INCENTIVE_REVIEWER_NAME = "a super-admin";
  * the boundary is the server: `catalog-actions.ts` re-checks it on every write,
  * so hiding the buttons is presentation, not the lock.
  */
-export function canEditIncentiveTable(email: string | null | undefined): boolean {
-  return isSuperAdmin(email);
+export function canEditIncentiveTable(isFounder: boolean): boolean {
+  return isFounder;
 }

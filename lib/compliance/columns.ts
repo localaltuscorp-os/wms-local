@@ -96,7 +96,6 @@ export const COLUMNS: Record<ColKey, ColumnDef> = {
     width: 120,
     sortable: true,
     movable: true,
-    only: "wcc",
     align: "right",
     sortKind: "number",
     hint: "How many minutes it takes, each time it is due — added up for each group.",
@@ -162,7 +161,7 @@ export function columnLabel(key: ColKey, kind: ComplianceKind): string {
     case "compliance":
       return kind === "wcc" ? "Weekly Compliance" : "Monthly Compliance";
     case "section":
-      return "Section";
+      return "Subject";
     case "frequency":
       return "Frequency";
     case "deadline":
