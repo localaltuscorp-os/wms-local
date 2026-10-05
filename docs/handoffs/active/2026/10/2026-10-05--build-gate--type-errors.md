@@ -2,7 +2,7 @@
 
 Date: 2026-10-05
 Work item: build-gate
-Branch: main
+Branch: Om
 
 ## Objective
 
@@ -19,6 +19,7 @@ Typecheck passes. Focused template and salary-slip tests pass. Full unit suite s
 - Guarded optional template variants in template configuration and resolution.
 - Updated salary-slip test fixture for required salary-rate fields.
 - Adapted vendor header test callback to its unknown-input helper contract.
+- Restored frozen salary-rate fields on `MySalaryMonth` for payslip data and CI typecheck.
 
 ## Database and migration impact
 
