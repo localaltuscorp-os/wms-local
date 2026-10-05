@@ -10,7 +10,7 @@ Restore TypeScript/build correctness for the reported production build errors.
 
 ## Status
 
-Typecheck passes. Focused template and salary-slip tests pass. Full unit suite still has unrelated behavioral failures. Production build remains too resource-intensive to complete locally.
+Typecheck passed in CI. The first PR test run exposed two catalog/guard consistency failures; both are fixed below. Focused tests pass. Production build remains too resource-intensive to complete locally.
 
 ## Changes
 
@@ -20,6 +20,8 @@ Typecheck passes. Focused template and salary-slip tests pass. Full unit suite s
 - Updated salary-slip test fixture for required salary-rate fields.
 - Adapted vendor header test callback to its unknown-input helper contract.
 - Restored frozen salary-rate fields on `MySalaryMonth` for payslip data and CI typecheck.
+- Restored the approved Dropdown Master routes expected by the current catalog test.
+- Tightened destructive-SQL matching so trigger/privilege mentions of `TRUNCATE` are not treated as destructive statements; kept the reviewed cleanup-migration bound explicit.
 
 ## Database and migration impact
 
@@ -27,6 +29,7 @@ None.
 
 ## Testing
 
+- `node node_modules/vitest/vitest.mjs run tests/unit/drop-down-master.test.ts tests/unit/destructive-sql.test.ts --reporter=dot` — 26/26 pass.
 - `node node_modules/typescript/bin/tsc --noEmit` — pass.
 - `node node_modules/vitest/vitest.mjs run tests/unit/template-registry.test.ts tests/unit/salary-slip-pdf.test.ts --reporter=dot` — 55/55 pass.
 - `node node_modules/vitest/vitest.mjs run tests/integration --no-file-parallelism --reporter=dot` — 33 skipped.
