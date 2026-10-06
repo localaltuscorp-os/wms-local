@@ -4,6 +4,7 @@
 - Branch: `bugfix/forgotten-punchout-absent-altus-os`
 - Objective: Ensure attendance half-days forgiven by monthly grace or the weekly-hours waiver do not appear as salary lost or reduce generated salary.
 - Status: Implemented and locally validated; pending review and production promotion.
+- Implementation commit: `f56530d`
 
 ## Summary
 
@@ -39,6 +40,5 @@ This branch also contains the reviewed forgotten-punch-out correction recorded i
 
 ## Remaining work
 
-- Review the final diff and commit the isolated change.
 - Push the branch and refresh the existing Vercel preview for stakeholder verification.
 - Obtain release approval before merging or promoting to production.
