@@ -9,12 +9,14 @@ import { SalaryBreakupTable, type SalaryRow } from "@/components/salary/salary-b
 import { SalaryPeriodSelect } from "@/components/salary/salary-period-select";
 import { SalaryEntitySelect } from "@/components/salary/salary-entity-select";
 import { SalaryExportButtons } from "@/components/salary/salary-export-buttons";
+import { SalaryAttendanceRefreshButton } from "@/components/salary/salary-attendance-refresh-button";
 import { PageShell } from "@/components/layout/page-shell";
 import {
   StatementDownloads,
   type StatementEmployee,
 } from "@/components/salary/statement-downloads";
 import { fyForMonth } from "@/lib/salary/period";
+import { isHoursPayrollMonth } from "@/lib/attendance/payroll-month";
 
 export const dynamic = "force-dynamic";
 
@@ -195,6 +197,12 @@ export default async function SalaryPage({ searchParams }: PageProps) {
                 cost a line above a table that needs the height. */}
             <div className="flex shrink-0 flex-col items-end gap-2">
               <div className="flex items-center gap-2.5">
+                {canEditPayable && month && isHoursPayrollMonth(month) && (
+                  <SalaryAttendanceRefreshButton
+                    month={month}
+                    monthLabel={monthLabel(month, "short")}
+                  />
+                )}
                 <SalaryExportButtons month={month} />
                 <Link href={"/salary/import" as Route} className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3.5 py-2 text-[13px] font-bold text-ink-soft transition hover:text-ink-strong">
                   <FileSpreadsheet size={15} strokeWidth={2.3} /> Bulk Upload
