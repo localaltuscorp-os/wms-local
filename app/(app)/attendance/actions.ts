@@ -22,6 +22,7 @@ import { getOrgSettings } from "@/lib/queries/org-settings";
 import { withRetry } from "@/lib/db/with-timeout";
 import { insertPunchRow, resolvePunchGeofence } from "@/lib/attendance/record-punch";
 import { evaluateOfficeIp } from "@/lib/attendance/office-ip";
+import { mayPunchAttendanceAnywhere } from "@/lib/auth/security-roles";
 
 import { isManagerWithReports, isMondayIST, managerMondayGoalState } from "@/lib/manager-gates";
 import {
@@ -134,6 +135,7 @@ export async function punchAttendance(input: {
     timeoutMs: [6000, 10000, 14000],
     label: "punch-org-settings",
   });
+  const mayPunchAnywhere = await mayPunchAttendanceAnywhere(me);
 
   // ── DESIGNATED-DEVICE GATE (WEB punch) ───────────────────────────────
   // Now the SAME check the whole WMS runs — `lib/security/device-access.ts` —
@@ -162,7 +164,7 @@ export async function punchAttendance(input: {
   // precise location). When no coordinates are set the punch is accepted from
   // anywhere and location is still recorded. Shared verbatim with the mobile
   // punch via resolvePunchGeofence so the rule never diverges.
-  const geo = resolvePunchGeofence(settings, location);
+  const geo = resolvePunchGeofence(settings, location, mayPunchAnywhere);
   if (!geo.ok) return { ok: false, error: geo.error };
 
   // ── Office-network gate (WEB punch only) — closes the browser bypass ──
@@ -173,7 +175,9 @@ export async function punchAttendance(input: {
   // out). The device-bound mobile app punch is intentionally NOT gated here
   // (staff may be on mobile data at the office; it carries the stronger
   // device + mock + integrity anti-proxy instead).
-  const officeIp = await evaluateOfficeIp(settings.officeIpAllowlist);
+  const officeIp = mayPunchAnywhere
+    ? { configured: false, allowed: true, ip: null }
+    : await evaluateOfficeIp(settings.officeIpAllowlist);
   if (officeIp.configured && !officeIp.allowed) {
     return {
       ok: false,
