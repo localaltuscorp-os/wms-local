@@ -73,7 +73,7 @@ export default async function OperationsDashboardPage() {
         calls: scheduledCalls.length,
         onHold: hhEntries.filter((entry) => entry.onHold).length + ambassadors.filter((ambassador) => ambassador.onHold).length,
         upcomingCalls: scheduledCalls
-          .filter((call) => typeof call.day === "string" && call.day >= today)
+          .filter((call) => typeof call.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(call.day) && call.day >= today)
           .sort((a, b) => a.day.localeCompare(b.day) || a.seq - b.seq)
           .slice(0, 8)
           .map((call) => ({

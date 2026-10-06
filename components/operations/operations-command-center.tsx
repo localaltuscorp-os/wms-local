@@ -156,8 +156,13 @@ function JdStat({ label, value, tone }: { label: string; value: number; tone: st
 function UnavailableJd() { return <div className="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 text-center"><ClipboardList className="size-6 text-slate-400" /><p className="mt-3 text-sm font-bold text-slate-800">Job Description Bank is temporarily unavailable.</p><p className="mt-1 text-xs font-medium text-slate-500">The rest of the Operations dashboard remains available. Refresh to retry this source.</p></div>; }
 function StatusBadge({ status }: { status: Snapshot["checklists"]["recent"][number]["status"] }) { const color = status === "completed" ? "bg-emerald-100 text-emerald-800" : status === "cancelled" ? "bg-slate-100 text-slate-600" : "bg-blue-100 text-blue-800"; return <span className={`inline-flex rounded-pill px-2 py-1 text-[10px] font-bold capitalize ${color}`}>{status}</span>; }
 function summaryReport(title: string, subtitle: string, today: string, rows: [string, number][]): SectionReport { return { title, subtitle, meta: [{ label: "Today", value: formatDay(today) }], columns: [{ label: "Measure" }, { label: "Count", align: "right" }], rows: rows.map(([label, value]) => [label, String(value)]) }; }
-function formatDay(day: string) { return new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${day}T12:00:00`)); }
-function formatShortDay(day: string) { return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${day}T12:00:00`)); }
-function weekday(day: string) { return new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(new Date(`${day}T12:00:00`)); }
-function formatTime(minutes: number | null) { if (minutes == null) return "Time not set"; const hour = Math.floor(minutes / 60); const minute = minutes % 60; return new Date(2000, 0, 1, hour, minute).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); }
-function addDays(day: string, amount: number) { const date = new Date(`${day}T12:00:00`); date.setDate(date.getDate() + amount); return date.toISOString().slice(0, 10); }
+function calendarDate(day: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const date = new Date(`${day}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+function formatDay(day: string) { const date = calendarDate(day); return date ? new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(date) : "Date not set"; }
+function formatShortDay(day: string) { const date = calendarDate(day); return date ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(date) : "Date not set"; }
+function weekday(day: string) { const date = calendarDate(day); return date ? new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(date) : "—"; }
+function formatTime(minutes: number | null) { if (minutes == null || !Number.isFinite(minutes)) return "Time not set"; const hour = Math.floor(minutes / 60); const minute = minutes % 60; return new Date(2000, 0, 1, hour, minute).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); }
+function addDays(day: string, amount: number) { const date = calendarDate(day); if (!date) return day; date.setDate(date.getDate() + amount); return date.toISOString().slice(0, 10); }
