@@ -4,6 +4,9 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DUMMY_MODE, DUMMY_STORAGE_DIR } from "@/lib/db/dummy-dir";
 import { getSupabaseAdmin, storageErrorMessage } from "@/lib/supabase/admin";
+import { dummyObjectUrl } from "./dummy-url";
+
+export { DUMMY_OBJECT_ROUTE } from "./dummy-url";
 
 /**
  * Object storage, with ONE seam for dummy mode.
@@ -29,9 +32,6 @@ import { getSupabaseAdmin, storageErrorMessage } from "@/lib/supabase/admin";
  * the file. It exists so the real screens work offline, not to be a storage
  * service — which is also why it is unreachable outside development.
  */
-
-/** Fixed prefix of the dev-only route that serves dummy objects. */
-export const DUMMY_OBJECT_ROUTE = "/api/dummy-storage";
 
 /**
  * Resolve `<bucket>/<path>` under the dummy root, refusing anything that climbs
@@ -100,8 +100,7 @@ export async function createSignedObjectUrl(
   if (DUMMY_MODE) {
     // Each segment encoded separately — a file named "q&a.pdf" must not have
     // its own name read as a query string, and "/" must stay a separator.
-    const encoded = path.split("/").map(encodeURIComponent).join("/");
-    return `${DUMMY_OBJECT_ROUTE}/${encodeURIComponent(bucket)}/${encoded}`;
+    return dummyObjectUrl(bucket, path);
   }
   const { data } = await getSupabaseAdmin()
     .storage.from(bucket)

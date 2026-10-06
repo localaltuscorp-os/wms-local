@@ -66,8 +66,7 @@ describe("HR lifecycle sections", () => {
     const where = (slug: string) =>
       HR_STAGES.find((s) => s.items.some((i) => i.slug === slug))?.key;
 
-    // The Acceptance Letter is unregistered; the training's outcome (Accept /
-    // Extend / Regret) lives on the After Free Training letter instead.
+    // Unapproved legacy templates are not included in the approved navigation.
     expect(where("acceptance-letter")).toBeUndefined();
     expect(where("free-training")).toBe("post-interview");
     expect(where("candidate-records")).toBe("pre-joining");
@@ -76,18 +75,18 @@ describe("HR lifecycle sections", () => {
     expect(where("employee-of-the-month")).toBe("during");
     expect(where("birthday-wishes")).toBe("during");
     expect(where("resignation-rejection")).toBe("during");
+    expect(where("resignation-acceptance")).toBe("during");
 
     expect(where("appraisal")).toBe("appraisal");
-    expect(where("increment")).toBe("appraisal");
-    expect(where("appraisal-revised-ctc")).toBe("appraisal");
-    expect(where("promotion-revised-ctc")).toBe("appraisal");
-    expect(where("end-of-probation")).toBe("appraisal");
+    expect(where("salary-revision")).toBe("appraisal");
+    expect(where("appraisal-promotion")).toBe("appraisal");
+    expect(where("end-of-probation")).toBe("pre-joining");
     expect(where("promotion")).toBe("appraisal");
 
     expect(where("letter-of-recommendation")).toBe("exit");
     expect(where("experience-letter")).toBe("exit");
     expect(where("relieving-letter")).toBe("exit");
-    expect(where("completion-certificate")).toBe("exit");
+    expect(where("completion-certificate")).toBeUndefined();
   });
 
   it("has no empty section and no duplicated slug", () => {
