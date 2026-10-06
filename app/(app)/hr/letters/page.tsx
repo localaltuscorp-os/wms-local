@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { requireHrStaff } from "@/lib/hr/access";
 import { PageShell } from "@/components/layout/page-shell";
-import { lettersByCategory } from "@/lib/hr/letters/registry";
+import { approvedLetterSections } from "@/lib/hr/letters/registry";
 import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ const RED_DEEP = "#A80400";
  */
 export default async function LettersIndexPage() {
   await requireHrStaff();
-  const groups = lettersByCategory();
+  const groups = approvedLetterSections();
 
   return (
     <div className="min-h-full bg-[#faf9fb]">
@@ -38,7 +38,7 @@ export default async function LettersIndexPage() {
         ) : (
           <div className="flex flex-col gap-10">
             {groups.map((group) => (
-              <section key={group.category}>
+              <section key={group.id}>
                 <h2
                   className="mb-4 flex items-center gap-3 text-ink-strong"
                   style={{
@@ -53,7 +53,7 @@ export default async function LettersIndexPage() {
                     className="inline-block h-6 w-1.5 rounded-full"
                     style={{ background: `linear-gradient(180deg, ${RED}, ${RED_DEEP})` }}
                   />
-                  {group.label}
+                  {group.title}
                 </h2>
                 <div className="ltr-grid" style={{ ["--cols"]: group.letters.length } as CSSProperties}>
                   {group.letters.map((letter, i) => (
@@ -78,7 +78,7 @@ export default async function LettersIndexPage() {
                             letterSpacing: "-0.01em",
                           }}
                         >
-                          {letter.title}
+                          <span className="mr-2 text-altus-red">{letter.code}</span>{letter.title}
                         </h3>
                         <ArrowUpRight
                           size={17}
@@ -86,7 +86,11 @@ export default async function LettersIndexPage() {
                           className="shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                         />
                       </div>
-                      {letter.blurb && (
+                      {letter.availability === "content-pending" ? (
+                        <p className="mt-1.5 text-[13.5px] font-bold leading-relaxed text-altus-red">
+                          Content Pending / Not Provided
+                        </p>
+                      ) : letter.blurb && (
                         <p className="mt-1.5 text-[13.5px] font-medium leading-relaxed text-ink-muted">
                           {letter.blurb}
                         </p>

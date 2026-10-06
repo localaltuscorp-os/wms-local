@@ -231,6 +231,17 @@
   border-radius: 8px;
 }
 
+/* HR owns a 228px navigation rail below the shared full-width bar. Keep the
+   bar intact — global search, actions and account controls stay visible — but
+   align its route heading with the rail's content column. This is intentionally
+   desktop-only: the HR rail itself is hidden below `lg`, so reserving its width
+   there would create the same empty strip the heading is meant to remove. */
+@media (min-width: 1024px) {
+  .aura-topbar-with-console-rail .aura-title-slot {
+    margin-left: var(--hr-console-rail-width, 228px);
+  }
+}
+
 /* ── MODULE TABS ──────────────────────────────────────────────────────────
    WMS, Goals and Project, then "More" for every other room (account holder,
    2026-09-19). On a window too narrow for the three, the last ones move into

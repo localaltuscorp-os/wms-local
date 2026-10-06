@@ -22,6 +22,7 @@ import {
   CATEGORY_LABELS,
   HR_CATEGORIES,
 } from "./types";
+import { APPROVED_LETTER_CATALOGUE, approvedLetterByKey, type ApprovedLetterEntry } from "./catalog";
 
 // Recruitment & Interns
 import selection from "./templates/selection";
@@ -38,6 +39,7 @@ import confirmation from "./templates/confirmation";
 import freeTraining from "./templates/free-training";
 import declaration from "./templates/declaration";
 import afterFreeTraining from "./templates/after-free-training";
+import policyAcknowledgement from "./templates/policy-acknowledgement";
 // Compensation
 import ctcBreakup from "./templates/ctc-breakup";
 import appraisalRevisedCtc from "./templates/appraisal-revised-ctc";
@@ -54,6 +56,7 @@ import relieving from "./templates/relieving";
 import letterOfRecommendation from "./templates/letter-of-recommendation";
 import experienceLetter from "./templates/experience-letter";
 import resignationRejection from "./templates/resignation-rejection";
+import resignationAcceptance from "./templates/resignation-acceptance";
 // Interns
 import minorInternshipUndertaking from "./templates/minor-internship-undertaking";
 import internAppointment from "./templates/intern-appointment";
@@ -83,6 +86,7 @@ export const LETTERS: Record<string, LetterTemplate> = {
   // The joiner's own declaration, and the outcome letter that closes the
   // pre-employment programme. Both live in During Employment in the nav.
   declaration,
+  "policy-acknowledgement": policyAcknowledgement,
   "after-free-training": afterFreeTraining,
   // Compensation — in workflow order, matching the Appraisal stage in
   // lib/hr/lifecycle: promotion → increment → the two revised-CTC letters.
@@ -101,6 +105,7 @@ export const LETTERS: Record<string, LetterTemplate> = {
   "experience-letter": experienceLetter,
   "letter-of-recommendation": letterOfRecommendation,
   "resignation-rejection": resignationRejection,
+  "resignation-acceptance": resignationAcceptance,
 };
 
 /** Ordered list of every authored letter (index / iteration). */
@@ -128,6 +133,26 @@ export function lettersByCategory(): Array<{
     letters: LETTER_LIST.filter((l) => l.category === category),
   })).filter((g) => g.letters.length > 0);
 }
+
+/**
+ * The approved letter library, in the supplied code/name order. Pending entries
+ * deliberately have no template, which prevents editing, PDF export and issue
+ * until approved content is supplied.
+ */
+export function approvedLetterSections(): Array<{
+  id: string;
+  title: string;
+  letters: Array<ApprovedLetterEntry & { template?: LetterTemplate }>;
+}> {
+  return APPROVED_LETTER_CATALOGUE.map((section) => ({
+    id: section.id,
+    title: section.title,
+    letters: section.letters.map((letter) => ({ ...letter, template: getLetter(letter.key) })),
+  }));
+}
+
+/** The approved catalogue entry for a route, including content-pending routes. */
+export { approvedLetterByKey };
 
 /* ------------------------------------------------------------------ */
 /* Compatibility shim for the e-signing module                          */
