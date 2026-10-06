@@ -476,8 +476,9 @@ interface EmpSlice {
  * Grade one employee's month given their already-folded punches. Pure of the
  * DB so the batched dashboard path can reuse it. `refTodayISO` is "today" in
  * the relevant timezone (YYYY-MM-DD); for the current day we pass the live
- * clock as `refNow` so an in-without-out reads "open"; for any past day we use
- * end-of-day ("23:59") so an in-without-out grades as `incomplete`, not open.
+ * clock as `refNow` so an in-without-out reads "open". A past day is explicitly
+ * marked closed so an unmatched check-in grades Absent with zero worked hours,
+ * even if the nightly auto-close job did not write its system out-punch.
  */
 function gradeMonth(
   emp: EmpSlice,
@@ -583,6 +584,7 @@ function gradeMonth(
           leaveHalf,
           compOffRedeemed: isRedeemed,
           autoClosed: folded.autoClosed,
+          dayClosed: ymd < refTodayISO,
         },
         refNow,
       );
