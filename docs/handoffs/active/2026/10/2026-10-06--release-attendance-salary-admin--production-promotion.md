@@ -62,3 +62,17 @@ After promotion:
 
 - Application rollback: redeploy the prior production commit. Do not rewrite Git history.
 - Database rollback is normally unnecessary because the new columns are nullable and unused by the prior application. Dropping them would be destructive and is not part of routine rollback.
+
+## Hourly monthly-target correction
+
+- Follow-up objective: hourly staff must earn their configured monthly anchor when they complete that specific month's eligible target. Example: a monthly anchor of 3,500 and a September target of 115h produces a rate of `3500 / 115`, not `3500 / 30 calendar days / 5 scheduled hours`.
+- Root cause: `computeHourlySalary` correctly selected `eligibleTargetHours`, then replaced that rate whenever `workingHoursPerDay` was present. Production therefore priced the observed September month against 150h instead of 115h.
+- `lib/salary/compute.ts` now always divides by the guarded eligible monthly target. Sparse/invalid target data still falls back to the calendar target.
+- Approved unpaid-leave hours are added back only to the rate denominator so LWP cannot raise the rate and erase its own deduction; company holidays remain excluded and therefore do not reduce the monthly anchor.
+- `lib/salary/generate.ts` passes the already-derived unpaid-leave day count into the hourly calculation.
+- Regression coverage includes the exact 3,500 / 115h September case with a 5h schedule, holiday-adjusted rates, sparse-target fallback, overtime, and unpaid leave.
+- Existing whole-hour payroll policy remains unchanged: precise worked minutes stay visible in attendance, while money uses completed whole hours.
+- Database impact: none. No migration or data update is required; recalculation refreshes stored runs through the existing authorized flow.
+- Security/access impact: none.
+- Validation: focused ESLint passed; full TypeScript check passed; 244 tests across 8 salary/attendance suites passed; `git diff --check` passed; the diff contains no new secrets or hardcoded identities.
+- Deployment plan: fast-forward the focused commit to `origin/main`, deploy Vercel production, confirm Ready, then inspect runtime logs. Existing September rows must be recalculated to persist the new amount across My Salary, Accounts Salary, and Salary Slip.

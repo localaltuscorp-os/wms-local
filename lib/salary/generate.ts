@@ -122,6 +122,7 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
       overtimeEligible: earnsOvertime(r.workerType),
       eligibleTargetHours:
         r.payroll && r.payroll.monthlyTargetHours > 0 ? r.payroll.monthlyTargetHours : null,
+      unpaidLeaveDays: r.payroll?.unpaidLeaveDays ?? 0,
       overtimeThresholdHours: r.overtimeThresholdHours,
       ptExempt: r.input.ptExempt,
       tdsMonthly: r.input.tdsMonthly,

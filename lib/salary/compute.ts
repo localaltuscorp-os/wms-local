@@ -72,6 +72,10 @@ export interface HourlySalaryInput {
    * was less than their salary.
    */
   eligibleTargetHours?: number | null;
+  /** Approved unpaid-leave days removed from the attendance target. They are
+   * added back only for pricing so LWP cannot raise the rate and erase its own
+   * deduction; holidays remain excluded and therefore do raise the rate. */
+  unpaidLeaveDays?: number;
   /**
    * Fallback surplus threshold when `eligibleTargetHours` is absent — the
    * elapsed "required hours" the Attendance page shows. Only the surplus split
@@ -201,17 +205,19 @@ export function computeHourlySalary(i: HourlySalaryInput): SalaryBreakdown {
     i.eligibleTargetHours > 0
       ? i.eligibleTargetHours
       : null;
-  const rateTargetHours = eligible ?? calendarTarget;
+  const unpaidLeaveHours = Math.max(0, i.unpaidLeaveDays ?? 0) * Math.max(0, i.workingHoursPerDay ?? 0);
+  const rateTargetHours = eligible != null ? eligible + unpaidLeaveHours : calendarTarget;
   const salaryRate = deriveSalaryRate({
     monthlySalary: i.monthlyPayAtTarget,
     daysInMonth: i.daysInMonth,
     workingHoursPerDay: i.workingHoursPerDay ?? 0,
   });
-  // Frozen legacy callers omit schedule hours. Current payroll always supplies
-  // them through `computeForRow`; only those paths use the canonical root.
-  const hourlyRate = salaryRate.perHourExact > 0
-    ? salaryRate.perHourExact
-    : (rateTargetHours > 0 ? i.monthlyPayAtTarget / rateTargetHours : 0);
+  // Hourly pay is anchored to THIS month's eligible requirement. Do not use
+  // `monthly salary / calendar days / daily hours` here: that prices a
+  // holiday-shortened 115h month as though 150h were still owed, so completing
+  // every required hour earns less than the agreed monthly amount. The
+  // calendar target above remains the guarded fallback for sparse grading.
+  const hourlyRate = rateTargetHours > 0 ? i.monthlyPayAtTarget / rateTargetHours : 0;
   // PAY FOR WHOLE HOURS ONLY (spec §18) — the same floor the full-time engine
   // applies: 53.8h and 53.9h both pay 53h. The precise figure is still reported.
   const workedHours = Math.floor(i.workedMinutes / 60);
