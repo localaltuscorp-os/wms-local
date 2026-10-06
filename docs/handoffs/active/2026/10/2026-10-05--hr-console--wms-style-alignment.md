@@ -4,6 +4,7 @@
 - Work item: `hr-console`
 - Status: Ready to commit and push on `feature/hr-console-policy-library`; the
   required GitHub `test` check must be monitored on the new PR head.
+- Reviewed UI implementation commit: `5eaa568d783962327bdadf9be24ee800d93f7a6d`
 
 ## Objective
 
