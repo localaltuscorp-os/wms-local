@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { mobileDevices, type Employee, type MobileDevice } from "@/db/schema";
 import type { DeviceKind } from "@/db/enums";
-import { deviceRestrictionRequired } from "@/lib/security/capabilities";
+import { mayBypassDeviceRestriction } from "@/lib/auth/security-roles";
 import { isShareableDeviceId } from "@/lib/security/device-id";
 
 /**
@@ -272,7 +272,7 @@ export async function resolveDeviceContext(
   employee: Employee,
   deviceIdOverride?: string | null,
 ): Promise<DeviceContext> {
-  const exempt = !deviceRestrictionRequired(employee.email);
+  const exempt = await mayBypassDeviceRestriction(employee);
 
   const rawId = deviceIdOverride ?? (await readDeviceCookie());
   const deviceId = cleanDeviceId(rawId);
@@ -390,7 +390,7 @@ export async function adoptDeviceOnLogin(employee: Employee): Promise<AdoptResul
   // nothing downstream refuses a device, so refusing one at the door would make
   // the switch a half-measure that still locks people out.
   const unrestricted =
-    !deviceRestrictionRequired(employee.email) || !deviceAccessEnforced();
+    (await mayBypassDeviceRestriction(employee)) || !deviceAccessEnforced();
 
   if (unrestricted) {
     return await resolveWithoutRefusing(employee, existingId, kind, label);

@@ -6,7 +6,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { mobileDevices, deviceConsentEvents, type Employee } from "@/db/schema";
 import type { DeviceKind } from "@/db/enums";
-import { deviceRestrictionRequired } from "@/lib/security/capabilities";
+import { mayBypassDeviceRestriction } from "@/lib/auth/security-roles";
 import {
   DEVICE_COOKIE,
   DEVICE_COOKIE_MAX_AGE_SECONDS,
@@ -90,7 +90,7 @@ async function currentUserAgent(): Promise<string> {
  */
 export async function pendingDeviceRegistration(employee: Employee): Promise<PendingRegistration | null> {
   if (!deviceAccessEnforced()) return null;
-  if (!deviceRestrictionRequired(employee.email)) return null;
+  if (await mayBypassDeviceRestriction(employee)) return null;
 
   const { kind } = await describeRequestDevice();
   const platform = describePlatform(await currentUserAgent());

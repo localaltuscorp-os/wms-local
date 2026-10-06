@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { employees, securityRoleEvents, securityRoleGrants, type Employee } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isSecurityRole, type SecurityRole } from "@/lib/auth/security-roles-catalog";
+import { deviceRestrictionRequired } from "@/lib/security/capabilities";
 
 /**
  * WHO HOLDS AN ASSIGNABLE ROLE (migration 0238).
@@ -38,6 +39,21 @@ export async function hasSecurityRole(employee: Pick<Employee, "id" | "email">, 
 /** May this person release a locked account? */
 export async function mayUnlockAccounts(employee: Pick<Employee, "id" | "email">): Promise<boolean> {
   return hasSecurityRole(employee, "account_unlock");
+}
+
+/**
+ * May this employee use WMS without an approved device?
+ *
+ * New assignments come from the audited database-backed security role. The
+ * legacy capability remains a compatibility fallback until its existing
+ * holders have been migrated to database grants, avoiding an accidental
+ * lockout during rollout.
+ */
+export async function mayBypassDeviceRestriction(
+  employee: Pick<Employee, "id" | "email">,
+): Promise<boolean> {
+  if (!deviceRestrictionRequired(employee.email)) return true;
+  return hasSecurityRole(employee, "device_exempt");
 }
 
 /**

@@ -69,7 +69,7 @@ function role(
 export const SECURITY_ROLE_DEFS: Record<SecurityRole, SecurityRoleDef> = {
   founder: role("founder", "Founder", "Founder-only reporting, approvals and organisation-root authority.", "Security", true),
   account_unlock: role("account_unlock", "Account Unlocker", "Release employee accounts locked after failed sign-ins.", "Security", true),
-  device_exempt: role("device_exempt", "Device Restriction Exemption", "Use the system without registering the current device.", "Security"),
+  device_exempt: role("device_exempt", "Remote Login — Any Device & Network", "Use the system from any location or network without requiring an approved device.", "Security", true),
   device_manage: role("device_manage", "Device Manager", "Approve, register and revoke employee devices.", "Security"),
   attendance_manage: role("attendance_manage", "Attendance Manager", "Edit other employees' attendance and override locks.", "Attendance"),
   attendance_audit_view: role("attendance_audit_view", "Attendance Audit Viewer", "Read the attendance change history.", "Attendance"),

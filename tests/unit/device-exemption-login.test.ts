@@ -79,6 +79,17 @@ vi.mock("@/lib/attendance/punch-notify", () => ({
   alertDeviceManagersPendingDevice: async () => undefined,
 }));
 
+const databaseExemptIds = new Set<string>();
+vi.mock("@/lib/auth/security-roles", async () => {
+  const capabilities = await vi.importActual<typeof import("@/lib/security/capabilities")>(
+    "@/lib/security/capabilities",
+  );
+  return {
+    mayBypassDeviceRestriction: async (employee: { id: string; email?: string | null }) =>
+      databaseExemptIds.has(employee.id) || !capabilities.deviceRestrictionRequired(employee.email),
+  };
+});
+
 const { adoptDeviceOnLogin, resolveDeviceContext } = await import(
   "@/lib/security/device-access"
 );
@@ -104,6 +115,7 @@ beforeEach(() => {
   inserted = [];
   cookieSet = null;
   insertShouldThrow = false;
+  databaseExemptIds.clear();
   // ENFORCEMENT IS SET ON EXPLICITLY, not left to the default.
   //
   // This file tests one thing: that the device EXEMPTION lets the two exempt
@@ -206,6 +218,18 @@ describe("Manan signing in from an unregistered device", () => {
 });
 
 describe("the exemption does not leak to anyone else", () => {
+  it("allows a database-granted employee from an unregistered device", async () => {
+    databaseExemptIds.add(OM);
+    deviceRow = approvedLaptopFor(OM);
+    const r = await adoptDeviceOnLogin(om);
+    expect(r.ok).toBe(true);
+    expect(inserted).toHaveLength(0);
+
+    const ctx = await resolveDeviceContext(om);
+    expect(ctx.allowed).toBe(true);
+    if (ctx.allowed) expect(ctx.exempt).toBe(true);
+  });
+
   /**
    * ── WHAT CHANGED IN 0222, AND WHY THESE ASSERTIONS MOVED ──────────────────
    * Sign-in no longer refuses ANYONE on device status. It used to answer
