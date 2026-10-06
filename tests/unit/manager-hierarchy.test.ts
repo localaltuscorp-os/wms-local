@@ -76,6 +76,7 @@ function makeDb() {
     if (table.__name === "employees") {
       return [...managerOf.entries()].map(([id, managerId]) => ({ id, managerId }));
     }
+    if (table.__name === "employee_temporary_breaks") return [];
     throw new Error(`unexpected table ${table.__name}`);
   };
 
@@ -151,6 +152,12 @@ vi.mock("@/db/schema", () => ({
     managerId: "managerId",
     effectiveFrom: "effectiveFrom",
     effectiveTo: "effectiveTo",
+  },
+  employeeTemporaryBreaks: {
+    __name: "employee_temporary_breaks",
+    id: "id",
+    employeeId: "employeeId",
+    endedAt: "endedAt",
   },
 }));
 
@@ -400,7 +407,7 @@ describe("recording the reporting period", () => {
 
 describe("setReportingManager keeps the column and the history in step", () => {
   it("updates employees.manager_id AND records the period", async () => {
-    seedRoster({ rudra: "rohan", rohan: null, rutvisha: null });
+    seedRoster({ rudra: "rohan", rohan: null, rutvisha: null, "test-report": "rutvisha" });
     const res = await setReportingManager({
       employeeId: "rudra",
       managerId: "rutvisha",
@@ -427,6 +434,14 @@ describe("setReportingManager keeps the column and the history in step", () => {
     expect(res).toEqual({ ok: true, changed: false });
     expect(history).toHaveLength(1);
     expect(history[0]!.managerId).toBe("rohan");
+  });
+
+  it("refuses assigning an employee as manager until they are designated or have reports", async () => {
+    seedRoster({ rudra: null, "test-manager": null });
+    const res = await setReportingManager({ employeeId: "rudra", managerId: "test-manager", changedById: "admin", now: TODAY });
+    expect(res).toEqual({ ok: false, error: "The selected employee is not designated as a manager." });
+    expect(updates).toEqual([]);
+    expect(history).toEqual([]);
   });
 
   it("refuses an unknown employee", async () => {

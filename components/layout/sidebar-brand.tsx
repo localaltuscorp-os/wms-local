@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { workspaceForPath, WORKSPACE_LANDING } from "@/lib/workspaces";
+import { workspaceForPath } from "@/lib/workspaces";
 import { MODULE_THEME } from "@/lib/module-theme";
 
 /**
@@ -35,28 +35,14 @@ export function SidebarBrand() {
 
   // Cast at the point of use, not here: a ternary whose branches are already
   // `Route` forces TS to normalise the whole typed-routes union (TS2590).
-  const landing = ws ? WORKSPACE_LANDING[ws] : "/hub";
-
   return (
-    <div className="mx-auto flex w-full flex-col items-center justify-center gap-3 text-center">
+    <div className="mx-auto flex w-full flex-col items-center justify-center text-center">
       {/* Logo → Hub (matches the logo behaviour everywhere else). */}
-      <Link
-        href={"/hub" as Route}
-        aria-label="Back to Hub"
-        // `title` as well as `aria-label`: aria-label names the link for screen
-        // readers but browsers never surface it on hover, so the logo read as an
-        // unlabelled image to a mouse user. This is what shows the tooltip.
-        title="Back to Hub"
-        className="sidebar-logo flex w-full items-center justify-center rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Altus Corp" className="h-[68px] w-auto" style={{ display: "block" }} />
-      </Link>
-
       {theme && ModuleIcon && (
         <Link
-          href={landing as Route}
-          aria-label={`${theme.label} - module home`}
+          href={"/hub" as Route}
+          aria-label={`Back to Hub from ${theme.label}`}
+          title="Back to Hub"
           className="module-wordmark inline-flex w-full min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--color-altus-red)]"
         >
           <span

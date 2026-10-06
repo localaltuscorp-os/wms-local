@@ -19,11 +19,30 @@ import { OperationsQuickNavServer } from "@/components/operations/operations-qui
  */
 export default function TrainingLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <div className="training-module">
+      <style>{`
+        .training-module header > span,
+        .training-module header > p,
+        .training-module header > div:first-child > span,
+        .training-module header > div:first-child > p {
+          display: none !important;
+        }
+        .training-module header > h1,
+        .training-module header > div:first-child > h1 {
+          margin-top: 0 !important;
+          font-family: var(--font-display), system-ui, sans-serif !important;
+          font-size: clamp(22px, 2vw, 32px) !important;
+          font-weight: 800 !important;
+          line-height: 1.02 !important;
+        }
+        .training-module header {
+          margin-bottom: 1rem !important;
+        }
+      `}</style>
       <Suspense fallback={null}>
         <OperationsQuickNavServer />
       </Suspense>
       {children}
-    </>
+    </div>
   );
 }

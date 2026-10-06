@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  backupFileName,
   folderNameFor,
   isSecretColumn,
   safeSheetName,
@@ -74,6 +75,28 @@ describe("sheet names", () => {
 });
 
 describe("file names in a folder", () => {
+  it("turns UUID object paths into names that describe their contents", () => {
+    expect(backupFileName({
+      path: "letters/1117fa04-4d43-4cf1-ba3b-a524371c3393.pdf",
+      label: "Issued Letter",
+      details: ["Appointment"],
+      date: new Date("2026-09-24T08:30:00Z"),
+    })).toBe("Appointment - Issued Letter - 2026-09-24.pdf");
+  });
+
+  it("preserves an uploaded name and restores its extension when necessary", () => {
+    expect(backupFileName({
+      path: "documents/random-object-key.pdf",
+      uploadedName: "Employment contract",
+      label: "Document",
+    })).toBe("Employment contract.pdf");
+    expect(backupFileName({
+      path: "documents/random-object-key.pdf",
+      uploadedName: "Identity proof.pdf",
+      label: "Document",
+    })).toBe("Identity proof.pdf");
+  });
+
   it("keeps the extension when it has to add a number", () => {
     const taken = new Set<string>();
     expect(uniqueFileName("aadhaar.pdf", taken)).toBe("aadhaar.pdf");
@@ -162,7 +185,7 @@ describe("the screens", () => {
   it("keeps the Module Backups page for managers only", () => {
     const page = read("app/(admin)/admin/module-backups/page.tsx");
     expect(page).toContain("canManageModuleBackups(me)");
-    expect(read("lib/modules/backup/access.ts")).toContain("return isSuperAdmin(me.email)");
+    expect(read("lib/modules/backup/access.ts")).toContain("return isMasterAdmin(me.email)");
     // notFound, not a redirect: a "forbidden" screen confirms the page exists.
     expect(page).toContain("notFound()");
   });

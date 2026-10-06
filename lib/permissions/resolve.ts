@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { modulePermissions, type Employee } from "@/db/schema";
 import { getCurrentEmployee, forbiddenError } from "@/lib/auth/current";
 import { isMasterAdmin } from "@/lib/security/capability-grants";
+import { localAllWorkspaces } from "@/lib/auth/local-session";
 import {
   effectiveFor,
   allowAll,
@@ -22,6 +23,9 @@ import {
   type PermissionAction,
 } from "./catalog";
 import { auditAccessDenied } from "@/lib/logs/audit";
+import { activeScopedAccess, applyScopedAccess } from "./scoped-temporary-access";
+import { ownershipPermission } from "./ownership";
+import { hasDatabaseSuperAdminGrant } from "@/lib/security/super-admin-grants";
 
 /**
  * THE SERVER SIDE OF THE PERMISSION MATRIX.
@@ -96,6 +100,13 @@ const loadOverrides = cache(async (employeeId: string): Promise<OverrideMap> => 
  * meaningful restriction while removing a real way to brick the tool.
  */
 async function governedByMatrix(me: Employee): Promise<boolean> {
+  // The documented local development configuration combines
+  // DISABLE_AUTH=true with DEV_ALL_WORKSPACES=true. It is explicitly for
+  // exercising every module on a developer machine, so stored production
+  // permission overrides must not turn that mode back into a 403. The helper
+  // is false for deployments and production builds.
+  if (localAllWorkspaces()) return false;
+
   // Async because master-admin membership is a database row now (migration
   // 0226). The `cache()` behind this predicate makes it one query per request no
   // matter how many nodes are resolved against it.
@@ -108,9 +119,30 @@ async function governedByMatrix(me: Employee): Promise<boolean> {
 export async function modulePermission(nodeKey: string): Promise<EffectivePermission> {
   const me = await getCurrentEmployee();
   if (!me) return allowAll();
-  if (!(await governedByMatrix(me))) return allowAll();
-  if (!isPermissionNodeKey(nodeKey)) return allowAll();
-  return effectiveFor(nodeKey, await loadOverrides(me.id));
+  // Local full-access mode is a development fixture, not a delegated session.
+  // Ignore both sources that can deliberately narrow a real person's modules:
+  // saved matrix rows and live scoped-access grants. `localAllWorkspaces()` is
+  // false for every deployment and production build.
+  const localFullAccess = localAllWorkspaces();
+  const scoped = localFullAccess ? null : await activeScopedAccess(me.id);
+  // An active restrictive session never gets a free pass through an unknown
+  // node. Before a scoped grant exists, preserve the catalogue's historic
+  // fail-open behaviour for unclassified routes.
+  if (!isPermissionNodeKey(nodeKey)) return scoped === null ? allowAll() : { show: false, view: false, edit: false };
+  // Database-backed Super Admin must always retain the recovery path to the
+  // ownership editor, even when a node is configured as restricted.
+  if (await hasDatabaseSuperAdminGrant(me.id)) {
+    return applyScopedAccess(allowAll(), nodeKey, scoped);
+  }
+  // A configured ownership policy becomes the catalogue-level answer. Existing
+  // feature-specific guards remain additive and can still refuse sensitive data.
+  const ownership = await ownershipPermission(nodeKey, me.id);
+  const existing = ownership ?? (
+    (await governedByMatrix(me))
+      ? effectiveFor(nodeKey, await loadOverrides(me.id))
+      : allowAll()
+  );
+  return applyScopedAccess(existing, nodeKey, scoped);
 }
 
 /** For an arbitrary employee — the Master Admin screen reads this to render the
@@ -231,7 +263,12 @@ async function logAccessDenied(nodeKey: string, action: string): Promise<void> {
  */
 export async function requirePathView(pathname: string): Promise<void> {
   const key = nodeKeyForPath(pathname);
-  if (key) await requireModuleView(key);
+  if (key) return await requireModuleView(key);
+  const me = await getCurrentEmployee();
+  if (!localAllWorkspaces() && me && (await activeScopedAccess(me.id)) !== null) {
+    await logAccessDenied(`unclassified:${pathname}`, "view");
+    throw forbiddenError();
+  }
 }
 
 /**
@@ -245,12 +282,19 @@ export async function requirePathView(pathname: string): Promise<void> {
  */
 export async function hiddenModuleKeys(): Promise<ReadonlySet<string> | null> {
   const me = await getCurrentEmployee();
-  if (!me || !(await governedByMatrix(me))) return null;
-  const overrides = await loadOverrides(me.id);
-  if (overrides.size === 0) return new Set();
+  if (!me) return null;
+  const localFullAccess = localAllWorkspaces();
+  const scoped = localFullAccess ? null : await activeScopedAccess(me.id);
+  if (localFullAccess) return null;
+  if (!(await governedByMatrix(me)) && scoped === null) return null;
+  const overrides = (await governedByMatrix(me)) ? await loadOverrides(me.id) : new Map();
   const hidden = new Set<string>();
-  for (const key of overrides.keys()) {
-    if (!effectiveFor(key, overrides).show) hidden.add(key);
+  // Include every catalogue node during an overlay: absence is a denial, not a
+  // missing stored override. This keeps rail visibility identical to URL access.
+  const keys = scoped === null ? overrides.keys() : (await import("./catalog")).allPermissionNodes().map((n) => n.key);
+  for (const key of keys) {
+    const base = effectiveFor(key, overrides);
+    if (!applyScopedAccess(base, key, scoped).show) hidden.add(key);
   }
   return hidden;
 }

@@ -55,7 +55,7 @@ export default async function PoliciesPage() {
     <>
       <DashboardHeader generatedAt={new Date()} />
       <HrTitleBar />
-      <main className="mx-auto w-full max-w-[900px] px-8 max-md:px-4 pt-8 pb-16">
+      <main className="mx-auto w-full max-w-[1440px] px-8 max-md:px-4 pt-6 pb-16">
         <PoliciesWorkspace groups={groups} signable={signable} isAdmin={isAdmin} />
       </main>
     </>

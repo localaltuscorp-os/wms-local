@@ -8,10 +8,10 @@ import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload
 import { fireToast } from "@/lib/toast";
 import { describeRecurrence } from "@/lib/jd/recurrence";
 import { FUNCTION_LABELS, type BusinessFunction } from "@/lib/org/functions";
-import { JD_FUNCTION_OPTIONS } from "@/lib/jd/functions";
-import { JD_BULK_COLUMNS, jdBulkPayload, jdTemplateMatrix, readJdMatrix, type JdBulkRow } from "@/lib/jd/bulk";
+import { JD_BULK_COLUMNS, jdBulkPayload, readJdMatrix, type JdBulkRow } from "@/lib/jd/bulk";
 import type { JdPositionRow } from "@/lib/queries/job-description";
 import { bulkCreateJdEntries } from "@/app/(app)/operations/job-description/actions";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
 
 /**
  * JD BULK UPLOAD — every task from an Excel sheet in one go (lib/jd/bulk.ts).
@@ -84,22 +84,7 @@ export function JdBulkUpload({
   }
 
   function downloadTemplate() {
-    const wb = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet(jdTemplateMatrix(person?.name));
-    sheet["!cols"] = JD_BULK_COLUMNS.map((c) => ({ wch: c.field === "task" ? 48 : c.field === "position" ? 26 : 16 }));
-    XLSX.utils.book_append_sheet(wb, sheet, "Job Descriptions");
-    const lists: string[][] = [
-      ["Positions (use in the Position column)", "Function"],
-      ...positions.map((p) => [p.title, FUNCTION_LABELS[p.functionKey as BusinessFunction] ?? p.functionKey]),
-      [],
-      ["People (Person / Assign To)"],
-      ...people.map((p) => [p.name]),
-      [],
-      ["Functions (personal JD)"],
-      ...JD_FUNCTION_OPTIONS.map((f) => [f.label]),
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lists), "Lists");
-    XLSX.writeFile(wb, person ? `jd-template-${person.name.replace(/\s+/g, "-").toLowerCase()}.xlsx` : "jd-bulk-template.xlsx");
+    window.location.assign(templateHref(TEMPLATE_KEYS.jobDescriptions, { variant: person ? "person" : "generic" }));
   }
 
   const shown = rows ?? [];

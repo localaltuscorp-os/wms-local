@@ -9,7 +9,7 @@ import { useDictation } from "@/components/ui/use-dictation";
 import { cn } from "@/lib/utils";
 import { fireToast } from "@/lib/toast";
 import { formatDateTimeInTz } from "@/lib/format";
-import { createIncentiveRequest, resubmitIncentiveRequest } from "@/app/(app)/incentive/actions";
+import { createIncentiveRequest, resubmitIncentiveRequest, updatePendingIncentiveRequest } from "@/app/(app)/incentive/actions";
 import {
   INCENTIVE_STATUS_LABELS,
   INCENTIVE_TYPES,
@@ -124,6 +124,13 @@ export interface IncentiveResubmitRequest {
   submissionNo: number;
 }
 
+export interface IncentivePendingEditRequest {
+  id: string;
+  type: IncentiveType;
+  details: Record<string, string>;
+  split: { employeeId: string; name: string; pct: number }[] | null;
+}
+
 /** Stored split shares → the editor's rows, with the requester first (the
  *  editor pins row 0 to "You"). */
 function splitRowsFrom(
@@ -147,6 +154,9 @@ export function IncentiveFormDialog({
   employees,
   me,
   resubmit,
+  edit,
+  trigger,
+  requester,
 }: {
   /** Active names from Admin → Products — the Product pickers' options. */
   products: string[];
@@ -169,10 +179,16 @@ export function IncentiveFormDialog({
    * has to be re-entered from scratch, and the previous submission is kept.
    */
   resubmit?: IncentiveResubmitRequest;
+  edit?: IncentivePendingEditRequest;
+  trigger?: ReactNode;
+  /** Request owner when an admin is amending someone else's pending request. */
+  requester?: { id: string; name: string };
 }) {
+  const subject = requester ?? me;
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<IncentiveType | "">(resubmit?.type ?? "");
-  const [values, setValues] = useState<Record<string, string>>(() => (resubmit ? { ...resubmit.details } : {}));
+  const existing = resubmit ?? edit;
+  const [type, setType] = useState<IncentiveType | "">(existing?.type ?? "");
+  const [values, setValues] = useState<Record<string, string>>(() => (existing ? { ...existing.details } : {}));
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -184,10 +200,10 @@ export function IncentiveFormDialog({
   const [pending, startTransition] = useTransition();
 
   function reset() {
-    if (resubmit) {
-      const rows = splitRowsFrom(resubmit.split, me.id);
-      setType(resubmit.type);
-      setValues({ ...resubmit.details });
+    if (existing) {
+      const rows = splitRowsFrom(existing.split, subject.id);
+      setType(existing.type);
+      setValues({ ...existing.details });
       setTouched(new Set());
       setSubmitted(false);
       setServerError(null);
@@ -221,7 +237,7 @@ export function IncentiveFormDialog({
   const fields = type ? visibleIncentiveFields(type, values) : [];
   const errors = type ? incentiveFieldErrors(type, values, ctx) : {};
   const splitDraft = splitRows.map((r) => ({ employeeId: r.employeeId, pct: parsePct(r.pct) }));
-  const split: SplitCheck | null = splitOn ? checkSplit(splitDraft, { requesterId: me.id }) : null;
+  const split: SplitCheck | null = splitOn ? checkSplit(splitDraft, { requesterId: subject.id }) : null;
 
   const problems: Problem[] = [];
   for (const f of fields) {
@@ -275,7 +291,7 @@ export function IncentiveFormDialog({
     setSplitOn(on);
     if (on && splitRows.length === 0) {
       setEqualMode(true);
-      setSplitRows(equalised([{ employeeId: me.id, pct: "" }, { employeeId: "", pct: "" }]));
+      setSplitRows(equalised([{ employeeId: subject.id, pct: "" }, { employeeId: "", pct: "" }]));
     }
   }
 
@@ -321,6 +337,21 @@ export function IncentiveFormDialog({
         fireToast({
           message: `${INCENTIVE_TYPE_LABELS[requestType]} incentive resubmitted — it's back with ${INCENTIVE_REVIEWER_NAME} for review.`,
         });
+        setOpen(false);
+        reset();
+        return;
+      }
+      if (edit) {
+        const res = await updatePendingIncentiveRequest({
+          id: edit.id,
+          details: values,
+          split: splitPayload,
+        });
+        if (!res.ok) {
+          setServerError(res.error);
+          return;
+        }
+        fireToast({ message: "Pending incentive request updated." });
         setOpen(false);
         reset();
         return;
@@ -405,7 +436,7 @@ export function IncentiveFormDialog({
             They used to be solid red slabs — as were the Add Entry, Add
             Incentive and Save Target buttons, so eight "primary" buttons could
             share one screen and none of them read as the important one. */}
-        {resubmit ? (
+        {trigger ?? (resubmit ? (
           <button type="button" data-justify-resubmit className={INCENTIVE_BTN_PRIMARY}>
             <RotateCcw size={14} strokeWidth={2.4} aria-hidden />
             Justify &amp; Resubmit
@@ -415,7 +446,7 @@ export function IncentiveFormDialog({
             <Award size={14} strokeWidth={2.6} aria-hidden />
             New request
           </button>
-        )}
+        ))}
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay
@@ -452,12 +483,14 @@ export function IncentiveFormDialog({
                   className="text-ink-strong"
                   style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 800, lineHeight: 1.15 }}
                 >
-                  {resubmit ? "Justify & Resubmit" : "New Incentive Request"}
+                  {resubmit ? "Justify & Resubmit" : edit ? "Edit Pending Request" : "New Incentive Request"}
                 </Dialog.Title>
                 <Dialog.Description className="mt-1 text-[14.5px] text-ink-muted" style={{ lineHeight: 1.5 }}>
                   {resubmit
                     ? `Everything you submitted is filled in. Fix what needs fixing, explain why, and resubmit — it goes back to ${INCENTIVE_REVIEWER_NAME}. Your earlier submission and the decision on it stay in the history.`
-                    : `Pick the incentive type - the form adapts to what it needs. ${INCENTIVE_REVIEWER_NAME} reviews each request.`}
+                    : edit
+                      ? "Update the request before it is reviewed. The original submission remains in its history."
+                      : `Pick the incentive type - the form adapts to what it needs. ${INCENTIVE_REVIEWER_NAME} reviews each request.`}
                 </Dialog.Description>
               </div>
             </div>
@@ -518,7 +551,7 @@ export function IncentiveFormDialog({
                       ariaLabel="Incentive type"
                       // A resubmission revises THIS request; a different type is
                       // a new request. The server takes the stored type anyway.
-                      disabled={!!resubmit}
+                      disabled={!!existing}
                     />
                   </FieldShell>
 
@@ -530,7 +563,7 @@ export function IncentiveFormDialog({
                       <UserRound size={14} strokeWidth={2.3} />
                     </span>
                     <span className="text-ink-subtle">Requested by</span>
-                    <span className="truncate font-semibold text-ink-strong">{me.name}</span>
+                    <span className="truncate font-semibold text-ink-strong">{subject.name}</span>
                   </div>
 
                   {type && (
@@ -562,7 +595,7 @@ export function IncentiveFormDialog({
                       <div className="flex flex-col gap-4 border-t pt-4" style={hairline}>
                         {dateField && renderField(dateField)}
                         <SplitIncentive
-                          me={me}
+                          me={subject}
                           employees={employees}
                           on={splitOn}
                           onToggle={toggleSplit}
@@ -651,10 +684,14 @@ export function IncentiveFormDialog({
                   {pending
                     ? resubmit
                       ? "Resubmitting…"
-                      : "Submitting…"
+                      : edit
+                        ? "Saving…"
+                        : "Submitting…"
                     : resubmit
                       ? "Resubmit Incentive"
-                      : "Submit Request"}
+                      : edit
+                        ? "Save changes"
+                        : "Submit Request"}
                 </button>
               </div>
             </div>
@@ -884,10 +921,10 @@ function FieldControl({
       }
       autoComplete={field.type === "tel" ? "tel-national" : field.type === "email" ? "email" : undefined}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(field.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
       onBlur={onCommit}
       placeholder={field.placeholder}
-      maxLength={1000}
+      maxLength={field.type === "tel" ? 10 : 1000}
       min={field.type === "number" ? 1 : undefined}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}

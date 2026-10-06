@@ -34,8 +34,10 @@ export interface TrackInput {
   metadata?: Record<string, unknown> | null;
 }
 
-const FLUSH_THRESHOLD = 20;
-const FLUSH_INTERVAL_MS = 30_000;
+// Low-risk activity telemetry can arrive later than mutation/audit truth. Larger
+// batches reduce function invocations without dropping data from IndexedDB.
+const FLUSH_THRESHOLD = 50;
+const FLUSH_INTERVAL_MS = 2 * 60_000;
 const MAX_RETRY_MS = 5 * 60_000;
 
 let timer: ReturnType<typeof setTimeout> | null = null;

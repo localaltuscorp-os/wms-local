@@ -111,7 +111,7 @@ export default async function ArchiveSectionPage({
           </Link>
         }
         toolbar={
-          <div className="flex flex-col gap-2.5">
+          <div className="flex w-full flex-wrap items-center gap-2.5">
             <ArchiveScopeSwitch
               scope={scope}
               basePath={`/archive/${sec.id}`}
@@ -127,12 +127,14 @@ export default async function ArchiveSectionPage({
               scope={scope}
               employeeId={employeeId}
             />
-            <ArchivePeopleFilter
-              people={people}
-              scope={scope}
-              employeeId={employeeId}
-              basePath={`/archive/${sec.id}`}
-            />
+            <div className="ml-auto max-md:ml-0">
+              <ArchivePeopleFilter
+                people={people}
+                scope={scope}
+                employeeId={employeeId}
+                basePath={`/archive/${sec.id}`}
+              />
+            </div>
           </div>
         }
       />

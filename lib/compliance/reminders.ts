@@ -56,7 +56,11 @@ export interface PlannedEmail {
 }
 
 const esc = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
 const STYLE = `<style>
 body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:13px}
@@ -84,7 +88,10 @@ function page(body: string, previewFor: string | null): string {
 
 const kindName = (k: "wcc" | "mcc") => (k === "wcc" ? "WCC" : "MCC");
 
-function listTable(rows: DueCompliance[], withName?: (id: string) => string): string {
+function listTable(
+  rows: DueCompliance[],
+  withName?: (id: string) => string,
+): string {
   const head = `<tr>${withName ? "<th>Employee</th>" : ""}<th>Checklist</th><th>Compliance</th><th>Deadline</th></tr>`;
   const body = rows
     .map(
@@ -115,11 +122,14 @@ export function planDailyReminders(args: {
     if (list) list.push(d);
     else byOwner.set(d.ownerId, [d]);
   }
-  const link = (path: string) => (args.siteUrl ? `<p><a href="${args.siteUrl}${path}">Open it</a></p>` : "");
+  const link = (path: string) =>
+    args.siteUrl ? `<p><a href="${args.siteUrl}${path}">Open it</a></p>` : "";
   const dayLabel = shortDay(args.day);
   const out: PlannedEmail[] = [];
 
-  const owners = [...byOwner.keys()].sort((a, b) => byId.get(a)!.name.localeCompare(byId.get(b)!.name));
+  const owners = [...byOwner.keys()].sort((a, b) =>
+    byId.get(a)!.name.localeCompare(byId.get(b)!.name),
+  );
   for (const id of owners) {
     const p = byId.get(id)!;
     const rows = byOwner.get(id)!;
@@ -128,7 +138,7 @@ export function planDailyReminders(args: {
       `<h2>Your compliance checklist is not updated</h2>` +
       `<p>Hi ${esc(p.name.split(" ")[0] ?? p.name)}, it is past 10 pm and ${rows.length === 1 ? "this compliance" : `these ${rows.length} compliances`} due today ${rows.length === 1 ? "has" : "have"} no Doer Status yet. Your Team Lead has been told too.</p>` +
       listTable(rows) +
-      link(rows.some((r) => r.kind === "wcc") ? "/dcc/wcc" : "/dcc/mcc");
+      link("/employees/cc?view=consolidated");
     out.push({
       kind: "self",
       recipientId: id,
@@ -147,7 +157,9 @@ export function planDailyReminders(args: {
     if (list) list.push(id);
     else byLead.set(lead, [id]);
   }
-  for (const [leadId, members] of [...byLead.entries()].sort((a, b) => byId.get(a[0])!.name.localeCompare(byId.get(b[0])!.name))) {
+  for (const [leadId, members] of [...byLead.entries()].sort((a, b) =>
+    byId.get(a[0])!.name.localeCompare(byId.get(b[0])!.name),
+  )) {
     const lead = byId.get(leadId)!;
     const rows = members.flatMap((m) => byOwner.get(m)!);
     const names = members.map((m) => byId.get(m)!.name);
@@ -156,7 +168,7 @@ export function planDailyReminders(args: {
       `<h2>Your team's compliance checklist is not updated</h2>` +
       `<p>Hi ${esc(lead.name.split(" ")[0] ?? lead.name)}, at 10 pm ${esc(names.join(", "))} had not updated ${rows.length === 1 ? "this compliance" : `these ${rows.length} compliances`} due today.</p>` +
       listTable(rows, (id) => byId.get(id)?.name ?? "—") +
-      link("/dcc/wcc?who=team");
+      link("/employees/cc?view=consolidated&who=team");
     out.push({
       kind: "lead",
       recipientId: leadId,
@@ -171,14 +183,24 @@ export function planDailyReminders(args: {
 
 /* ── Manan Sir's grid ──────────────────────────────────────────────────── */
 
-export type GridCell = { kind: "na" } | { kind: "future" } | { kind: "ok"; due: number } | { kind: "no"; missing: number; due: number };
+export type GridCell =
+  | { kind: "na" }
+  | { kind: "future" }
+  | { kind: "ok"; due: number }
+  | { kind: "no"; missing: number; due: number };
 
 /** One person × one day: NA when nothing was due, else filled or not. */
-export function gridCell(due: readonly DueCompliance[], day: string, today: string): GridCell {
+export function gridCell(
+  due: readonly DueCompliance[],
+  day: string,
+  today: string,
+): GridCell {
   if (due.length === 0) return { kind: "na" };
   if (day > today) return { kind: "future" };
   const missing = due.filter((d) => !d.filled).length;
-  return missing === 0 ? { kind: "ok", due: due.length } : { kind: "no", missing, due: due.length };
+  return missing === 0
+    ? { kind: "ok", due: due.length }
+    : { kind: "no", missing, due: due.length };
 }
 
 function cellHtml(c: GridCell, shaded: boolean): string {
@@ -200,7 +222,10 @@ function grid(args: {
   last3: ReadonlySet<string>;
 }): string {
   const head = `<tr><th>Employee</th>${args.dates
-    .map((d) => `<th class="c${args.last3.has(d) ? " h3" : ""}">${args.headOf(d)}</th>`)
+    .map(
+      (d) =>
+        `<th class="c${args.last3.has(d) ? " h3" : ""}">${args.headOf(d)}</th>`,
+    )
     .join("")}</tr>`;
   const body = args.groups
     .map((g) => {
@@ -208,7 +233,12 @@ function grid(args: {
         .map(
           (id) =>
             `<tr><td>${esc(args.nameOf(id))}</td>${args.dates
-              .map((d) => cellHtml(gridCell(args.dueOn(id, d), d, args.today), args.last3.has(d)))
+              .map((d) =>
+                cellHtml(
+                  gridCell(args.dueOn(id, d), d, args.today),
+                  args.last3.has(d),
+                ),
+              )
               .join("")}</tr>`,
         )
         .join("");
@@ -244,7 +274,8 @@ export function buildFounderEmail(args: {
     if (list) list.push(d);
     else index.set(k, [d]);
   }
-  const dueOf = (kind: "wcc" | "mcc") => (ownerId: string, day: string) => index.get(`${kind}|${ownerId}|${day}`) ?? [];
+  const dueOf = (kind: "wcc" | "mcc") => (ownerId: string, day: string) =>
+    index.get(`${kind}|${ownerId}|${day}`) ?? [];
   const last3 = new Set(args.last3);
 
   /* Who missed, in the last 3 days, team-wise — the question the email is for. */
@@ -256,10 +287,15 @@ export function buildFounderEmail(args: {
         const w = dueOf("wcc")(id, day).filter((d) => !d.filled).length;
         const m = dueOf("mcc")(id, day).filter((d) => !d.filled).length;
         if (w || m) {
-          parts.push(`${shortDay(day)} (${[w ? `${w} WCC` : "", m ? `${m} MCC` : ""].filter(Boolean).join(", ")})`);
+          parts.push(
+            `${shortDay(day)} (${[w ? `${w} WCC` : "", m ? `${m} MCC` : ""].filter(Boolean).join(", ")})`,
+          );
         }
       }
-      if (parts.length) missLines.push(`<tr><td>${esc(g.label)}</td><td>${esc(nameOf(id))}</td><td>${esc(parts.join(" · "))}</td></tr>`);
+      if (parts.length)
+        missLines.push(
+          `<tr><td>${esc(g.label)}</td><td>${esc(nameOf(id))}</td><td>${esc(parts.join(" · "))}</td></tr>`,
+        );
     }
   }
   const range = `${shortDay(args.last3[0]!)} – ${shortDay(args.last3[args.last3.length - 1]!)}`;
@@ -270,7 +306,11 @@ export function buildFounderEmail(args: {
   /* Marked Done with fewer completed than the target, in the same 3 days —
      "Send 25 emails", 18 sent. Team-wise, as above. */
   const place = new Map<string, { team: string; at: number }>();
-  args.groups.forEach((g) => g.memberIds.forEach((id) => place.set(id, { team: g.label, at: place.size })));
+  args.groups.forEach((g) =>
+    g.memberIds.forEach((id) =>
+      place.set(id, { team: g.label, at: place.size }),
+    ),
+  );
   const short = args.due
     .filter(
       (d) =>
@@ -281,7 +321,11 @@ export function buildFounderEmail(args: {
         d.completed != null &&
         d.completed < d.target,
     )
-    .sort((a, b) => place.get(a.ownerId)!.at - place.get(b.ownerId)!.at || a.deadline.localeCompare(b.deadline));
+    .sort(
+      (a, b) =>
+        place.get(a.ownerId)!.at - place.get(b.ownerId)!.at ||
+        a.deadline.localeCompare(b.deadline),
+    );
   const shortfall = short.length
     ? `<h2>Done short of target, ${esc(range)}</h2><table><tr><th>Team</th><th>Employee</th><th>Checklist</th><th>Compliance</th><th>Deadline</th><th>Completed</th></tr>${short
         .map(

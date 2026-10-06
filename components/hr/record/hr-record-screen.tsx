@@ -77,6 +77,7 @@ import type { SkillLookupOptions } from "@/lib/hr/skills";
 import { formatDateHr } from "@/lib/format";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { downloadRecordsZip } from "@/components/hr/records-backup/download-records-zip";
+import { FormPreviewModal } from "@/components/hr/forms/form-preview-modal";
 
 const EMPTY_SKILLS: SkillSelection = { technical: [], nonTechnical: [] };
 
@@ -360,7 +361,7 @@ export function HrRecordScreen({
   return (
     <>
       <style>{CSS}</style>
-      <PageShell width="narrow" py={false} className="pt-7 pb-24">
+      <PageShell width="full" py={false} className="pt-7 pb-24">
         {/* The "HR · Record" eyebrow + "HR Record" heading that used to open
             this page now live in the frozen HrTitleBar (see page.tsx). */}
 
@@ -1343,6 +1344,7 @@ function RecordsPanel({
  * module link rather than dressed up as an edit link for this person.
  */
 function SavedFormsList({ forms, loading }: { forms: FiledFormRow[]; loading: boolean }) {
+  const [preview, setPreview] = React.useState<FiledFormRow | null>(null);
   if (loading) {
     return (
       <div className="rounded-xl border border-hairline bg-surface-card px-4 py-6">
@@ -1353,6 +1355,7 @@ function SavedFormsList({ forms, loading }: { forms: FiledFormRow[]; loading: bo
   if (forms.length === 0) return null;
 
   return (
+    <>
     <div className="rounded-xl border border-hairline bg-surface-card p-4">
       <div className="mb-3 flex items-center gap-2.5">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
@@ -1386,12 +1389,13 @@ function SavedFormsList({ forms, loading }: { forms: FiledFormRow[]; loading: bo
               <span className="inline-flex items-center rounded-pill px-2.5 py-1 text-[11.5px] font-bold" style={{ background: tone.bg, color: tone.fg }}>
                 {tone.label}
               </span>
-              <Link
-                href={f.viewHref as Route}
+              <button
+                type="button"
+                onClick={() => setPreview(f)}
                 className="inline-flex items-center gap-1.5 rounded-pill border border-hairline-strong bg-white px-3 py-1.5 text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
               >
                 <Eye size={13} /> View
-              </Link>
+              </button>
               {f.editHref ? (
                 <Link
                   href={f.editHref as Route}
@@ -1414,6 +1418,8 @@ function SavedFormsList({ forms, loading }: { forms: FiledFormRow[]; loading: bo
         })}
       </ul>
     </div>
+    {preview ? <FormPreviewModal form={preview} onClose={() => setPreview(null)} /> : null}
+    </>
   );
 }
 

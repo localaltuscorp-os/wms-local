@@ -7,7 +7,7 @@
  * wrong default twice over: two thirds of the rows are always empty, and the
  * density the brief asks for — a Google-Sheets-style planner where a quarter
  * fits on a screen — is impossible when 16 of 24 hours are dead space. Since
- * 2026-09-18 the calendar shows 06:30–23:00 for everyone (DEFAULT_GRID); the
+ * The calendar now shows 07:00–23:00 in hourly rows for everyone (DEFAULT_GRID); the
  * per-person window picker was removed at the owner's request.
  *
  * Everything here takes the window as an argument instead of importing a
@@ -28,14 +28,14 @@
 export interface GridConfig {
   /** Minutes from midnight where the grid starts. Default 07:00. */
   startMin: number;
-  /** Minutes from midnight where the grid ends. Default 22:00. */
+  /** Minutes from midnight where the grid ends. Default 23:00. */
   endMin: number;
-  /** Row height in minutes: 60 for hourly, 30 for half-hourly (§2A). */
-  slotMin: 30 | 60;
+  /** Row height in minutes: 60 for hourly, 30 for half-hourly, 15 for quarter-hourly. */
+  slotMin: 15 | 30 | 60;
 }
 
-/** The calendar's window: 06:30 → 23:00 in half-hour rows (fixed, 2026-09-18). */
-export const DEFAULT_GRID: GridConfig = { startMin: 6 * 60 + 30, endMin: 23 * 60, slotMin: 30 };
+/** The calendar's visible window: 07:00–23:00 in hourly rows. */
+export const DEFAULT_GRID: GridConfig = { startMin: 7 * 60, endMin: 23 * 60, slotMin: 60 };
 
 /** The escape hatch for a day with a 06:00 flight or a midnight deploy. */
 export const FULL_DAY_GRID: GridConfig = { startMin: 0, endMin: 24 * 60, slotMin: 30 };
@@ -217,6 +217,74 @@ export function monthWeeks(ymd: string, padTo = 0): MonthWeek[] {
   return out;
 }
 
+/* ── Blocks: flat side-by-side lanes, for the sheet views ────────────────── */
+
+export interface LaneBlockInput {
+  id: string;
+  day: string;
+  startMin: number | null;
+  endMin: number | null;
+  allDay: boolean;
+}
+
+export interface LanedBlock<T> {
+  e: T;
+  start: number;
+  end: number;
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Side-by-side lanes for one day's timed blocks: greedy packing, lane count
+ * per overlap cluster. No nesting and no cascade, unlike `layoutDay` below —
+ * a flat sheet (Weekly Grid, Monthly Grid) has no layers for a block to sit
+ * on top of another, so an overlap always widens the row into another lane
+ * instead. All-day blocks are excluded; the caller draws those as banners.
+ */
+export function laneDay<T extends LaneBlockInput>(events: T[], cfg: GridConfig): LanedBlock<T>[] {
+  const items = events
+    .flatMap((e) => {
+      if (e.allDay) return [];
+      if (e.startMin == null || e.endMin == null || e.endMin <= e.startMin) return [];
+      let start = clampToWindow(e.startMin, cfg);
+      let end = clampToWindow(e.endMin, cfg);
+      // Wholly outside the window: pinned to the nearest edge, one row tall.
+      if (end <= start) {
+        start = e.endMin <= cfg.startMin ? cfg.startMin : cfg.endMin - cfg.slotMin;
+        end = start + cfg.slotMin;
+      }
+      return [{ e, start, end }];
+    })
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const out: LanedBlock<T>[] = [];
+  let cluster: (LanedBlock<T> & { end: number })[] = [];
+  let clusterEnd = -Infinity;
+  const laneEnds: number[] = [];
+  const flush = () => {
+    const lanes = Math.max(1, laneEnds.length);
+    for (const p of cluster) out.push({ ...p, lanes });
+    cluster = [];
+    laneEnds.length = 0;
+  };
+  for (const it of items) {
+    if (it.start >= clusterEnd) {
+      flush();
+      clusterEnd = -Infinity;
+    }
+    let lane = laneEnds.findIndex((end) => end <= it.start);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(it.end);
+    } else laneEnds[lane] = it.end;
+    cluster.push({ ...it, lane, lanes: 1 });
+    clusterEnd = Math.max(clusterEnd, it.end);
+  }
+  flush();
+  return out;
+}
+
 /* ── Blocks: overlap layout for multi-hour spans (§4C) ───────────────────── */
 
 export interface GridBlockInput {
@@ -280,7 +348,7 @@ export function layoutDay<T extends GridBlockInput>(
 ): PositionedBlock<T>[] {
   // `rs`/`re` are the REAL times and decide the cascade; `start`/`end` are what
   // is drawn (clamped to the window). Deciding on clamped times would make a
-  // 04:00 and a 06:00 block both "start at 06:30" and sit side by side.
+  // Two pre-window blocks would otherwise both clamp to the same start and sit side by side.
   type Item = { e: T; rs: number; re: number; start: number; end: number; pinned?: "before" | "after"; order: number };
   const items: Item[] = [];
   events.forEach((e, order) => {
@@ -327,10 +395,11 @@ export function layoutDay<T extends GridBlockInput>(
         span++;
       }
       const top = minToTop(p.start, cfg, slotHeight);
+      const desiredHeight = Math.max(slotHeight / 2, minToTop(p.end, cfg, slotHeight) - top);
       out.push({
         event: p.e,
         top,
-        height: Math.max(slotHeight / 2, minToTop(p.end, cfg, slotHeight) - top),
+        height: Math.min(desiredHeight, Math.max(0, gridHeight(cfg, slotHeight) - top)),
         column: p.col,
         columns,
         span,

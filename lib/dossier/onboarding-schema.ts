@@ -282,7 +282,10 @@ export function parseRepeaterRows(raw: string | null | undefined): Record<string
 
 /** A repeater row is "complete" only when every sub-column is filled. */
 export function isRepeaterRowComplete(field: OnbField, row: Record<string, string>): boolean {
-  return (field.sub ?? []).every((s) => String(row?.[s.key] ?? "").trim().length > 0);
+  return (field.sub ?? []).every((s) => {
+    const value = String(row?.[s.key] ?? "").trim();
+    return s.type === "tel" ? /^\d{10}$/.test(value) : value.length > 0;
+  });
 }
 
 /** Count how many complete rows a repeater's raw value holds (drives the min gate). */
@@ -296,7 +299,10 @@ export function normaliseRepeaterValue(field: OnbField, raw: string | null | und
     .slice(0, field.max ?? 20)
     .map((row) => {
       const o: Record<string, string> = {};
-      for (const s of field.sub ?? []) o[s.key] = String(row?.[s.key] ?? "").trim().slice(0, 200);
+      for (const s of field.sub ?? []) {
+        const value = String(row?.[s.key] ?? "").trim();
+        o[s.key] = s.type === "tel" ? value.replace(/\D/g, "").slice(0, 10) : value.slice(0, 200);
+      }
       return o;
     });
   return JSON.stringify(rows);

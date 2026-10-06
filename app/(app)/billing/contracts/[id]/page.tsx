@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Paperclip } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { listBillingEntities } from "@/lib/billing/entities";
 import { CONTRACT_PAYMENT_TYPE_LABELS, CONTRACT_STATUS_LABELS } from "@/db/enums";
 import { getContract } from "@/lib/queries/billing-contracts";
@@ -41,8 +42,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
           <ArrowLeft size={14} /> All Contracts
         </Link>
         <h1
-          className="text-ink-strong"
-          style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(22px,2.6vw,30px)", letterSpacing: "-0.02em" }}
+          style={PAGE_COMMAND_BAR_TITLE_STYLE}
         >
           {c.customerName}
         </h1>
@@ -70,7 +70,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
         <Tile label="Billing Date" value={c.billingDate} small />
       </section>
 
-      <BillsGrid totals={summary.buckets} title="This contract" />
+      <BillsGrid totals={summary.buckets} rows={[summary]} />
 
       <Card title="Billing Schedule">
         {c.paymentType === "retainer" ? (
@@ -97,7 +97,7 @@ export default async function ContractPage({ params }: { params: Promise<{ id: s
         </div>
         {pdcs.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-separate border-spacing-0 text-[13px]">
+            <table className="w-full min-w-[720px] whitespace-nowrap border-separate border-spacing-0 text-[13px]">
               <thead>
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">
                   <th className="pb-2 pr-3">Sr. No.</th>

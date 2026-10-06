@@ -26,11 +26,13 @@ import { mergeScheduleForBulk } from "@/lib/employees/bulk-schedule-merge";
 // The reporting-line period recorder. `bulkEditEmployees` reaches it too, by
 // delegating each row to `editEmployee`, so there is one write path for a
 // manager change and not two that could disagree.
-import { recordManagerChange, wouldCreateCycle } from "@/lib/employees/manager-history";
+import { recordManagerChange, wouldCreateCycle, isValidReportingManager } from "@/lib/employees/manager-history";
+import { isEmployeeOnTemporaryBreak } from "@/lib/employees/temporary-break";
 import { resolveEmployeeType } from "@/lib/employees/employee-type";
 import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { auditLog } from "@/lib/logs/audit";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isFounder } from "@/lib/auth/founder";
 import {
   hasCapabilityGrant,
   isMasterAdmin,
@@ -61,6 +63,7 @@ import {
 import { siteUrl, rehostActionLink } from "@/lib/site-url";
 import { generateInvitePassword } from "@/lib/auth/default-password";
 import { issueSuggestedEmployeeCode } from "@/lib/employees/code-registry";
+import { defaultProbationEnd } from "@/lib/employees/probation";
 
 /**
  * Priv-esc guard: super-admins are ordinary `employees` rows identified by email.
@@ -588,6 +591,15 @@ export async function editEmployee(
   if (parsed.data.isAdmin !== undefined) patch.isAdmin = parsed.data.isAdmin;
 
   if (parsed.data.managerId !== undefined) {
+    if (parsed.data.managerId !== emp.managerId && !isSuperAdmin(me.email)) {
+      return { ok: false, error: "Only a super-admin can change reporting relationships." };
+    }
+    if (parsed.data.managerId !== null && (await isFounder(emp.id))) {
+      return { ok: false, error: "Founder cannot be assigned a manager." };
+    }
+    if (await isEmployeeOnTemporaryBreak(emp.id)) {
+      return { ok: false, error: "An employee on Temporary Break cannot be assigned to a manager." };
+    }
     if (parsed.data.managerId === emp.id) {
       return { ok: false, error: "An employee can't be their own manager." };
     }
@@ -598,6 +610,12 @@ export async function editEmployee(
     // refused above; this catches the two-step version (making your own report
     // your manager), which the old check let straight through.
     if (parsed.data.managerId) {
+      if (!(await isValidReportingManager(parsed.data.managerId))) {
+        return { ok: false, error: "The selected employee is not designated as a manager." };
+      }
+      if (await isEmployeeOnTemporaryBreak(parsed.data.managerId)) {
+        return { ok: false, error: "A Temporary Break employee cannot be selected as a manager." };
+      }
       if (await wouldCreateCycle(emp.id, parsed.data.managerId)) {
         return {
           ok: false,
@@ -748,7 +766,9 @@ export async function editEmployee(
     override: patch.employeeType !== undefined ? patch.employeeType : emp.employeeType,
     designationType: await designationTypeFor(patch.designationId !== undefined ? patch.designationId : emp.designationId),
   });
-  const probationEndAfter = patch.probationEnd !== undefined ? patch.probationEnd : emp.probationEnd;
+  const probationEndAfter = patch.probationEnd !== undefined
+    ? patch.probationEnd
+    : defaultProbationEnd(D.joinedAt !== undefined ? D.joinedAt : emp.joinedAt, emp.probationEnd);
   if (effectiveType !== "intern" && probationEndAfter == null) {
     return {
       ok: false,

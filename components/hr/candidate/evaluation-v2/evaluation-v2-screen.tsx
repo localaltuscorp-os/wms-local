@@ -10,10 +10,12 @@ import {
   AlertTriangle,
   Briefcase,
   ShieldCheck,
+  Copy,
   Printer,
   Share2,
   Trash2,
   Link2,
+  ArrowLeft,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { joinCandidateName } from "@/lib/hr/candidate/name";
@@ -461,12 +463,21 @@ export function EvaluationV2Screen({
   return (
     <>
       <style>{CSS}</style>
-      <PageShell width="standard" py={false} className="pt-5 pb-20">
+      <PageShell width="wide" py={false} className="pt-5 pb-20">
 
         {/* Control + candidate-summary card — NOT sticky, so the Overall Progress
             donut belongs to this card and scrolls away with it (no floating). */}
         <div className="ev2-sticky ev2-fade mb-5 rounded-2xl border border-hairline bg-white/95 p-3.5 shadow-[0_10px_30px_-22px_rgba(24,24,27,0.5)]">
           <div className="flex flex-wrap items-center gap-3.5">
+            {fixedCandidateId && (
+              <button
+                type="button"
+                onClick={() => router.push("/hr/candidates")}
+                className="inline-flex shrink-0 items-center gap-1.5 self-end rounded-xl border border-hairline-strong bg-white px-3.5 py-2.5 text-[13px] font-bold text-ink-strong transition-colors hover:border-altus-red hover:text-altus-red"
+              >
+                <ArrowLeft size={15} strokeWidth={2.4} /> Back to Candidate Records
+              </button>
+            )}
             {!fixedCandidateId && (
               <div className="ev2-select-wrap min-w-[240px] flex-1">
                 <label htmlFor="ev2-candidate" className="mb-1 block text-[10.5px] font-bold uppercase tracking-[0.16em] text-ink-soft">
@@ -565,6 +576,18 @@ export function EvaluationV2Screen({
             </div>
           )}
 
+          {role === "management" && load?.seededFromInterviewer && (
+            <div
+              className="mt-4 flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[12.5px] font-semibold text-ink-muted"
+              style={{ borderColor: "color-mix(in srgb, #2563eb 24%, white)", background: "color-mix(in srgb, #2563eb 5%, white)" }}
+            >
+              <Copy size={15} className="mt-0.5 shrink-0 text-[#2563eb]" />
+              <p>
+                Showing the completed interviewer evaluation as a starting point. Your first change creates a separate management pass; the interviewer&apos;s record remains unchanged.
+              </p>
+            </div>
+          )}
+
           {/* ── "THE NUMBER I ATTACHED HAS STARTED FILLING THE FORM" ──────────
               This is the whole point of attaching a number to a quick
               candidate: HR can see that the person they evaluated has begun
@@ -659,7 +682,13 @@ export function EvaluationV2Screen({
         ) : error ? (
           <ErrorState message={error} onRetry={() => void selectCandidate(candidateId)} />
         ) : instance && ctrl ? (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
+          <div
+            className={`grid grid-cols-1 gap-6 ${
+              railCollapsed
+                ? "lg:grid-cols-[64px_minmax(0,1fr)]"
+                : "lg:grid-cols-[240px_minmax(0,1fr)]"
+            }`}
+          >
             {/* Sticky rail (desktop) */}
             <aside className={`ev2-noprint max-lg:hidden ${railCollapsed ? "lg:w-[64px]" : ""}`}>
               <div className="ev2-rail-sticky sticky top-[80px] max-h-[calc(100vh-100px)] overflow-y-auto">

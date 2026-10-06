@@ -99,7 +99,7 @@ describe("column order", () => {
   it("writes every heading out in full", () => {
     expect(columnLabel("compliance", "wcc")).toBe("Weekly Compliance");
     expect(columnLabel("compliance", "mcc")).toBe("Monthly Compliance");
-    expect(columnLabel("section", "wcc")).toBe("Section");
+    expect(columnLabel("section", "wcc")).toBe("Subject");
     expect(columnLabel("var", "wcc")).toBe("+/- Days");
     expect(columnLabel("approverNotes", "mcc")).toBe("Approver Notes");
   });
@@ -161,15 +161,15 @@ describe("the Quantity Done column", () => {
   });
 });
 
-describe("WCC's Mins, where Deadline was (account holder, 2026-09-19)", () => {
-  it("WCC shows Mins and no Deadline; MCC keeps its Deadline and has no Mins", () => {
+describe("Compliance Mins", () => {
+  it("shows Mins on every checklist; WCC has no standalone deadline", () => {
     const wcc = visibleColumns(DEFAULT_ORDER, false, "wcc");
     expect(wcc).toContain("mins");
     expect(wcc).not.toContain("deadline");
     expect(wcc.indexOf("mins")).toBe(wcc.indexOf("frequency") + 1);
     const mcc = visibleColumns(DEFAULT_ORDER, false, "mcc");
     expect(mcc).toContain("deadline");
-    expect(mcc).not.toContain("mins");
+    expect(mcc).toContain("mins");
     expect(columnLabel("mins", "wcc")).toBe("Mins");
   });
 

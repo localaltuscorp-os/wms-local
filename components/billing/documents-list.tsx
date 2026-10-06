@@ -148,6 +148,20 @@ export function BillingDocumentsList({
   const [groupBy, setGroupBy] = React.useState<DocGroupKey>("none");
   const { hidden, toggle: toggleColumn } = useHiddenColumns<DocColKey>();
   const visibleCols = DOC_COLUMNS.filter((c) => !hidden.has(c.key));
+  // Keep the ledger identifiers in view while its financial/detail columns
+  // move horizontally. The offsets are calculated from visible columns so the
+  // pinned area still closes up correctly when a user hides Type or Customer.
+  const pinnedColumnOffsets = React.useMemo(() => {
+    const offsets = new Map<DocColKey, number>();
+    let left = DOCUMENT_SELECTION_COLUMN_WIDTH;
+    for (const column of visibleCols) {
+      const width = PINNED_DOCUMENT_COLUMN_WIDTHS[column.key];
+      if (width === undefined) break;
+      offsets.set(column.key, left);
+      left += width;
+    }
+    return offsets;
+  }, [visibleCols]);
   const group = DOC_GROUPS.find((g) => g.key === groupBy)!;
   // Grouping orders the CURRENT PAGE by group; the server pages by date.
   const shown = React.useMemo(
@@ -183,10 +197,10 @@ export function BillingDocumentsList({
     [setParam],
   );
 
-  const activeFilters = ["type", "status", "customerId", "entityId", "finYear"].filter((k) => params.get(k)).length;
+  const activeFilters = ["type", "status", "customerId", "entityId", "finYear", "overdue"].filter((k) => params.get(k)).length;
   function clearFilters() {
     const next = new URLSearchParams(params.toString());
-    for (const k of ["type", "status", "customerId", "entityId", "finYear", "page"]) next.delete(k);
+    for (const k of ["type", "status", "customerId", "entityId", "finYear", "overdue", "page"]) next.delete(k);
     router.push(`/billing/documents${next.toString() ? `?${next}` : ""}` as Route);
   }
 
@@ -314,7 +328,15 @@ export function BillingDocumentsList({
           >
             <thead>
               <tr className="text-[10.5px] uppercase tracking-[0.12em] text-ink-muted">
-                <th className="w-10 py-3 pl-4 pr-1 text-left">
+                <th
+                  className="sticky left-0 z-30 py-3 pl-4 pr-1 text-left"
+                  style={{
+                    zIndex: 40,
+                    width: DOCUMENT_SELECTION_COLUMN_WIDTH,
+                    minWidth: DOCUMENT_SELECTION_COLUMN_WIDTH,
+                    background: "var(--table-head-bg, var(--color-surface-card))",
+                  }}
+                >
                   <Checkbox
                     checked={sel.allOn}
                     indeterminate={sel.someOn}
@@ -322,11 +344,32 @@ export function BillingDocumentsList({
                     ariaLabel="Select all documents"
                   />
                 </th>
-                {visibleCols.map((c) => (
-                  <th key={c.key} className={`px-4 py-3 font-bold ${c.align === "right" ? "text-right" : "text-left"}`}>
-                    {c.label}
-                  </th>
-                ))}
+                {visibleCols.map((c) => {
+                  const left = pinnedColumnOffsets.get(c.key);
+                  const pinned = left !== undefined;
+                  const width = PINNED_DOCUMENT_COLUMN_WIDTHS[c.key];
+                  return (
+                    <th
+                      key={c.key}
+                      className={`whitespace-nowrap px-4 py-3 font-bold ${pinned ? "sticky z-30" : ""} ${
+                        c.align === "right" ? "text-right" : "text-left"
+                      }`}
+                      style={
+                        pinned
+                          ? {
+                              left,
+                              zIndex: 40,
+                              width,
+                              minWidth: width,
+                              background: "var(--table-head-bg, var(--color-surface-card))",
+                            }
+                          : undefined
+                      }
+                    >
+                      {c.label}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -349,18 +392,47 @@ export function BillingDocumentsList({
                       className="border-t border-hairline transition-colors"
                       style={sel.selected.has(row.id) ? { background: "rgba(225,6,0,0.06)" } : undefined}
                     >
-                      <td className="py-3 pl-4 pr-1">
+                      <td
+                        className="sticky left-0 z-10 py-3 pl-4 pr-1"
+                        style={{
+                          width: DOCUMENT_SELECTION_COLUMN_WIDTH,
+                          minWidth: DOCUMENT_SELECTION_COLUMN_WIDTH,
+                          background: sel.selected.has(row.id)
+                            ? "rgba(225, 6, 0, 0.06)"
+                            : "var(--color-surface-card)",
+                        }}
+                      >
                         <Checkbox
                           checked={sel.selected.has(row.id)}
                           onChange={(on) => sel.toggle(row.id, on)}
                           ariaLabel={`Select ${row.docNo ?? "draft"}`}
                         />
                       </td>
-                      {visibleCols.map((c) => (
-                        <td key={c.key} className={c.cellClass}>
-                          {c.render(row)}
-                        </td>
-                      ))}
+                      {visibleCols.map((c) => {
+                        const left = pinnedColumnOffsets.get(c.key);
+                        const pinned = left !== undefined;
+                        const width = PINNED_DOCUMENT_COLUMN_WIDTHS[c.key];
+                        return (
+                          <td
+                            key={c.key}
+                            className={`${c.cellClass} whitespace-nowrap ${pinned ? "sticky z-10" : ""}`}
+                            style={
+                              pinned
+                                ? {
+                                    left,
+                                    width,
+                                    minWidth: width,
+                                    background: sel.selected.has(row.id)
+                                      ? "rgba(225, 6, 0, 0.06)"
+                                      : "var(--color-surface-card)",
+                                  }
+                                : undefined
+                            }
+                          >
+                            {c.render(row)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   </React.Fragment>
                 );
@@ -587,7 +659,14 @@ function DocSelectionActions({
 
 /* ─────────────────────────── columns & groups ──────────────────────────── */
 
-type DocColKey = "document" | "customer" | "date" | "due" | "taxable" | "gst" | "total" | "status" | "createdBy";
+type DocColKey = "document" | "type" | "customer" | "email" | "date" | "due" | "taxable" | "gst" | "total" | "status" | "createdBy";
+
+const DOCUMENT_SELECTION_COLUMN_WIDTH = 56;
+const PINNED_DOCUMENT_COLUMN_WIDTHS: Partial<Record<DocColKey, number>> = {
+  document: 136,
+  type: 135,
+  customer: 300,
+};
 
 const DOC_COLUMNS: {
   key: DocColKey;
@@ -608,22 +687,26 @@ const DOC_COLUMNS: {
         >
           {r.docNo ?? "Draft"}
         </Link>
-        <div className="mt-1">
-          <DocTypeChip type={r.docType} />
-        </div>
       </>
     ),
+  },
+  {
+    key: "type",
+    label: "Type",
+    cellClass: "px-4 py-3",
+    render: (r) => <DocTypeChip type={r.docType} />,
   },
   {
     key: "customer",
     label: "Customer",
     cellClass: "px-4 py-3",
-    render: (r) => (
-      <>
-        <div className="font-semibold">{r.customerName}</div>
-        {r.customerEmail ? <div className="text-[11.5px] text-ink-muted">{r.customerEmail}</div> : null}
-      </>
-    ),
+    render: (r) => <span className="font-semibold">{r.customerName}</span>,
+  },
+  {
+    key: "email",
+    label: "Email",
+    cellClass: "px-4 py-3 text-ink-muted",
+    render: (r) => r.customerEmail || "—",
   },
   { key: "date", label: "Date", cellClass: "px-4 py-3 text-ink-muted", render: (r) => fmtDocDate(r.docDate) },
   {

@@ -45,6 +45,22 @@ describe("totalPayable", () => {
     expect(totalPayable(r)).toBe(30_000);
   });
 
+  it("uses the selected month's actual day count for a wave-off", () => {
+    const r = {
+      finalPayment: "4677.42",
+      monthlyCtc: "5000",
+      daysInMonth: "31",
+      waiveOffDays: "1",
+      payoutAdjustment: "0",
+      amountPaid: "0",
+    };
+    expect(totalPayable(r)).toBe(4_838.71);
+  });
+
+  it("does not invent a 30-day rate for a malformed month length", () => {
+    expect(totalPayable({ ...row(4_677.42), monthlyCtc: "5000", daysInMonth: "0", waiveOffDays: "1" })).toBe(4_677.42);
+  });
+
   it("includes the signed payout adjustment in both directions", () => {
     expect(totalPayable({ ...row(50_000), payoutAdjustment: "1500" })).toBe(51_500);
     expect(totalPayable({ ...row(50_000), payoutAdjustment: "-2000" })).toBe(48_000);

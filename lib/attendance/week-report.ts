@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { attendanceWeekAck, employees, salaryProfiles } from "@/db/schema";
 import { NOT_JOINED_CODE, getEmployeeMonthStatus } from "@/lib/queries/attendance-status";
 import { asWorkerType, hourlyMonthlyAnchor, payBasisFor } from "@/lib/attendance/worker-type";
-import { calendarHourlyRate } from "@/lib/salary/compute";
+import { calendarHourlyRate, deriveSalaryRate } from "@/lib/salary/compute";
 import { weeklyTargetMinutesFor } from "@/lib/attendance/hours-rule";
 import { resolveEffectiveConfig } from "@/lib/attendance/effective-config";
 import {
@@ -104,14 +104,18 @@ async function payFor(employeeId: string, daysInMonth: number): Promise<WeekLoss
           ? Number(row.weeklyTargetHours) * 60
           : row.weeklyTargetMinutes,
       );
-      const hourlyRate = calendarHourlyRate(monthlyPay, weeklyTargetMinutes / 60, daysInMonth);
+      const hourlyRate = calendarHourlyRate(monthlyPay, daysInMonth, dailyTargetMinutes / 60);
       return { basis, perDay: 0, hourlyRate, weeklyTargetMinutes, dailyTargetMinutes };
     }
 
     // monthly_ctc — the same per-day rate computeSalary uses.
     const annual = Number(row.annualCtc ?? 0);
-    const perDay = daysInMonth > 0 ? annual / 12 / daysInMonth : 0;
-    return { basis, perDay, hourlyRate: 0, weeklyTargetMinutes: 0, dailyTargetMinutes };
+    const rate = deriveSalaryRate({
+      monthlySalary: annual / 12,
+      daysInMonth,
+      workingHoursPerDay: dailyTargetMinutes / 60,
+    });
+    return { basis, perDay: rate.perDayExact, hourlyRate: rate.perHourExact, weeklyTargetMinutes: 0, dailyTargetMinutes };
   } catch {
     return none;
   }

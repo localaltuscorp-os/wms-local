@@ -1,8 +1,8 @@
 import "server-only";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
-import { employees, incentiveRequests } from "@/db/schema";
+import { employees, incentiveRequestDecisions, incentiveRequests } from "@/db/schema";
 import type { IncentiveStatus, IncentiveType } from "@/db/enums";
 import type { IncentiveSplitShare } from "@/lib/incentive/split";
 
@@ -23,6 +23,8 @@ export interface IncentiveRequestRow {
   submissionNo: number;
   /** When the latest resubmission landed, or null. */
   resubmittedAt: Date | null;
+  /** A prior decision makes normal edit/delete permanently unavailable. */
+  hasDecision: boolean;
 }
 
 /**
@@ -66,6 +68,7 @@ export async function listIncentiveRequests(opts: {
       createdAt: incentiveRequests.createdAt,
       submissionNo: incentiveRequests.submissionNo,
       resubmittedAt: incentiveRequests.resubmittedAt,
+      hasDecision: sql<boolean>`exists (select 1 from ${incentiveRequestDecisions} where ${incentiveRequestDecisions.requestId} = ${incentiveRequests.id})`,
     })
     .from(incentiveRequests)
     .innerJoin(employees, eq(incentiveRequests.employeeId, employees.id))
@@ -84,5 +87,6 @@ export async function listIncentiveRequests(opts: {
     ...r,
     split: r.split ?? null,
     decidedByName: r.decidedByName ?? null,
+    hasDecision: Boolean(r.hasDecision),
   }));
 }

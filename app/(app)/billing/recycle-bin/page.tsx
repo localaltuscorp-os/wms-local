@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { listRecycleBin } from "@/lib/queries/billing-customers";
 import { CARD_STYLE } from "@/lib/billing/ui";
 import { RecycleBinRow } from "@/components/billing/recycle-bin-row";
@@ -25,9 +26,8 @@ export default async function BillingRecycleBinPage() {
 
   return (
     <PageShell width="wide">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-muted">Billing</p>
       <h1
-        className="mt-1 text-ink-strong"
+        className="text-ink-strong"
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 900,
@@ -37,7 +37,7 @@ export default async function BillingRecycleBinPage() {
       >
         Recycle Bin
       </h1>
-      <p className="mt-1 max-w-[70ch] text-[13.5px] text-ink-muted">
+      <p className="hidden">
         Customers removed from the Billing module. Nothing here has been destroyed — restoring
         puts it back exactly where it was.
       </p>

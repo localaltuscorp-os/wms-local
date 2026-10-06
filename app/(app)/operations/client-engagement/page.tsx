@@ -2,9 +2,10 @@ import { PageShell } from "@/components/layout/page-shell";
 import { loadCePage } from "@/lib/client-engagement/page-context";
 import { buildCapacity, weeklyLoadByAccount, type Load } from "@/lib/client-engagement/grids";
 import { CeNotReady } from "@/components/client-engagement/not-ready";
-import { CapacityBar } from "@/components/client-engagement/capacity-bar";
-import { AccountsBoard } from "@/components/client-engagement/accounts-board";
+import { OverviewBoard } from "@/components/client-engagement/overview-board";
 import { ReferencesBoard } from "@/components/client-engagement/references-board";
+import { listActiveProducts } from "@/lib/queries/products";
+import { ceProductOptions } from "@/lib/client-engagement/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function ClientEngagementOverview({
   }
 
   const { members, accounts, engagements, references } = ctx.snapshot;
+  const productOptions = ceProductOptions(await listActiveProducts());
   const capacity = buildCapacity(members, accounts, engagements, ctx.monday);
   const loads: Record<string, Load> = Object.fromEntries(weeklyLoadByAccount(engagements, ctx.monday));
   const callCounts: Record<string, number> = {};
@@ -39,8 +41,7 @@ export default async function ClientEngagementOverview({
 
   return (
     <PageShell width="full">
-      <CapacityBar capacity={capacity} unassigned={unassigned} />
-      <AccountsBoard
+      <OverviewBoard
         accounts={accounts}
         members={members}
         capacity={capacity}
@@ -49,6 +50,7 @@ export default async function ClientEngagementOverview({
         canManage={ctx.canManage}
         myMemberId={ctx.myMemberId}
         initialTab={tab}
+        unassigned={unassigned}
         referencesSlot={
           <ReferencesBoard
             references={references}
@@ -59,6 +61,7 @@ export default async function ClientEngagementOverview({
             myMemberId={ctx.myMemberId}
           />
         }
+        productOptions={productOptions}
       />
     </PageShell>
   );

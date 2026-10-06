@@ -83,6 +83,26 @@ export function googleDriveClient(accessToken: string): DriveClient {
     return json.id;
   }
 
+  /** Escape a value before placing it inside a Drive query string literal. */
+  function queryValue(value: string): string {
+    return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  }
+
+  /** Find an app-visible folder with this name under this exact parent. */
+  async function existingFolder(name: string, parentId: string | null): Promise<string | null> {
+    const parent = parentId ?? "root";
+    const query =
+      `name = '${queryValue(name)}' and mimeType = '${FOLDER_MIME}' and ` +
+      `'${queryValue(parent)}' in parents and trashed = false`;
+    const res = await call(
+      `${FILES}?q=${encodeURIComponent(query)}&pageSize=1&orderBy=createdTime&fields=files(id)`,
+      { method: "GET" },
+    );
+    if (!res.ok) throw await describe(res, `Looking up folder "${name}"`);
+    const json = (await res.json()) as { files?: { id?: string }[] };
+    return json.files?.[0]?.id ?? null;
+  }
+
   return {
     async ensureFolder({ name, parentId, knownId }) {
       if (knownId) {
@@ -99,6 +119,11 @@ export function googleDriveClient(accessToken: string): DriveClient {
           return knownId;
         }
       }
+      // Module and dated folders are not persisted individually. Reuse the
+      // app-created child already under this parent instead of creating a new
+      // same-name folder on every nightly run.
+      const existing = await existingFolder(name, parentId);
+      if (existing) return existing;
       const res = await call(`${FILES}?fields=id`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=UTF-8" },

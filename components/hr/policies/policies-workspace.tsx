@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   Check,
   ArrowUpRight,
+  Eye,
+  Search,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { POLICY_CATEGORIES } from "@/lib/hr/policy-types";
@@ -29,6 +31,7 @@ interface Policy {
   title: string;
   description: string | null;
   category: string;
+  customCategory: string | null;
   fileName: string;
   sizeBytes: number | null;
   signedUrl: string | null;
@@ -77,10 +80,47 @@ export function PoliciesWorkspace({
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
   const total = groups.reduce((n, g) => n + g.policies.length, 0);
+  const queryText = query.trim().toLocaleLowerCase();
+  const matches = (parts: Array<string | null | undefined>) =>
+    !queryText || parts.some((part) => part?.toLocaleLowerCase().includes(queryText));
+  const visibleSignable = signable.filter((policy) => matches([policy.title, policy.blurb, policy.badge]));
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      policies: group.policies.filter((policy) =>
+        matches([policy.title, policy.description, policy.fileName, group.label, policy.customCategory]),
+      ),
+    }))
+    .filter((group) => group.policies.length > 0);
+  const visibleUploadedCount = visibleGroups.reduce((n, group) => n + group.policies.length, 0);
 
   return (
     <div className="space-y-8">
+      <form
+        className="flex flex-wrap items-center gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <Search size={17} className="shrink-0 text-ink-muted" aria-hidden />
+        <label className="min-w-[220px] flex-1">
+          <span className="sr-only">Search policies</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search policies, categories, or file names"
+            className="w-full bg-transparent text-[14px] font-medium text-ink-strong outline-none placeholder:text-ink-soft"
+          />
+        </label>
+        {queryText && (
+          <span className="text-[12px] font-semibold text-ink-muted">
+            {visibleSignable.length + visibleUploadedCount} matches
+          </span>
+        )}
+        <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:border-[var(--color-altus-red)]">
+          <Search size={13} /> Search
+        </button>
+      </form>
       {/* ── THE FIRM POLICIES — authored, versioned, signable ───────────────
           These are the policies people actually sign (POSH, Exit, …). They are
           ALWAYS present (the registry is code, not uploaded files), which is why
@@ -115,8 +155,8 @@ export function PoliciesWorkspace({
             )}
           </span>
         </div>
-        <ul className="grid gap-2.5 sm:grid-cols-2">
-          {signable.map((p) => {
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {visibleSignable.map((p) => {
             const signed = Boolean(p.signedAt) && !p.outdated;
             return (
               <li key={p.key}>
@@ -175,6 +215,11 @@ export function PoliciesWorkspace({
               </li>
             );
           })}
+          {visibleSignable.length === 0 && (
+            <li className="col-span-full rounded-2xl border border-dashed border-hairline bg-surface-soft px-4 py-8 text-center text-[13px] font-medium text-ink-muted">
+              No firm policy matches “{query.trim()}”.
+            </li>
+          )}
         </ul>
       </section>
 
@@ -187,9 +232,13 @@ export function PoliciesWorkspace({
             {isAdmin ? " Upload one above." : " Check back soon."}
           </p>
         </div>
+      ) : visibleUploadedCount === 0 ? (
+        <div className="rounded-2xl border border-dashed border-hairline bg-surface-card px-4 py-12 text-center text-[14px] font-medium text-ink-muted">
+          No uploaded policy matches “{query.trim()}”.
+        </div>
       ) : (
         <div className="space-y-6">
-          {groups.map((g) => (
+          {visibleGroups.map((g) => (
             <section key={g.category}>
               <div className="mb-2.5 flex items-center gap-2">
                 <span className="h-3 w-3 rounded-sm" style={{ background: g.accent }} />
@@ -202,20 +251,26 @@ export function PoliciesWorkspace({
                     <FileText size={18} className="shrink-0 text-ink-muted" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14px] font-semibold text-ink-strong">{p.title}</div>
+                      {p.customCategory && (
+                        <div className="truncate text-[12px] font-semibold text-ink-soft">Other: {p.customCategory}</div>
+                      )}
                       <div className="truncate text-[12px] text-ink-muted">
                         {p.description ? `${p.description} · ` : ""}
                         {p.fileName} {p.sizeBytes ? `· ${fmtSize(p.sizeBytes)}` : ""} · {fmtDate(p.uploadedAt)}
                       </div>
                     </div>
-                    <a
-                      href={p.signedUrl ?? "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-disabled={!p.signedUrl}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-strong transition hover:border-[var(--color-altus-red)]"
-                    >
-                      <Download size={13} /> Open
-                    </a>
+                    {p.signedUrl ? (
+                      <a
+                        href={p.signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-strong transition hover:border-[var(--color-altus-red)]"
+                      >
+                        <Eye size={13} /> View file
+                      </a>
+                    ) : (
+                      <span className="text-[12px] font-medium text-ink-muted">Preview unavailable</span>
+                    )}
                     {isAdmin && <DeleteButton id={p.id} onDone={() => router.refresh()} />}
                   </li>
                 ))}
@@ -244,18 +299,33 @@ function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
         fireToast({ message: "Policy deleted", type: "success" });
         onDone();
       }}
-      className="inline-flex items-center rounded-lg border border-hairline px-2 py-1.5 text-ink-muted transition hover:border-[var(--color-altus-red)] hover:text-[var(--color-altus-red)]"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-[12.5px] font-semibold text-ink-muted transition hover:border-[var(--color-altus-red)] hover:text-[var(--color-altus-red)]"
       aria-label="Delete policy"
       disabled={busy}
     >
-      {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+      {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
     </button>
   );
 }
 
 function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [busy, setBusy] = React.useState(false);
+  const [category, setCategory] = React.useState("hr_general");
+  const [file, setFile] = React.useState<File | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  function removeSelectedFile() {
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function viewSelectedFile() {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -281,17 +351,52 @@ function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
             <input name="title" required autoFocus maxLength={200} placeholder="e.g. Leave Policy 2026" className={inputCls} />
           </Field>
           <Field label="Category">
-            <select name="category" required defaultValue="hr_general" className={inputCls}>
+            <select
+              name="category"
+              required
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              className={inputCls}
+            >
               {POLICY_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>{c.label}</option>
               ))}
             </select>
           </Field>
+          {category === "other" && (
+            <Field label="Other category name">
+              <input
+                name="otherCategory"
+                required
+                maxLength={80}
+                placeholder="e.g. Travel and Expense"
+                className={inputCls}
+              />
+            </Field>
+          )}
           <Field label="Description (optional)">
             <input name="description" maxLength={2000} placeholder="Short note or version" className={inputCls} />
           </Field>
           <Field label="File">
-            <input name="file" type="file" required className="block w-full text-[13px] text-ink-strong file:mr-3 file:rounded-lg file:border-0 file:bg-surface-soft file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold" />
+            <input
+              ref={fileRef}
+              name="file"
+              type="file"
+              required
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              className="block w-full text-[13px] text-ink-strong file:mr-3 file:rounded-lg file:border-0 file:bg-surface-soft file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold"
+            />
+            {file && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-surface-soft px-2.5 py-2 text-[12px] font-medium text-ink-muted">
+                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                <button type="button" onClick={viewSelectedFile} className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-bold text-ink-strong hover:bg-white">
+                  <Eye size={13} /> View
+                </button>
+                <button type="button" onClick={removeSelectedFile} className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-bold text-[var(--color-altus-red)] hover:bg-white">
+                  <Trash2 size={13} /> Delete
+                </button>
+              </div>
+            )}
           </Field>
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-pill border border-hairline px-4 py-2 text-[13px] font-bold text-ink-strong">Cancel</button>

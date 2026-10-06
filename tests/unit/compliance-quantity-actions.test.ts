@@ -46,7 +46,7 @@ vi.mock("@/lib/db", async () => {
   return { db: drizzle(h.pg, { schema }) };
 });
 
-import { saveComplianceItem, setComplianceDoer } from "@/app/(app)/dcc/compliance-actions";
+import { saveComplianceItem, setComplianceDoer } from "@/app/(app)/employees/cc/actions";
 
 const DOER = "11111111-1111-4111-8111-111111111111";
 /** Somebody else, so "may I record against THEIR row" has something to ask about. */

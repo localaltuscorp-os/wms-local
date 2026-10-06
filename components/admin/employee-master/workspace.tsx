@@ -29,6 +29,7 @@ import {
 } from "@/lib/attendance/worker-type";
 import { formatDate } from "@/lib/format";
 import "./aura.css";
+import { probationEndAfterDays } from "@/lib/employees/probation";
 
 /**
  * THE EMPLOYEE MASTER WORKSPACE.
@@ -581,6 +582,15 @@ function Section(props: {
 
   const dateStr = (d: Date | string | null) =>
     !d ? "" : typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
+  const joinedDate = dateStr(v("joinedAt", dateStr(r.joinedAt)) ?? null);
+  const shownProbationEnd = "probationEnd" in draft
+    ? (v("probationEnd", r.probationEnd) ?? "")
+    : r.probationEndExplicit
+      ? (r.probationEnd ?? "")
+      : (probationEndAfterDays(joinedDate, 180) ?? "");
+  const probationDuration = r.effectiveEmployeeType === "intern"
+    ? ""
+    : shownProbationEnd === probationEndAfterDays(joinedDate, 180) ? "180" : shownProbationEnd === probationEndAfterDays(joinedDate, 90) ? "90" : "custom";
 
   switch (section) {
     case "overview": {
@@ -608,6 +618,15 @@ function Section(props: {
             <Pane title="Identity">
               <Rows>
                 <Field label="Employee Code"><Readout>{r.employeeCode ?? "Not issued"}</Readout></Field>
+                {/* Read-only here: the one-way-door decision (set once "Done",
+                    can't be unset) is owned by the HR Record page's card, which
+                    also handles the requireHrStaff() gate. Showing it here without
+                    a second write path keeps that guarantee in the one place. */}
+                <Field label="Background Check">
+                  <Readout>
+                    {r.backgroundCheck === "yes" ? "Done" : r.backgroundCheck === "no" ? "Not Done" : "Not decided yet"}
+                  </Readout>
+                </Field>
                 <Text label="Employee Name" value={v("name", r.name) ?? ""} onChange={(x) => set("name", x, r.name)} />
                 <Pick label="Designation" value={v("designationId", r.designationId) ?? ""} onChange={(x) => set("designationId", x || null, r.designationId)} options={options.designations} />
                 <Pick label="Entity" value={v("payingEntityId", r.entityId) ?? ""} onChange={(x) => set("payingEntityId", x || null, r.entityId)} options={options.entities} />
@@ -623,7 +642,7 @@ function Section(props: {
 
             <Pane title="Employment dates">
               <Rows>
-                <DateInput label="Date of Joining" value={dateStr(v("joinedAt", dateStr(r.joinedAt)) ?? null)} onChange={(x) => set("joinedAt", x || null, dateStr(r.joinedAt))} />
+                <DateInput label="Date of Joining" value={joinedDate} onChange={(x) => set("joinedAt", x || null, dateStr(r.joinedAt))} />
                 {/* PROBATION END DATE IS REQUIRED for a non-intern (0244), and
                     the server refuses a save without it. The marker is on the
                     LABEL here so the admin sees the requirement on the control
@@ -637,9 +656,26 @@ function Section(props: {
                         ? "Probation Ends On"
                         : "Probation Ends On *"
                     }
-                    value={v("probationEnd", r.probationEnd) ?? ""}
+                    value={shownProbationEnd}
                     onChange={(x) => set("probationEnd", x || null, r.probationEnd)}
                   />
+                  {r.effectiveEmployeeType !== "intern" && (
+                    <label className="mt-2 block text-[11.5px] text-ink-muted">
+                      Default duration
+                      <select
+                        value={probationDuration}
+                        onChange={(e) => {
+                          const days = e.target.value === "90" ? 90 : e.target.value === "180" ? 180 : null;
+                          if (days) set("probationEnd", probationEndAfterDays(joinedDate, days), r.probationEnd);
+                        }}
+                        className="mt-1 w-full rounded-md border border-hairline bg-surface-card px-2 py-1.5 text-[12px] text-ink-strong"
+                      >
+                        <option value="180">6 months (180 days)</option>
+                        <option value="90">3 months</option>
+                        <option value="custom">Custom date</option>
+                      </select>
+                    </label>
+                  )}
                   {!r.probationEnd && r.effectiveEmployeeType !== "intern" && (
                     <p className="mt-1 text-[11.5px]" style={{ color: "var(--color-red-deep, #b91c1c)" }}>
                       Required — this employee cannot be saved without it.
@@ -722,16 +758,13 @@ function Section(props: {
           <Panes>
             <Pane title="Reach">
               <Rows>
-                <Text label="Office Mail" value={v("officialEmail", r.officeEmail) ?? ""} onChange={(x) => set("officialEmail", x || null, r.officeEmail)} />
-                <Text label="Personal Mail" value={v("personalEmail", r.personalEmail) ?? ""} onChange={(x) => set("personalEmail", x || null, r.personalEmail)} />
+                <EmailField label="Office Mail" value={v("officialEmail", r.officialEmail) ?? ""} onChange={(x) => set("officialEmail", x || null, r.officialEmail)} />
+                <EmailField label="Personal Mail" value={v("personalEmail", r.personalEmail) ?? ""} onChange={(x) => set("personalEmail", x || null, r.personalEmail)} />
                 <Text label="Personal Cell" value={v("phone", r.phone) ?? ""} onChange={(x) => set("phone", x || null, r.phone)} />
                 <Field label="WhatsApp"><Readout>{r.whatsapp ?? "—"}</Readout></Field>
-                <Field label="Login address"><Readout>{r.officeEmail}</Readout></Field>
+                <Field label="Login Address"><Readout className="email-readout">{r.loginEmail}</Readout></Field>
               </Rows>
-              <Note>
-                The login address is bound to the Firebase account and is changed through the invite
-                flow, not here — editing it on this screen would break sign-in.
-              </Note>
+              <Note>System-controlled Firebase sign-in address. Change it through the invite flow, not here.</Note>
             </Pane>
 
             <Pane title="Current Address"><AddressBlock a={detail.currentAddress} /></Pane>
@@ -1108,7 +1141,7 @@ function FamilyPanes({ detail }: { detail: EmployeeMasterDetail }) {
 
         <Pane title="Emergency Contacts">
           {emergencyContacts.length === 0 ? (
-            <Empty>None recorded.</Empty>
+            <p className="quiet py-1 text-[12.5px]">No emergency contacts recorded.</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {emergencyContacts.map((c, i) => (
@@ -1222,6 +1255,22 @@ function Text({ label, value, onChange }: { label: string; value: string; onChan
   return (
     <Field label={label}>
       <input value={value} onChange={(e) => onChange(e.target.value)} className="ctl" />
+    </Field>
+  );
+}
+
+function EmailField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <Field label={label}>
+      <input
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="ctl email-ctl"
+        placeholder="Not recorded"
+      />
     </Field>
   );
 }
@@ -1365,8 +1414,8 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 function AddressBlock({ a }: { a: EmployeeMasterDetail["currentAddress"] }) {
   if (a.empty) return <Empty>Not recorded.</Empty>;
   return (
-    <div className="readout leading-relaxed">
-      {[a.line1, a.line2, a.line3, a.landmark].filter(Boolean).join(", ")}
+    <div className="readout address-readout leading-relaxed">
+      <div>{[a.line1, a.line2, a.line3, a.landmark].filter(Boolean).join(", ")}</div>
       {(a.city || a.state || a.pincode) && (
         <div className="quiet mt-0.5">{[a.city, a.state, a.pincode].filter(Boolean).join(" · ")}</div>
       )}

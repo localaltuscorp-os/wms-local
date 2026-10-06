@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { MoreHorizontal, Pencil, Plus, Power } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
   DropdownMenu,
@@ -46,6 +46,8 @@ interface Props {
   items: RosterItem[];
   createAction: CreateAction;
   updateAction: UpdateAction;
+  deleteAction?: (ids: string[]) => Promise<ActionResult<{ deleted: number }>>;
+  canDelete?: boolean;
   /** Singular noun for the usage column, e.g. "contracts". */
   usageLabel: string;
   /**
@@ -77,6 +79,8 @@ export function OutstandingRosterList({
   items,
   createAction,
   updateAction,
+  deleteAction,
+  canDelete = false,
   usageLabel,
   showEmployeeType = false,
 }: Props) {
@@ -101,7 +105,7 @@ export function OutstandingRosterList({
         getRowKey={(r) => r.id}
         searchText={(r) => r.name}
         searchPlaceholder={`Search ${title.toLowerCase()}`}
-        initialSort={{ key: "sortOrder", dir: "asc" }}
+        initialSort={{ key: "name", dir: "asc" }}
         filters={[
           {
             label: "Status",
@@ -138,16 +142,6 @@ export function OutstandingRosterList({
               ]
             : []),
           {
-            key: "sortOrder",
-            label: "Sort",
-            align: "right",
-            className: "w-24",
-            sortValue: (r) => r.sortOrder,
-            render: (r) => (
-              <span className="tabular-nums text-ink-soft">{r.sortOrder}</span>
-            ),
-          },
-          {
             key: "usageCount",
             label: "Usage",
             align: "right",
@@ -175,6 +169,11 @@ export function OutstandingRosterList({
             onDone={() => router.refresh()}
           />
         )}
+        bulkActions={
+          deleteAction && canDelete
+            ? (selected, clear) => <RosterBulkDelete selected={selected} clear={clear} deleteAction={deleteAction} noun={noun} />
+            : undefined
+        }
         emptyState={
           <>
             <p
@@ -206,6 +205,23 @@ export function OutstandingRosterList({
       />
     </>
   );
+}
+
+function RosterBulkDelete({ selected, clear, deleteAction, noun }: { selected: RosterItem[]; clear: () => void; deleteAction: (ids: string[]) => Promise<ActionResult<{ deleted: number }>>; noun: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTransition] = useTransition();
+  function remove() {
+    startTransition(async () => {
+      const result = await deleteAction(selected.map((item) => item.id));
+      if (!result.ok) fireToast({ message: result.error });
+      else { fireToast({ message: `${result.deleted} ${noun}${result.deleted === 1 ? "" : "s"} deleted.` }); clear(); }
+      setConfirming(false);
+    });
+  }
+  return <>
+    <button type="button" disabled={pending} onClick={() => setConfirming(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-altus-red px-3 py-1.5 text-[13px] font-bold text-white disabled:opacity-50"><Trash2 size={14} /> Delete</button>
+    <Dialog.Root open={confirming} onOpenChange={setConfirming}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[90] bg-black/30" /><Dialog.Content className="fixed left-1/2 top-1/2 z-[100] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-hairline bg-white p-6 shadow-lg"><Dialog.Title className="text-lg font-bold text-ink-strong">Delete {selected.length} selected {noun}{selected.length === 1 ? "" : "s"}?</Dialog.Title><Dialog.Description className="mt-2 text-sm text-ink-muted">This action cannot be undone.</Dialog.Description><div className="mt-5 flex justify-end gap-2"><Dialog.Close asChild><button type="button" className="rounded-lg border border-hairline-strong px-4 py-2 text-sm">Cancel</button></Dialog.Close><button type="button" disabled={pending} onClick={remove} className="rounded-lg bg-altus-red px-4 py-2 text-sm font-bold text-white">{pending ? "Deleting…" : "Delete"}</button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+  </>;
 }
 
 function StatusBadge({ active }: { active: boolean }) {

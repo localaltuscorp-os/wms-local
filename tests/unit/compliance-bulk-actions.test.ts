@@ -58,7 +58,7 @@ import {
   setComplianceApprover,
   setComplianceDoer,
   setComplianceMinutes,
-} from "@/app/(app)/dcc/compliance-actions";
+} from "@/app/(app)/employees/cc/actions";
 
 const LEAD = "11111111-1111-4111-8111-111111111111";
 const PRIYA = "22222222-2222-4222-8222-222222222222";
@@ -92,6 +92,7 @@ const BEFORE_0238 = `
 const M0240 = readFileSync("db/migrations/0240_mcc_frequencies.sql", "utf8");
 const M0241 = readFileSync("db/migrations/0241_wcc_mcc_abandoned.sql", "utf8");
 const M0242 = readFileSync("db/migrations/0242_wcc_minutes.sql", "utf8");
+const M0263 = readFileSync("db/migrations/0263_mcc_multi_date_schedules.sql", "utf8");
 
 beforeAll(async () => {
   await h.pg.exec(BEFORE_0238);
@@ -103,6 +104,8 @@ beforeAll(async () => {
   await h.pg.exec(M0241);
   await h.pg.exec(M0242);
   await h.pg.exec(M0242);
+  await h.pg.exec(M0263);
+  await h.pg.exec(M0263);
   await h.pg.query(`INSERT INTO employees (id, name) VALUES ($1, 'Tara Lead'), ($2, 'Priya Shah'), ($3, 'Sam Stranger')`, [LEAD, PRIYA, STRANGER]);
 }, 60_000);
 
@@ -285,6 +288,43 @@ describe("MCC frequencies from the pop-up, and the deadlines they make", () => {
       ["Old way", "Monthly", 7, "monthly", null, null],
       ["Three", "3 times/month", 10, "thrice_monthly", [10, 20, 31], null],
     ]);
+  });
+
+  it("stores four selected due dates without changing existing quarterly or half-yearly schedules", async () => {
+    expect(
+      await save({
+        title: "Four dates",
+        mccFrequency: "four_times_monthly",
+        mccDays: [1, 5, 10, 15],
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      await save({
+        title: "Quarter dates",
+        mccFrequency: "quarterly_multiple",
+        mccDays: [1, 5, 10, 15],
+        mccStartMonth: 7,
+      }),
+    ).toEqual({ ok: true });
+
+    expect(await items()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Four dates",
+          frequency: "4 times/month",
+          mcc_frequency: "four_times_monthly",
+          mcc_days: [1, 5, 10, 15],
+          mcc_start_month: null,
+        }),
+        expect.objectContaining({
+          title: "Quarter dates",
+          frequency: "Quarterly — multiple due dates",
+          mcc_frequency: "quarterly_multiple",
+          mcc_days: [1, 5, 10, 15],
+          mcc_start_month: 7,
+        }),
+      ]),
+    );
   });
 
   it("keeps each deadline of 2 times/month to its own fill, and refuses a date that is not one", async () => {

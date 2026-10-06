@@ -1,7 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db, tasks } from "@/lib/db";
-import { getUnreadCount } from "@/lib/queries/notifications";
+import { getCachedUnreadCount } from "@/lib/queries/notifications";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
 /**
@@ -70,7 +70,7 @@ export async function getNavCounts(args?: {
       console.warn("[nav-counts] task totals unavailable:", (err as Error)?.message);
       return { activeTasks: 0, archivedTasks: 0 };
     }),
-    (args?.userId ? getUnreadCount(args.userId) : Promise.resolve(0)).catch((err) => {
+    (args?.userId ? getCachedUnreadCount(args.userId) : Promise.resolve(0)).catch((err) => {
       console.warn("[nav-counts] unread count unavailable:", (err as Error)?.message);
       return 0;
     }),

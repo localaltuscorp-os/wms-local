@@ -3,7 +3,7 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { documents, employeeDocuments, employees } from "@/db/schema";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
-import { policyCategoryMeta, type PolicyCategory } from "@/lib/hr/policy-types";
+import { decodeOtherPolicyCategory, policyCategoryMeta, type PolicyCategory } from "@/lib/hr/policy-types";
 import { LETTER_DOCTYPE_PREFIX, letterTypeMeta, type LetterType } from "@/lib/hr/letter-types";
 
 /**
@@ -52,6 +52,8 @@ export interface PolicyRow {
   title: string;
   description: string | null;
   category: PolicyCategory;
+  /** Only present when the uploader chose Other and supplied a human label. */
+  customCategory: string | null;
   fileName: string;
   mimeType: string | null;
   sizeBytes: number | null;
@@ -78,18 +80,25 @@ export async function listPolicies(): Promise<PolicyRow[]> {
     .limit(500);
 
   const signed = await signPaths(rows.map((r) => r.storagePath));
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    description: r.description,
-    category: categoryFromPath(r.storagePath),
-    fileName: r.storagePath.split("/").pop() ?? r.title,
-    mimeType: r.mimeType,
-    sizeBytes: r.sizeBytes,
-    storagePath: r.storagePath,
-    signedUrl: signed.get(r.storagePath) ?? null,
-    uploadedAt: String(r.createdAt),
-  }));
+  return rows.map((r) => {
+    const category = categoryFromPath(r.storagePath);
+    const custom = category === "other"
+      ? decodeOtherPolicyCategory(r.description)
+      : { categoryName: null, description: r.description };
+    return {
+      id: r.id,
+      title: r.title,
+      description: custom.description,
+      category,
+      customCategory: custom.categoryName,
+      fileName: r.storagePath.split("/").pop() ?? r.title,
+      mimeType: r.mimeType,
+      sizeBytes: r.sizeBytes,
+      storagePath: r.storagePath,
+      signedUrl: signed.get(r.storagePath) ?? null,
+      uploadedAt: String(r.createdAt),
+    };
+  });
 }
 
 /** Group policies by category, preserving newest-first order within a group and

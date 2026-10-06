@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -164,11 +165,6 @@ export function CalendarBoard({
   onAddSubject?: AddSubject;
 }) {
   const [creating, setCreating] = React.useState(false);
-  const panelRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (creating) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [creating]);
 
   return (
     /* ONE CONTENT WIDTH for the whole board. The schedule form and the Upcoming
@@ -177,39 +173,38 @@ export function CalendarBoard({
        reading as a dashboard. Both now sit on the same 920px measure the Leave
        form uses, centred, so the form, the button above it and the cards below
        it share one edge. */
-    <div className="mx-auto flex w-full max-w-[920px] flex-col gap-8">
+    <div className="mx-auto flex w-full max-w-[920px] flex-col gap-4">
       {canManage && (
-        <div className="flex justify-end">
-          {!creating ? (
-            <button
-              type="button"
-              onClick={() => setCreating(true)}
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-bold text-white transition-transform active:scale-[0.99]"
-              style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, boxShadow: `0 12px 30px -12px ${ACCENT}99` }}
-            >
-              <Plus size={17} strokeWidth={2.6} /> Schedule Training
-            </button>
-          ) : null}
-        </div>
-      )}
-
-      {creating && (
-        <section ref={panelRef} className="rounded-2xl border border-hairline bg-surface-card p-5 shadow-sm max-md:p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-[18px] font-bold text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}>Schedule a Training Session</h2>
-            <button type="button" onClick={() => setCreating(false)} aria-label="Close" className="rounded-lg p-1.5 text-ink-subtle hover:bg-surface-soft">
-              <X size={18} />
-            </button>
+        <Dialog.Root open={creating} onOpenChange={setCreating}>
+          <div className="flex justify-end">
+            <Dialog.Trigger asChild>
+              <button type="button" className="brand-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold text-white">
+                <Plus size={16} strokeWidth={2.5} /> Schedule Training
+              </button>
+            </Dialog.Trigger>
           </div>
-          <SessionForm
-            mode="create"
-            subjectOptions={subjectOptions}
-            employeeOptions={employeeOptions}
-            maxSessionMinutes={maxSessionMinutes}
-            onAddSubject={onAddSubject}
-            onCancel={() => setCreating(false)}
-          />
-        </section>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-[90] bg-slate-950/35 backdrop-blur-[1px]" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] flex max-h-[calc(100dvh-32px)] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-hairline bg-surface-card shadow-[0_18px_44px_-30px_rgba(15,23,42,0.3)] outline-none">
+              <div className="flex items-center justify-between border-b border-hairline px-5 py-3">
+                <Dialog.Title className="text-[16px] font-bold text-ink-strong">Schedule a Training Session</Dialog.Title>
+                <Dialog.Close asChild>
+                  <button type="button" aria-label="Close" className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-surface-soft hover:text-ink-strong"><X size={17} /></button>
+                </Dialog.Close>
+              </div>
+              <div className="min-h-0 overflow-y-auto px-5 pb-1">
+                <SessionForm
+                  mode="create"
+                  subjectOptions={subjectOptions}
+                  employeeOptions={employeeOptions}
+                  maxSessionMinutes={maxSessionMinutes}
+                  onAddSubject={onAddSubject}
+                  onCancel={() => setCreating(false)}
+                />
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
       )}
 
       <section>

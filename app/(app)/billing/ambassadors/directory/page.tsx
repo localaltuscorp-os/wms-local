@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { ArrowLeft, Plus } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { listAmbassadors } from "@/lib/queries/ambassadors";
 import { DirectoryTable } from "@/components/ambassadors/directory-table";
@@ -25,28 +26,11 @@ export default async function AmbassadorDirectoryPage() {
         </Link>
         <header className="mt-3 mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <span
-              className="text-[11px] font-bold uppercase tracking-[0.2em]"
-              style={{ color: "var(--color-altus-red-deep)" }}
-            >
-              Ambassadors
-            </span>
             <h1
-              className="text-ink-strong"
-              style={{
-                fontFamily: "var(--font-display), system-ui, sans-serif",
-                fontWeight: 900,
-                fontSize: "clamp(30px, 3.4vw, 44px)",
-                letterSpacing: "-0.025em",
-                lineHeight: 1.04,
-                marginTop: 6,
-              }}
+              style={PAGE_COMMAND_BAR_TITLE_STYLE}
             >
               Directory
             </h1>
-            <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              Every referral partner, their tier, score, pipeline, and commission at a glance.
-            </p>
           </div>
           <Link
             href={"/billing/ambassadors/new" as Route}

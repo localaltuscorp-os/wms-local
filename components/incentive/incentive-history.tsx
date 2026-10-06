@@ -6,7 +6,7 @@ import { getIncentiveRequestHistory } from "@/app/(app)/incentive/actions";
 import { INCENTIVE_STATUS_LABELS, type IncentiveStatus } from "@/db/enums";
 import { incentiveDetailPairs } from "@/lib/incentive-fields";
 import { formatPct } from "@/lib/incentive/split";
-import { DECISION_LABELS } from "@/lib/incentive/workflow";
+import { DECISION_LABELS, PENDING_REQUEST_EDIT_NOTE } from "@/lib/incentive/workflow";
 import { INCENTIVE_REVIEWER_NAME } from "@/lib/auth/incentive-permissions";
 import type {
   IncentiveDecisionEntry,
@@ -112,7 +112,7 @@ export function IncentiveHistory({
                 </div>
 
                 {s.justification && (
-                  <Labeled label="Justification">{s.justification}</Labeled>
+                  <Labeled label={s.justification === PENDING_REQUEST_EDIT_NOTE ? "Update note" : "Justification"}>{s.justification}</Labeled>
                 )}
 
                 {earlierPairs.length > 0 && (

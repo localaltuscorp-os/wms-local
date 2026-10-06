@@ -320,13 +320,10 @@ function AttachmentTile({
               {...(file.inline ? {} : { download: file.fileName })}
               aria-label={`${file.inline ? "Open" : "Download"} ${file.fileName}`}
               title={file.inline ? "Open in a new tab" : "Download"}
-              className="grid size-7 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-black/[0.06] hover:text-ink-strong"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-bold text-ink-subtle transition-colors hover:bg-black/[0.06] hover:text-ink-strong"
             >
-              {file.inline ? (
-                <ExternalLink size={13} strokeWidth={2.5} aria-hidden />
-              ) : (
-                <Download size={13} strokeWidth={2.5} aria-hidden />
-              )}
+              {file.inline ? <ExternalLink size={13} strokeWidth={2.5} aria-hidden /> : <Download size={13} strokeWidth={2.5} aria-hidden />}
+              {file.inline ? "View" : "Download"}
             </a>
             {canEdit && (
               <button

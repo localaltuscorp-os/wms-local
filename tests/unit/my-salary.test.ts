@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeScheduleHourlySalary } from "@/lib/salary/compute";
+import { prioritizeActiveSalaryMonth } from "@/lib/salary/period";
 
 /**
  * MY SALARY — the invariant the page depends on.
@@ -87,5 +88,28 @@ describe("base + overtime reconcile to gross", () => {
     expect(base + overtime).toBeCloseTo(b.gross, 2);
     // Net is the gross less what was deducted — the headline the page leads with.
     expect(b.net).toBeCloseTo(b.gross - 200 - 500, 2);
+  });
+});
+
+describe("the My Salary opening month", () => {
+  it("opens the active month even when future salary rows exist", () => {
+    const months = [
+      { month: "2026-12" },
+      { month: "2026-11" },
+      { month: "2026-10" },
+      { month: "2026-09" },
+    ];
+
+    expect(prioritizeActiveSalaryMonth(months, "2026-10").map((month) => month.month)).toEqual([
+      "2026-10",
+      "2026-12",
+      "2026-11",
+      "2026-09",
+    ]);
+  });
+
+  it("keeps the stored history order when the active month has no record", () => {
+    const months = [{ month: "2026-12" }, { month: "2026-11" }];
+    expect(prioritizeActiveSalaryMonth(months, "2026-10")).toEqual(months);
   });
 });

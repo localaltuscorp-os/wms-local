@@ -34,6 +34,8 @@ export function MaterialsTable({
   const router = useRouter();
   const [q, setQ] = React.useState("");
   const [subject, setSubject] = React.useState("");
+  const [addedOn, setAddedOn] = React.useState("");
+  const [createdBy, setCreatedBy] = React.useState("");
   const [inductionOnly, setInductionOnly] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -68,11 +70,21 @@ export function MaterialsTable({
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
+  const creatorsForFilter = React.useMemo(() => {
+    const ids = new Set(rows.flatMap((row) => row.createdByIds));
+    return Array.from(ids)
+      .map((id) => ({ value: id, label: employeesById[id] }))
+      .filter((option): option is { value: string; label: string } => Boolean(option.label))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [employeesById, rows]);
+
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = rows.filter((r) => {
       if (r.archived && !showArchived) return false;
       if (subject && r.subject !== subject) return false;
+      if (addedOn && r.addedOn !== addedOn) return false;
+      if (createdBy && !r.createdByIds.includes(createdBy)) return false;
       if (inductionOnly && !r.partOfInduction) return false;
       if (needle) {
         const hay = [r.subject, r.los, r.fileName, r.version].filter(Boolean).join(" ").toLowerCase();
@@ -87,13 +99,13 @@ export function MaterialsTable({
       return av.localeCompare(bv, undefined, { sensitivity: "base", numeric: true }) * dir;
     });
     return out;
-  }, [rows, q, subject, inductionOnly, showArchived, sort]);
+  }, [rows, q, subject, addedOn, createdBy, inductionOnly, showArchived, sort]);
 
   function toggleSort(key: SortKey) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
   const inductionCount = React.useMemo(() => rows.filter((r) => r.partOfInduction && (showArchived || !r.archived)).length, [rows, showArchived]);
-  const hasFilters = q || subject || inductionOnly;
+  const hasFilters = q || subject || addedOn || createdBy || inductionOnly;
 
   function creators(ids: string[]): string {
     const names = ids.map((id) => employeesById[id]).filter(Boolean) as string[];
@@ -118,6 +130,18 @@ export function MaterialsTable({
           aria-label="Filter by subject"
           placeholder="All Subjects"
           options={subjects.map((s) => ({ value: s, label: s }))}
+        />
+        <label className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-semibold text-ink-strong">
+          <span className="text-ink-soft">Any Date</span>
+          <input type="date" value={addedOn} onChange={(e) => setAddedOn(e.target.value)} aria-label="Filter by date" className="min-w-0 bg-transparent outline-none" />
+        </label>
+        <CompactSelect
+          className={CHIP}
+          value={createdBy}
+          onChange={setCreatedBy}
+          aria-label="Filter by creator"
+          placeholder="Created By"
+          options={creatorsForFilter}
         />
         {/* Induction toggle pill — one tap to see only induction sessions. */}
         <button
@@ -154,7 +178,7 @@ export function MaterialsTable({
           </button>
         )}
         {hasFilters && (
-          <button type="button" onClick={() => { setQ(""); setSubject(""); setInductionOnly(false); }} className="inline-flex items-center gap-1.5 rounded-lg bg-surface-card px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
+          <button type="button" onClick={() => { setQ(""); setSubject(""); setAddedOn(""); setCreatedBy(""); setInductionOnly(false); }} className="inline-flex items-center gap-1.5 rounded-lg bg-surface-card px-3 py-2 text-[13.5px] font-bold text-ink-soft hover:text-altus-red">
             <X size={15} strokeWidth={2.4} /> Clear
           </button>
         )}

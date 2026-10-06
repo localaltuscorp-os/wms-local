@@ -51,8 +51,8 @@ export default async function ClientEngagementCalendar({
           </h3>
           <p className="mx-auto mt-2 max-w-[46ch] font-medium" style={{ fontSize: 14.5, lineHeight: 1.5, color: "var(--color-ink-muted)" }}>
             {members.length
-              ? `Your calendar appears once ${CE_MANAGER_NAMES} add you under Team & Log.`
-              : `${CE_MANAGER_NAMES} add the team under Team & Log.`}
+              ? `Your calendar appears once ${CE_MANAGER_NAMES} add you to the team.`
+              : `${CE_MANAGER_NAMES} add the team.`}
           </p>
         </div>
       </PageShell>

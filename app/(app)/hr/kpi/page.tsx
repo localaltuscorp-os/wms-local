@@ -26,7 +26,7 @@ export default async function KpiManagementPage() {
       <HrTitleBar
       />
 
-      <PageShell width="standard" py={false} className="pt-8 pb-24">
+      <PageShell width="full" py={false} className="pt-8 pb-24">
         <KpiWorkbench
           roster={roster}
           initialQuarter={currentQuarter()}

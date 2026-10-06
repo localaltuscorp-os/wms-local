@@ -42,16 +42,20 @@ export function IntakeField({
   const reactId = React.useId();
   const id = `iwf-${reactId}`;
   const [focused, setFocused] = React.useState(false);
+  // Candidate mobile and Family Details phone values are Indian mobile numbers:
+  // store digits only and never let a longer/text value enter the draft.
+  const isPhone = field.type === "tel" && (field.key === "mobile" || field.key === "phone");
+  const normalisePhone = (next: string) => next.replace(/\D/g, "").slice(0, 10);
   // Dictate-to on every free-text field (Sir). Hook is called unconditionally
   // (rules-of-hooks); the mic only RENDERS on text-like fields that support it.
-  const dictation = useDictation({ value, onChange: (v) => onChange(field.key, v) });
+  const dictation = useDictation({ value, onChange: (v) => onChange(field.key, isPhone ? normalisePhone(v) : v) });
   const canDictate =
     field.type === "text" ||
     field.type === "textarea" ||
     field.type === "tel" ||
     field.type === "email" ||
     field.type === "url";
-  const showMic = canDictate && dictation.supported;
+  const showMic = canDictate && !isPhone && dictation.supported;
 
   if (field.type === "buttons" || field.type === "product") {
     return <IntakeChipField field={field} value={value} onChange={onChange} error={error} autoFocus={autoFocus} />;
@@ -150,11 +154,12 @@ export function IntakeField({
       <input
         {...common}
         type={field.type === "tel" ? "tel" : field.type}
-        inputMode={field.type === "number" ? "numeric" : undefined}
+        inputMode={field.type === "number" || isPhone ? "numeric" : undefined}
         min={field.type === "number" ? 0 : undefined}
-        maxLength={2000}
+        maxLength={isPhone ? 10 : 2000}
+        pattern={isPhone ? "[0-9]{10}" : undefined}
         placeholder={field.placeholder ?? " "}
-        onChange={(e) => onChange(field.key, e.target.value)}
+        onChange={(e) => onChange(field.key, isPhone ? normalisePhone(e.target.value) : e.target.value)}
       />
       {labelEl}
       {showMic && <FieldMic dictation={dictation} />}

@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { delegatedAccessGrants } from "@/db/schema";
+import { delegatedAccessGrants, scopedAccessGrants, scopedAccessRecipients, scopedAccessScopes } from "@/db/schema";
 import { requireUser, getSignedInEmployee, forbiddenError } from "@/lib/auth/current";
 import {
   createDelegatedGrant,
@@ -27,6 +27,7 @@ import {
 import { canGrantAnyDelegatedAccess } from "@/lib/security/capabilities";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { auditAction } from "@/lib/logs/audit";
+import { isPermissionNodeKey, permissionNode } from "@/lib/permissions/catalog";
 
 /**
  * TEMPORARY DELEGATED ACCESS — the server actions.
@@ -59,6 +60,96 @@ const GrantSchema = z
   .strict();
 
 export type GrantInput = z.infer<typeof GrantSchema>;
+
+const ScopedGrantSchema = z.object({
+  employeeIds: z.array(UuidSchema).min(1).max(100),
+  scopes: z.array(z.object({
+    moduleKey: z.string().min(1),
+    accessLevel: z.enum(["full", "viewing", "custom"]),
+    navigationKeys: z.array(z.string()).max(100),
+  }).strict()).min(1).max(30),
+  duration: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("preset"), amount: z.number().int().min(1).max(99), unit: z.enum(["hours", "days", "weeks", "months", "quarters", "year"]) }),
+    z.object({ kind: z.literal("dates"), from: z.string().datetime(), until: z.string().datetime() }),
+  ]),
+}).strict();
+
+function scopedExpiry(duration: z.infer<typeof ScopedGrantSchema>["duration"], now: Date): { startsAt: Date; expiresAt: Date } | null {
+  if (duration.kind === "dates") {
+    const startsAt = new Date(duration.from);
+    const expiresAt = new Date(duration.until);
+    return startsAt >= now && expiresAt > startsAt ? { startsAt, expiresAt } : null;
+  }
+  const expiresAt = new Date(now);
+  const multiplier = duration.unit === "hours" ? 1 : duration.unit === "days" ? 24 : duration.unit === "weeks" ? 168 : 0;
+  if (multiplier) expiresAt.setTime(expiresAt.getTime() + duration.amount * multiplier * 60 * 60 * 1000);
+  else if (duration.unit === "months") expiresAt.setMonth(expiresAt.getMonth() + duration.amount);
+  else if (duration.unit === "quarters") expiresAt.setMonth(expiresAt.getMonth() + duration.amount * 3);
+  else expiresAt.setFullYear(expiresAt.getFullYear() + duration.amount);
+  return { startsAt: now, expiresAt };
+}
+
+/** Create a restrictive module overlay for one or more existing employees. */
+export async function grantScopedTemporaryAccess(input: unknown): Promise<{ ok: true; grantId: string } | { ok: false; error: string }> {
+  await requireUser();
+  const me = await getSignedInEmployee();
+  if (!me) throw forbiddenError();
+  if (rateLimitOrError(me.id, "write")) return { ok: false, error: "Please wait before trying again." };
+  if (!(await canOpenDelegatedAccess(me))) return { ok: false, error: DELEGATION_REFUSAL_MESSAGES.not_authorized };
+  const parsed = ScopedGrantSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid scoped-access request." };
+  const value = parsed.data;
+  const employeeIds = [...new Set(value.employeeIds)];
+  const moduleKeys = new Set<string>();
+  for (const scope of value.scopes) {
+    const moduleNode = permissionNode(scope.moduleKey);
+    if (!moduleNode || moduleNode.depth !== 1 || moduleKeys.has(scope.moduleKey)) return { ok: false, error: "Choose each module once." };
+    moduleKeys.add(scope.moduleKey);
+    if (scope.accessLevel === "custom" && scope.navigationKeys.length === 0) return { ok: false, error: "Choose at least one navigation option for Custom access." };
+    if (scope.navigationKeys.some((key) => !isPermissionNodeKey(key) || !key.startsWith(`${scope.moduleKey}.`))) return { ok: false, error: "Invalid navigation selection." };
+  }
+  for (const employeeId of employeeIds) {
+    const allowed = await checkDelegationGrant(me, employeeId, me.id);
+    if (!allowed.ok) return { ok: false, error: DELEGATION_REFUSAL_MESSAGES[allowed.refusal ?? "not_authorized"] };
+  }
+  const schedule = scopedExpiry(value.duration, new Date());
+  if (!schedule) return { ok: false, error: "Choose a future start and expiry." };
+  const grantId = await db.transaction(async (tx) => {
+    const [grant] = await tx.insert(scopedAccessGrants).values({ grantedById: me.id, ...schedule }).returning({ id: scopedAccessGrants.id });
+    if (!grant) throw new Error("Could not create scoped grant.");
+    const recipients = await tx.insert(scopedAccessRecipients).values(employeeIds.map((employeeId) => ({ grantId: grant.id, employeeId }))).returning({ id: scopedAccessRecipients.id });
+    await tx.insert(scopedAccessScopes).values(recipients.flatMap((recipient) => value.scopes.map((scope) => ({
+      recipientId: recipient.id,
+      moduleKey: scope.moduleKey,
+      accessLevel: scope.accessLevel,
+      navigationKeys: scope.accessLevel === "custom" ? scope.navigationKeys : [],
+    }))));
+    return grant.id;
+  });
+  revalidatePath("/", "layout");
+  revalidatePath(PATH);
+  auditAction({ eventType: "CONFIG_CHANGE", employeeId: me.id, route: PATH, module: "Control Panel", page: "Temporary Access", resourceType: "scoped_access_grant", resourceId: grantId, action: "scoped_temp_access_grant", status: "SUCCESS", metadata: { recipientCount: employeeIds.length, moduleCount: value.scopes.length } });
+  return { ok: true, grantId };
+}
+
+/** Revoke selected recipient records; never expands a group selection implicitly. */
+export async function revokeScopedTemporaryAccess(recipientIds: string[]): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const me = await getSignedInEmployee();
+  if (!me) throw forbiddenError();
+  const ids = [...new Set(recipientIds)].filter((id) => UuidSchema.safeParse(id).success);
+  if (!ids.length) return { ok: false, error: "Choose at least one employee." };
+  const rows = await db.select({ id: scopedAccessRecipients.id, employeeId: scopedAccessRecipients.employeeId, grantId: scopedAccessRecipients.grantId }).from(scopedAccessRecipients).where(inArray(scopedAccessRecipients.id, ids));
+  if (rows.length !== ids.length) return { ok: false, error: "A selected grant no longer exists." };
+  for (const row of rows) {
+    const allowed = await checkDelegationGrant(me, row.employeeId, me.id);
+    if (!allowed.ok && !canGrantAnyDelegatedAccess(me.email)) return { ok: false, error: DELEGATION_REFUSAL_MESSAGES.not_authorized };
+  }
+  await db.update(scopedAccessRecipients).set({ revokedAt: new Date(), revokedById: me.id }).where(inArray(scopedAccessRecipients.id, ids));
+  revalidatePath("/", "layout");
+  revalidatePath(PATH);
+  return { ok: true };
+}
 
 export type GrantResult =
   | {

@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Download, Loader2, Upload, X } from "lucide-react";
+import { Download, Loader2, Settings2, Upload, X } from "lucide-react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { fireToast } from "@/lib/toast";
 import type { TemplateMasterRow } from "@/lib/queries/template-files";
-import { deleteTemplates, uploadTemplate } from "@/app/(admin)/admin/upload-master/actions";
+import { deleteTemplates, saveMandatoryFields, uploadTemplate } from "@/app/(admin)/admin/upload-master/actions";
 import { formatDate } from "@/lib/format";
 
 /**
@@ -43,6 +43,7 @@ export function UploadMasterTable({
 }) {
   const router = useRouter();
   const [editingKey, setEditingKey] = React.useState<string | null>(null);
+  const [mandatoryKey, setMandatoryKey] = React.useState<string | null>(null);
 
   async function remove(key: string) {
     const res = await deleteTemplates([key]);
@@ -116,6 +117,15 @@ export function UploadMasterTable({
             ),
           },
           {
+            key: "mandatory",
+            label: "Mandatory fields",
+            render: (r) => (
+              <span className="text-[12px] text-ink-muted">
+                {r.variants.map((variant) => `${variant.label}: ${variant.requiredFields.length}`).join(" · ")}
+              </span>
+            ),
+          },
+          {
             key: "download",
             label: "Download",
             render: (r) => (
@@ -126,6 +136,15 @@ export function UploadMasterTable({
                 <Download size={13} strokeWidth={2.4} />
                 Download
               </a>
+            ),
+          },
+          {
+            key: "fields",
+            label: "Fields",
+            render: (r) => (
+              <button type="button" className={actionBtn} disabled={!canEdit || r.variants.length === 0} onClick={() => setMandatoryKey(r.key)}>
+                <Settings2 size={13} className="mr-1 inline" /> Edit Mandatory Fields
+              </button>
             ),
           },
           {
@@ -170,8 +189,31 @@ export function UploadMasterTable({
       {editingKey && (
         <ReplaceDialog key={editingKey} templateKey={editingKey} onClose={() => setEditingKey(null)} />
       )}
+      {mandatoryKey && (
+        <MandatoryFieldsDialog row={rows.find((row) => row.key === mandatoryKey)!} onClose={() => setMandatoryKey(null)} />
+      )}
     </>
   );
+}
+
+function MandatoryFieldsDialog({ row, onClose }: { row: TemplateMasterRow; onClose: () => void }) {
+  const router = useRouter();
+  const [variant, setVariant] = React.useState(row.variants[0]!);
+  const [required, setRequired] = React.useState(() => new Set(variant.requiredFields));
+  const [busy, setBusy] = React.useState(false);
+  function choose(id: string) { const next = row.variants.find((item) => item.id === id)!; setVariant(next); setRequired(new Set(next.requiredFields)); }
+  async function save() {
+    setBusy(true); const result = await saveMandatoryFields(row.key, variant.id, [...required]); setBusy(false);
+    if (!result.ok) return fireToast({ message: result.error }); fireToast({ message: "Mandatory fields saved for generated template." }); router.refresh(); onClose();
+  }
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-label="Edit mandatory fields">
+    <div className="w-full max-w-md rounded-xl border border-hairline bg-surface-card p-6 shadow-lg">
+      <h2 className="text-[19px] font-bold text-ink-strong">Edit Mandatory Fields</h2><p className="mt-1 text-[13px] text-ink-muted">{row.name}. Overrides remain unchanged; these settings apply to generated templates.</p>
+      {row.variants.length > 1 && <select value={variant.id} onChange={(event) => choose(event.target.value)} className="mt-4 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm">{row.variants.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select>}
+      <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">{variant.fields.map((field) => <label key={field.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-soft"><input type="checkbox" checked={required.has(field.id)} onChange={() => setRequired((current) => { const next = new Set(current); next.has(field.id) ? next.delete(field.id) : next.add(field.id); return next; })} />{field.label}</label>)}</div>
+      <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onClose} className={actionBtn}>Cancel</button><button type="button" disabled={busy} onClick={() => void save()} className="pastel-cta wg-btn rounded-pill px-3.5 py-2 text-[13px] font-bold">{busy ? "Saving…" : "Save"}</button></div>
+    </div>
+  </div>;
 }
 
 /* ── Bulk ─────────────────────────────────────────────────────────────────── */

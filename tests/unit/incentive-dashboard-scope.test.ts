@@ -197,9 +197,9 @@ describe("the Dashboard's duplicate navigation", () => {
     expect(tabs).not.toContain("Segmented tab strip");
   });
 
-  it("still renders every one of the six areas", () => {
+  it("still renders every remaining area", () => {
     // Removing the NAVIGATION must not remove the pages behind it.
-    for (const area of ["dashboard", "targets", "billing", "entries", "status"]) {
+    for (const area of ["dashboard", "targets", "billing", "entries"]) {
       expect(tabs, area).toContain(`active === "${area}"`);
     }
     // Requests is the final `else`, so it has no `active ===` of its own.

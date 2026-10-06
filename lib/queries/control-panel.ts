@@ -38,6 +38,7 @@ export interface ControlPanelUser {
   isActive: boolean;
   isAdmin: boolean;
   roleNames: string[];
+  roleAssignments: { roleId: string; expiresAt: Date | null }[];
 }
 
 /** The Users tab: employees joined live to function/designation/entity + roles. */
@@ -66,7 +67,9 @@ export async function listControlPanelUsers(): Promise<ControlPanelUser[]> {
       ? await db
           .select({
             employeeId: employeeRoles.employeeId,
+            roleId: employeeRoles.roleId,
             roleName: roles.name,
+            expiresAt: employeeRoles.expiresAt,
           })
           .from(employeeRoles)
           .innerJoin(roles, eq(employeeRoles.roleId, roles.id))
@@ -75,11 +78,13 @@ export async function listControlPanelUsers(): Promise<ControlPanelUser[]> {
       : [];
 
   const byEmp = new Map<string, string[]>();
+  const assignmentsByEmp = new Map<string, { roleId: string; expiresAt: Date | null }[]>();
   for (const a of assignments) {
     (byEmp.get(a.employeeId) ?? byEmp.set(a.employeeId, []).get(a.employeeId)!).push(a.roleName);
+    (assignmentsByEmp.get(a.employeeId) ?? assignmentsByEmp.set(a.employeeId, []).get(a.employeeId)!).push({ roleId: a.roleId, expiresAt: a.expiresAt });
   }
 
-  return rows.map((r) => ({ ...r, roleNames: byEmp.get(r.id) ?? [] }));
+  return rows.map((r) => ({ ...r, roleNames: byEmp.get(r.id) ?? [], roleAssignments: assignmentsByEmp.get(r.id) ?? [] }));
 }
 
 export interface RoleRow {
@@ -95,7 +100,7 @@ export async function listRoles(): Promise<RoleRow[]> {
   const [roleRows, permCounts, memberCounts] = await Promise.all([
     db.select().from(roles).orderBy(asc(roles.name)),
     db
-      .select({ roleId: rolePermissions.roleId, n: sql<number>`count(*)::int` })
+      .select({ roleId: rolePermissions.roleId, n: sql<number>`count(distinct ${rolePermissions.nodeKey})::int` })
       .from(rolePermissions)
       .groupBy(rolePermissions.roleId),
     db
@@ -175,7 +180,7 @@ export async function effectiveAccessFor(employeeId: string): Promise<EffectiveA
       .from(employeeRoles)
       .innerJoin(roles, eq(employeeRoles.roleId, roles.id))
       .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-      .where(eq(employeeRoles.employeeId, employeeId)),
+      .where(and(eq(employeeRoles.employeeId, employeeId), sql`(${employeeRoles.expiresAt} is null or ${employeeRoles.expiresAt} > now())`)),
     db
       .select()
       .from(modulePermissions)

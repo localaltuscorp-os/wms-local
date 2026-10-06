@@ -33,5 +33,6 @@ export async function GET(
     level: url.searchParams.get("level"),
     periodKey: url.searchParams.get("periodKey"),
     kind: url.searchParams.get("kind"),
+    variant: url.searchParams.get("variant"),
   });
 }

@@ -119,6 +119,13 @@ export const LOOKUP_LISTS: LookupList[] = [
   },
 
   {
+    kind: "industry_type",
+    label: "Industry Type",
+    category: "Customer",
+    hint: "Identity → Industry Type.",
+    defaults: ["Manufacturing", "Services", "Professionals", "Trade & Distribution", "Individual"],
+  },
+  {
     kind: "business_category",
     label: "Business Category",
     category: "Customer",
@@ -143,6 +150,14 @@ export const LOOKUP_LISTS: LookupList[] = [
       "Student",
       "Other",
     ],
+  },
+  {
+    kind: "sac",
+    label: "SAC",
+    category: "Commercial Terms",
+    hint: "SAC codes maintained in Customer Master DD.",
+    searchable: true,
+    defaults: [],
   },
   {
     kind: "credit_days",

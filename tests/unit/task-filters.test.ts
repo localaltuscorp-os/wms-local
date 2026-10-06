@@ -155,9 +155,11 @@ describe("parseTaskFilters — default-to-me scoping", () => {
 });
 
 describe("default date range", () => {
-  it("defaults start to 2026-01-01 and end to today when params absent", () => {
+  it("defaults start to the current financial year and end to today when params are absent", () => {
     const f = parseTaskFilters({}, false);
-    expect(f.startDate?.toISOString().slice(0, 10)).toBe("2026-01-01");
+    const now = new Date();
+    const startYear = now.getUTCMonth() < 3 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+    expect(f.startDate?.toISOString().slice(0, 10)).toBe(`${startYear}-04-01`);
     const today = new Date().toISOString().slice(0, 10);
     expect(f.endDate?.toISOString().slice(0, 10)).toBe(today);
   });

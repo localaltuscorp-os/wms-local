@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { PageShell } from "@/components/layout/page-shell";
+import { PAGE_COMMAND_BAR_TITLE_STYLE } from "@/components/layout/page-command-bar";
 import { BILLING_DOC_TYPE_LABELS } from "@/db/enums";
 import { getBillingDocument } from "@/lib/queries/billing-documents";
 import { buildInvoiceViewModel, invoiceFilename } from "@/lib/billing/view-model";
@@ -71,20 +72,12 @@ export default async function BillingEmailPage({
   return (
     <PageShell width="wide">
       <Back id={id} />
-      <h1
-        className="mb-1 text-ink-strong"
-        style={{
-          fontFamily: "var(--font-display), system-ui, sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(22px,2.4vw,30px)",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        Email {document.docNo}
-      </h1>
-      <p className="mb-5 text-[13.5px] text-ink-muted">
+      <div className="mb-5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <h1 style={PAGE_COMMAND_BAR_TITLE_STYLE}>Email {document.docNo}</h1>
+        <p className="text-[12.5px] font-medium text-ink-muted">
         To {document.customerName} · {BILLING_DOC_TYPE_LABELS[document.docType]}
-      </p>
+        </p>
+      </div>
 
       <div className="max-w-[1000px]">
         <EmailComposer

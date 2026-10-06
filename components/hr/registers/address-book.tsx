@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Search, Trash2, UserCheck, UserX } from "lucide-react";
+import { Archive, Loader2, Pencil, Plus, Search, Trash2, UserCheck } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { CONTACT_SERVICES } from "@/lib/hr/registers";
 import type { ContactRow, EmployeeContactRow } from "@/lib/hr/registers-server";
@@ -17,11 +17,17 @@ type Draft = {
   alternateNo: string;
   email: string;
   service: string;
+  /** Shown only when the standard Service dropdown is set to Other. */
+  otherService: string;
   notes: string;
 };
 
-const EMPTY: Draft = { companyName: "", personName: "", cellNo: "", alternateNo: "", email: "", service: "", notes: "" };
+const EMPTY: Draft = { companyName: "", personName: "", cellNo: "", alternateNo: "", email: "", service: "", otherService: "", notes: "" };
 const EMPLOYEE_SERVICE = "Employee";
+
+function isStandardService(service: string): boolean {
+  return (CONTACT_SERVICES as readonly string[]).includes(service);
+}
 
 /**
  * HR → Address Book of Resources.
@@ -83,7 +89,13 @@ export function AddressBook({
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!draft) return;
-    const ok = await run("save", () => saveContact(draft), draft.id ? "Contact updated" : "Contact added");
+    const service = draft.service === "Other" ? draft.otherService.trim() : draft.service;
+    if (!service) {
+      fireToast({ message: "Please specify the other service.", type: "error" });
+      return;
+    }
+    const { otherService: _otherService, ...contact } = draft;
+    const ok = await run("save", () => saveContact({ ...contact, service }), draft.id ? "Contact updated" : "Contact added");
     if (ok) setDraft(null);
   }
 
@@ -170,15 +182,15 @@ export function AddressBook({
                         <WhatsAppButton phone={c.cellNo ?? c.alternateNo} name={c.personName} />
                         {canEdit ? (
                           <>
-                            <IconBtn label="Edit" onClick={() => setDraft({ id: c.id, companyName: c.companyName ?? "", personName: c.personName, cellNo: c.cellNo ?? "", alternateNo: c.alternateNo ?? "", email: c.email ?? "", service: c.service, notes: c.notes ?? "" })}>
+                            <IconBtn label="Edit" onClick={() => setDraft({ id: c.id, companyName: c.companyName ?? "", personName: c.personName, cellNo: c.cellNo ?? "", alternateNo: c.alternateNo ?? "", email: c.email ?? "", service: isStandardService(c.service) ? c.service : "Other", otherService: isStandardService(c.service) ? "" : c.service, notes: c.notes ?? "" })}>
                               <Pencil size={14} />
                             </IconBtn>
                             <IconBtn
-                              label={c.isActive ? "Mark inactive" : "Mark active"}
+                              label={c.isActive ? "Archive" : "Restore"}
                               busy={busy === `act-${c.id}`}
-                              onClick={() => run(`act-${c.id}`, () => setContactActive(c.id, !c.isActive), c.isActive ? `${c.personName} marked inactive` : `${c.personName} marked active`)}
+                              onClick={() => run(`act-${c.id}`, () => setContactActive(c.id, !c.isActive), c.isActive ? `${c.personName} archived` : `${c.personName} restored`)}
                             >
-                              {c.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
+                              {c.isActive ? <Archive size={14} /> : <UserCheck size={14} />}
                             </IconBtn>
                             <IconBtn
                               label="Delete"
@@ -269,20 +281,32 @@ export function AddressBook({
               <input value={draft.personName} onChange={(e) => setDraft({ ...draft, personName: e.target.value })} required className={INPUT} />
             </Field>
             <Field label="Service" required>
-              <input
+              <NativeSelect
                 value={draft.service}
-                onChange={(e) => setDraft({ ...draft, service: e.target.value })}
+                onChange={(e) => setDraft({ ...draft, service: e.target.value, otherService: e.target.value === "Other" ? draft.otherService : "" })}
                 required
-                list="hr-contact-services"
-                placeholder="AC, Electrician…"
-                className={INPUT}
-              />
-              <datalist id="hr-contact-services">
-                {services.map((s) => (
-                  <option key={s} value={s} />
+                aria-label="Service"
+                className={`${INPUT} w-full`}
+              >
+                <option value="" disabled>Select a service</option>
+                {CONTACT_SERVICES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
-              </datalist>
+              </NativeSelect>
             </Field>
+            {draft.service === "Other" ? (
+              <Field label="Please specify the service" required>
+                <input
+                  value={draft.otherService}
+                  onChange={(e) => setDraft({ ...draft, otherService: e.target.value })}
+                  required
+                  maxLength={80}
+                  placeholder="e.g. Catering or security"
+                  className={INPUT}
+                  autoFocus
+                />
+              </Field>
+            ) : null}
             <Field label="Cell No">
               <input value={draft.cellNo} onChange={(e) => setDraft({ ...draft, cellNo: e.target.value })} type="tel" inputMode="tel" className={INPUT} />
             </Field>
@@ -330,9 +354,10 @@ function IconBtn({
       disabled={busy}
       title={label}
       aria-label={label}
-      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-muted transition hover:text-ink-strong disabled:opacity-50 ${danger ? "hover:!text-[color:var(--color-altus-red)]" : ""}`}
+      className={`inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-hairline-strong bg-white px-2 text-[12px] font-bold text-ink-muted transition hover:text-ink-strong disabled:opacity-50 ${danger ? "hover:!text-[color:var(--color-altus-red)]" : ""}`}
     >
       {busy ? <Loader2 size={14} className="animate-spin" /> : children}
+      <span>{label}</span>
     </button>
   );
 }

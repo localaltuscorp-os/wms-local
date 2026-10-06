@@ -39,7 +39,10 @@ const template: LetterTemplate = {
       t("We are delighted to welcome you to Altus Group and are pleased to offer you the position of "),
       f("position", "Position", { placeholder: "e.g. Business Development Manager" }),
       t(" at "),
-      f("offerEntity", "Entity", { defaultValue: "Unleashed" }),
+      // Keep the opening sentence in step with this template's default
+      // letterhead. The editor replaces this field whenever Paying Entity
+      // changes, so a new Selection Letter never starts with mismatched brands.
+      f("offerEntity", "Entity", { defaultValue: "Altus Corp" }),
       t(
         " (Altus Group entity). We look forward to having you as a part of our growing team and are confident that your skills and experience will contribute to our continued success.",
       ),

@@ -40,3 +40,30 @@ export function isPolicyCategory(v: string): v is PolicyCategory {
 }
 
 export const POLICY_CATEGORY_KEYS: PolicyCategory[] = POLICY_CATEGORIES.map((c) => c.key);
+
+// Uploaded policies live in the shared `documents` table, which deliberately
+// has no policy-only category column. Preserve an "Other" label in the existing
+// description field with a private, removable first-line marker rather than
+// adding a migration for a single optional upload detail.
+const OTHER_CATEGORY_PREFIX = "[[policy-other-category:";
+const OTHER_CATEGORY_SUFFIX = "]]";
+
+export function encodeOtherPolicyCategory(description: string, categoryName: string): string {
+  const cleanName = categoryName.trim().replace(/\s+/g, " ");
+  const cleanDescription = description.trim();
+  return `${OTHER_CATEGORY_PREFIX}${cleanName}${OTHER_CATEGORY_SUFFIX}${cleanDescription ? `\n${cleanDescription}` : ""}`;
+}
+
+export function decodeOtherPolicyCategory(description: string | null): {
+  categoryName: string | null;
+  description: string | null;
+} {
+  if (!description?.startsWith(OTHER_CATEGORY_PREFIX)) {
+    return { categoryName: null, description };
+  }
+  const end = description.indexOf(OTHER_CATEGORY_SUFFIX, OTHER_CATEGORY_PREFIX.length);
+  if (end < 0) return { categoryName: null, description };
+  const categoryName = description.slice(OTHER_CATEGORY_PREFIX.length, end).trim() || null;
+  const visibleDescription = description.slice(end + OTHER_CATEGORY_SUFFIX.length).replace(/^\n/, "").trim();
+  return { categoryName, description: visibleDescription || null };
+}

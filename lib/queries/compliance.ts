@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { withRetry } from "@/lib/db/with-timeout";
@@ -50,7 +51,7 @@ export function isMissingColumn(e: unknown): boolean {
 }
 
 /** Every active employee, with their manager and work address. */
-export async function loadCompliancePeople(): Promise<CompliancePerson[]> {
+export const loadCompliancePeople = cache(async (): Promise<CompliancePerson[]> => {
   const rows = await withRetry(
     () =>
       db
@@ -76,7 +77,7 @@ export async function loadCompliancePeople(): Promise<CompliancePerson[]> {
     address: businessEmailFor(r),
     email: r.email,
   }));
-}
+});
 
 /**
  * The live compliances of these people that sit on WCC or MCC. Participant

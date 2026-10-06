@@ -3,12 +3,15 @@
 import * as React from "react";
 import { Check, Loader2, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { CE_CATEGORIES, categoryNeedsBatch } from "@/lib/client-engagement/constants";
+import { CE_GROUPS, categoryNeedsBatch, groupOf, type CeGroup, type CeProductOption } from "@/lib/client-engagement/constants";
 import { CE_HH_STATUSES, CE_LIFECYCLES } from "@/lib/client-engagement/status";
 import { CE_MANAGER_NAMES } from "@/lib/client-engagement/access";
 import { ceAddAccount, ceDeleteAccount, ceUpdateAccount } from "@/app/(app)/operations/client-engagement/actions";
+import { VoiceNoteButton } from "@/components/ui/voice-note-button";
 import type { CeAccountRow } from "@/lib/queries/client-engagement";
-import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Select } from "./ui";
+import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Segmented, Select } from "./ui";
+
+const NAME_LABEL: Record<CeGroup, string> = { P: "Participant name", C: "Client name", A: "Ambassador name" };
 
 export interface MemberOption {
   id: string;
@@ -27,6 +30,7 @@ export function AccountDialog({
   defaultCategory,
   members,
   batches,
+  productOptions,
   canManage,
   canEdit,
   onClose,
@@ -37,6 +41,7 @@ export function AccountDialog({
   members: MemberOption[];
   /** Batch codes already in use, offered as suggestions. */
   batches: string[];
+  productOptions: CeProductOption[];
   canManage: boolean;
   canEdit: boolean;
   onClose: () => void;
@@ -46,13 +51,13 @@ export function AccountDialog({
 
   const [fullName, setFullName] = React.useState(account?.fullName ?? "");
   const [organization, setOrganization] = React.useState(account?.organization ?? "");
+  const [groupSel, setGroupSel] = React.useState<CeGroup>(groupOf(account?.category ?? defaultCategory));
   const [category, setCategory] = React.useState(account?.category ?? defaultCategory ?? "ps");
   const [batchCode, setBatchCode] = React.useState(account?.batchCode ?? "");
   const [startDate, setStartDate] = React.useState(account?.startDate ?? "");
   const [endDate, setEndDate] = React.useState(account?.endDate ?? "");
   const [lifecycleStatus, setLifecycle] = React.useState(account?.lifecycleStatus ?? "active");
   const [hhStatus, setHhStatus] = React.useState(account?.hhStatus ?? "standard");
-  const [tags, setTags] = React.useState((account?.tags ?? []).join(", "));
   const [notes, setNotes] = React.useState(account?.notes ?? "");
   const [assignTo, setAssignTo] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -60,9 +65,25 @@ export function AccountDialog({
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const needsBatch = categoryNeedsBatch(category);
+  // Which PRODUCT TYPEs the Type step offers — Participant → PS/BSS/OS,
+  // Client → Retainer/Corporate, Ambassador → the one Ambassador row (asked
+  // 2026-09-28: pick the type first, then a product type that fits it,
+  // rather than one flat list mixing all three together).
+  const categoryOptions = productOptions.filter((option) => option.group === groupSel);
+
+  function pickGroup(g: CeGroup) {
+    setGroupSel(g);
+    const first = productOptions.find((option) => option.group === g);
+    setCategory(first?.value ?? "");
+    setBatchCode("");
+  }
 
   async function save() {
     if (busy || readOnly) return;
+    if (isNew && !productOptions.some((option) => option.value === category)) {
+      setError("Choose an active product type.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const payload = {
@@ -74,8 +95,8 @@ export function AccountDialog({
       endDate: endDate || null,
       lifecycleStatus,
       hhStatus,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      notes,
+      tags: account?.tags ?? [],
+      notes: notes || null,
     };
     const res = isNew ? await ceAddAccount({ ...payload, assignTo: assignTo || null }) : await ceUpdateAccount(account.id, payload);
     setBusy(false);
@@ -113,7 +134,8 @@ export function AccountDialog({
             : undefined
       }
       onClose={onClose}
-      width={620}
+      width={760}
+      portal
       footer={
         <>
           {!isNew && canManage ? (
@@ -131,7 +153,7 @@ export function AccountDialog({
             {readOnly ? "Close" : "Cancel"}
           </button>
           {!readOnly ? (
-            <button type="button" onClick={save} disabled={busy} className={BTN_PRIMARY}>
+            <button type="button" onClick={save} disabled={busy || (isNew && !productOptions.some((option) => option.value === category))} className={BTN_PRIMARY}>
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.8} />}
               {isNew ? "Add" : "Save"}
             </button>
@@ -140,24 +162,36 @@ export function AccountDialog({
       }
     >
       <fieldset disabled={readOnly} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <span className={LABEL}>Type</span>
+          <Segmented
+            value={groupSel}
+            options={CE_GROUPS.map((g) => ({ value: g.code, label: g.label }))}
+            onChange={pickGroup}
+            ariaLabel="Participant, client or ambassador"
+          />
+        </div>
+
         <label className="sm:col-span-2">
-          <span className={LABEL}>Full name</span>
+          <span className={LABEL}>{NAME_LABEL[groupSel]}</span>
           <input className={FIELD} value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. ABC Shah" autoFocus={isNew} />
         </label>
 
-        <label>
-          <span className={LABEL}>Product type</span>
-          <Select value={category} onChange={setCategory} ariaLabel="Product type" disabled={readOnly}>
-            {CE_CATEGORIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.label} — {c.section}
-              </option>
-            ))}
-          </Select>
-        </label>
+        {categoryOptions.length > 0 ? (
+          <label>
+            <span className={LABEL}>Product type</span>
+            <Select value={category} onChange={setCategory} ariaLabel="Product type" disabled={readOnly}>
+              {categoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : <div><span className={LABEL}>Product type</span><p className="text-[12px] text-ink-muted">No active products available.</p></div>}
 
         {needsBatch ? (
-          <label>
+          <label className={categoryOptions.length > 0 ? "" : "sm:col-span-2"}>
             <span className={LABEL}>Batch number</span>
             <input
               className={FIELD}
@@ -173,7 +207,7 @@ export function AccountDialog({
             </datalist>
           </label>
         ) : (
-          <label>
+          <label className={categoryOptions.length > 0 ? "" : "sm:col-span-2"}>
             <span className={LABEL}>Organization</span>
             <input className={FIELD} value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Optional" />
           </label>
@@ -190,7 +224,7 @@ export function AccountDialog({
 
         <div className="sm:col-span-2">
           <span className={LABEL}>Hand-holding status</span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1">
             {CE_HH_STATUSES.map((s) => {
               const on = hhStatus === s.code;
               return (
@@ -199,7 +233,7 @@ export function AccountDialog({
                   type="button"
                   onClick={() => setHhStatus(s.code)}
                   aria-pressed={on}
-                  className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-bold transition-all"
+                  className="inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 text-[11.5px] font-bold transition-all"
                   style={{
                     background: on ? (s.bg ?? "var(--color-surface-soft)") : "var(--color-surface-card)",
                     color: on ? (s.fg ?? "var(--color-ink-strong)") : "var(--color-ink-soft)",
@@ -249,20 +283,23 @@ export function AccountDialog({
           <span />
         )}
 
-        <label className="sm:col-span-2">
-          <span className={LABEL}>Tags</span>
-          <input className={FIELD} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Comma separated, e.g. priority, referral" />
-        </label>
-
-        <label className="sm:col-span-2">
-          <span className={LABEL}>Notes</span>
+        <div className="sm:col-span-2">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className={`${LABEL} mb-0`}>Notes <span className="font-medium normal-case tracking-normal text-ink-muted">Optional</span></span>
+            <VoiceNoteButton
+              compact
+              label="Dictate"
+              onText={(text) => setNotes((current) => current.trim() ? `${current.trimEnd()} ${text}` : text)}
+            />
+          </div>
           <textarea
-            className={`${FIELD} h-auto min-h-[72px] py-2`}
+            className="min-h-20 w-full resize-y rounded-xl border border-hairline bg-surface-card px-3 py-2 text-[13px] font-medium text-ink-strong outline-none transition-colors placeholder:text-ink-subtle focus:border-altus-red"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional"
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Add notes"
+            rows={3}
           />
-        </label>
+        </div>
       </fieldset>
       <FormError message={error} />
     </CeDialog>

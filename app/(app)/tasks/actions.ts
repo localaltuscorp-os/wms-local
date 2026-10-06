@@ -21,6 +21,7 @@ import { reconcileTaskEvent, removeTaskEvent } from "@/lib/google/sync";
 import { syncTaskToGoal } from "@/lib/weekly-goals/task-sync";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isFounder } from "@/lib/auth/founder";
 import {
   TASK_STATUSES,
   TASK_PRIORITIES,
@@ -1501,7 +1502,7 @@ export async function decideTaskApproval(
       })) != null
     : false;
 
-  const actor = { id: me.id, email: me.email ?? null, isAdmin: me.isAdmin };
+  const actor = { id: me.id, isAdmin: me.isAdmin, isFounder: await isFounder(me.id) };
   const permTask = {
     status: current.status,
     approvalLevel: (current.approvalLevel ?? "none") as "none" | "manager" | "admin",

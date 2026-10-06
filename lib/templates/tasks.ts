@@ -17,6 +17,7 @@ import {
   type TaskColumnSource,
   type TaskTemplateColumn,
 } from "@/lib/tasks/template-columns";
+import { requiredHeader } from "./field-config";
 
 /**
  * The enterprise Tasks bulk-import workbook (exceljs) — the built-in template
@@ -62,7 +63,7 @@ function colLetter(n: number): string {
   return s;
 }
 
-export async function buildTasksTemplate(): Promise<Buffer> {
+export async function buildTasksTemplate(requiredFields: ReadonlySet<string> = new Set()): Promise<Buffer> {
   // ── Master data (dynamic roster where possible) ────────────────────
   const roster = await db
     .select({ name: employees.name, email: employees.email })
@@ -173,7 +174,8 @@ export async function buildTasksTemplate(): Promise<Buffer> {
   headerRow.height = 26;
   cols.forEach((c, i) => {
     const cell = headerRow.getCell(i + 1);
-    cell.value = c.locked ? `${c.header} 🔒` : c.header;
+    const header = requiredHeader(c.header, c.field, requiredFields);
+    cell.value = c.locked ? `${header} 🔒` : header;
     cell.font = { name: "Calibri", bold: true, size: 10.5, color: { argb: HEADER_TEXT } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
     cell.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };

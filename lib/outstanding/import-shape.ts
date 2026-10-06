@@ -19,6 +19,11 @@ function str(v: unknown): string {
   return v === null || v === undefined ? "" : String(v).trim();
 }
 
+/** Required-column markers are presentation only; import aliases stay stable. */
+function headerKey(value: string): string {
+  return value.replace(/\s*\*\s*$/, "").trim().toLowerCase();
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -26,7 +31,7 @@ function pad(n: number): string {
 /** Find the first present value among candidate header names (case-insensitive). */
 export function pick(row: LooseRow, ...names: string[]): string {
   const lower: Record<string, string> = {};
-  for (const [k, v] of Object.entries(row)) lower[k.trim().toLowerCase()] = str(v);
+  for (const [k, v] of Object.entries(row)) lower[headerKey(k)] = str(v);
   for (const n of names) {
     const v = lower[n.toLowerCase()];
     if (v !== undefined && v !== null && v !== "") return v;
@@ -118,7 +123,7 @@ function amountCell(v: unknown): string | number | null {
 
 function firstRaw(row: LooseRow, ...names: string[]): unknown {
   const lower = new Map<string, unknown>();
-  for (const [k, v] of Object.entries(row)) lower.set(k.trim().toLowerCase(), v);
+  for (const [k, v] of Object.entries(row)) lower.set(headerKey(k), v);
   for (const n of names) {
     if (lower.has(n.toLowerCase())) {
       const v = lower.get(n.toLowerCase());

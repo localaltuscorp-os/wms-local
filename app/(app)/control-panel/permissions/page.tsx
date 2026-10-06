@@ -2,6 +2,8 @@ import { listControlPanelUsers } from "@/lib/queries/control-panel";
 import { allPermissionNodes } from "@/lib/permissions/catalog";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { PermissionsClient } from "@/components/control-panel/permissions-client";
+import { forbiddenError, getSignedInEmployee } from "@/lib/auth/current";
+import { isMasterAdmin } from "@/lib/security/capability-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,8 @@ export const dynamic = "force-dynamic";
  * enforced here.
  */
 export default async function ControlPanelPermissionsPage() {
+  const signedIn = await getSignedInEmployee();
+  if (!signedIn || !(await isMasterAdmin(signedIn.email))) throw forbiddenError();
   const users = await listControlPanelUsers();
   const nodes = allPermissionNodes()
     .filter((n) => n.depth <= 3)
@@ -20,11 +24,12 @@ export default async function ControlPanelPermissionsPage() {
       label: n.label,
       depth: n.depth,
       module: n.ancestors[0] ?? n.key,
+      ancestors: [...n.ancestors],
     }));
 
   return (
     <main className="w-full px-8 pt-6 pb-8 max-md:px-4 max-md:pt-5 max-md:pb-6">
-      <PageCommandBar title="Permissions" hint="Employee Show, View and Edit access." />
+      <PageCommandBar title="Permissions" hint="Set module access. Customize only when needed." />
       <PermissionsClient
         users={users.map((u) => ({ id: u.id, name: u.name }))}
         nodes={nodes}

@@ -1,9 +1,8 @@
 import "server-only";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
-import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 
 /**
  * WHO A VIEWER MAY OPEN IN "MY SALARY".
@@ -49,7 +48,7 @@ type Viewer = {
 };
 
 function viewerIsAdmin(me: Pick<Viewer, "isAdmin" | "email">): boolean {
-  return me.isAdmin || isSuperAdmin(me.email);
+  return isSuperAdmin(me.email);
 }
 
 /** The people this viewer may open in My Salary, and which scope they fall under. */
@@ -63,20 +62,9 @@ export async function loadSalaryViewAccess(me: Viewer): Promise<SalaryViewAccess
     return { scope: "all", people };
   }
 
-  const downline = await getDownlineIds(me.id);
-  if (downline.length === 0) return { scope: "self", people: [] };
-
-  const reports = await db
-    .select({ id: employees.id, name: employees.name, avatarUrl: employees.avatarUrl })
-    .from(employees)
-    .where(and(eq(employees.isActive, true), inArray(employees.id, downline)))
-    .orderBy(asc(employees.name));
+  return { scope: "self", people: [] };
 
   // A manager sees their own pay alongside the team's — self first, then reports.
-  return {
-    scope: "team",
-    people: [{ id: me.id, name: me.name, avatarUrl: me.avatarUrl }, ...reports],
-  };
 }
 
 /**
@@ -90,8 +78,7 @@ export async function canViewSalaryOf(
 ): Promise<boolean> {
   if (targetId === me.id) return true;
   if (viewerIsAdmin(me)) return true;
-  const downline = await getDownlineIds(me.id);
-  return downline.includes(targetId);
+  return false;
 }
 
 /**

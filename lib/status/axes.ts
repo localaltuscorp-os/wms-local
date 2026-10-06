@@ -166,6 +166,7 @@ export const INITIATOR_STATUSES = [
   "approved",
   "not_approved",
   "on_hold",
+  "cancelled",
   "archived",
 ] as const;
 export type InitiatorStatus = (typeof INITIATOR_STATUSES)[number];
@@ -175,6 +176,7 @@ export const STORED_INITIATOR_STATUSES = [
   "approved",
   "not_approved",
   "on_hold",
+  "cancelled",
 ] as const satisfies readonly ApprovalStatus[];
 export type StoredInitiatorStatus = (typeof STORED_INITIATOR_STATUSES)[number];
 
@@ -197,6 +199,7 @@ export const INITIATOR_STATUS_LABEL: Record<InitiatorStatus, string> = {
   approved: "Approved",
   not_approved: "Not Approved",
   on_hold: "On Hold",
+  cancelled: "Cancelled",
   archived: "Archived",
 };
 
@@ -204,6 +207,7 @@ export const INITIATOR_STATUS_TONE: Record<InitiatorStatus, string> = {
   approved: "#15803D",
   not_approved: "#DC2626",
   on_hold: "#B45309",
+  cancelled: "#78716C",
   archived: "#57534E",
 };
 
@@ -349,11 +353,12 @@ export const INITIATOR_COLUMN_ORDER: InitiatorColId[] = [
   "approved",
   "not_approved",
   "on_hold",
+  "cancelled",
   "archived",
 ];
 
 export const INITIATOR_COLUMN_LABEL: Record<InitiatorColId, string> = {
-  [NO_VERDICT_COL]: "No Verdict",
+  [NO_VERDICT_COL]: "Pending / No Verdict",
   ...INITIATOR_STATUS_LABEL,
 };
 

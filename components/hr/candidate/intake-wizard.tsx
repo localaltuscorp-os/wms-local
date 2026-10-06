@@ -4,10 +4,11 @@ import * as React from "react";
 import { useAutosave } from "@/components/hr/forms/use-autosave";
 import { SaveIndicator } from "@/components/hr/forms/save-indicator";
 import { ArrowLeft, ArrowRight, Loader2, Send } from "lucide-react";
-import { sectionsForMode, hasAnyContent, intakeProgress, sectionRequiredKeys, type IntakeSection, type IntakeMode } from "@/lib/hr/candidate/intake-schema";
+import { sectionsForMode, hasAnyContent, isValidCandidateMobile, sectionRequiredKeys, type IntakeSection, type IntakeMode } from "@/lib/hr/candidate/intake-schema";
 import {
   createCandidatePhotoUploadUrl,
   createCandidateWorkUploadUrl,
+  getCandidatePhotoUrl,
   getCandidateWorkFileUrl,
   saveCandidateDraft,
   submitCandidateDraft,
@@ -29,6 +30,8 @@ export interface IntakeActions {
    * the thing that decides which.
    */
   photoUploadUrl: PhotoUploadUrlFn;
+  /** Short-lived URL used only to render the private photo in Review & Submit. */
+  photoReadUrl: PhotoReadUrlFn;
   /** Work samples (optional, Personal Details): upload a file / open a stored one. */
   workUploadUrl: WorkUploadUrlFn;
   workFileUrl: WorkFileUrlFn;
@@ -38,13 +41,14 @@ const HR_ACTIONS: IntakeActions = {
   save: saveCandidateDraft,
   submit: submitCandidateDraft,
   photoUploadUrl: createCandidatePhotoUploadUrl,
+  photoReadUrl: getCandidatePhotoUrl,
   workUploadUrl: createCandidateWorkUploadUrl,
   workFileUrl: getCandidateWorkFileUrl,
 };
 import { fireToast } from "@/lib/toast";
 import { IntakeRail } from "./intake-rail";
 import { IntakeSectionStep } from "./intake-section-step";
-import type { PhotoUploadUrlFn } from "./candidate-photo-field";
+import type { PhotoReadUrlFn, PhotoUploadUrlFn } from "./candidate-photo-field";
 import type { WorkFileUrlFn, WorkUploadUrlFn } from "./candidate-work-samples-field";
 import { IntakeReviewStep } from "./intake-review-step";
 
@@ -196,6 +200,23 @@ const IW_CSS = `
 type Vals = Record<string, string>;
 type StepStatus = "active" | "done" | "error" | "idle";
 
+function seededInstances(
+  sections: IntakeSection[],
+  saved?: Record<string, string[]>,
+): Record<string, string[]> {
+  if (saved && Object.keys(saved).length > 0) return saved;
+  const next: Record<string, string[]> = {};
+  for (const section of sections) {
+    if (section.repeat) {
+      next[section.id] = Array.from(
+        { length: Math.max(section.repeat.seed, section.repeat.min) },
+        (_, index) => `i${index}`,
+      );
+    }
+  }
+  return next;
+}
+
 export function IntakeWizard({
   onClose,
   onSaved,
@@ -218,19 +239,41 @@ export function IntakeWizard({
 }) {
   const sections = sectionsForMode(mode);
   const reviewStep = sections.length;
+  const initialInstances = React.useMemo(
+    () => seededInstances(sectionsForMode(mode), initial?.instances),
+    [initial?.instances, mode],
+  );
 
   const [step, setStep] = React.useState(initial?.startAtReview ? sections.length : 0);
   const [values, setValues] = React.useState<Vals>(() => initial?.values ?? {});
   // Repeater instances: sectionId -> array of stable uids (seeded for new forms,
   // restored for resumed drafts).
-  const [instances, setInstances] = React.useState<Record<string, string[]>>(() => {
-    if (initial?.instances && Object.keys(initial.instances).length) return initial.instances;
-    const init: Record<string, string[]> = {};
-    for (const s of sections) if (s.repeat) init[s.id] = Array.from({ length: Math.max(s.repeat.seed, s.repeat.min) }, (_, i) => `i${i}`);
-    return init;
-  });
+  const [instances, setInstances] = React.useState<Record<string, string[]>>(() => initialInstances);
   const [saving, setSaving] = React.useState(false);
   const [attempted, setAttempted] = React.useState<Set<string>>(new Set());
+  // A filled section is not considered complete until the person has explicitly
+  // advanced through it with Continue. This keeps side-rail status honest when
+  // someone jumps between sections while drafting.
+  const [confirmedSections, setConfirmedSections] = React.useState<Set<string>>(
+    () => initial?.startAtReview ? new Set(sections.map((section) => section.id)) : new Set(),
+  );
+  // A form that was submitted before new fields/sections existed must remain a
+  // valid submitted form. Snapshot only its initially blank required keys:
+  // later clearing a value that was present still fails validation as expected.
+  const [legacyBlankKeys] = React.useState<Map<string, Set<string>>>(() =>
+    new Map(
+      initial?.startAtReview
+        ? sections.map((section) => [
+            section.id,
+            new Set(
+              sectionRequiredKeys(section, initial.values ?? {}, initialInstances).filter(
+                (key) => (initial.values?.[key] ?? "").trim() === "",
+              ),
+            ),
+          ])
+        : [],
+    ),
+  );
   // High base so freshly-added repeater uids never collide with a resumed draft's.
   const uidRef = React.useRef(100000);
 
@@ -297,7 +340,10 @@ export function IntakeWizard({
    * two images. Both uploads are gone (Sir), so the markers go with them.
    */
   function missingKeys(s: IntakeSection): string[] {
-    return sectionRequiredKeys(s, values, instances).filter((k) => (values[k] ?? "").trim() === "");
+    const grandfathered = legacyBlankKeys.get(s.id);
+    return sectionRequiredKeys(s, values, instances).filter(
+      (key) => (values[key] ?? "").trim() === "" && !grandfathered?.has(key),
+    );
   }
   /**
    * A section reads "done" (green tick) ONLY when it actually has required work
@@ -307,12 +353,13 @@ export function IntakeWizard({
    * the confirmation button, and the recruiter name in HR mode).
    */
   function sectionComplete(s: IntakeSection): boolean {
-    const hasRequirements = s.declaration || sectionRequiredKeys(s, values, instances).length > 0;
-    return hasRequirements && missingKeys(s).length === 0;
+    return confirmedSections.has(s.id) && missingKeys(s).length === 0;
   }
-  const pct = intakeProgress(values, instances);
+  const requiredCount = sections.reduce((count, section) => count + sectionRequiredKeys(section, values, instances).length, 0);
+  const missingCount = sections.reduce((count, section) => count + missingKeys(section).length, 0);
+  const pct = Math.round(((requiredCount - missingCount) / Math.max(requiredCount, 1)) * 100);
 
-  function go(to: number) {
+  function moveTo(to: number) {
     setStep(Math.max(0, Math.min(reviewStep, to)));
     requestAnimationFrame(() => {
       // Land at the TOP of the new section, not wherever the autofocus target
@@ -322,6 +369,25 @@ export function IntakeWizard({
       stepEl?.scrollIntoView({ block: "start", behavior: "auto" });
       stepEl?.querySelector<HTMLElement>("[data-autofocus]")?.focus({ preventScroll: true });
     });
+  }
+  function firstIncompleteSection(confirmed = confirmedSections): number {
+    return sections.findIndex((section) => !confirmed.has(section.id) || missingKeys(section).length > 0);
+  }
+  /** Review is only meaningful once each section was explicitly completed. */
+  function go(to: number, allowReview = false) {
+    const target = Math.max(0, Math.min(reviewStep, to));
+    if (target === reviewStep && !allowReview) {
+      const firstIncomplete = firstIncompleteSection();
+      if (firstIncomplete >= 0) {
+        const blocked = sections[firstIncomplete];
+        if (blocked) setAttempted((current) => new Set(current).add(blocked.id));
+        fireToast({ message: "Complete each section with Continue before reviewing the form.", type: "error" });
+        moveTo(firstIncomplete);
+        requestAnimationFrame(focusFirstInvalid);
+        return;
+      }
+    }
+    moveTo(target);
   }
   function focusFirstInvalid() {
     document.querySelector<HTMLElement>('.iw-step [data-invalid="true"] input, .iw-step [data-invalid="true"] textarea, .iw-step [data-invalid="true"] select, .iw-step [data-invalid="true"] button')?.focus();
@@ -336,16 +402,35 @@ export function IntakeWizard({
       requestAnimationFrame(focusFirstInvalid);
       return;
     }
-    go(step + 1);
+    if (s.id === "personal" && !isValidCandidateMobile(values["personal.mobile"])) {
+      setAttempted((p) => new Set(p).add(s.id));
+      fireToast({ message: "Enter a valid 10-digit mobile number.", type: "error" });
+      return;
+    }
+    const confirmed = new Set(confirmedSections).add(s.id);
+    setConfirmedSections(confirmed);
+    const nextStep = step + 1;
+    if (nextStep === reviewStep && firstIncompleteSection(confirmed) >= 0) {
+      fireToast({ message: "Complete every section with Continue before reviewing the form.", type: "error" });
+      go(firstIncompleteSection(confirmed));
+      return;
+    }
+    go(nextStep, true);
   }
   // Hard-block: Submit only fires when EVERY section is complete; else jump to the first gap.
   function handleSubmit() {
-    const firstBad = sections.findIndex((s) => missingKeys(s).length > 0);
+    const firstBad = firstIncompleteSection();
     if (firstBad >= 0) {
       setAttempted(new Set(sections.map((s) => s.id)));
       fireToast({ message: "Some required fields are still missing — jumping you there.", type: "error" });
       go(firstBad);
       requestAnimationFrame(focusFirstInvalid);
+      return;
+    }
+    if (!isValidCandidateMobile(values["personal.mobile"])) {
+      setAttempted((p) => new Set(p).add("personal"));
+      fireToast({ message: "Enter a valid 10-digit mobile number.", type: "error" });
+      go(sections.findIndex((s) => s.id === "personal"));
       return;
     }
     submit();
@@ -393,7 +478,7 @@ export function IntakeWizard({
   const steps: { label: string; status: StepStatus }[] = [
     ...sections.map((s, i): { label: string; status: StepStatus } => ({
       label: s.title,
-      status: i === step ? "active" : sectionComplete(s) ? "done" : attempted.has(s.id) ? "error" : "idle",
+      status: sectionComplete(s) ? "done" : i === step ? "active" : attempted.has(s.id) ? "error" : "idle",
     })),
     { label: "Review & Submit", status: step === reviewStep ? "active" : "idle" },
   ];
@@ -428,7 +513,7 @@ export function IntakeWizard({
       <div className="flex min-h-0 flex-1 max-md:flex-col">
         <IntakeRail steps={steps} activeIndex={step} onSelect={go} />
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1000px] px-10 py-10 max-md:px-4 max-md:py-6">
+          <div className="w-full px-6 py-6 max-md:px-4 max-md:py-5">
             {active && (
               <div
                 className="mb-6 inline-flex items-center gap-2 rounded-pill px-3.5 py-1.5 text-[12.5px] font-bold"
@@ -444,7 +529,11 @@ export function IntakeWizard({
                 >
                   !
                 </span>
-                Every field is required.
+                {active.id === "family"
+                  ? "Optional — add a family member only if applicable."
+                  : (legacyBlankKeys.get(active.id)?.size ?? 0) > 0
+                    ? "Previously submitted — existing details remain valid; add newer fields when available."
+                    : "Every field is required."}
               </div>
             )}
             <div key={step} className="iw-step">
@@ -461,11 +550,12 @@ export function IntakeWizard({
                   departments={departments}
                   canManagePositions={canManagePositions}
                   photoUploadUrl={actions.photoUploadUrl}
+                  photoReadUrl={actions.photoReadUrl}
                   workUploadUrl={actions.workUploadUrl}
                   workFileUrl={actions.workFileUrl}
                 />
               ) : (
-                <IntakeReviewStep sections={sections} values={values} instances={instances} onEdit={go} workFileUrl={actions.workFileUrl} />
+                <IntakeReviewStep sections={sections} values={values} instances={instances} onEdit={go} photoReadUrl={actions.photoReadUrl} workFileUrl={actions.workFileUrl} />
               )}
             </div>
           </div>

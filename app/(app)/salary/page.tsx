@@ -7,7 +7,7 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { salaryBreakupMonths, listSalaryBreakup } from "@/lib/queries/salary-breakup";
 import { SalaryBreakupTable, type SalaryRow } from "@/components/salary/salary-breakup-table";
 import { SalaryPeriodSelect } from "@/components/salary/salary-period-select";
-import { SalaryEntitySelect, ALL_ENTITIES } from "@/components/salary/salary-entity-select";
+import { SalaryEntitySelect } from "@/components/salary/salary-entity-select";
 import { SalaryExportButtons } from "@/components/salary/salary-export-buttons";
 import { PageShell } from "@/components/layout/page-shell";
 import {
@@ -57,12 +57,12 @@ export default async function SalaryPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const months = await salaryBreakupMonths();
   const raw = typeof sp.month === "string" ? sp.month : undefined;
-  // Default to the last COMPLETE month — not the current in-progress month (which
-  // only has a day or two logged, so it would show tiny pro-rated pay). `months`
-  // is newest-first; the first one before this IST month is the last full one.
+  // Prefer the active IST month whenever that month's payroll sheet exists.
+  // When it has not been generated yet, the page still stays on that active month.
   const nowYm = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 7);
-  const defaultMonth = months.find((m) => m < nowYm) ?? months[0] ?? "";
+  const defaultMonth = nowYm;
   const month = raw && MONTH_RE.test(raw) ? raw : defaultMonth;
+  const selectableMonths = months.includes(nowYm) ? months : [nowYm, ...months];
   const allRows = month ? await listSalaryBreakup(month) : [];
 
   // ENTITY SCOPE, resolved server-side from `?entity=`. It used to be a
@@ -73,14 +73,14 @@ export default async function SalaryPage({ searchParams }: PageProps) {
   const entities = [
     ...new Set(allRows.map((r) => r.companyName?.trim()).filter((c): c is string => Boolean(c))),
   ].sort((a, b) => a.localeCompare(b));
-  const rawEntity = typeof sp.entity === "string" ? sp.entity : undefined;
+  const requestedEntities = (Array.isArray(sp.entity) ? sp.entity : typeof sp.entity === "string" ? [sp.entity] : [])
+    .filter((entity): entity is string => entities.includes(entity));
   // An entity that isn't on this month's sheet falls back to All rather than
   // rendering an empty table — changing month must never strand the view.
-  const entity = rawEntity && entities.includes(rawEntity) ? rawEntity : ALL_ENTITIES;
   const rows =
-    entity === ALL_ENTITIES
+    requestedEntities.length === 0
       ? allRows
-      : allRows.filter((r) => (r.companyName?.trim() ?? "") === entity);
+      : allRows.filter((r) => requestedEntities.includes(r.companyName?.trim() ?? ""));
 
   // WS-5/WS-6 — linked employees for the statement/earnings document downloads
   // (behind SALARY_STATEMENTS). Only rows with a resolved employeeId can be
@@ -182,8 +182,8 @@ export default async function SalaryPage({ searchParams }: PageProps) {
 
               {/* Year + month, inline with the title — the two dropdowns that
                   replaced the year-chip and month-chip rows below the header. */}
-              {months.length > 0 && (
-                <SalaryPeriodSelect months={months} selected={month ?? ""} />
+              {selectableMonths.length > 0 && (
+                <SalaryPeriodSelect months={selectableMonths} selected={month ?? ""} />
               )}
             </div>
 
@@ -196,8 +196,11 @@ export default async function SalaryPage({ searchParams }: PageProps) {
             <div className="flex shrink-0 flex-col items-end gap-2">
               <div className="flex items-center gap-2.5">
                 <SalaryExportButtons month={month} />
+                <Link href={"/salary/import" as Route} className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-surface-card px-3.5 py-2 text-[13px] font-bold text-ink-soft transition hover:text-ink-strong">
+                  <FileSpreadsheet size={15} strokeWidth={2.3} /> Bulk Upload
+                </Link>
               </div>
-              <SalaryEntitySelect entities={entities} selected={entity} month={month} />
+              <SalaryEntitySelect entities={entities} selected={requestedEntities} month={month} />
             </div>
           </div>
 

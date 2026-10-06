@@ -10,7 +10,6 @@ import {
   CE_DAY_END_MIN,
   CE_DAY_START_MIN,
   CE_DAYS,
-  CE_DURATIONS,
   categoryNeedsBatch,
 } from "@/lib/client-engagement/constants";
 import { CE_MANAGER_NAMES } from "@/lib/client-engagement/access";
@@ -18,10 +17,7 @@ import { addDays, dayCodeOf, formatDuration, parseHm, toClock, toHm, validateEng
 import { isInactiveAccount } from "@/lib/client-engagement/status";
 import type { CeAccountRow, CeEngagementRow, CeMemberRow } from "@/lib/queries/client-engagement";
 import { ceDeleteEngagement, ceSaveEngagement } from "@/app/(app)/operations/client-engagement/actions";
-import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Select } from "./ui";
-
-/** Every 5 minutes from 10:00 to 20:00. */
-const TIMES: number[] = Array.from({ length: (CE_DAY_END_MIN - CE_DAY_START_MIN) / 5 + 1 }, (_, i) => CE_DAY_START_MIN + i * 5);
+import { BTN_NEUTRAL, BTN_PRIMARY, CeDialog, FIELD, FormError, LABEL, Select, TimeField } from "./ui";
 
 const NEW = "__new__";
 
@@ -111,7 +107,6 @@ export function EngagementDialog({
     }
   }
 
-  const durationOptions = [...new Set([...CE_DURATIONS, duration])].sort((a, b) => a - b);
   const clientError = validateEngagement({
     callType,
     dayOfWeek: day,
@@ -324,38 +319,25 @@ export function EngagementDialog({
         </label>
 
         <label>
-          <span className={LABEL}>Call duration</span>
-          <Select value={String(duration)} onChange={(v) => setDuration(Number(v))} ariaLabel="Call duration">
-            {durationOptions.map((d) => (
-              <option key={d} value={d} disabled={startMin + d > CE_DAY_END_MIN}>
-                {d < 60 ? `${d} mins` : formatDuration(d)}
-              </option>
-            ))}
-          </Select>
+          <span className={LABEL}>From</span>
+          <TimeField
+            value={startMin}
+            onChange={setStartMin}
+            ariaLabel="From"
+            min={CE_DAY_START_MIN}
+            max={CE_DAY_END_MIN - 5}
+          />
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label>
-            <span className={LABEL}>From</span>
-            <Select value={String(startMin)} onChange={(v) => setStartMin(Number(v))} ariaLabel="From">
-              {TIMES.slice(0, -1).map((t) => (
-                <option key={t} value={t}>
-                  {toClock(t)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            <span className={LABEL}>To</span>
-            <Select value={String(endMin)} onChange={(v) => setDuration(Math.max(5, Number(v) - startMin))} ariaLabel="To">
-              {TIMES.filter((t) => t > startMin).map((t) => (
-                <option key={t} value={t}>
-                  {toClock(t)}
-                </option>
-              ))}
-              {endMin > CE_DAY_END_MIN ? <option value={endMin}>{toClock(endMin)} (past 8 PM)</option> : null}
-            </Select>
-          </label>
-        </div>
+        <label>
+          <span className={LABEL}>To</span>
+          <TimeField
+            value={endMin}
+            onChange={(v) => setDuration(Math.max(5, v - startMin))}
+            ariaLabel="To"
+            min={startMin + 5}
+            max={CE_DAY_END_MIN}
+          />
+        </label>
 
         <label className="sm:col-span-2">
           <span className={LABEL}>Notes</span>

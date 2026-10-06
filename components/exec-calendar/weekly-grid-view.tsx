@@ -5,26 +5,28 @@ import { categoryColors, execCategory } from "@/lib/exec-calendar/taxonomy";
 import { execClient } from "@/lib/exec-calendar/clients";
 import {
   addDays,
-  clampToWindow,
-  isoWeek,
+  laneDay,
   minToLabel,
+  monthStart,
   parseDay,
   rangeLabel,
   slotMinutes,
+  weekStart,
   type GridConfig,
 } from "@/lib/exec-calendar/grid";
 import { GRID_WEEKS, monthName } from "@/lib/exec-calendar/period";
 import { markersByDay, type DayMarker } from "@/lib/exec-calendar/day-markers";
 import type { ExecEventRow } from "@/lib/queries/exec-calendar";
+import { useEventContextMenu } from "./event-context-menu";
 
 /**
  * WEEKLY GRID — the master sheet as a spreadsheet (asked 2026-09-18).
  *
  * Eight columns (time, then Monday → Sunday), and the chosen week plus the
  * three after it stacked down the page. A dark banner names the month where a
- * new one starts; each week opens with a dark row carrying its number, its
- * dates and that day's Day Markers. Below, one row per half hour across the
- * calendar's window (06:30–23:00, the same as Day and Week), white cells with a
+ * new one starts; each week header aligns its number with weekday names, then
+ * shows dates and that day's Day Markers below. One row per hour spans the
+ * calendar's window (07:00–23:00, the same as Day and Week), white cells with a
  * light grey rule, and every block filled in its category's colour with black
  * text that wraps. Blocks that overlap split the cell side by side - a sheet has
  * no layers, so there is no nesting here.
@@ -54,63 +56,50 @@ const TIME_COL = 64;
 const HEAD_H = 30;
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const HEADER_BG = "#1A1A1A";
+const HEADER_BG = "#6B7280";
+/** The current week's own bar, in place of HEADER_BG — the one exception to
+ *  "every header cell is gray" (2026-09-26). */
+const HEADER_BG_CURRENT = "var(--color-altus-red)";
 const RULE = "#D3D3D3";
 
-type Placed = { e: ExecEventRow; start: number; end: number; lane: number; lanes: number };
-
-/** Side-by-side lanes for one day: greedy packing, lane count per overlap cluster. */
-function laneDay(events: ExecEventRow[], cfg: GridConfig): Placed[] {
-  const items = events
-    .flatMap((e) => {
-      if (e.allDay) return []; // drawn as a banner in the week row
-      if (e.startMin == null || e.endMin == null || e.endMin <= e.startMin) return [];
-      let start = clampToWindow(e.startMin, cfg);
-      let end = clampToWindow(e.endMin, cfg);
-      // Wholly outside the window: pinned to the nearest edge, one row tall.
-      if (end <= start) {
-        start = e.endMin <= cfg.startMin ? cfg.startMin : cfg.endMin - cfg.slotMin;
-        end = start + cfg.slotMin;
-      }
-      return [{ e, start, end }];
-    })
-    .sort((a, b) => a.start - b.start || b.end - a.end);
-
-  const out: Placed[] = [];
-  let cluster: Placed[] = [];
-  let clusterEnd = -Infinity;
-  const laneEnds: number[] = [];
-  const flush = () => {
-    const lanes = Math.max(1, laneEnds.length);
-    for (const p of cluster) out.push({ ...p, lanes });
-    cluster = [];
-    laneEnds.length = 0;
-  };
-  for (const it of items) {
-    if (it.start >= clusterEnd) {
-      flush();
-      clusterEnd = -Infinity;
-    }
-    let lane = laneEnds.findIndex((end) => end <= it.start);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(it.end);
-    } else laneEnds[lane] = it.end;
-    cluster.push({ ...it, lane, lanes: 1 });
-    clusterEnd = Math.max(clusterEnd, it.end);
+/**
+ * The day, within `monday`'s week, that is the 1st of a month — or null when
+ * no month starts in this week. Shared by `weekOfMonth` and `bannerFor` so
+ * the two questions "does a new month start here" and "which month owns this
+ * week" can never disagree (they used to: `bannerFor` used THIS rule while
+ * `weekOfMonth` asked what its Thursday's month was, so a week straddling a
+ * boundary got a "NOVEMBER 2026" banner over a "Week 5" that was still
+ * counting OCTOBER's weeks — reported live 2026-09-28, "why is there week 5
+ * on first week of november? it should be week 1").
+ */
+function monthStartInWeek(monday: string): string | null {
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(monday, i);
+    if (d.endsWith("-01")) return d;
   }
-  flush();
-  return out;
+  return null;
+}
+
+/**
+ * Which week of ITS OWN MONTH a Monday starts — Week 1 is whichever week
+ * holds that month's 1st, resetting at every month rather than counting
+ * ISO weeks through the whole year (asked 2026-09-26). A week that CONTAINS
+ * a month's 1st belongs to that new month (matching `bannerFor` below);
+ * otherwise it belongs to its Monday's own month.
+ */
+function weekOfMonth(monday: string): number {
+  const newMonth = monthStartInWeek(monday);
+  const owningMonthFirst = newMonth ?? monthStart(monday);
+  const firstMonday = weekStart(owningMonthFirst);
+  const diffDays = (parseDay(monday).getTime() - parseDay(firstMonday).getTime()) / 86400000;
+  return Math.round(diffDays / 7) + 1;
 }
 
 /** "Sep 2026" banner text for a week, or null when no new month starts in it. */
 function bannerFor(monday: string, index: number): string | null {
   if (index === 0) return monthName(monday, true);
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(monday, i);
-    if (d.endsWith("-01")) return monthName(d, true);
-  }
-  return null;
+  const newMonth = monthStartInWeek(monday);
+  return newMonth ? monthName(newMonth, true) : null;
 }
 
 export function ExecWeeklyGridView({
@@ -137,6 +126,8 @@ export function ExecWeeklyGridView({
   const height = rows.length * ROW_H;
   const cols = `${TIME_COL}px repeat(7, minmax(96px, 1fr))`;
   const weeks = Array.from({ length: GRID_WEEKS }, (_, i) => addDays(monday, 7 * i));
+  const { openMenu, node: contextMenuNode } = useEventContextMenu();
+  const canEdit = !!onPickEvent;
 
   const byDay = React.useMemo(() => {
     const m = new Map<string, ExecEventRow[]>();
@@ -152,28 +143,13 @@ export function ExecWeeklyGridView({
     // back, so the box never traps it.
     <div className="max-h-[78vh] overflow-auto border border-hairline bg-white" style={{ overscrollBehaviorX: "contain" }}>
       <div style={{ minWidth: TIME_COL + 7 * 96 }}>
-        {/* Day names, pinned while the weeks scroll under them. The height is
-            STATED (HEAD_H) because each week's bar sticks directly beneath it —
-            see the constant. */}
-        <div
-          className="sticky top-0 z-30 grid text-white"
-          style={{ gridTemplateColumns: cols, background: HEADER_BG, height: HEAD_H }}
-        >
-          <div className="sticky left-0 z-10 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: HEADER_BG }}>
-            Time
-          </div>
-          {DAY_NAMES.map((d) => (
-            <div key={d} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
-              {d}
-            </div>
-          ))}
-        </div>
-
         {weeks.map((wk, wi) => {
           const days = Array.from({ length: 7 }, (_, i) => addDays(wk, i));
           const banner = bannerFor(wk, wi);
+          const isCurrentWeek = !!today && days.includes(today);
+          const weekBg = isCurrentWeek ? HEADER_BG_CURRENT : HEADER_BG;
           return (
-            <section key={wk} aria-label={`Week ${isoWeek(wk).week}`}>
+            <section key={wk} aria-label={`Week ${weekOfMonth(wk)}`}>
               {banner && (
                 <div
                   className="border-t border-white/10 px-3 py-1.5 text-[13px] font-black uppercase tracking-wide text-white"
@@ -183,8 +159,22 @@ export function ExecWeeklyGridView({
                 </div>
               )}
 
-              {/* The week's own dark row: number, dates, and each day's markers.
-                  STICKY, directly under the column header.
+              {/* Week number and weekday names share this header row. */}
+              <div
+                className="sticky top-0 z-30 grid text-white"
+                style={{ gridTemplateColumns: cols, background: weekBg, height: HEAD_H }}
+              >
+                <div className="sticky left-0 z-40 flex items-center px-2 text-[10.5px] font-bold uppercase leading-tight" style={{ background: weekBg }}>
+                  WK {weekOfMonth(wk)}
+                </div>
+                {DAY_NAMES.map((name) => (
+                  <div key={name} className="flex items-center justify-center border-l border-white/15 px-2 text-[11.5px] font-bold">
+                    {name}
+                  </div>
+                ))}
+              </div>
+
+              {/* Date row and day markers stick directly beneath weekday names.
 
                   It needs no scroll listener and no observer: a sticky element
                   is clipped by its PARENT, and each week is already its own
@@ -198,10 +188,10 @@ export function ExecWeeklyGridView({
                   second offset that changes week to week. */}
               <div
                 className="sticky z-20 grid border-t border-white/10 text-white"
-                style={{ top: HEAD_H, gridTemplateColumns: cols, background: HEADER_BG }}
+                style={{ top: HEAD_H, gridTemplateColumns: cols, background: weekBg }}
               >
-                <div className="sticky left-0 z-10 flex items-center px-2 py-1.5 text-[11px] font-bold" style={{ background: HEADER_BG }}>
-                  Week {isoWeek(wk).week}
+                <div className="sticky left-0 z-10 flex items-start justify-end px-2 py-1.5 text-[10px] font-bold uppercase text-white/75" style={{ background: weekBg }}>
+                  Time
                 </div>
                 {days.map((d) => {
                   const date = parseDay(d);
@@ -210,7 +200,7 @@ export function ExecWeeklyGridView({
                     <div key={d} className="min-w-0 border-l border-white/15 px-1.5 py-1.5">
                       <div
                         className="text-center text-[11px] font-bold tabular-nums"
-                        style={isToday ? { color: "#FF6B6B" } : undefined}
+                        style={isToday ? { color: isCurrentWeek ? "#FFFFFF" : "#FF6B6B", textDecoration: isCurrentWeek ? "underline" : undefined } : undefined}
                       >
                         {date.getUTCDate()} {MON_SHORT[date.getUTCMonth()]}
                       </div>
@@ -223,6 +213,7 @@ export function ExecWeeklyGridView({
                               key={e.id}
                               type="button"
                               onClick={() => onPickEvent?.(e)}
+                              onContextMenu={canEdit ? (ev) => openMenu(ev, e) : undefined}
                               title={`${e.title} · ${cat.label} · All day`}
                               className="mt-1 block w-full rounded-[3px] px-1 py-[1px] text-center text-[10.5px] font-bold leading-snug text-[#111]"
                               style={{ background: `color-mix(in srgb, ${cat.hex} 55%, white)`, cursor: onPickEvent ? "pointer" : "default" }}
@@ -248,7 +239,7 @@ export function ExecWeeklyGridView({
                 })}
               </div>
 
-              {/* Half-hour rows. */}
+              {/* Hourly rows. */}
               <div className="grid" style={{ gridTemplateColumns: cols }}>
                 {/* z-10, lowered from z-20 when the week bar above became sticky
                     at z-20: this gutter is sticky horizontally and would
@@ -289,6 +280,7 @@ export function ExecWeeklyGridView({
                             key={e.id}
                             type="button"
                             onClick={() => onPickEvent?.(e)}
+                            onContextMenu={canEdit ? (ev) => openMenu(ev, e) : undefined}
                             className="absolute z-10 flex flex-col justify-start overflow-hidden border px-1 py-0.5 text-left text-[10.5px] leading-tight text-[#111]"
                             style={{
                               top,
@@ -322,10 +314,16 @@ export function ExecWeeklyGridView({
                   );
                 })}
               </div>
+
+              <div className="grid" style={{ gridTemplateColumns: cols }}>
+                <div className="sticky left-0 z-10 flex h-4 items-start justify-end bg-white pr-1.5 text-[10px] font-medium tabular-nums text-ink-muted">{minToLabel(cfg.endMin)}</div>
+                {days.map((d) => <div key={d} className="h-4 border-l" style={{ borderColor: RULE }} />)}
+              </div>
             </section>
           );
         })}
       </div>
+      {contextMenuNode}
     </div>
   );
 }

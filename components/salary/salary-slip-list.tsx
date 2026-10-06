@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { FileDown, FileText, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
+import { FileDown, FileText, ExternalLink, Loader2 } from "lucide-react";
 
 /** One month the employee has a salary sheet for. */
 export interface SalarySlipMonth {
@@ -51,8 +51,6 @@ export function SalarySlipList({
   employeeId: string;
   months: SalarySlipMonth[];
 }) {
-  const [open, setOpen] = React.useState<string | null>(null);
-
   if (months.length === 0) {
     return (
       <section className="admin-panel px-6 py-16 text-center">
@@ -102,8 +100,6 @@ export function SalarySlipList({
                 key={m.month}
                 employeeId={employeeId}
                 slip={m}
-                open={open === m.month}
-                onToggle={() => setOpen(open === m.month ? null : m.month)}
               />
             ))}
           </ul>
@@ -116,29 +112,17 @@ export function SalarySlipList({
 function SlipRow({
   employeeId,
   slip,
-  open,
-  onToggle,
 }: {
   employeeId: string;
   slip: SalarySlipMonth;
-  open: boolean;
-  onToggle: () => void;
 }) {
-  // Sticks once opened: re-collapsing and re-opening the same row should not
-  // show a spinner for a document the browser has already fetched.
   const [loaded, setLoaded] = React.useState(false);
-
   const base = `/salary/earnings/${employeeId}?month=${slip.month}`;
   const viewHref = `${base}&view=1`;
 
   return (
     <li>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-soft"
-      >
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-soft">
         <span
           aria-hidden
           className="inline-grid size-9 shrink-0 place-items-center rounded-xl"
@@ -170,18 +154,7 @@ function SlipRow({
           </span>
         </span>
 
-        <ChevronDown
-          size={18}
-          strokeWidth={2.4}
-          aria-hidden
-          className="shrink-0 text-ink-subtle transition-transform duration-200 motion-reduce:transition-none"
-          style={{ transform: open ? "rotate(180deg)" : "none" }}
-        />
-      </button>
-
-      {open && (
-        <div className="border-t border-[var(--color-hairline)] bg-surface-soft px-4 py-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2.5">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2 max-sm:ml-12">
             {/* Download keeps the attachment disposition — the default the route
                 has always served. */}
             <a
@@ -204,7 +177,7 @@ function SlipRow({
             </a>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-hairline-strong bg-surface-card">
+          {false && <div className="relative overflow-hidden rounded-xl border border-hairline-strong bg-surface-card">
             {!loaded && (
               <div className="absolute inset-0 grid place-items-center text-ink-subtle">
                 <span className="inline-flex items-center gap-2 text-[13px] font-semibold">
@@ -219,9 +192,8 @@ function SlipRow({
               className="h-[70vh] min-h-[420px] w-full"
               style={{ border: 0, opacity: loaded ? 1 : 0 }}
             />
-          </div>
-        </div>
-      )}
+          </div>}
+      </div>
     </li>
   );
 }

@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { DataTable } from "@/components/admin/ui/data-table";
-import { updateDepartment } from "@/app/(admin)/admin/functions/actions";
+import { updateDepartment, deleteDepartments } from "@/app/(admin)/admin/functions/actions";
 import type { DepartmentWithCount } from "@/lib/queries/departments";
 
 interface Props {
   departments: DepartmentWithCount[];
+  canDelete?: boolean;
 }
 
 function StatusBadge({ isActive }: { isActive: boolean }) {
@@ -81,7 +83,7 @@ function DepartmentRowActions({
   );
 }
 
-export function DepartmentList({ departments }: Props) {
+export function DepartmentList({ departments, canDelete = false }: Props) {
   const [editing, setEditing] = useState<DepartmentWithCount | null>(null);
 
   return (
@@ -91,7 +93,7 @@ export function DepartmentList({ departments }: Props) {
         getRowKey={(d) => d.id}
         searchText={(d) => d.name}
         searchPlaceholder="Search Functions"
-        initialSort={{ key: "sort", dir: "asc" }}
+        initialSort={{ key: "name", dir: "asc" }}
         filters={[
           {
             label: "Status",
@@ -112,14 +114,6 @@ export function DepartmentList({ departments }: Props) {
             ),
           },
           {
-            key: "sort",
-            label: "Sort",
-            sortValue: (d) => d.sortOrder,
-            render: (d) => (
-              <span className="tabular-nums text-ink-soft">{d.sortOrder}</span>
-            ),
-          },
-          {
             key: "employees",
             label: "Employees",
             sortValue: (d) => d.employeeCount,
@@ -137,6 +131,7 @@ export function DepartmentList({ departments }: Props) {
         rowActions={(d) => (
           <DepartmentRowActions department={d} onEdit={() => setEditing(d)} />
         )}
+        bulkActions={canDelete ? (selected, clear) => <FunctionBulkDelete selected={selected} clear={clear} /> : undefined}
         emptyState={
           <>
             <p
@@ -163,6 +158,13 @@ export function DepartmentList({ departments }: Props) {
       />
     </>
   );
+}
+
+function FunctionBulkDelete({ selected, clear }: { selected: DepartmentWithCount[]; clear: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  function remove() { startTransition(async () => { const result = await deleteDepartments(selected.map((row) => row.id)); if (!result.ok) fireToast({ message: result.error }); else { fireToast({ message: `${result.deleted} Function${result.deleted === 1 ? "" : "s"} deleted.` }); clear(); } setOpen(false); }); }
+  return <><button type="button" disabled={pending} onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-altus-red px-3 py-1.5 text-[13px] font-bold text-white"><Trash2 size={14} /> Delete</button><Dialog.Root open={open} onOpenChange={setOpen}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[90] bg-black/30" /><Dialog.Content className="fixed left-1/2 top-1/2 z-[100] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-lg"><Dialog.Title className="text-lg font-bold">Delete {selected.length} selected Functions?</Dialog.Title><Dialog.Description className="mt-2 text-sm text-ink-muted">This action cannot be undone.</Dialog.Description><div className="mt-5 flex justify-end gap-2"><Dialog.Close asChild><button type="button" className="rounded-lg border px-4 py-2">Cancel</button></Dialog.Close><button type="button" onClick={remove} disabled={pending} className="rounded-lg bg-altus-red px-4 py-2 font-bold text-white">{pending ? "Deleting…" : "Delete"}</button></div></Dialog.Content></Dialog.Portal></Dialog.Root></>;
 }
 
 function EditDepartmentDialog({

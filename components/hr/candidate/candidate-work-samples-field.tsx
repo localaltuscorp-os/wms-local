@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { Check, ExternalLink, FileText, Image as ImageIcon, Link2, Loader2, Paperclip, Plus, Trash2, Upload, X } from "lucide-react";
-import { getSupabaseClient } from "@/lib/supabase/browser";
 import { fireToast } from "@/lib/toast";
 import {
   WORK_FILE_ACCEPT,
@@ -20,7 +19,7 @@ export type WorkUploadUrlFn = (input: {
   fileName: string;
   mime?: string | null;
   size?: number | null;
-}) => Promise<{ ok: true; path: string; token: string; bucket: string } | { ok: false; error: string }>;
+}) => Promise<{ ok: true; path: string; token: string; bucket: string; signedUrl: string } | { ok: false; error: string }>;
 
 /** Returns a short-lived link to open a stored work-sample file. */
 export type WorkFileUrlFn = (path: string) => Promise<{ ok: true; url: string } | { ok: false; error: string }>;
@@ -29,6 +28,22 @@ function fmtSize(bytes: number): string {
   if (!bytes) return "";
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function putToSignedUrl(signedUrl: string, file: File): Promise<string | null> {
+  try {
+    const body = new FormData();
+    body.append("cacheControl", "3600");
+    body.append("", file);
+    const response = await fetch(signedUrl, {
+      method: "PUT",
+      headers: { "x-upsert": "false" },
+      body,
+    });
+    return response.ok ? null : `storage returned ${response.status}.`;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Please retry.";
+  }
 }
 
 /** "github.com/someone" - the link as a person reads it, not the full URL. */
@@ -108,11 +123,9 @@ export function CandidateWorkSamplesField({
         fireToast({ message: signed.error, type: "error" });
         return;
       }
-      const { error } = await getSupabaseClient()
-        .storage.from(signed.bucket)
-        .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type || "application/pdf" });
-      if (error) {
-        fireToast({ message: `Upload failed: ${error.message}`, type: "error" });
+      const uploadError = await putToSignedUrl(signed.signedUrl, file);
+      if (uploadError) {
+        fireToast({ message: `Upload failed: ${uploadError}`, type: "error" });
         return;
       }
       onResumeChange(signed.path);
@@ -166,11 +179,9 @@ export function CandidateWorkSamplesField({
         fireToast({ message: signed.error, type: "error" });
         return;
       }
-      const { error } = await getSupabaseClient()
-        .storage.from(signed.bucket)
-        .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type || "application/octet-stream" });
-      if (error) {
-        fireToast({ message: `Upload failed (${file.name}): ${error.message}`, type: "error" });
+      const uploadError = await putToSignedUrl(signed.signedUrl, file);
+      if (uploadError) {
+        fireToast({ message: `Upload failed (${file.name}): ${uploadError}`, type: "error" });
         return;
       }
       commit([

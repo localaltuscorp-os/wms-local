@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import { columnForHeader } from "./template-columns";
+import { requiredHeader } from "@/lib/templates/field-config";
 
 /**
  * Download-time decoration of the hand-authored Goals bulk-import workbook.
@@ -203,6 +205,7 @@ export interface GoalsTemplateMaster {
   measures: string[];
   types: string[];
   roster: string[];
+  requiredFields?: ReadonlySet<string>;
 }
 
 export async function decorateGoalsTemplate(
@@ -287,6 +290,15 @@ export async function decorateGoalsTemplate(
     if (!col) continue;
     const range = putList(lists, `${header}_live`, values);
     if (range) applyList(goals, col, range, HEADER_ROW + 1, LAST_DATA_ROW);
+  }
+
+  // Requiredness is centrally configured in Upload Master.  The parser already
+  // normalises punctuation, so the workbook marker remains a presentation cue.
+  for (let col = 1; col <= goals.columnCount; col++) {
+    const cell = goals.getCell(HEADER_ROW, col);
+    const label = String(cell.value ?? "");
+    const field = columnForHeader(label)?.field;
+    if (field) cell.value = requiredHeader(label, field, master.requiredFields ?? new Set());
   }
 
   // Target Date is a "type the day number" cell, not a list. Re-stamped here

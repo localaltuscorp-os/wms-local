@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, moduleSubmissions } from "@/db/schema";
 import type { ModuleKey } from "@/lib/forms/modules";
@@ -25,6 +25,8 @@ export async function listModuleSubmissions(opts: {
   module: ModuleKey;
   employeeId: string;
   isAdmin: boolean;
+  /** A manager's self + transitive reports. Server-provided only. */
+  visibleEmployeeIds?: string[];
   archived?: boolean;
 }): Promise<ModuleSubmissionRow[]> {
   const rows = await db
@@ -45,7 +47,11 @@ export async function listModuleSubmissions(opts: {
       and(
         eq(moduleSubmissions.module, opts.module),
         eq(moduleSubmissions.archived, opts.archived ?? false),
-        opts.isAdmin ? undefined : eq(moduleSubmissions.employeeId, opts.employeeId),
+        opts.isAdmin
+          ? undefined
+          : opts.visibleEmployeeIds && opts.visibleEmployeeIds.length > 0
+            ? inArray(moduleSubmissions.employeeId, opts.visibleEmployeeIds)
+            : eq(moduleSubmissions.employeeId, opts.employeeId),
       ),
     )
     .orderBy(desc(moduleSubmissions.createdAt))

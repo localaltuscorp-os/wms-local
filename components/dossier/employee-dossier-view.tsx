@@ -63,8 +63,9 @@ export function EmployeeDossierView({
         style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 12px 40px -28px rgba(15,23,42,0.35)" }}
       >
         {backHref && (
-          <Link href={backHref as Route} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-ink-muted hover:text-ink-strong" aria-label="Back">
+          <Link href={backHref as Route} className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-surface-soft px-3 text-[12.5px] font-bold text-ink-muted hover:text-ink-strong" aria-label="Back to employees">
             <ChevronLeft size={18} strokeWidth={2.4} />
+            Back to Employees
           </Link>
         )}
         <Avatar name={data.employee.name} avatarUrl={data.employee.avatarUrl} size={58} />

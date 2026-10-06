@@ -393,6 +393,8 @@ export interface InitiatorBoard { windowDays: number; workingDays: number; manag
 
 export interface DashboardData {
   kpis: KpiSet;
+  /** Status counts from the same filtered task set as the dashboard widgets. */
+  taskStatusCounts: Record<import("@/lib/task-status-kpis").TaskKpiKey, number>;
   /** The unfiltered operational summary — every task in the active filter.
    *  Identical to `wmsSummaryByKpi.total`; kept as its own field because it is
    *  what the strip shows before any card is expanded. */

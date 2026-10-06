@@ -1,6 +1,8 @@
 import "server-only";
 
 import * as XLSX from "xlsx";
+import { requiredHeader } from "./field-config";
+import { templateFieldId } from "./registry";
 
 /**
  * The Accounts Task List bulk-import workbook — the built-in template served by
@@ -10,7 +12,7 @@ import * as XLSX from "xlsx";
  * importer's expected headers, with example rows, real dates and sensible column
  * widths.
  */
-export function buildAccountsTaskListTemplate(): Buffer {
+export function buildAccountsTaskListTemplate(requiredFields: ReadonlySet<string> = new Set(), variant = "task_list"): Buffer {
   const wb = XLSX.utils.book_new();
 
   // ── Accounts Task List ──────────────────────────────────────────────────────
@@ -26,7 +28,7 @@ export function buildAccountsTaskListTemplate(): Buffer {
     "Notes",
   ];
   const taskRows: (string | number | Date | null)[][] = [
-    taskHeader,
+    taskHeader.map((label) => requiredHeader(label, templateFieldId(label), variant === "task_list" ? requiredFields : new Set())),
     [
       1,
       "GST",
@@ -76,7 +78,7 @@ export function buildAccountsTaskListTemplate(): Buffer {
     "Notes",
   ];
   const shotRows: (string | number | Date | null)[][] = [
-    shotHeader,
+    shotHeader.map((label) => requiredHeader(label, templateFieldId(label), variant === "screenshots" ? requiredFields : new Set())),
     [
       1,
       "Altus Corp",

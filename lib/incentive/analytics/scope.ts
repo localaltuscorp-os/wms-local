@@ -1,6 +1,7 @@
 import "server-only";
 import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isFounder } from "@/lib/auth/founder";
 import { grantedExtrasLabel, permittedPeopleFor } from "@/lib/access/visibility";
 import type { AnalyticsScope, AnalyticsView } from "./model";
 
@@ -36,7 +37,7 @@ export async function incentiveAnalyticsScopeFor(me: {
   email: string;
   isAdmin: boolean;
 }): Promise<AnalyticsScope> {
-  if (isSuperAdmin(me.email) || canReviewIncentives(me.email)) {
+  if (isSuperAdmin(me.email) || canReviewIncentives(await isFounder(me.id))) {
     return { all: true, employeeIds: new Set(), viewerId: me.id, label: "Everyone" };
   }
 

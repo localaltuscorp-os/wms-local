@@ -15,6 +15,9 @@ import { isHrStaff } from "@/lib/hr/access";
 
 type R<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
+/** A dedicated counter key keeps serial numbers sequential across asset types. */
+const SERIAL_COUNTER_PREFIX = "SERIAL";
+
 /**
  * Asset Register writes. Ruchita, Rutvisha and Manan only (lib/hr/registers.ts),
  * checked here on every call.
@@ -129,11 +132,27 @@ export async function saveAsset(input: z.input<typeof AssetSchema>): Promise<R<{
         .onConflictDoUpdate({ target: hrAssetCounters.prefix, set: { last: sql`${hrAssetCounters.last} + 1` } })
         .returning({ last: hrAssetCounters.last });
       const assetCode = formatAssetCode(prefix, counter!.last);
+      // Serial numbers have their own firm-wide sequence. On the first new
+      // asset, seed it from the highest numeric legacy serial; later inserts
+      // increment atomically under the counter row lock. The client preview is
+      // therefore helpful, while this value remains the source of truth.
+      const [serialCounter] = await tx
+        .insert(hrAssetCounters)
+        .values({
+          prefix: SERIAL_COUNTER_PREFIX,
+          last: sql`greatest(1, coalesce((select max(case when ${hrAssets.serialNo} ~ '^[0-9]+$' then cast(${hrAssets.serialNo} as integer) else 0 end) from ${hrAssets}), 0) + 1)`,
+        })
+        .onConflictDoUpdate({
+          target: hrAssetCounters.prefix,
+          set: { last: sql`${hrAssetCounters.last} + 1` },
+        })
+        .returning({ last: hrAssetCounters.last });
       const [inserted] = await tx
         .insert(hrAssets)
         .values({
           ...values,
           assetCode,
+          serialNo: String(serialCounter!.last),
           passwordEnc: password ? encryptSecret(password) : null,
           createdById: who.id,
           updatedById: who.id,

@@ -14,6 +14,7 @@ import {
   ONB_FILE_KEYS,
   ONB_ALL_FIELDS,
   normaliseRepeaterValue,
+  parseRepeaterRows,
   countCompleteRepeaterRows,
   isOnbFieldRequired,
   type OnboardingFileRef,
@@ -98,6 +99,10 @@ export async function saveOnboardingSubmission(
       if (!isOnbFieldRequired(f, fields)) continue;
       if (f.type === "file") continue; // files checked below
       if (f.type === "repeater") {
+        const invalidMobile = parseRepeaterRows(fields[f.key]).some((row) =>
+          (f.sub ?? []).some((s) => s.type === "tel" && String(row[s.key] ?? "").trim() && !/^\d{10}$/.test(String(row[s.key] ?? "").trim())),
+        );
+        if (invalidMobile) return { ok: false, error: "Each Emergency Contact mobile number must contain exactly 10 digits." };
         // min-N complete rows — enforced server-side so the UI gate can't be bypassed
         const need = f.min ?? 1;
         const have = countCompleteRepeaterRows(f, fields[f.key]);
@@ -115,6 +120,16 @@ export async function saveOnboardingSubmission(
   const files: Record<string, OnboardingFileRef> = { ...((existing?.files as Record<string, OnboardingFileRef>) ?? {}) };
   const admin = getSupabaseAdmin();
   const uploadedPaths: string[] = [];
+  const removedPaths: string[] = [];
+
+  // Existing attachments are removed only after the database save succeeds.
+  // This keeps a failed save recoverable and avoids an optimistic file delete.
+  for (const key of ONB_FILE_KEYS) {
+    if (String(form.get(`${key}__remove`) ?? "") !== "1") continue;
+    const old = files[key];
+    if (old?.path && !old.fromKey) removedPaths.push(old.path);
+    delete files[key];
+  }
 
   for (const key of ONB_FILE_KEYS) {
     // (a) a file already uploaded DIRECTLY to storage via a signed URL
@@ -179,6 +194,7 @@ export async function saveOnboardingSubmission(
     const source = files[s.fileKey];
     if (fields[s.whenKey] === s.equals) {
       if (source && (source.path || source.link)) files[f.key] = { ...source, fromKey: s.fileKey };
+      else if (files[f.key]?.fromKey === s.fileKey) delete files[f.key];
     } else if (files[f.key]?.fromKey === s.fileKey) {
       delete files[f.key];
     }
@@ -260,6 +276,8 @@ export async function saveOnboardingSubmission(
       /* index-only; the submission itself is already committed above */
     }
   }
+
+  if (removedPaths.length) await admin.storage.from(DOCUMENTS_BUCKET).remove([...new Set(removedPaths)]).catch(() => {});
 
   revalidatePath("/dossier");
   revalidatePath("/c/onboarding");

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
@@ -35,13 +36,13 @@ export interface ProductivityViewer {
 }
 
 /** Ids of the ACTIVE employees reporting directly to `managerId`. */
-export async function directReportIds(managerId: string): Promise<string[]> {
+export const directReportIds = cache(async (managerId: string): Promise<string[]> => {
   const rows = await db
     .select({ id: employees.id })
     .from(employees)
     .where(and(eq(employees.managerId, managerId), eq(employees.isActive, true)));
   return rows.map((r) => r.id);
-}
+});
 
 /**
  * Resolve the signed-in viewer plus their manager status.

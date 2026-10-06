@@ -39,7 +39,7 @@ export default async function CandidatesPage() {
       {/* `wide` rather than `standard`: the toolbar is a single fluid strip
           now, so the page should hand it the room a collapsed sidebar frees up
           instead of capping it at 1280. */}
-      <PageShell width="wide">
+      <PageShell width="full">
         <BasicDetailsScreen candidates={candidates} canDelete={canDelete} />
       </PageShell>
     </div>

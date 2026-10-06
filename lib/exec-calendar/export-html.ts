@@ -46,7 +46,7 @@ export function buildMonthExportHtml(opts: {
             .join("");
           const bg = d.inMonth ? "#ffffff" : "#f4f4f5";
           const color = d.inMonth ? "#0f172a" : "#a1a1aa";
-          return `<td style="border:1px solid #e2e2e5;vertical-align:top;padding:4px;width:14.28%;height:92px;background:${bg};">
+          return `<td style="border:1px solid #e2e2e5;vertical-align:top;padding:4px;width:14.28%;min-height:30px;background:${bg};">
             <div style="font-size:10px;font-weight:700;color:${color};margin-bottom:3px;">${dateNum}</div>
             ${pills}
           </td>`;

@@ -1,5 +1,6 @@
 import { Building2 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/current";
+import { redirect } from "next/navigation";
 import { listOutstandingEntitiesWithCounts } from "@/lib/queries/outstanding-rosters";
 import { OutstandingRosterList } from "@/components/admin/outstanding-roster-list";
 import { AdminSection } from "@/components/admin/ui/section-shell";
@@ -8,6 +9,7 @@ import { createEntity, updateEntity } from "./actions";
 export const dynamic = "force-dynamic";
 
 export default async function OutstandingEntitiesPage() {
+  redirect("/admin/drop-down-master");
   await requireAdmin();
   const rows = await listOutstandingEntitiesWithCounts();
   const activeCount = rows.filter((r) => r.isActive).length;

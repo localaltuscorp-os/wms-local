@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Plus, Library, GraduationCap, Share2 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
+import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { listMaterials, isManager } from "@/lib/queries/training";
@@ -17,6 +18,16 @@ const TABS = [
   { id: "shares", label: "Learning Shares", Icon: Share2 },
 ] as const;
 
+type LibraryTab = (typeof TABS)[number]["id"];
+
+function singleParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function isYmd(value: string | undefined): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
 export default async function TrainingPage({
   searchParams,
 }: {
@@ -24,15 +35,17 @@ export default async function TrainingPage({
 }) {
   const me = await requireWorkspace("training");
   const sp = await searchParams;
-  const tab = (Array.isArray(sp.tab) ? sp.tab[0] : sp.tab) ?? "materials";
-  const active = TABS.some((t) => t.id === tab) ? tab : "materials";
-
+  const requestedTab = singleParam(sp.tab);
+  const active: LibraryTab = TABS.find((tab) => tab.id === requestedTab)?.id ?? "materials";
+  const selectedDate = singleParam(sp.date);
+  const selectedCreator = singleParam(sp.createdBy) ?? "";
   const manager = (await isManager(me.id)) || me.isAdmin || isSuperAdmin(me.email);
-  const canManage = manager;
 
   const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10);
-  const to = now.toISOString().slice(0, 10);
+  const from = isYmd(selectedDate)
+    ? selectedDate
+    : new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10);
+  const to = isYmd(selectedDate) ? selectedDate : now.toISOString().slice(0, 10);
 
   const [rows, employeeOptions, selfLearning, shares] = await Promise.all([
     listMaterials(me.id, { includeArchived: manager }),
@@ -40,102 +53,121 @@ export default async function TrainingPage({
     active === "self-learning" ? listSelfLearningLibrary(me, from, to) : Promise.resolve([]),
     active === "shares" ? listShareLibrary(from, to) : Promise.resolve([]),
   ]);
-  const employeesById = Object.fromEntries(employeeOptions.map((e) => [e.id, e.name]));
+  const employeesById = Object.fromEntries(employeeOptions.map((employee) => [employee.id, employee.name]));
+  const visibleSelfLearning = selectedCreator ? selfLearning.filter((row) => row.employeeId === selectedCreator) : selfLearning;
+  const visibleShares = selectedCreator ? shares.filter((row) => row.employeeId === selectedCreator) : shares;
 
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
-        <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--color-altus-red-deep)" }}>
-              Learning Library
-            </span>
-            <h1 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: "clamp(30px, 3.4vw, 44px)", letterSpacing: "-0.025em", lineHeight: 1.04, marginTop: 6 }}>
-              Learning Library
-            </h1>
-            <p className="mt-1.5 font-medium text-ink-muted" style={{ fontSize: 15.5 }}>
-              Every training, self-learning entry and learning share — searchable in one place.
-            </p>
-          </div>
-          {canManage && active === "materials" && (
-            <Link href={"/training/new" as Route} className="inline-flex items-center gap-2 rounded-xl py-3 px-5 text-[15px] font-bold text-white transition-transform active:scale-[0.99]" style={{ background: "linear-gradient(135deg, var(--color-altus-red), var(--color-altus-red-deep))", boxShadow: "0 12px 30px -12px rgba(225,6,0,0.6)" }}>
-              <Plus size={17} strokeWidth={2.6} /> Add Material
+      <main className="w-full px-8 pt-6 pb-8 max-md:px-4">
+        <PageCommandBar
+          title="Learning Library"
+          actions={manager && active === "materials" ? (
+            <Link href={"/training/new" as Route} className="brand-btn inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold text-white">
+              <Plus size={16} strokeWidth={2.5} /> Add Material
             </Link>
-          )}
-        </header>
+          ) : undefined}
+        />
 
-        <div className="mb-5 flex gap-2 border-b border-hairline">
+        <div className="mb-4 flex gap-1 border-b border-hairline">
           {TABS.map(({ id, label, Icon }) => (
             <Link
               key={id}
-              href={(`/training?tab=${id}`) as Route}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-[14px] font-bold transition-colors"
+              href={`/training?tab=${id}` as Route}
+              className="inline-flex items-center gap-2 px-3 py-2 text-[13px] font-bold transition-colors"
               style={{ color: active === id ? "var(--color-altus-red-deep)" : "var(--color-ink-subtle)", borderBottom: active === id ? "2px solid var(--color-altus-red)" : "2px solid transparent" }}
             >
-              <Icon size={16} /> {label}
+              <Icon size={15} /> {label}
             </Link>
           ))}
         </div>
 
-        {active === "materials" && <MaterialsTable rows={rows} employeesById={employeesById} canManage={canManage} />}
+        {active === "materials" && <MaterialsTable rows={rows} employeesById={employeesById} canManage={manager} />}
 
         {active === "self-learning" && (
-          <div className="overflow-x-auto rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/70">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-[rgba(15,23,42,0.06)] text-left">
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Person</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Function</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Topic</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Source</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Date</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Time</th>
+          <>
+            <LibraryFilters active="self-learning" date={isYmd(selectedDate) ? selectedDate : ""} createdBy={selectedCreator} employees={employeeOptions} />
+            <LibraryTable headers={["Person", "Function", "Topic", "Source", "Date", "Time"]} empty="No self-learning logged yet.">
+              {visibleSelfLearning.map((row) => (
+                <tr key={row.id} className="border-b border-hairline last:border-b-0">
+                  <Cell strong>{row.employeeName}</Cell>
+                  <Cell>{row.functionName ?? "—"}</Cell>
+                  <Cell strong>{row.title}</Cell>
+                  <Cell>{row.source ?? "—"}</Cell>
+                  <Cell>{row.learnDate}</Cell>
+                  <Cell strong>{row.minutes} min</Cell>
                 </tr>
-              </thead>
-              <tbody>
-                {selfLearning.map((r) => (
-                  <tr key={r.id} className="border-b border-[rgba(15,23,42,0.04)]">
-                    <td className="px-4 py-2.5 font-bold text-ink-strong">{r.employeeName}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.functionName ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-ink-strong">{r.title}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.source ?? "—"}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.learnDate}</td>
-                    <td className="px-4 py-2.5 font-semibold text-ink-strong">{r.minutes} min</td>
-                  </tr>
-                ))}
-                {selfLearning.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-ink-subtle">No self-learning logged yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </LibraryTable>
+          </>
         )}
 
         {active === "shares" && (
-          <div className="overflow-x-auto rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/70">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="border-b border-[rgba(15,23,42,0.06)] text-left">
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Person</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Topic</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Week</th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-subtle">Time</th>
+          <>
+            <LibraryFilters active="shares" date={isYmd(selectedDate) ? selectedDate : ""} createdBy={selectedCreator} employees={employeeOptions} />
+            <LibraryTable headers={["Person", "Topic", "Week", "Time"]} empty="No shares yet.">
+              {visibleShares.map((row) => (
+                <tr key={row.id} className="border-b border-hairline last:border-b-0">
+                  <Cell strong>{row.employeeName}</Cell>
+                  <Cell strong>{row.topic}</Cell>
+                  <Cell>{row.weekStart}</Cell>
+                  <Cell strong>{row.minutes} min</Cell>
                 </tr>
-              </thead>
-              <tbody>
-                {shares.map((r) => (
-                  <tr key={r.id} className="border-b border-[rgba(15,23,42,0.04)]">
-                    <td className="px-4 py-2.5 font-bold text-ink-strong">{r.employeeName}</td>
-                    <td className="px-4 py-2.5 text-ink-strong">{r.topic}</td>
-                    <td className="px-4 py-2.5 text-ink-soft">{r.weekStart}</td>
-                    <td className="px-4 py-2.5 font-semibold text-ink-strong">{r.minutes} min</td>
-                  </tr>
-                ))}
-                {shares.length === 0 && <tr><td colSpan={4} className="px-4 py-10 text-center text-ink-subtle">No shares yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </LibraryTable>
+          </>
         )}
       </main>
     </>
   );
+}
+
+function LibraryFilters({
+  active,
+  date,
+  createdBy,
+  employees,
+}: {
+  active: Exclude<LibraryTab, "materials">;
+  date: string;
+  createdBy: string;
+  employees: { id: string; name: string }[];
+}) {
+  return (
+    <form className="mb-3 flex flex-wrap items-center gap-2" action="/training">
+      <input type="hidden" name="tab" value={active} />
+      <label className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-semibold text-ink-strong"><span className="text-ink-soft">Any Date</span><input className="min-w-0 bg-transparent outline-none" type="date" name="date" defaultValue={date} aria-label="Any Date" /></label>
+      <select className="rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-semibold text-ink-strong" name="createdBy" defaultValue={createdBy} aria-label="Created By">
+        <option value="">Created By</option>
+        {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+      </select>
+      <button type="submit" className="wg-btn rounded-lg px-3 py-2 text-[13px] font-bold">Filter</button>
+      {(date || createdBy) && <Link href={`/training?tab=${active}` as Route} className="px-2 py-2 text-[13px] font-bold text-ink-soft hover:text-altus-red">Clear</Link>}
+    </form>
+  );
+}
+
+function LibraryTable({
+  headers,
+  empty,
+  children,
+}: {
+  headers: string[];
+  empty: string;
+  children: React.ReactNode;
+}) {
+  const rows = Array.isArray(children) ? children : [children];
+  return (
+    <div className="overflow-x-auto rounded-section border border-hairline bg-surface-card">
+      <table className="w-full min-w-[640px] text-[13px]">
+        <thead><tr className="border-b border-hairline bg-surface-soft text-left">{headers.map((header) => <th key={header} className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-subtle">{header}</th>)}</tr></thead>
+        <tbody>{rows.length > 0 ? children : <tr><td colSpan={headers.length} className="px-4 py-10 text-center text-ink-subtle">{empty}</td></tr>}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function Cell({ children, strong = false }: { children: React.ReactNode; strong?: boolean }) {
+  return <td className={`px-4 py-2.5 ${strong ? "font-semibold text-ink-strong" : "text-ink-soft"}`}>{children}</td>;
 }

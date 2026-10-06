@@ -44,6 +44,7 @@ export type BillingAdminResult = { ok: true; id?: string } | { ok: false; error:
 
 function bust(): void {
   revalidatePath("/admin/billing-profiles");
+  revalidatePath("/admin/billing-details");
   revalidatePath("/billing/documents");
 }
 

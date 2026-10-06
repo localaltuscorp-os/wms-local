@@ -1,0 +1,11 @@
+-- 0253 — an explicit "this person is a manager" flag, independent of whether
+-- they currently have any direct reports. Additive + idempotent.
+--
+-- Backs Team Reporting's "Add/Delete Manager" (2026-09-26): before this,
+-- "being a manager" was purely derived — having >=1 direct report, or being a
+-- direct report of a root person (lib/queries/hierarchy.ts's `secondLevel`
+-- rule). That meant there was no way to give someone an empty manager slot
+-- anywhere but the second level, and no way to designate a manager who
+-- happens to have zero reports right now without shuffling somebody under
+-- them first. Default false: nobody's status changes until set explicitly.
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_manager boolean NOT NULL DEFAULT false;

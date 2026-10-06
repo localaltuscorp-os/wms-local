@@ -17,6 +17,9 @@ import {
 import { isCurrentStaff } from "@/lib/queries/employees";
 import { codeHistoryFor } from "./code-registry";
 import { resolveEmployeeType, type EmployeeTypeCode } from "./employee-type";
+import { backgroundCheckStatusesAll, type BackgroundCheckStatus } from "@/lib/hr/background-check";
+import { activeTemporaryBreakEmployeeIds } from "./temporary-break";
+import { defaultProbationEnd } from "./probation";
 
 /**
  * THE EMPLOYEE MASTER — one read across every existing source of truth.
@@ -270,6 +273,8 @@ export interface EmployeeMasterRow {
   /** The office mail shown under the name — `official_email` where set, else the
    *  login address, because the column must never be blank for a live employee. */
   officeEmail: string;
+  officialEmail: string | null;
+  loginEmail: string;
   personalEmail: string | null;
   phone: string | null;
   whatsapp: string | null;
@@ -301,10 +306,14 @@ export interface EmployeeMasterRow {
 
   joinedAt: Date | null;
   probationEnd: string | null;
+  /** False means displayed date is the 180-day default, not stored data. */
+  probationEndExplicit: boolean;
   /** Date of Completion — the last working day. */
   dateOfCompletion: string | null;
   /** True when probation_end is set and still in the future (§2's tag). */
   onProbation: boolean;
+  /** Current temporary-break state; employee stays in Employee Master. */
+  onTemporaryBreak: boolean;
 
   /* ── 0244 · EMPLOYEE TYPE AND INTERNSHIP ──────────────────────────────────
      `employeeType` is the PERSON'S OVERRIDE (null = follow the designation);
@@ -331,20 +340,27 @@ export interface EmployeeMasterRow {
   isActive: boolean;
   employmentStatus: string | null;
   deactivatedAt: Date | null;
-  /** active | probation | inactive | offboarded — what the Status column shows. */
+  /** active | probation | temporary_break | inactive | offboarded — Status column. */
   status: string;
+
+  /** "yes"/"no"/null — see lib/hr/background-check.ts for why this is read via
+   *  raw SQL rather than a schema.ts column. null on a database without 0248,
+   *  same as an employee who hasn't been decided yet — both show as "—". */
+  backgroundCheck: BackgroundCheckStatus;
 }
 
-const MASTER_STATUSES = ["active", "probation", "inactive", "offboarded"] as const;
+const MASTER_STATUSES = ["active", "probation", "temporary_break", "inactive", "offboarded"] as const;
 export type MasterStatus = (typeof MASTER_STATUSES)[number];
 
 function statusOf(r: {
   isActive: boolean;
   employmentStatus: string | null;
   onProbation: boolean;
+  onTemporaryBreak: boolean;
 }): MasterStatus {
   if (r.employmentStatus && r.employmentStatus !== "active") return "offboarded";
   if (!r.isActive) return "inactive";
+  if (r.onTemporaryBreak) return "temporary_break";
   return r.onProbation ? "probation" : "active";
 }
 
@@ -359,6 +375,14 @@ export async function loadEmployeeMasterRows(
   now: Date = new Date(),
 ): Promise<EmployeeMasterRow[]> {
   const today = now.toISOString().slice(0, 10);
+
+  // One extra round trip rather than a join: the columns aren't in
+  // db/schema.ts (see lib/hr/background-check.ts), so Drizzle can't select
+  // them by name here the way it does everything else below.
+  const [backgroundChecks, temporaryBreakIds] = await Promise.all([
+    backgroundCheckStatusesAll(),
+    activeTemporaryBreakEmployeeIds(),
+  ]);
 
   const rows = await db
     .select({
@@ -431,29 +455,41 @@ export async function loadEmployeeMasterRows(
     // ON PROBATION means the date is set AND still ahead of us. A probation end
     // in the past is somebody who finished it, and tagging them would be wrong
     // on most of the roster.
-    const onProbation = !!r.probationEnd && r.probationEnd >= today;
+    const effectiveEmployeeType = resolveEmployeeType({
+      override: r.employeeType,
+      designationType: r.designationEmployeeType,
+    });
+    const probationEnd = effectiveEmployeeType === "intern"
+      ? (r.probationEnd ? String(r.probationEnd).slice(0, 10) : null)
+      : defaultProbationEnd(r.joinedAt, r.probationEnd);
+    const onProbation = !!probationEnd && probationEnd >= today;
+    const onTemporaryBreak = temporaryBreakIds.has(r.id);
     const annual = r.annualCtc == null ? null : Number(r.annualCtc);
     return {
       ...r,
       monthlyPayAtTarget: r.monthlyPayAtTarget == null ? null : Number(r.monthlyPayAtTarget),
       weeklyTargetHours: r.weeklyTargetHours == null ? null : Number(r.weeklyTargetHours),
       monthlyFee: r.monthlyFee == null ? null : Number(r.monthlyFee),
+      probationEnd,
+      probationEndExplicit: Boolean(r.probationEnd),
       // The EFFECTIVE type, resolved once here so no screen has to re-derive it
       // (and so a screen cannot leave the override in charge and forget the
       // designation behind it).
-      effectiveEmployeeType: resolveEmployeeType({
-        override: r.employeeType,
-        designationType: r.designationEmployeeType,
-      }),
+      effectiveEmployeeType,
       officeEmail: r.officialEmail ?? r.email,
+      officialEmail: r.officialEmail,
+      loginEmail: r.email,
       annualCtc: annual,
       monthlyCtc: annual == null ? null : Math.round((annual / 12) * 100) / 100,
       tdsMonthly: r.tdsMonthly == null ? null : Number(r.tdsMonthly),
       onProbation,
+      onTemporaryBreak,
+      backgroundCheck: backgroundChecks.get(r.id) ?? null,
       status: statusOf({
         isActive: r.isActive,
         employmentStatus: r.employmentStatus,
         onProbation,
+        onTemporaryBreak,
       }),
     };
   });

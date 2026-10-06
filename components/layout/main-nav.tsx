@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -22,13 +22,11 @@ import {
   CreditCard,
   Award,
   Table2,
-  Layers,
   IndianRupee,
   Wallet,
   Compass,
   Receipt,
   UserPlus,
-  BookUser,
   FileText,
   Timer,
   Sparkles,
@@ -69,7 +67,6 @@ import {
   // its five entries are the five the Admin Panel group listed before it moved.
   UserCog,
   KeyRound,
-  Eye,
   Clock,
 } from "lucide-react";
 import type { Route } from "next";
@@ -78,7 +75,6 @@ import { MainNavPill } from "./main-nav-pill";
 import { MainNavGroup } from "./main-nav-group";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import { OPERATIONS_AREAS, OPERATIONS_MASTERS, type OperationsAreaId } from "@/lib/operations/nav";
-import { DCC_CHILD_ROUTES, DCC_DOORS } from "@/lib/dcc/nav";
 import { nodeKeyForPath } from "@/lib/permissions/catalog";
 import { archiveSection, isArchiveSectionId } from "@/lib/archive/sections";
 import { HR_STAGES, hrItemHref, type HrStage, type HrStageKey } from "@/lib/hr/lifecycle";
@@ -397,15 +393,12 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // — 2670d47 shipped this and 0ea9152 reverted it by syncing this file
       // from a stale copy.)
       { href: "/dashboard" as Route, label: "WMS Dashboard", Icon: LayoutDashboard, exact: true },
-      // "Daily Goals" (renamed from "Plan My Day", Sir 2026-08-20). It lives
+      // "Daily Commitments" (renamed from "Plan My Day", Sir 2026-08-20). It lives
       // here rather than in Goals because workspaceForPath owns `/goals*` for
       // the Goals room, so a `/goals/plan` href would flip the sidebar to that
       // room mid-click. The Goals rail carries the SAME page on this same
       // `/my-day` href — see GOALS below.
-      { href: "/my-day" as Route, label: "Daily Goals", Icon: CalendarDays },
-      // Review = the SAME Review & Scores workbench as Goals › Review, on the
-      // WMS-owned alias `/review` for the same reason My Day uses `/my-day`.
-      { href: "/review" as Route, label: "Review", Icon: ClipboardList },
+      { href: "/my-day" as Route, label: "Daily Commitments", Icon: CalendarDays },
       // Task Agenda is GONE — item, route and all. My Day above is the planner
       // that replaced it, so `/tasks/agenda` is no longer excluded below either.
       {
@@ -454,12 +447,16 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
          The doors are generated from lib/dcc/nav.ts — the SAME list the
          module's own quick-nav row renders — so the rail can never advertise a
          door the pages have stopped honouring. DCC Masters is no longer one. */
-      ...DCC_DOORS.map((d) => ({
-        href: d.href as Route,
-        label: d.label,
-        Icon: d.Icon,
-        ...(d.exact ? { not: DCC_CHILD_ROUTES } : {}),
-      })),
+      {
+        href: "/employees/dashboard" as Route,
+        label: "Dashboard",
+        Icon: Gauge,
+      },
+      {
+        href: "/employees/cc" as Route,
+        label: "Compliance Checklist",
+        Icon: ListChecks,
+      },
       { href: "/attendance/leave" as Route, label: "Leaves", Icon: Plane },
       { href: "/attendance/remote-work" as Route, label: "Remote Work", Icon: House },
       {
@@ -522,9 +519,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
    * drive the same `?tab=` parameter, so they can never disagree about which
    * area you are looking at.
    *
-   * Entries and Status are `adminOnly` to match the strip, which has always
-   * rendered them for admins only (Status additionally behind the
-   * INCENTIVE_STATUS_UI flag, checked on the server). A rail entry for an area
+   * Entries is `adminOnly` to match the strip. A rail entry for an area
    * the strip is not showing would be a dead link, so the page falls back to
    * Dashboard for any `?tab=` it cannot honour — see IncentiveTabs.
    */
@@ -533,7 +528,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
      * RAIL ORDER IS USAGE ORDER (2026-09-16 restructure). Filing and deciding a
      * request is the module's most frequent job, so Requests sits second rather
      * than fourth; Targets follows because it is the thing a request is measured
-     * against. Entries, Status and Billing are periodic admin and accounts work
+     * against. Entries and Billing are periodic admin and accounts work
      * and move to the end. The `?tab=` values, the permission gates and the
      * default are unchanged — only the order someone reads them in.
      */
@@ -546,7 +541,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       { href: "/incentive" as Route, label: "Requests", Icon: ListChecks, tab: "requests" },
       { href: "/incentive" as Route, label: "Targets", Icon: Target, tab: "targets" },
       { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },
-      { href: "/incentive" as Route, label: "Status", Icon: Layers, tab: "status", adminOnly: true },
       { href: "/incentive" as Route, label: "Billing", Icon: IndianRupee, tab: "billing" },
     ],
     groups: [],
@@ -574,7 +568,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
     top: [
       { href: "/control-panel/roles" as Route, label: "Roles", Icon: UserCog },
       { href: "/control-panel/permissions" as Route, label: "Permissions", Icon: KeyRound },
-      { href: "/control-panel/effective-access" as Route, label: "Effective Access", Icon: Eye },
       { href: "/control-panel/temporary-access" as Route, label: "Temporary Access", Icon: Clock },
     ],
     groups: [],
@@ -683,18 +676,16 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
          the DD, and anything removed waits in the bin. Billing's own four
          surfaces follow, because a document cannot be raised until there is
          a customer to raise it against. */
-      { href: "/billing/customers/new" as Route, label: "New Customer KYC", Icon: UserPlus, exact: true },
-      { href: "/billing/customers" as Route, label: "Customer Master", Icon: Users, exact: true },
-      { href: "/billing/customers/addresses" as Route, label: "Customer Address Book", Icon: BookUser, exact: true },
+      { href: "/billing/customers" as Route, label: "Customer", Icon: Users, exact: true },
 
-      { href: "/billing/documents" as Route, label: "Billing Document", Icon: FileText, exact: false },
+      { href: "/billing/documents" as Route, label: "Billing", Icon: FileText, exact: false },
       /* ── CONTRACTS, ABOVE ADMIN MASTER ────────────────────────────────
          2026-09-19: "create new section in side panel above admin master".
          A contract caps what may be billed to a client and raises its bills
          as ordinary tax invoices in Documents — so it sits after Documents
          and before the masters. All Contracts stays lit on a contract's own
          pages, but not on Create Contract, which lights up on its own. */
-      { href: "/billing/contracts" as Route, label: "All Contracts", Icon: ScrollText, exact: false, not: ["/billing/contracts/new"] },
+      { href: "/billing/contracts" as Route, label: "Contract", Icon: ScrollText, exact: false, not: ["/billing/contracts/new"] },
       { href: "/billing/ambassadors" as Route, label: "Ambassadors", Icon: Gem, exact: false },
       { href: "/billing/customers/dropdowns" as Route, label: "Customer Master DD", Icon: ListChecks, exact: true },
       /* NO MASTERS RAIL IN THIS ROOM (2026-09-20). Admin Master and Customer
@@ -712,7 +703,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
        * destination as "Outstanding", which is the collections chase rather
        * than the master view — two doors to one ledger, deliberately, the same
        * way Overtime is reachable from both HR and Accounts. */
-      { href: "/billing/outstanding" as Route, label: "Collection Master", Icon: IndianRupee, exact: false },
+      { href: "/billing/outstanding" as Route, label: "Collection", Icon: IndianRupee, exact: false },
       { href: "/billing/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, exact: true },
     ],
     groups: [],
@@ -813,7 +804,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // gauge rather than a second generic dashboard, and matches the icon the
       // Productivity module already carries.
       { href: "/goals/weekly/team" as Route, label: "Team Productivity", Icon: Gauge },
-      { href: "/goals/review" as Route, label: "Review", Icon: ClipboardList },
+      { href: "/goals/review" as Route, label: "Review & Scores", Icon: ClipboardList },
       { href: "/goals/approve" as Route, label: "Approve", Icon: CalendarRange },
       { href: "/goals/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, adminOnly: true },
     ],
@@ -963,6 +954,27 @@ export function MainNav({
   hiddenNodeKeys,
 }: Props) {
   const pathname = usePathname();
+  const [filteredTaskCount, setFilteredTaskCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const cachedCount = (window as Window & { __altusTasksFilterCount?: number })
+      .__altusTasksFilterCount;
+    if (pathname === "/tasks" && typeof cachedCount === "number") {
+      setFilteredTaskCount(cachedCount);
+    }
+    const updateCount = (event: Event) => {
+      const count = (event as CustomEvent<unknown>).detail;
+      if (typeof count === "number" && Number.isFinite(count) && count >= 0) {
+        setFilteredTaskCount(count);
+      }
+    };
+    window.addEventListener("altus:tasks-filter-count", updateCount);
+    return () => window.removeEventListener("altus:tasks-filter-count", updateCount);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname !== "/tasks") setFilteredTaskCount(null);
+  }, [pathname]);
   // Which TAB the current page is showing, for the single-page modules whose
   // rail entries are tabs (Incentive). Null on every other route, where no item
   // carries a `tab` and this is never consulted.
@@ -1084,7 +1096,13 @@ export function MainNav({
         label={item.label}
         Icon={item.Icon}
         active={isActive(item)}
-        count={item.countKey === "activeTasks" ? activeTasks : undefined}
+        count={
+          item.countKey === "activeTasks"
+            ? pathname === "/tasks" && filteredTaskCount !== null
+              ? filteredTaskCount
+              : activeTasks
+            : undefined
+        }
         variant={variant}
       />
     );

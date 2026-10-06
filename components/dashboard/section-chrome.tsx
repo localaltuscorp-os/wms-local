@@ -105,7 +105,7 @@ export function CollapsibleBody({
         aria-hidden={!expanded}
         // `inert` keeps collapsed content out of the tab order. Cast because the
         // React types in this version don't yet expose it.
-        {...(!expanded ? ({ inert: "" } as Record<string, string>) : {})}
+        {...(!expanded ? ({ inert: true } as Record<string, boolean>) : {})}
       >
         {children}
       </div>

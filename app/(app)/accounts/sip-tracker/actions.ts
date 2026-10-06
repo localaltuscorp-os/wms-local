@@ -36,30 +36,38 @@ const ItemFields = z.object({
   type: optText,
   amount: z.any(),
 });
+const CreateSchema = ItemFields.extend({ selectedMonth: z.number().int().min(1).max(12) });
 const UpdateSchema = ItemFields.omit({ fyStartYear: true }).extend({ id: z.string().uuid() });
 
 export async function createSipItem(input: unknown): Promise<ActionResult<{ id: string }>> {
   const { me } = await requireAccountsAccess();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
-  const parsed = ItemFields.safeParse(input);
+  const parsed = CreateSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid input.");
   const d = parsed.data;
   try {
-    const maxRows = (await db
-      .select({ next: sql<number>`COALESCE(MAX(${accountsSipItems.sortOrder}), 0) + 1` })
-      .from(accountsSipItems)
-      .where(eq(accountsSipItems.fyStartYear, d.fyStartYear))) as Array<{ next: number }>;
-    const [row] = await db
-      .insert(accountsSipItems)
-      .values({
-        fyStartYear: d.fyStartYear, code: d.code, entity: d.entity, fundName: d.fundName,
-        location: d.location, sipDate: d.sipDate, type: d.type, amount: amt(d.amount),
-        sortOrder: maxRows[0]?.next ?? 1, createdById: me.id,
-      })
-      .returning({ id: accountsSipItems.id });
+    const id = await db.transaction(async (tx) => {
+      const maxRows = (await tx
+        .select({ next: sql<number>`COALESCE(MAX(${accountsSipItems.sortOrder}), 0) + 1` })
+        .from(accountsSipItems)
+        .where(eq(accountsSipItems.fyStartYear, d.fyStartYear))) as Array<{ next: number }>;
+      const [row] = await tx
+        .insert(accountsSipItems)
+        .values({
+          fyStartYear: d.fyStartYear, code: d.code, entity: d.entity, fundName: d.fundName,
+          location: d.location, sipDate: d.sipDate, type: d.type, amount: amt(d.amount),
+          sortOrder: maxRows[0]?.next ?? 1, createdById: me.id,
+        })
+        .returning({ id: accountsSipItems.id });
+      const contribution = amt(d.amount);
+      if (contribution !== null) {
+        await tx.insert(accountsSipMonths).values({ itemId: row!.id, month: d.selectedMonth, amount: contribution, updatedById: me.id });
+      }
+      return row!.id;
+    });
     revalidatePath(PATH);
-    return { ok: true, id: row!.id };
+    return { ok: true, id };
   } catch (err) { return fail(err instanceof Error ? err.message : String(err)); }
 }
 

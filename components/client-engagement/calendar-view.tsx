@@ -6,6 +6,7 @@ import { CalendarPlus, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import {
   accountLabel,
   callTypeLabel,
+  callTypeTone,
   CE_CALL_TYPES,
   CE_DAY_END_MIN,
   CE_DAY_START_MIN,
@@ -16,6 +17,7 @@ import {
   dayCodeOf,
   formatDuration,
   freeGaps,
+  mondayOf,
   parseHm,
   runsOn,
   slotMinutes,
@@ -29,6 +31,7 @@ import type { CeAccountRow, CeEngagementRow, CeMemberRow, HhOverlayCall } from "
 import { addMonths, monthStart } from "@/lib/exec-calendar/grid";
 import { monthName } from "@/lib/exec-calendar/period";
 import { EngagementDialog } from "./engagement-dialog";
+import { AddCallDialog } from "./add-call-dialog";
 import { CeMonthGrid } from "./month-view";
 import { BTN_NEUTRAL, BTN_PRIMARY, CARD, CARD_SHADOW, DISPLAY, Select, TONE_VAR, Toolbar } from "./ui";
 
@@ -51,8 +54,6 @@ const PX_PER_MIN = 1.2;
 const GRID_H = (CE_DAY_END_MIN - CE_DAY_START_MIN) * PX_PER_MIN;
 const MIN_BLOCK_H = 18;
 const HOURS = Array.from({ length: (CE_DAY_END_MIN - CE_DAY_START_MIN) / 60 + 1 }, (_, i) => CE_DAY_START_MIN + i * 60);
-
-const CALL_TONE: Record<string, string> = { hh: "blue", tool: "teal", checkin: "green", reference: "indigo" };
 
 const top = (min: number) => (Math.max(CE_DAY_START_MIN, min) - CE_DAY_START_MIN) * PX_PER_MIN;
 
@@ -124,6 +125,7 @@ export function CalendarView({
 }) {
   const router = useRouter();
   const [dialog, setDialog] = React.useState<{ engagement: CeEngagementRow | null; preset?: { dayOfWeek: string; startMin: number; endMin: number } } | null>(null);
+  const [addCallOpen, setAddCallOpen] = React.useState(false);
   const [view, setView] = React.useState<"week" | "month">("week");
   const [monthAnchor, setMonthAnchor] = React.useState(() => monthStart(monday));
 
@@ -185,6 +187,25 @@ export function CalendarView({
   const sunday = addDays(monday, 6);
   const fmtDate = (ymd: string) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
+  // "This/Last/Next month" (or week) only for the three periods adjacent to
+  // TODAY — anything further away is named by itself instead of staying
+  // stuck on a generic label (asked 2026-09-29: it kept saying "This month"
+  // while looking at October).
+  const monthLabel = (() => {
+    const cur = monthStart(today);
+    if (monthAnchor === cur) return "This month";
+    if (monthAnchor === addMonths(cur, -1)) return "Last month";
+    if (monthAnchor === addMonths(cur, 1)) return "Next month";
+    return monthName(monthAnchor, true);
+  })();
+  const weekLabel = (() => {
+    const cur = mondayOf(today);
+    if (monday === cur) return "This week";
+    if (monday === addDays(cur, -7)) return "Last week";
+    if (monday === addDays(cur, 7)) return "Next week";
+    return `${fmtDate(monday)} – ${fmtDate(sunday)}`;
+  })();
+
   return (
     <>
       <Toolbar>
@@ -236,7 +257,7 @@ export function CalendarView({
             className={BTN_NEUTRAL}
             onClick={() => (view === "month" ? setMonthAnchor(monthStart(today)) : go({ week: today }))}
           >
-            {view === "month" ? "This month" : "This week"}
+            {view === "month" ? monthLabel : weekLabel}
           </button>
           <button
             type="button"
@@ -248,12 +269,12 @@ export function CalendarView({
           </button>
         </div>
         <span className="shrink-0 whitespace-nowrap text-[13.5px] font-extrabold text-ink-strong" style={DISPLAY}>
-          {view === "month" ? monthName(monthAnchor, true) : `${fmtDate(monday)} – ${fmtDate(sunday)}`}
+          {(view === "month" ? monthAnchor : monday).slice(0, 4)}
         </span>
         <span className="min-w-0 flex-1" />
         {canEdit ? (
-          <button type="button" className={BTN_PRIMARY} onClick={() => setDialog({ engagement: null })}>
-            <CalendarPlus size={14} strokeWidth={2.6} /> Schedule call
+          <button type="button" className={BTN_PRIMARY} onClick={() => setAddCallOpen(true)}>
+            <CalendarPlus size={14} strokeWidth={2.6} /> Add Call
           </button>
         ) : null}
       </Toolbar>
@@ -382,7 +403,7 @@ export function CalendarView({
                     );
                   }
                   const e = b.engagement!;
-                  const tone = CALL_TONE[e.callType] ?? "slate";
+                  const tone = callTypeTone(e.callType);
                   const status = hhStatusMeta(b.account?.hhStatus);
                   const label = b.account ? accountLabel(b.account.fullName, b.account.batchCode) : "Removed account";
                   const compact = h < 34;
@@ -433,7 +454,7 @@ export function CalendarView({
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-[11.5px] font-semibold text-ink-muted">
         {CE_CALL_TYPES.map((t) => (
           <span key={t.code} className="inline-flex items-center gap-1.5">
-            <span className="size-3 rounded" style={{ background: `var(--color-${CALL_TONE[t.code]}-pale)`, border: `1px solid var(--color-${CALL_TONE[t.code]}-edge)` }} />
+            <span className="size-3 rounded" style={{ background: `var(--color-${callTypeTone(t.code)}-pale)`, border: `1px solid var(--color-${callTypeTone(t.code)}-edge)` }} />
             {t.label}
           </span>
         ))}
@@ -474,6 +495,16 @@ export function CalendarView({
           today={today}
           weekStart={monday}
           onClose={() => setDialog(null)}
+        />
+      ) : null}
+
+      {addCallOpen ? (
+        <AddCallDialog
+          members={canManage ? members : members.filter((m) => m.id === memberId)}
+          accounts={accounts}
+          lockedMemberId={canManage ? null : memberId}
+          weekStart={monday}
+          onClose={() => setAddCallOpen(false)}
         />
       ) : null}
     </>

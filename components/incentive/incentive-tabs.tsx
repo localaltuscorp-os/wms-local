@@ -23,7 +23,7 @@ import type {
   TeamOption,
 } from "@/lib/queries/incentive-target-plans";
 
-type TabKey = "dashboard" | "my" | "requests" | "targets" | "entries" | "status" | "billing";
+type TabKey = "dashboard" | "my" | "requests" | "targets" | "entries" | "billing";
 
 export function IncentiveTabs({
   dashboard,
@@ -51,8 +51,6 @@ export function IncentiveTabs({
   me,
   isAdmin,
   canReview,
-  showStatus,
-  statusTab,
   focusRequestId = null,
 }: {
   /** The company-wide year roll-up — null unless the viewer may see everyone. */
@@ -108,14 +106,12 @@ export function IncentiveTabs({
   isAdmin: boolean;
   /** The signed-in user is the incentive reviewer (Manan). Render hint only. */
   canReview: boolean;
-  showStatus?: boolean;
-  statusTab?: ReactNode;
   /** A request opened from a notification: start on Requests with it open. */
   focusRequestId?: string | null;
 }) {
   /**
-   * WHICH AREAS THIS VIEWER HAS. Entries is admin-only and Status is
-   * admin-plus-flag, exactly as before — the list is what a `?tab=` is checked
+   * WHICH AREAS THIS VIEWER HAS. Entries is admin-only — the list is what a
+   * `?tab=` is checked
    * against, so a link to an area someone cannot see lands on the Dashboard
    * instead of on a blank panel.
    *
@@ -128,7 +124,6 @@ export function IncentiveTabs({
     "requests",
     "targets",
     ...(isAdmin ? (["entries"] as const) : []),
-    ...(showStatus ? (["status"] as const) : []),
     "billing",
   ];
 
@@ -136,8 +131,8 @@ export function IncentiveTabs({
    * THE OPEN AREA COMES FROM THE URL, and only from the URL.
    *
    * There used to be a segmented tab strip here — Dashboard | Targets | Billing
-   * | Requests | Entries | Status — and it was removed (2026-09-16) because the
-   * module's own sidebar rail now lists those same six areas. Two identical
+   * | Requests | Entries — and it was removed (2026-09-16) because the
+   * module's own sidebar rail now lists those same areas. Two identical
    * navigations stacked on one page is one too many, and the rail is the one
    * that matches how every other module in this app is navigated.
    *
@@ -216,8 +211,6 @@ export function IncentiveTabs({
         billingSlot
       ) : active === "entries" && isAdmin ? (
         <IncentiveEntries rows={entries} employees={employees} products={products} year={year} />
-      ) : active === "status" && showStatus ? (
-        statusTab
       ) : (
         <IncentiveList
           rows={requests}

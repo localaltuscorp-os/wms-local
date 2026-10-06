@@ -51,8 +51,8 @@ describe("the guard allows what it should not refuse", () => {
   });
 
   it("allows a governed path the caller may view", async () => {
-    expect(await apiViewDenial(req("/api/hr/letters/pdf"))).toBeNull();
-    expect(canViewModule).toHaveBeenCalledWith("hr.letters");
+    expect(await apiViewDenial(req("/api/events/export"))).toBeNull();
+    expect(canViewModule).toHaveBeenCalledWith("events.overview");
   });
 
   it("lets a handler's own auth answer when there is no session", async () => {
@@ -67,15 +67,15 @@ describe("the guard allows what it should not refuse", () => {
 describe("the guard refuses what it should", () => {
   it("returns 403 — it does not throw, because a handler has no error boundary", async () => {
     canViewModule.mockResolvedValue(false);
-    const res = await apiViewDenial(req("/api/hr/letters/pdf"));
+    const res = await apiViewDenial(req("/api/events/export"));
     expect(res).not.toBeNull();
     expect(res!.status).toBe(403);
   });
 
   it("NAMES the node, so a failed request says which switch to look at", async () => {
     canViewModule.mockResolvedValue(false);
-    const res = await apiViewDenial(req("/api/hr/letters/issue-rich"));
-    expect(await res!.json()).toEqual({ error: "forbidden", node: "hr.letters" });
+    const res = await apiViewDenial(req("/api/events/export"));
+    expect(await res!.json()).toEqual({ error: "forbidden", node: "events.overview" });
   });
 
   it("resolves the node from the PATH, including when a query string is present", async () => {
@@ -83,9 +83,9 @@ describe("the guard refuses what it should", () => {
     // would resolve nothing and silently allow.
     canViewModule.mockResolvedValue(false);
     const res = await apiViewDenial(
-      req("/api/hr/letters/pdf?template=appointment"),
+      req("/api/events/export?format=pdf"),
     );
-    expect(canViewModule).toHaveBeenCalledWith("hr.letters");
+    expect(canViewModule).toHaveBeenCalledWith("events.overview");
     expect(res!.status).toBe(403);
   });
 

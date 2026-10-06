@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Loader2,
   ShieldAlert,
@@ -23,6 +24,10 @@ import {
   CheckCircle2,
   X,
   Blocks,
+  ArrowLeft,
+  Eye,
+  Mic,
+  Square,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { formatDateHr } from "@/lib/format";
@@ -37,6 +42,7 @@ import { PolicyDocument } from "@/components/hr/policies/policy-document";
 import { getPolicy } from "@/lib/hr/policies/registry";
 import { declaration, type PolicyDoc, type PolicyNode, type PolicySection } from "@/lib/hr/policies/types";
 import { DEFAULT_ADDRESS_LINE, type EntityId } from "@/lib/hr/entities";
+import { useDictation } from "@/components/ui/use-dictation";
 
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
@@ -73,7 +79,17 @@ type Phase = "loading" | "error" | "ready";
  * requests a fresh re-sign from every active employee). Load-neutral: CSS only,
  * no framer-motion.
  */
-export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; isSuperAdmin: boolean }) {
+export function PolicyEditor({
+  policyKey,
+  isSuperAdmin,
+  backHref,
+  liveHref,
+}: {
+  policyKey: string;
+  isSuperAdmin: boolean;
+  backHref?: string;
+  liveHref?: string;
+}) {
   const [phase, setPhase] = React.useState<Phase>("loading");
   const [errorMsg, setErrorMsg] = React.useState("");
   const [data, setData] = React.useState<PolicyEditorData | null>(null);
@@ -274,6 +290,19 @@ export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; i
     <>
       <style>{CSS}</style>
 
+      <div className="pce-page-actions">
+        {backHref && (
+          <Link href={backHref} className="pce-btn-ghost">
+            <ArrowLeft size={15} strokeWidth={2.4} /> Back to Policies
+          </Link>
+        )}
+        {liveHref && (
+          <Link href={liveHref} className="pce-btn-ghost">
+            <Eye size={15} strokeWidth={2.4} /> View Live Policy
+          </Link>
+        )}
+      </div>
+
       {/* ── Publish toolbar ──────────────────────────────────────────────── */}
       <div className="pce-bar">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -317,7 +346,7 @@ export function PolicyEditor({ policyKey, isSuperAdmin }: { policyKey: string; i
               <input className="pce-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Policy title" />
             </Field>
             <Field label="Summary" icon={<AlignLeft size={13} strokeWidth={2.4} />}>
-              <textarea className="pce-input pce-area" value={summary} onChange={(e) => setSummary(e.target.value)} rows={3} placeholder="A short intro shown under the title." />
+              <DictationTextarea value={summary} onChange={setSummary} rows={3} placeholder="A short intro shown under the title." aria-label="Policy summary" />
             </Field>
             <Field label="Effective date" icon={<CalendarDays size={13} strokeWidth={2.4} />}>
               <input className="pce-input" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} placeholder="e.g. 1 August 2026" />
@@ -579,10 +608,9 @@ function NodeEditor({
               placeholder="Bold lead-in (optional)"
               aria-label="Paragraph lead-in"
             />
-            <textarea
-              className="pce-input pce-area"
+            <DictationTextarea
               value={node.text}
-              onChange={(e) => onChange({ ...node, text: e.target.value })}
+              onChange={(text) => onChange({ ...node, text })}
               rows={3}
               placeholder="Paragraph text"
               aria-label="Paragraph text"
@@ -648,6 +676,55 @@ function NodeEditor({
 
 function NodeTag({ children }: { children: React.ReactNode }) {
   return <span className="pce-nodetag">{children}</span>;
+}
+
+/** Long policy copy is the only place dictation belongs: it appends recognised
+ * speech to editable text, never publishes or changes a policy by itself. */
+function DictationTextarea({
+  value,
+  onChange,
+  rows,
+  placeholder,
+  "aria-label": ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  rows: number;
+  placeholder: string;
+  "aria-label": string;
+}) {
+  const dictation = useDictation({ value, onChange });
+  return (
+    <div className="relative">
+      <textarea
+        className={`pce-input pce-area ${dictation.supported ? "pr-10" : ""}`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={rows}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+      />
+      {dictation.supported && (
+        <button
+          type="button"
+          onClick={dictation.toggle}
+          aria-pressed={dictation.recording}
+          aria-label={dictation.recording ? `Stop dictating ${ariaLabel}` : `Dictate ${ariaLabel}`}
+          title={dictation.recording ? "Stop dictation" : "Dictate"}
+          className={`absolute right-2 top-2 grid size-7 place-items-center rounded-md transition-colors ${
+            dictation.recording
+              ? "bg-[var(--color-altus-red)] text-white"
+              : "text-ink-muted hover:bg-surface-soft hover:text-[var(--color-altus-red)]"
+          }`}
+        >
+          {dictation.recording ? <Square size={13} strokeWidth={2.6} /> : <Mic size={15} strokeWidth={2.3} />}
+        </button>
+      )}
+      {dictation.recording && dictation.interim && (
+        <p className="mt-1 text-[12px] font-medium italic text-ink-muted">Listening: {dictation.interim}</p>
+      )}
+    </div>
+  );
 }
 
 function IconBtn({
@@ -813,6 +890,10 @@ function Modal({ children, title, icon, onClose }: { children: React.ReactNode; 
 /* ------------------------------------------------------------------ */
 
 const CSS = `
+.pce-page-actions{
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  margin:0 0 12px;
+}
 .pce-bar{
   position:sticky;top:64px;z-index:20;
   display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;

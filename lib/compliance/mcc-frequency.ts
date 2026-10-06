@@ -9,8 +9,11 @@
  *   Monthly          every month, by one deadline day
  *   2 times/month    every month, by two deadline days   (15th & month-end)
  *   3 times/month    every month, by three deadline days (10th, 20th & month-end)
+ *   4 times/month    every month, by four chosen deadline days
  *   Alternate Month  every 2nd month, by one day
  *   Quarterly        every 3rd month, by one day
+ *   Quarterly — multiple due dates / Half Yearly — multiple due dates add four
+ *                    chosen dates to each due month of those cycles
  *   Half Yearly      every 6th month, by one day
  *   Annually         once a year, by one day
  * The last four are anchored on a month they are due in — Quarterly from June
@@ -44,9 +47,12 @@ export const MCC_FREQUENCIES = [
   "monthly",
   "twice_monthly",
   "thrice_monthly",
+  "four_times_monthly",
   "alternate_month",
   "quarterly",
+  "quarterly_multiple",
   "half_yearly",
+  "half_yearly_multiple",
   "annually",
 ] as const;
 export type MccFrequency = (typeof MCC_FREQUENCIES)[number];
@@ -56,20 +62,26 @@ export const MCC_FREQUENCY_LABEL: Record<MccFrequency, string> = {
   monthly: "Monthly",
   twice_monthly: "2 times/month",
   thrice_monthly: "3 times/month",
+  four_times_monthly: "4 times/month",
   alternate_month: "Alternate Month",
   quarterly: "Quarterly",
+  quarterly_multiple: "Quarterly — multiple due dates",
   half_yearly: "Half Yearly",
+  half_yearly_multiple: "Half Yearly — multiple due dates",
   annually: "Annually",
 };
 
 /** How many deadlines a due month holds. */
-export const DEADLINES_PER_MONTH: Record<MccFrequency, 1 | 2 | 3> = {
+export const DEADLINES_PER_MONTH: Record<MccFrequency, 1 | 2 | 3 | 4> = {
   monthly: 1,
   twice_monthly: 2,
   thrice_monthly: 3,
+  four_times_monthly: 4,
   alternate_month: 1,
   quarterly: 1,
+  quarterly_multiple: 4,
   half_yearly: 1,
+  half_yearly_multiple: 4,
   annually: 1,
 };
 
@@ -78,9 +90,12 @@ export const CYCLE_MONTHS: Record<MccFrequency, 1 | 2 | 3 | 6 | 12> = {
   monthly: 1,
   twice_monthly: 1,
   thrice_monthly: 1,
+  four_times_monthly: 1,
   alternate_month: 2,
   quarterly: 3,
+  quarterly_multiple: 3,
   half_yearly: 6,
+  half_yearly_multiple: 6,
   annually: 12,
 };
 
@@ -106,6 +121,12 @@ export function needsStartMonth(f: MccFrequency): boolean {
 export function defaultDays(f: MccFrequency): number[] {
   if (f === "twice_monthly") return [15, MONTH_END];
   if (f === "thrice_monthly") return [10, 20, MONTH_END];
+  if (
+    f === "four_times_monthly" ||
+    f === "quarterly_multiple" ||
+    f === "half_yearly_multiple"
+  )
+    return [1, 5, 10, 15];
   return f === "monthly" ? [5] : [MONTH_END];
 }
 

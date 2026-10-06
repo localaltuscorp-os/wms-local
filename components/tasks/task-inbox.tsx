@@ -250,6 +250,9 @@ export function TaskInbox({
             isAdmin={me.isAdmin}
             statusLabels={resolvedLabels}
             onClear={() => setChecked(new Set())}
+            // Inbox owns a split detail pane rather than the `/tasks?task=`
+            // drawer route used by the standard table.
+            showViewDetails={false}
           />
         </div>
       )}
