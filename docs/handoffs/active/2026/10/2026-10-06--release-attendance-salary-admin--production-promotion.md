@@ -5,7 +5,7 @@
 - Production repository: `Altus-corp/Altus-OS`
 - Objective: Promote the reviewed attendance, salary reconciliation, and admin hierarchy fixes completed on 2026-10-06.
 - Approval: Release-owner authorization was provided in the active task before promotion.
-- Status: Release checks complete; production promotion, migration 0260, and deployment pending.
+- Status: Application commits promoted to production `main`; migration 0260 and production deployment blocked on database access.
 
 ## Approved commit range
 
@@ -47,6 +47,16 @@ After promotion:
 3. Deploy `origin/main` to Vercel production without force-push.
 4. Confirm the production deployment is Ready.
 5. Verify `/my-salary`, `/salary`, `/admin/hierarchy`, and `/admin/employee-master` respond; authenticated business verification remains required for salary figures.
+
+## Promotion and database preflight result
+
+- `origin/main` was fast-forwarded without force-push from `3f8b470e` to release commit `138f9267`.
+- Pushing `main` did not trigger an automatic Vercel production deployment; the last Ready production deployment remains the earlier release.
+- Vercel runtime logs proved the configured runtime database lacks `salary_runs.monthly_salary` (`42703`).
+- Production secrets are protected and cannot be exported through `vercel env pull`; no secret value was exposed and the temporary environment file was deleted.
+- The Supabase project currently visible to the authenticated CLI already has `monthly_salary`, so it does not match Vercel's runtime failure and was not modified.
+- The previously documented Vercel Supabase project could not be linked because the authenticated account lacks the required project privileges. Migration 0260 was therefore not applied anywhere.
+- Do not deploy the new `main` build to production until access to the Vercel-linked database is restored and migration 0260 is applied and verified.
 
 ## Rollback
 
