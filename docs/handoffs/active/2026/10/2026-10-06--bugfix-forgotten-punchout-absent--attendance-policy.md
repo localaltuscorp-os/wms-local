@@ -30,14 +30,14 @@ None. Cron authentication, attendance mutation authorization, and correction per
 
 - `pnpm.cmd exec vitest run tests/unit/attendance-auto-half-day.test.ts tests/unit/forgotten-logout.test.ts tests/unit/attendance-status.test.ts tests/unit/attendance-summary.test.ts` — passed, 4 files and 38 tests.
 - `pnpm.cmd exec eslint lib/attendance/status.ts lib/queries/attendance-status.ts lib/attendance/auto-punch-out.ts app/api/cron/attendance-autoout/route.ts tests/unit/attendance-auto-half-day.test.ts tests/unit/forgotten-logout.test.ts` — passed.
-- `pnpm.cmd typecheck` — could not complete at Node's default heap (exit 134, out of memory).
-- `pnpm.cmd exec cross-env NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit` — reached TypeScript and reported three pre-existing stale `.next/types/validator.ts` imports for missing Control Panel and Client Engagement pages. None is in the attendance change. The generated `.next` directory was not deleted because it may belong to other active work.
+- Clean latest `Altus-corp/Altus-OS` `origin/main` worktree: the same focused Vitest command passed all 38 tests and the same targeted ESLint command passed.
+- Repository-wide typecheck was attempted in the original checkout: the default heap exhausted; with a 4 GB heap it reported stale generated `.next` route declarations unrelated to these attendance files.
 
 ## Known issues and remaining work
 
 - The environment variable remains named `FORGOTTEN_LOGOUT_HALF_DAY` for deployment compatibility even though the enabled policy now marks Absent.
 - Confirm the policy owner expects the salary impact: a forgotten logout contributes zero hours and zero attendance for that day.
-- Repository-wide typecheck remains blocked by stale generated `.next` route declarations unrelated to this work.
+- Repository-wide typecheck remains blocked in the original checkout by stale generated `.next` route declarations unrelated to this work.
 
 ## Deployment and rollback
 
@@ -45,4 +45,4 @@ Deploy through the development repository review flow. No migration is required.
 
 ## Commit/release SHA
 
-Not committed.
+Attendance implementation commit on the clean latest `origin/main`-based branch: `5aeedffa`.
