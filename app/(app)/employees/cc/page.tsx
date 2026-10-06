@@ -221,7 +221,7 @@ async function ConsolidatedCc({
       kind: "mcc" as const,
     },
     {
-      label: "6-Months",
+      label: "Half-Yearly",
       board: overdueSubset(
         longBoard,
         (row) => row.mcc?.frequency === "half_yearly",

@@ -281,7 +281,7 @@ export function AuraTopBar({
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
       <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center">
-        {!slots?.hasPageTitle && <ModuleSectionTitle section={sectionTitle} />}
+        {!slots?.hasPageTitle && !hasHrConsoleRail && <ModuleSectionTitle section={sectionTitle} />}
       </div>
 
       {onDashboard && (

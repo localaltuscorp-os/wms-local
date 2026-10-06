@@ -112,6 +112,10 @@ import {
 import { useAutoHeight } from "@/components/ui/use-auto-height";
 import { Checkbox } from "@/components/ui/checkbox";
 
+type ComplianceDeleteDialog =
+  | { type: "single"; row: ComplianceRow }
+  | { type: "bulk"; itemIds: string[] };
+
 /**
  * THE WCC / MCC TABLE — the Accounts checklist's shape with the WMS columns
  * (account holder, 2026-09-18):
@@ -275,6 +279,8 @@ export function ComplianceBoard({
   const [editing, setEditing] = React.useState<ComplianceRow | "new" | null>(
     null,
   );
+  const [deleteDialog, setDeleteDialog] =
+    React.useState<ComplianceDeleteDialog | null>(null);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   /* The status chips are filters — any number of them at once. Empty = all. */
   const [statuses, setStatuses] = React.useState<Set<StatusFilter>>(
@@ -443,20 +449,9 @@ export function ComplianceBoard({
       }
       return updated;
     });
-  const removeSelected = async () => {
+  const requestSelectedRemoval = () => {
     if (selectedRemovableIds.length === 0) return;
-    const noun =
-      selectedRemovableIds.length === 1 ? "compliance" : "compliances";
-    if (
-      !window.confirm(
-        `Remove ${selectedRemovableIds.length} selected ${noun}? What was filled stays on record.`,
-      )
-    )
-      return;
-    const ok = await run("bulk-delete", () =>
-      archiveComplianceItems(selectedRemovableIds),
-    );
-    if (ok) setSelected(new Set());
+    setDeleteDialog({ type: "bulk", itemIds: selectedRemovableIds });
   };
   const duplicateSelected = async () => {
     if (selectedDuplicableIds.length === 0) return;
@@ -557,6 +552,23 @@ export function ComplianceBoard({
       setBusy(null);
     }
   }
+
+  const confirmRemoval = async () => {
+    if (!deleteDialog || busy !== null) return;
+
+    const ok =
+      deleteDialog.type === "single"
+        ? await run(deleteDialog.row.key, () =>
+            archiveComplianceItem(deleteDialog.row.itemId),
+          )
+        : await run("bulk-delete", () =>
+            archiveComplianceItems(deleteDialog.itemIds),
+          );
+
+    if (!ok) return;
+    if (deleteDialog.type === "bulk") setSelected(new Set());
+    setDeleteDialog(null);
+  };
 
   const savePeriodStatus = async (
     itemId: string,
@@ -778,7 +790,7 @@ export function ComplianceBoard({
           <button
             type="button"
             disabled={busy !== null || selectedRemovableIds.length === 0}
-            onClick={() => void removeSelected()}
+            onClick={requestSelectedRemoval}
             title={
               selectedRemovableIds.length > 0
                 ? "Delete selected compliances"
@@ -823,6 +835,14 @@ export function ComplianceBoard({
           setEditing(null);
           setBulkOpen(true);
         }}
+      />
+      <ComplianceDeleteConfirmDialog
+        request={deleteDialog}
+        busy={busy !== null}
+        onOpenChange={(open) => {
+          if (!open && busy === null) setDeleteDialog(null);
+        }}
+        onConfirm={() => void confirmRemoval()}
       />
 
       {/* What a sort is doing, and how to undo it. A person's column order needs
@@ -1025,6 +1045,9 @@ export function ComplianceBoard({
                     busy={busy}
                     onRun={run}
                     onEdit={() => setEditing(r)}
+                    onRequestDelete={() =>
+                      setDeleteDialog({ type: "single", row: r })
+                    }
                     selected={selected.has(r.key)}
                     onToggleSelected={(next) => toggleSelected(r.key, next)}
                     frozenLeft={frozenLeft}
@@ -1739,6 +1762,7 @@ function Row({
   busy,
   onRun,
   onEdit,
+  onRequestDelete,
   selected,
   onToggleSelected,
   frozenLeft,
@@ -1756,6 +1780,7 @@ function Row({
     fn: () => Promise<{ ok: boolean; error?: string }>,
   ) => Promise<boolean>;
   onEdit: () => void;
+  onRequestDelete: () => void;
   selected: boolean;
   onToggleSelected: (next: boolean) => void;
   frozenLeft: Partial<Record<ColKey, number>>;
@@ -2141,15 +2166,7 @@ function Row({
                     : "You cannot remove this compliance."
               }
               disabled={busy !== null || !r.canManage}
-              onClick={() => {
-                if (
-                  !window.confirm(
-                    `Remove "${r.title}" from ${r.ownerName}'s checklist? What was filled stays on record.`,
-                  )
-                )
-                  return;
-                void onRun(r.key, () => archiveComplianceItem(r.itemId));
-              }}
+              onClick={onRequestDelete}
               className="inline-flex size-8 items-center justify-center rounded-lg text-ink-subtle hover:bg-[color:color-mix(in_srgb,var(--color-altus-red)_10%,transparent)] hover:text-altus-red disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 size={14} />
@@ -3045,6 +3062,78 @@ function DialogField({
       </label>
       {children}
     </div>
+  );
+}
+
+function ComplianceDeleteConfirmDialog({
+  request,
+  busy,
+  onOpenChange,
+  onConfirm,
+}: {
+  request: ComplianceDeleteDialog | null;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const count = request?.type === "bulk" ? request.itemIds.length : 1;
+  const title =
+    count === 1 ? "Delete compliance?" : `Delete ${count} compliances?`;
+  const description =
+    request?.type === "single"
+      ? `Are you sure you want to delete “${request.row.title}”?`
+      : "Are you sure you want to delete the selected compliances?";
+
+  return (
+    <Dialog.Root open={request !== null} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 z-[60] bg-slate-950/45 backdrop-blur-[2px]"
+        />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-[70] w-[min(430px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-hairline bg-surface-card p-5 shadow-2xl"
+          onEscapeKeyDown={(event) => {
+            if (busy) event.preventDefault();
+          }}
+          onPointerDownOutside={(event) => {
+            if (busy) event.preventDefault();
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-red-50 text-altus-red">
+              <Trash2 size={19} strokeWidth={2.4} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <Dialog.Title className="text-[17px] font-black text-ink-strong">
+                {title}
+              </Dialog.Title>
+              <Dialog.Description className="mt-1.5 text-[13.5px] leading-5 text-ink-muted">
+                {description}
+              </Dialog.Description>
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+              className="rounded-lg border border-hairline-strong bg-white px-3.5 py-2 text-[13px] font-bold text-ink-soft transition-colors hover:text-ink-strong disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onConfirm}
+              className="inline-flex min-w-24 items-center justify-center gap-2 rounded-lg bg-altus-red px-3.5 py-2 text-[13px] font-bold text-white transition-colors hover:bg-altus-red-deep disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy && <Loader2 size={14} className="animate-spin" aria-hidden />}
+              Delete
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
