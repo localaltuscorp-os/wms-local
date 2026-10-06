@@ -23,6 +23,9 @@ The Accounts Salary page now exposes a super-admin-only **Refresh from Attendanc
 - `tests/unit/daily-salary-report.test.ts`: updates ledger expectations to the reconciled waiver policy.
 - `app/(app)/salary/page.tsx`: exposes the controlled attendance refresh beside the salary exports.
 - `components/salary/salary-attendance-refresh-button.tsx`: confirms and invokes the canonical salary refresh for the selected month.
+- `app/(app)/my-salary/actions.ts`: adds a self-only, forced single-employee/month reconciliation action.
+- `components/salary/reconcile-own-salary-button.tsx`: lets the signed-in employee invoke that reconciliation without accepting an employee ID from the browser.
+- `app/(app)/my-salary/page.tsx`: shows the control only while the viewer is looking at their own record.
 
 ## Consumer audit
 
@@ -40,6 +43,7 @@ None. No schema, migration, SQL, or stored data changes.
 ## Security and authorization
 
 No permission model changed. The new UI control is visible only to the existing super-admin payable-edit gate, and its server action independently requires existing admin authorization.
+The My Salary reconciliation is separately self-scoped: the server derives the employee ID from the authenticated session and never accepts a target employee ID from the client.
 
 ## Testing
 
@@ -48,6 +52,9 @@ No permission model changed. The new UI control is visible only to the existing 
 - `pnpm.cmd typecheck` — reached Node's default heap limit (exit 134), with no TypeScript diagnostic emitted.
 - `node.exe --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit` — passed.
 - `pnpm.cmd exec eslint 'app/(app)/salary/page.tsx' components/salary/salary-attendance-refresh-button.tsx` — no errors; one pre-existing `Date.now()` purity warning in the page.
+- `pnpm.cmd exec eslint 'app/(app)/my-salary/actions.ts' 'app/(app)/my-salary/page.tsx' components/salary/reconcile-own-salary-button.tsx` — passed.
+- `node.exe --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit` — passed after the self-reconciliation change.
+- `pnpm.cmd vitest run tests/unit/payroll-month.test.ts tests/unit/daily-salary-report.test.ts` — passed, 100 tests.
 
 ## Deployment and rollback
 

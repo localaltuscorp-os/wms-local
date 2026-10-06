@@ -6,6 +6,7 @@ import { loadMySalaryMonths } from "@/lib/salary/my-salary";
 import { loadSalaryViewAccess, resolveSalaryTarget } from "@/lib/salary/salary-people";
 import { MySalaryView } from "@/components/salary/my-salary-view";
 import { SalaryPersonPicker } from "@/components/salary/salary-person-picker";
+import { ReconcileOwnSalaryButton } from "@/components/salary/reconcile-own-salary-button";
 
 export const dynamic = "force-dynamic";
 
@@ -70,14 +71,19 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
           title={viewingOther ? `Salary · ${targetName}` : "My Salary"}
           hint={hint}
           actions={
-            access.scope !== "self" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {targetId === me.id && months[0]?.month && (
+                <ReconcileOwnSalaryButton month={months[0].month} />
+              )}
+              {access.scope !== "self" && (
               <SalaryPersonPicker
                 people={access.people}
                 selectedId={targetId}
                 selfId={me.id}
                 scope={access.scope}
               />
-            ) : undefined
+              )}
+            </div>
           }
         />
 

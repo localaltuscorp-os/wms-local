@@ -7,6 +7,8 @@ import { getCurrentEmployee, guardNotCandidate } from "@/lib/auth/current";
 import { loadMonthLedger } from "@/lib/salary/my-salary";
 import { canViewSalaryOf } from "@/lib/salary/salary-people";
 import type { DayLedger } from "@/lib/salary/day-ledger";
+import { refreshSalaryRun } from "@/lib/salary/refresh-run";
+import { revalidatePath } from "next/cache";
 
 /**
  * ONE MONTH'S DAILY SALARY REPORT, fetched when the employee picks that month.
@@ -63,4 +65,29 @@ export async function fetchMonthLedger(
     console.error("[my-salary] month ledger failed for", employeeId, month, err);
     return null;
   }
+}
+
+export type ReconcileOwnSalaryResult =
+  | { ok: true; outcome: "refreshed" | "fresh" }
+  | { ok: false; error: string };
+
+/** Force-recompute only the signed-in employee's selected month. */
+export async function reconcileOwnSalaryMonth(
+  month: string,
+): Promise<ReconcileOwnSalaryResult> {
+  const me = await getCurrentEmployee();
+  if (!me) return { ok: false, error: "Please sign in again." };
+  guardNotCandidate(me);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    return { ok: false, error: "Invalid salary month." };
+  }
+
+  const outcome = await refreshSalaryRun(me.id, month, new Date(), { force: true });
+  if (outcome !== "refreshed" && outcome !== "fresh") {
+    return { ok: false, error: `Salary refresh could not complete (${outcome}).` };
+  }
+  revalidatePath("/my-salary");
+  revalidatePath("/salary");
+  revalidatePath("/salary-slip");
+  return { ok: true, outcome };
 }
