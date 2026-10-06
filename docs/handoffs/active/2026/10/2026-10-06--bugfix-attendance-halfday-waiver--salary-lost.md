@@ -5,6 +5,7 @@
 - Objective: Ensure attendance half-days forgiven by monthly grace or the weekly-hours waiver do not appear as salary lost or reduce generated salary.
 - Status: Implemented and locally validated; pending review and production promotion.
 - Implementation commit: `f56530d`
+- Cross-page refresh commit: `0e76a4eb`
 
 ## Summary
 
