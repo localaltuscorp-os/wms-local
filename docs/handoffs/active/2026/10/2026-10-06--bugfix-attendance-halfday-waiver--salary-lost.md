@@ -6,6 +6,7 @@
 - Status: Implemented and locally validated; pending review and production promotion.
 - Implementation commit: `f56530d`
 - Cross-page refresh commit: `0e76a4eb`
+- Self-only reconciliation commit: `8fd94687`
 
 ## Summary
 
