@@ -109,12 +109,20 @@ function fmtDays(n: number): string {
 export function MySalaryView({
   months,
   employeeId,
+  initialMonth,
 }: {
   months: MySalaryMonth[];
   /** Whose record this is — re-authorised server-side on every fetch. */
   employeeId: string;
+  /** Active payroll month supplied by the server when the page opens. */
+  initialMonth: string;
 }) {
-  const [sel, setSel] = React.useState(0);
+  // Imported future rows may sort ahead of today. The opening view must always
+  // use the live payroll month when it is available.
+  const [sel, setSel] = React.useState(() => {
+    const activeIndex = months.findIndex((month) => month.month === initialMonth);
+    return activeIndex >= 0 ? activeIndex : 0;
+  });
   const [showDetail, setShowDetail] = React.useState(false);
   const m = months[sel];
 

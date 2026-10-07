@@ -41,6 +41,8 @@ export function HrModuleRail({
   onSelect,
   onToggleRail,
   user,
+  pageTitle,
+  onRailTitleSlot,
 }: {
   /** The modules to draw — ALREADY FILTERED by the permission matrix.
    *  Passed in rather than read from `HR_CONSOLE_MODULES` so this component
@@ -59,6 +61,8 @@ export function HrModuleRail({
   /** Collapses THIS column only (the module rail) — column 2 is untouched. */
   onToggleRail: () => void;
   user: { name: string; role: string };
+  pageTitle: string;
+  onRailTitleSlot: (element: HTMLDivElement | null) => void;
 }) {
   const router = useRouter();
   const [expandedModuleIds, setExpandedModuleIds] = useState<Set<string>>(
@@ -120,6 +124,17 @@ export function HrModuleRail({
             {collapsed ? <PanelLeftOpen size={15} strokeWidth={2.3} /> : <PanelLeft size={15} strokeWidth={2.3} />}
           </button>
         </div>
+
+        {!collapsed && (
+          <div
+            ref={onRailTitleSlot}
+            className="hr-rail-title-slot flex h-10 min-w-0 items-center border-y border-hairline px-1"
+          >
+            <h1 className="hr-rail-default-title topbar-heading min-w-0 truncate">
+              {pageTitle}
+            </h1>
+          </div>
+        )}
 
         <Link
           href={"/hub" as Route}

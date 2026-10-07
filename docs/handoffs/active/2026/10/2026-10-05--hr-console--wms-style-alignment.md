@@ -1,8 +1,10 @@
 # HR console WMS-style alignment and approved letter catalogue
 
-- Date: 2026-10-05
+- Date: 2026-10-06
 - Work item: `hr-console`
-- Status: Reviewed and ready to commit on `feature/hr-console-policy-library`; rebasing on `origin/main` and PR creation are pending.
+- Status: Ready to commit and push on `feature/hr-console-policy-library`; the
+  required GitHub `test` check must be monitored on the new PR head.
+- Reviewed UI implementation commit: `5eaa568d783962327bdadf9be24ee800d93f7a6d`
 
 ## Objective
 
@@ -11,6 +13,47 @@ the approved catalogue without changing permissions, database behavior, or
 approval flows.
 
 ## Changes
+
+### 2026-10-06 UI workflow update
+
+- Shared module navigation is now a compact, top-edge, scroll-aware row. It
+  collapses on downward scroll, returns on upward scroll, and is intentionally
+  absent from the Hub. Its in-flow height means page content reclaims the space
+  rather than being covered by an overlay.
+- HR now uses the same two-column chrome geometry as WMS: the HR rail owns the
+  full left edge; the module row and right-hand action ribbon begin at the rail
+  edge. The current HR page title is rendered in the rail title row, not
+  duplicated in the action ribbon. Route-specific HR titles portal into that
+  row as well.
+- Approvals now has separated controls and table surfaces, an Attendance-only
+  **Att Report** link, draggable non-pinned columns, a frozen Employee column,
+  single-line rows, `DD-MMM-YYYY` periods, note tooltips, hidden horizontal
+  scrollbar styling, and distinct paid/final action labels. Approval decisions,
+  permissions, and server actions are unchanged.
+- The Compliance Checklist names the six-month interval **Half-Yearly** and
+  uses the application confirmation dialog for single and bulk deletes instead
+  of the browser confirmation prompt. Delete behavior and archive actions are
+  unchanged.
+- My Salary now opens on the active calendar month rather than selecting an
+  arbitrary returned ledger month.
+
+Files changed for this update:
+
+- `app/(app)/employees/cc/page.tsx`
+- `app/(app)/my-salary/page.tsx`
+- `app/globals.css`
+- `components/admin/approvals/approval-workbench.tsx`
+- `components/compliance/compliance-board.tsx`
+- `components/hr/console/hr-console-context.tsx`
+- `components/hr/console/hr-console-shell.tsx`
+- `components/hr/console/hr-module-rail.tsx`
+- `components/hr/console/hr-title-bar.tsx`
+- `components/layout/app-top-bar.tsx`
+- `components/layout/aura-top-bar.tsx`
+- `components/layout/chrome-shell.tsx`
+- `components/layout/module-footer.tsx`
+- `components/salary/my-salary-view.tsx`
+- `lib/compliance/cc-timeframes.ts`
 
 - `components/hr/console/hr-module-rail.tsx`
   - Reuses the WMS shared rail contracts: `sidebar-rail`, `aura-rail-skin`,
@@ -80,6 +123,28 @@ template, so the existing issue/export paths cannot issue them.
 
 ## Validation
 
+### 2026-10-06 validation
+
+- `npm run typecheck` — passed after correcting the module-navigation timeout
+  handle to use the browser timer ID type.
+- `npx eslint <all changed TypeScript/TSX files>` — completed with no errors.
+  It reports two pre-existing React-hook warnings in
+  `components/compliance/compliance-board.tsx` outside this update's delete
+  dialog code; the stylesheet is intentionally outside ESLint's configured
+  file set.
+- Focused Vitest coverage — passed: 102 tests across approval permissions,
+  attendance authorization, compliance columns/statuses/frequency, salary
+  periods, and HR module navigation.
+- `npm test` — 5,326 passed and 34 skipped; three unrelated tests timed out
+  under the full concurrent run (`activity-union` and the repository conflict
+  scan). Re-running those two test files with one worker passed: 8 tests.
+- Browser checks on `localhost:3000` — confirmed the HR rail occupies the
+  left viewport column; the navbar and action ribbon begin at its right edge;
+  the page title appears only in the rail title row on `/hr` and
+  `/hr/holidays`.
+- `git diff --check` — passed. The current diff was searched for credentials,
+  connection strings, private keys, and token-like additions; none were found.
+
 - `npx vitest run tests/unit/policy-file-name.test.ts` — passed.
 - `npx vitest run tests/unit/policies-workspace-signed.test.tsx tests/unit/policy-access.test.ts tests/unit/policy-file-name.test.ts` — passed: 10 tests.
 - `npm run test` — passed: 5,316 tests; 34 intentionally skipped.
@@ -112,10 +177,7 @@ the shared rail passed.
 1. Sign in as an existing HR policy publisher (HR staff or super-admin) before
    uploading the three source files to the configured `localhost:3000` data
    store. Do not weaken or bypass `canPublishPolicies` to perform this upload.
-2. Re-run repository-wide `npm run lint` and `npm run typecheck`, plus a final
-   production build, after the current long-lived local Node processes are no
-   longer consuming host resources. The full unit suite, focused checks, prior
-   build, browser smoke, and leak scan have passed; these later commands
-   exceeded the environment's command limit without reporting a code failure.
-3. Push the reviewed feature branch, create a PR against `main`, and monitor
-   the required GitHub `test` check.
+2. Push the reviewed feature branch, create or update the PR against `main`,
+   and monitor the required GitHub `test` check for the resulting head SHA.
+   Do not merge without the user's explicit instruction and a passing required
+   check.

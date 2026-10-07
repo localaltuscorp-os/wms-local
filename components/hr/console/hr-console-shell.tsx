@@ -63,6 +63,7 @@ export function HrConsoleShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/hr";
+  const [railTitleSlot, setRailTitleSlot] = React.useState<HTMLDivElement | null>(null);
 
   // The ONE filter, applied to the module list this shell owns. Everything below
   // reads `modules`, never the raw catalogue.
@@ -175,26 +176,29 @@ export function HrConsoleShell({
   // (and owns the ?policies=1 popup, which must stay mounted).
   // The rail's own label for wherever we are: the open step, else its module.
   const routeTitle = located.subModule?.title ?? located.module?.title ?? null;
+  const railTitle = `HR · ${routeTitle ?? "Dashboard"}`;
 
   const consoleContext = React.useMemo(
     () => ({
       selectedModule,
       routeTitle,
+      railTitleSlot,
     }),
-    [selectedModule, routeTitle],
+    [selectedModule, railTitleSlot, routeTitle],
   );
 
   return (
     <div
-      // `hr-shell` / `hr-shell-scroll` are PRINT HOOKS, not styling. This shell
-      // pins itself to the viewport and scrolls internally, which is right on
+      // hr-shell / hr-shell-scroll are PRINT HOOKS, not styling. This shell
+      // shares the viewport with the two right-column navigation rows and
+      // scrolls internally, which is right on
       // screen and fatal on paper: the printed document was clipped to a single
       // ~848px page with this pane's scrollbar painted down its side.
       // globals.css unclips both under @media print. Keep the class names.
-      className="hr-shell relative -mt-[var(--app-topbar-h)] flex overflow-hidden bg-canvas-base"
-      // The rail deliberately starts at the top of the viewport and covers the
-      // left portion of the shared bar. The content column below retains the
-      // top-bar offset, so only the rail becomes one continuous sidebar.
+      className="hr-shell relative flex overflow-hidden bg-canvas-base"
+      // Pull the shell up to the viewport edge so the HR rail occupies the
+      // complete left column. The shared module navbar and title ribbon are
+      // constrained to the right column by globals.css.
       //
       // NO `flex-1` HERE, EVER. This is a flex ITEM (app/(app)/template.tsx is
       // a flex column between us and ChromeShell's min-h-dvh frame). `flex-1`
@@ -202,7 +206,10 @@ export function HrConsoleShell({
       // size property — so the height below would be silently ignored and the
       // shell would size to its content instead. With the default
       // `flex-basis: auto` the height is used.
-      style={{ height: "100dvh" }}
+      style={{
+        height: "100dvh",
+        marginTop: "calc(var(--app-topbar-h) * -1)",
+      }}
     >
       <div
         className={cn(
@@ -244,6 +251,8 @@ export function HrConsoleShell({
           onSelect={selectModule}
           onToggleRail={() => setRailCollapsed((v) => !v)}
           user={user}
+          pageTitle={railTitle}
+          onRailTitleSlot={setRailTitleSlot}
         />
         {!railCollapsed && (
           <button
@@ -263,9 +272,8 @@ export function HrConsoleShell({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col pt-[var(--app-topbar-h)]">
-        {/* The CONTENT column: the page itself. The full-width top bar lives
-            above this shell (ChromeShell), and the steps live in column 2
-            (HrStepList above), so the page is the only thing here. */}
+        {/* The page content starts below the right-column module navbar and
+            title ribbon; the left rail remains continuous from the top edge. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* --app-topbar-h is a body-scoped CSS var (see globals.css) that
               individual /hr pages use via the `.sticky-below-topbar` utility

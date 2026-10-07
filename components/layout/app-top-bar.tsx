@@ -105,7 +105,9 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
       <div ref={slots?.setTitle} className="flex min-w-0 flex-1 items-center empty:hidden" />
       {/* The route-derived name - the default, shown only while no page has
           claimed the slot above. */}
-      {!slots?.hasPageTitle && <h1 className="topbar-heading min-w-0 flex-1 truncate">{title}</h1>}
+      {!slots?.hasPageTitle && !pathname.startsWith("/hr") && (
+        <h1 className="topbar-heading min-w-0 flex-1 truncate">{title}</h1>
+      )}
 
       {/* A page's OWN controls (a print button, an edit link), immediately left
           of the global cluster. These used to ride in a per-page TITLE BAND - a
