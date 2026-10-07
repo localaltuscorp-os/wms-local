@@ -1,5 +1,6 @@
 import "server-only";
 import { refreshSalaryRun } from "./refresh-run";
+import { previousMonthKey } from "./period";
 import { myRuns } from "@/lib/queries/salary";
 import { mySalaryBreakup } from "@/lib/queries/salary-breakup";
 import {
@@ -194,6 +195,7 @@ export async function loadMySalaryMonths(
   const wt: WorkerType = asWorkerType(workerType);
   const hourly = isHourlyShift(wt);
   const open = currentMonthKey(now);
+  const latestClosed = previousMonthKey(open);
 
   // ── ONE NUMBER, EVERYWHERE ───────────────────────────────────────────
   // This page used to COMPUTE the open month and show a figure that existed
@@ -206,7 +208,14 @@ export async function loadMySalaryMonths(
   // the row those other surfaces already read. Everything below is a plain read
   // of stored rows. Fail-soft and throttled — see refreshSalaryRun; a refusal
   // (paid out, recomputed moments ago) simply leaves the stored run in place.
-  await refreshSalaryRun(employeeId, open, now);
+  // Also materialise the latest completed month. Without this, an employee
+  // whose September run had never been generated would reach this page in
+  // October and see only older imported rows: the loader refreshed October,
+  // then built its dropdown exclusively from rows that already existed.
+  await Promise.all([
+    refreshSalaryRun(employeeId, open, now),
+    refreshSalaryRun(employeeId, latestClosed, now, { missingOnly: true }),
+  ]);
 
   let months = prioritizeActiveSalaryMonth(await loadStoredMonths(employeeId, hourly), open);
 

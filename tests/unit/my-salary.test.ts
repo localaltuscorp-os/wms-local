@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeScheduleHourlySalary } from "@/lib/salary/compute";
-import { prioritizeActiveSalaryMonth } from "@/lib/salary/period";
+import { previousMonthKey, prioritizeActiveSalaryMonth } from "@/lib/salary/period";
 
 /**
  * MY SALARY — the invariant the page depends on.
@@ -92,6 +92,11 @@ describe("base + overtime reconcile to gross", () => {
 });
 
 describe("the My Salary opening month", () => {
+  it("finds the latest completed month across a year boundary", () => {
+    expect(previousMonthKey("2026-10")).toBe("2026-09");
+    expect(previousMonthKey("2026-01")).toBe("2025-12");
+  });
+
   it("opens the active month even when future salary rows exist", () => {
     const months = [
       { month: "2026-12" },

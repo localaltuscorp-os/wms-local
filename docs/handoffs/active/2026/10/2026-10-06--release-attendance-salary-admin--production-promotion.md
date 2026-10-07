@@ -76,3 +76,15 @@ After promotion:
 - Security/access impact: none.
 - Validation: focused ESLint passed; full TypeScript check passed; 244 tests across 8 salary/attendance suites passed; `git diff --check` passed; the diff contains no new secrets or hardcoded identities.
 - Deployment plan: fast-forward the focused commit to `origin/main`, deploy Vercel production, confirm Ready, then inspect runtime logs. Existing September rows must be recalculated to persist the new amount across My Salary, Accounts Salary, and Salary Slip.
+
+## Missing latest completed salary month
+
+- Follow-up objective: make the latest completed payroll month available on My Salary even when no salary run was previously materialised for that employee.
+- Root cause: `loadMySalaryMonths` refreshed only the current open month, then built the month selector solely from already-stored salary runs and legacy breakup rows. In October, a missing September run could therefore leave the employee seeing August, July, and an older imported month.
+- `lib/salary/my-salary.ts` now asks the existing payroll engine to materialise the immediately preceding month when it is missing, before loading the selector rows. It still refreshes the current month as before.
+- `lib/salary/period.ts` adds pure previous-month arithmetic, including the January-to-December boundary.
+- The refresh remains fail-soft and profile-driven. It does not invent employee compensation data, overwrite payment-status fields, or hardcode an employee identity.
+- Database impact: no schema change. A missing `salary_runs` row and its existing breakup mirror may be created through the normal salary calculation path when a valid salary profile exists.
+- Security/access impact: none; the existing page authorization and salary engine are unchanged.
+- Validation: focused salary tests passed (42 tests across 3 files); full TypeScript check passed; focused ESLint passed. The full-repository lint attempt exceeded the 120-second command limit before returning a result.
+- Rollback: redeploy the prior application commit. Rows created by a valid calculation can remain because older code already reads them; no destructive database rollback is required.
