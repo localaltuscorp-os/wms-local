@@ -7,6 +7,7 @@ import type { Route } from "next";
 import {
   Loader2,
   Upload,
+  Plus,
   FileText,
   Download,
   Trash2,
@@ -146,13 +147,14 @@ export function PoliciesWorkspace({
               </a>
             )}
             {canManage && (
-              <button
-                onClick={() => setOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white"
-                style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-              >
-                <Upload size={14} /> Upload policy
-              </button>
+              <>
+                <Link href="/hr/policies/new" className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
+                  <Plus size={14} /> Create policy
+                </Link>
+                <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-4 py-2 text-[13px] font-bold text-ink-strong">
+                  <Upload size={14} /> Upload file
+                </button>
+              </>
             )}
           </span>
         </div>

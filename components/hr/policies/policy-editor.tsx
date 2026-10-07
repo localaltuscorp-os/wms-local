@@ -296,9 +296,9 @@ export function PolicyEditor({
             <ArrowLeft size={15} strokeWidth={2.4} /> Back to Policies
           </Link>
         )}
-        {liveHref && (
+        {liveHref && data?.status !== "draft" && (
           <Link href={liveHref} className="pce-btn-ghost">
-            <Eye size={15} strokeWidth={2.4} /> View Live Policy
+            <Eye size={15} strokeWidth={2.4} /> View live policy
           </Link>
         )}
       </div>
@@ -307,7 +307,7 @@ export function PolicyEditor({
       <div className="pce-bar">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Chip>{data.docCode || policyKey}</Chip>
-          <Chip tone="red">v{data.currentVersion} live</Chip>
+          <Chip tone="red">v{data.currentVersion} {data.status === "draft" ? "draft" : "live"}</Chip>
           <Chip tone={data.status === "published" ? "green" : "muted"}>{data.status}</Chip>
           {dirty && (
             <span className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[12px] font-bold" style={{ background: "color-mix(in srgb, #d97706 14%, white)", color: "#b45309" }}>
@@ -322,7 +322,7 @@ export function PolicyEditor({
           disabled={publishing}
         >
           {publishing ? <Loader2 size={16} className="pce-spin" /> : <UploadCloud size={16} strokeWidth={2.4} />}
-          Publish new version
+          {data.status === "draft" ? "Publish policy" : "Publish new version"}
         </button>
       </div>
 
@@ -457,7 +457,7 @@ export function PolicyEditor({
             <button type="button" className="pce-btn-ghost" onClick={() => setPinOpen(false)} disabled={publishing}>Cancel</button>
             <button type="button" className="pce-publish" onClick={() => void doPublish()} disabled={publishing || pinValue.length < 4}>
               {publishing ? <Loader2 size={16} className="pce-spin" /> : <UploadCloud size={16} strokeWidth={2.4} />}
-              Publish v{data.currentVersion + 1}
+              {data.status === "draft" ? "Publish v1" : `Publish v${data.currentVersion + 1}`}
             </button>
           </div>
         </Modal>

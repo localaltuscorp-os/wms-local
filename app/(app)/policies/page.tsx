@@ -8,6 +8,7 @@ import { listPolicies, groupPolicies } from "@/lib/hr/sections";
 import { canPublishPolicies } from "@/lib/hr/policies/access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { POLICY_CARDS, isPolicyKey } from "@/lib/hr/policies/registry";
+import { listPublishedCmsPolicyCards } from "@/lib/hr/policies/load-db";
 import { getMyPolicySignStatus, type MyPolicySignStatus } from "@/app/(app)/hr/policies/sign-status";
 import { PoliciesWorkspace, type SignablePolicy } from "@/components/hr/policies/policies-workspace";
 
@@ -32,7 +33,7 @@ export default async function PoliciesPage() {
   //     is the half the web page used to be missing — HR Record showed a policy
   //     as signed while the Policies section read "No policies published yet",
   //     because the two read different tables.
-  const [groups, signStatus, canManage] = await Promise.all([
+  const [groups, signStatus, canManage, cmsCards] = await Promise.all([
     groupPolicies(await listPolicies()),
     // Sign status is best-effort: if it fails, every firm policy still renders,
     // it just reads "Read & sign" instead of "Signed" — the same neutral
@@ -41,11 +42,14 @@ export default async function PoliciesPage() {
     // Match the server action exactly: a generic admin flag is not enough to
     // publish company-wide policies.
     canPublishPolicies(me, DUMMY_MODE),
+    listPublishedCmsPolicyCards(),
   ]);
 
-  const signable: SignablePolicy[] = POLICY_CARDS.filter(
+  const cards = new Map(POLICY_CARDS.filter(
     (c) => c.status === "ready" && isPolicyKey(c.key),
-  ).map((c) => ({
+  ).map((c) => [c.key, c] as const));
+  for (const card of cmsCards) cards.set(card.key, card);
+  const signable: SignablePolicy[] = [...cards.values()].map((c) => ({
     key: c.key,
     title: c.title,
     blurb: c.blurb,

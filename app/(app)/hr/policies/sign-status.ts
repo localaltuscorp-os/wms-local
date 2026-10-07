@@ -37,7 +37,18 @@ export async function getMyPolicySignStatus(): Promise<MyPolicySignStatus> {
  * the identical query and can never disagree about who has signed what.
  */
 export async function getPolicySignStatusFor(employeeId: string): Promise<MyPolicySignStatus> {
-  const keys = POLICY_CARDS.filter((c) => c.status === "ready" && isPolicyKey(c.key)).map((c) => c.key);
+  const registryKeys = POLICY_CARDS.filter((c) => c.status === "ready" && isPolicyKey(c.key)).map((c) => c.key);
+  let cmsKeys: string[] = [];
+  try {
+    cmsKeys = (await db
+      .select({ key: policyDocuments.key })
+      .from(policyDocuments)
+      .where(eq(policyDocuments.status, "published")))
+      .map((row) => row.key);
+  } catch {
+    // A pre-CMS database still supports the code-authored policy set.
+  }
+  const keys = [...new Set([...registryKeys, ...cmsKeys])];
   if (keys.length === 0) return { signed: {} };
 
   const rows = await db
