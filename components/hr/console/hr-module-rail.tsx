@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  ChevronUp,
   PanelLeft,
   PanelLeftOpen,
   Plus,
@@ -22,8 +21,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Column 1 of the HR console — the module rail. Mirrors the three-box design:
- * navigation controls + brand up top, the scrolling module list in the middle,
- * the signed-in employee at the bottom.
+ * navigation controls + brand up top and the scrolling module list below.
  *
  * Modules WITH steps only select (column 2 then lists their steps); modules
  * without steps ARE the destination, so those rows navigate straight there.
@@ -40,9 +38,6 @@ export function HrModuleRail({
   activeHref,
   onSelect,
   onToggleRail,
-  user,
-  pageTitle,
-  onRailTitleSlot,
 }: {
   /** The modules to draw — ALREADY FILTERED by the permission matrix.
    *  Passed in rather than read from `HR_CONSOLE_MODULES` so this component
@@ -60,22 +55,11 @@ export function HrModuleRail({
   onSelect: (id: string) => void;
   /** Collapses THIS column only (the module rail) — column 2 is untouched. */
   onToggleRail: () => void;
-  user: { name: string; role: string };
-  pageTitle: string;
-  onRailTitleSlot: (element: HTMLDivElement | null) => void;
 }) {
   const router = useRouter();
   const [expandedModuleIds, setExpandedModuleIds] = useState<Set<string>>(
     () => new Set(activeModuleId ? [activeModuleId] : []),
   );
-
-  const initials =
-    user.name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase() ?? "")
-      .join("") || "?";
 
   return (
     <aside
@@ -124,17 +108,6 @@ export function HrModuleRail({
             {collapsed ? <PanelLeftOpen size={15} strokeWidth={2.3} /> : <PanelLeft size={15} strokeWidth={2.3} />}
           </button>
         </div>
-
-        {!collapsed && (
-          <div
-            ref={onRailTitleSlot}
-            className="hr-rail-title-slot flex h-10 min-w-0 items-center border-y border-hairline px-1"
-          >
-            <h1 className="hr-rail-default-title topbar-heading min-w-0 truncate">
-              {pageTitle}
-            </h1>
-          </div>
-        )}
 
         <Link
           href={"/hub" as Route}
@@ -358,30 +331,6 @@ export function HrModuleRail({
         </Link>
       </nav>
 
-      {/* Box 3 — the signed-in employee */}
-      <div className="border-t border-hairline p-3">
-        <Link
-          href={"/profile" as Route}
-          title={user.name}
-          className={cn(
-            "grid w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-soft",
-            collapsed ? "grid-cols-[auto] justify-center" : "grid-cols-[auto_minmax(0,1fr)_auto]",
-          )}
-        >
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-altus-red text-[13px] font-bold text-white">
-            {initials}
-          </span>
-          {!collapsed && (
-            <>
-              <span className="min-w-0">
-                <span className="block truncate text-[14px] font-bold text-ink">{user.name}</span>
-                <span className="block truncate text-[12px] text-ink-muted">{user.role}</span>
-              </span>
-              <ChevronUp className="h-4 w-4 shrink-0 text-ink-muted" />
-            </>
-          )}
-        </Link>
-      </div>
     </aside>
   );
 }

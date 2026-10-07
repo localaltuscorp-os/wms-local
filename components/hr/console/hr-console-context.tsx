@@ -23,9 +23,6 @@ type HrConsoleContextValue = {
    *  label — a named letter, a named policy, one candidate. */
   routeTitle: string | null;
 
-  /** The left-rail title target. HR keeps page names in the rail's title row,
-   * while the shared right-hand ribbon stays dedicated to page actions. */
-  railTitleSlot: HTMLDivElement | null;
 };
 
 const HrConsoleContext = React.createContext<HrConsoleContextValue | null>(null);
@@ -71,10 +68,5 @@ export function useHrConsolePreviewedModule(): HrConsoleModule | null {
  */
 export function useHrRouteTitle(): string | null {
   return React.useContext(HrConsoleContext)?.routeTitle ?? null;
-}
-
-/** The mounted title target in the HR rail, if this page is inside the console. */
-export function useHrRailTitleSlot(): HTMLDivElement | null {
-  return React.useContext(HrConsoleContext)?.railTitleSlot ?? null;
 }
 

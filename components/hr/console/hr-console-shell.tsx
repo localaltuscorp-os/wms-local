@@ -63,7 +63,6 @@ export function HrConsoleShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/hr";
-  const [railTitleSlot, setRailTitleSlot] = React.useState<HTMLDivElement | null>(null);
 
   // The ONE filter, applied to the module list this shell owns. Everything below
   // reads `modules`, never the raw catalogue.
@@ -174,17 +173,15 @@ export function HrConsoleShell({
   // Guarded on `activeModuleId !== null` so the bare /hr route is untouched:
   // there `children` IS HrConsoleHome, which already renders the same ghost
   // (and owns the ?policies=1 popup, which must stay mounted).
-  // The rail's own label for wherever we are: the open step, else its module.
+  // The top bar label for wherever we are: the open step, else its module.
   const routeTitle = located.subModule?.title ?? located.module?.title ?? null;
-  const railTitle = `HR · ${routeTitle ?? "Dashboard"}`;
 
   const consoleContext = React.useMemo(
     () => ({
       selectedModule,
       routeTitle,
-      railTitleSlot,
     }),
-    [selectedModule, railTitleSlot, routeTitle],
+    [selectedModule, routeTitle],
   );
 
   return (
@@ -250,9 +247,6 @@ export function HrConsoleShell({
           activeHref={located.subModule?.href ?? null}
           onSelect={selectModule}
           onToggleRail={() => setRailCollapsed((v) => !v)}
-          user={user}
-          pageTitle={railTitle}
-          onRailTitleSlot={setRailTitleSlot}
         />
         {!railCollapsed && (
           <button
