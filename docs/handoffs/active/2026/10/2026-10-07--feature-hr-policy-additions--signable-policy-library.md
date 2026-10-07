@@ -29,6 +29,9 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - Reworked the editor after preview review: it now uses a focused full-width
   edit canvas or a full-width document preview (not a narrow split screen), and
   keeps version/compliance detail collapsed until needed.
+- Removed the misleading read-only treatment for tables, committee rosters,
+  workflows and legends. Those structured blocks can now be edited, extended,
+  reordered or removed in the same workspace as paragraphs and bullet lists.
 - Publishing a first draft makes version 1 public; later edits still mint a new
   version and reset acknowledgements using the existing compliance mechanism.
 - Extended the acknowledgement, signature-compliance and single-policy download
@@ -89,6 +92,9 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - The focused OTP adjustment also passed `git diff --check`. Targeted ESLint
   could not run because this worktree's installed command set has no `eslint`
   executable; the Vercel preview build remains the TypeScript/build validation.
+- The full typecheck was started with the same 4 GB Node heap as the Vercel
+  build, but exceeded the local 60-second command limit without reporting a
+  TypeScript error. The next Vercel Preview build must be checked before merge.
 - `pnpm.cmd typecheck` could not run because this clean worktree has no `node_modules`; `tsc` was unavailable. Install dependencies or run the check in an existing dependency-equipped development environment before merge.
 - The first Vercel preview exposed a TypeScript mismatch between a CMS policy
   card and the registry card type. It is corrected by assigning `ready` only at

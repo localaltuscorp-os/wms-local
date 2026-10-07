@@ -48,17 +48,6 @@ import { useDictation } from "@/components/ui/use-dictation";
 const RED = "#E10600";
 const RED_DEEP = "#A80400";
 
-/** Node kinds this editor renders as read-only "preserved" blocks. */
-const ADVANCED_KINDS = new Set<PolicyNode["kind"]>(["table", "committee", "workflow", "legend"]);
-const isAdvanced = (n: PolicyNode) => ADVANCED_KINDS.has(n.kind);
-
-const ADVANCED_LABEL: Record<string, string> = {
-  table: "Table",
-  committee: "Committee roster",
-  workflow: "Workflow",
-  legend: "Legend / key",
-};
-
 /** Immutably swap items i and i+dir; returns the same array when out of range. */
 function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
   const j = i + dir;
@@ -190,11 +179,18 @@ export function PolicyEditor({
   const deleteSection = (si: number) => setSections((prev) => prev.filter((_, i) => i !== si));
   const moveSection = (si: number, dir: -1 | 1) => setSections((prev) => move(prev, si, dir));
 
-  const addNode = (si: number, kind: "p" | "ul" | "sub") =>
-    mutateNodes(si, (nodes) => [
-      ...nodes,
-      kind === "ul" ? { kind: "ul", items: [""] } : kind === "sub" ? { kind: "sub", text: "" } : { kind: "p", text: "" },
-    ]);
+  const addNode = (si: number, kind: "p" | "ul" | "sub" | "table" | "committee" | "workflow" | "legend") =>
+    mutateNodes(si, (nodes) => {
+      const node: PolicyNode =
+        kind === "ul" ? { kind: "ul", items: [""] }
+          : kind === "sub" ? { kind: "sub", text: "" }
+            : kind === "table" ? { kind: "table", variant: "grid", columns: ["Column 1", "Column 2"], rows: [["", ""]] }
+              : kind === "committee" ? { kind: "committee", members: [{ position: "", name: "", email: "", contact: "" }] }
+                : kind === "workflow" ? { kind: "workflow", steps: [{ text: "", note: "" }] }
+                  : kind === "legend" ? { kind: "legend", items: [{ code: "", meaning: "" }] }
+                    : { kind: "p", text: "" };
+      return [...nodes, node];
+    });
   const deleteNode = (si: number, ni: number) => mutateNodes(si, (nodes) => nodes.filter((_, i) => i !== ni));
   const moveNode = (si: number, ni: number, dir: -1 | 1) => mutateNodes(si, (nodes) => move(nodes, ni, dir));
 
@@ -349,7 +345,7 @@ export function PolicyEditor({
         <span>Changes appear in the preview before publishing.</span>
       </div>
 
-      {/* ── Two-column: editor + live preview ────────────────────────────── */}
+      {/* One focused workspace at a time: write or inspect the full document. */}
       <div className={`pce-grid pce-mode-${workspaceMode}`}>
         <div className="pce-left">
           {/* Identity fields */}
@@ -533,7 +529,7 @@ function SectionEditor({
   onHeading: (h: string) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
-  onAddNode: (kind: "p" | "ul" | "sub") => void;
+  onAddNode: (kind: "p" | "ul" | "sub" | "table" | "committee" | "workflow" | "legend") => void;
   onNodeChange: (ni: number, node: PolicyNode) => void;
   onNodeMove: (ni: number, dir: -1 | 1) => void;
   onNodeDelete: (ni: number) => void;
@@ -575,6 +571,10 @@ function SectionEditor({
         <button type="button" className="pce-chipbtn" onClick={() => onAddNode("p")}><Pilcrow size={13} strokeWidth={2.4} /> Paragraph</button>
         <button type="button" className="pce-chipbtn" onClick={() => onAddNode("ul")}><List size={13} strokeWidth={2.4} /> Bullet List</button>
         <button type="button" className="pce-chipbtn" onClick={() => onAddNode("sub")}><Heading size={13} strokeWidth={2.4} /> Sub-heading</button>
+        <button type="button" className="pce-chipbtn" onClick={() => onAddNode("table")}><Blocks size={13} strokeWidth={2.4} /> Table</button>
+        <button type="button" className="pce-chipbtn" onClick={() => onAddNode("committee")}><Users2 size={13} strokeWidth={2.4} /> Committee</button>
+        <button type="button" className="pce-chipbtn" onClick={() => onAddNode("workflow")}><List size={13} strokeWidth={2.4} /> Workflow</button>
+        <button type="button" className="pce-chipbtn" onClick={() => onAddNode("legend")}><KeyRound size={13} strokeWidth={2.4} /> Legend</button>
       </div>
     </div>
   );
@@ -599,17 +599,13 @@ function NodeEditor({
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
 }) {
-  const advanced = isAdvanced(node);
-
   return (
-    <div className={`pce-node${advanced ? " is-advanced" : ""}`}>
+    <div className="pce-node">
       <div className="pce-node-rail">
         <GripVertical size={14} className="text-ink-soft" aria-hidden />
         <IconBtn label="Move up" small disabled={index === 0} onClick={() => onMove(-1)}><ChevronUp size={14} strokeWidth={2.6} /></IconBtn>
         <IconBtn label="Move down" small disabled={index === count - 1} onClick={() => onMove(1)}><ChevronDown size={14} strokeWidth={2.6} /></IconBtn>
-        {!advanced && (
-          <IconBtn label="Delete block" small danger onClick={onDelete}><Trash2 size={14} strokeWidth={2.4} /></IconBtn>
-        )}
+        <IconBtn label="Delete block" small danger onClick={onDelete}><Trash2 size={14} strokeWidth={2.4} /></IconBtn>
       </div>
 
       <div className="pce-node-body">
@@ -672,17 +668,46 @@ function NodeEditor({
           </>
         )}
 
-        {advanced && (
-          <div className="pce-advanced">
-            <span className="pce-advanced-badge"><Lock size={12} strokeWidth={2.6} /> Advanced block - preserved</span>
-            <p className="pce-advanced-note">
-              {ADVANCED_LABEL[node.kind] ?? node.kind} - kept exactly as-is and republished unchanged. Reorder it above; edit it in code.
-            </p>
-          </div>
-        )}
+        {node.kind === "table" && <TableEditor node={node} onChange={onChange} />}
+        {node.kind === "committee" && <CommitteeEditor node={node} onChange={onChange} />}
+        {node.kind === "workflow" && <WorkflowEditor node={node} onChange={onChange} />}
+        {node.kind === "legend" && <LegendEditor node={node} onChange={onChange} />}
       </div>
     </div>
   );
+}
+
+function TableEditor({ node, onChange }: { node: Extract<PolicyNode, { kind: "table" }>; onChange: (node: PolicyNode) => void }) {
+  const columnCount = node.variant === "keyval" ? 2 : Math.max(1, node.columns?.length ?? 2);
+  const columns = node.variant === "keyval" ? ["Label", "Value"] : (node.columns?.length ? node.columns : ["Column 1", "Column 2"]);
+  const updateCell = (rowIndex: number, columnIndex: number, value: string) => {
+    const rows = node.rows.map((row, i) => i === rowIndex ? Array.from({ length: columnCount }, (_, j) => j === columnIndex ? value : row[j] ?? "") : row);
+    onChange({ ...node, rows });
+  };
+  return <div className="pce-structured"><NodeTag>Table</NodeTag>
+    <div className="mb-2 flex flex-wrap items-center gap-2"><label className="text-xs font-bold text-ink-muted">Style</label><select className="pce-input pce-mini w-auto" value={node.variant} onChange={(e) => onChange({ ...node, variant: e.target.value as typeof node.variant, columns: e.target.value === "keyval" ? undefined : columns })}><option value="grid">Grid</option><option value="principle">Principle</option><option value="keyval">Label / value</option></select></div>
+    {node.variant !== "keyval" && <div className="mb-2 grid gap-2" style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(120px, 1fr))` }}>{columns.map((column, index) => <input key={index} className="pce-input pce-mini" value={column} onChange={(e) => onChange({ ...node, columns: columns.map((item, i) => i === index ? e.target.value : item) })} placeholder={`Column ${index + 1}`} />)}</div>}
+    <div className="flex flex-col gap-2">{node.rows.map((row, rowIndex) => <div key={rowIndex} className="flex gap-2"><div className="grid min-w-0 flex-1 gap-2" style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(120px, 1fr))` }}>{Array.from({ length: columnCount }, (_, columnIndex) => <input key={columnIndex} className="pce-input pce-mini" value={row[columnIndex] ?? ""} onChange={(e) => updateCell(rowIndex, columnIndex, e.target.value)} placeholder={columns[columnIndex] ?? `Cell ${columnIndex + 1}`} />)}</div><IconBtn label="Remove row" small danger onClick={() => onChange({ ...node, rows: node.rows.filter((_, i) => i !== rowIndex) })}><X size={14} strokeWidth={2.6} /></IconBtn></div>)}</div>
+    <div className="mt-2 flex flex-wrap gap-2"><button type="button" className="pce-chipbtn" onClick={() => onChange({ ...node, rows: [...node.rows, Array(columnCount).fill("")] })}><Plus size={13} /> Add row</button>{node.variant !== "keyval" && <button type="button" className="pce-chipbtn" onClick={() => onChange({ ...node, columns: [...columns, `Column ${columns.length + 1}`], rows: node.rows.map((row) => [...row, ""]) })}><Plus size={13} /> Add column</button>}</div>
+  </div>;
+}
+
+function CommitteeEditor({ node, onChange }: { node: Extract<PolicyNode, { kind: "committee" }>; onChange: (node: PolicyNode) => void }) {
+  const update = (index: number, field: "position" | "name" | "email" | "contact", value: string) => onChange({ ...node, members: node.members.map((member, i) => i === index ? { ...member, [field]: value } : member) });
+  return <div className="pce-structured"><NodeTag>Committee roster</NodeTag><input className="pce-input pce-mini mb-2" value={node.caption ?? ""} onChange={(e) => onChange({ ...node, caption: e.target.value || undefined })} placeholder="Optional roster note" />
+    <div className="flex flex-col gap-2">{node.members.map((member, index) => <div key={index} className="grid gap-2 rounded-xl border border-hairline p-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]"><input className="pce-input pce-mini" value={member.position} onChange={(e) => update(index, "position", e.target.value)} placeholder="Position" /><input className="pce-input pce-mini" value={member.name} onChange={(e) => update(index, "name", e.target.value)} placeholder="Name" /><input className="pce-input pce-mini" value={member.email ?? ""} onChange={(e) => update(index, "email", e.target.value)} placeholder="Email" /><input className="pce-input pce-mini" value={member.contact ?? ""} onChange={(e) => update(index, "contact", e.target.value)} placeholder="Contact" /><IconBtn label="Remove member" small danger onClick={() => onChange({ ...node, members: node.members.filter((_, i) => i !== index) })}><X size={14} /></IconBtn></div>)}</div>
+    <button type="button" className="pce-chipbtn mt-2" onClick={() => onChange({ ...node, members: [...node.members, { position: "", name: "", email: "", contact: "" }] })}><Plus size={13} /> Add member</button>
+  </div>;
+}
+
+function WorkflowEditor({ node, onChange }: { node: Extract<PolicyNode, { kind: "workflow" }>; onChange: (node: PolicyNode) => void }) {
+  const update = (index: number, field: "text" | "note", value: string) => onChange({ ...node, steps: node.steps.map((step, i) => i === index ? { ...step, [field]: value || undefined } : step) });
+  return <div className="pce-structured"><NodeTag>Workflow</NodeTag><div className="flex flex-col gap-2">{node.steps.map((step, index) => <div key={index} className="flex gap-2"><span className="mt-2.5 grid size-6 shrink-0 place-items-center rounded-full bg-red-50 text-xs font-black text-altus-red">{index + 1}</span><div className="min-w-0 flex-1 space-y-2"><input className="pce-input pce-mini" value={step.text} onChange={(e) => update(index, "text", e.target.value)} placeholder="Step" /><input className="pce-input pce-mini" value={step.note ?? ""} onChange={(e) => update(index, "note", e.target.value)} placeholder="Optional timing or owner note" /></div><IconBtn label="Remove step" small danger onClick={() => onChange({ ...node, steps: node.steps.filter((_, i) => i !== index) })}><X size={14} /></IconBtn></div>)}</div><input className="pce-input pce-mini mt-2" value={node.closure ?? ""} onChange={(e) => onChange({ ...node, closure: e.target.value || undefined })} placeholder="Optional closing step" /><button type="button" className="pce-chipbtn mt-2" onClick={() => onChange({ ...node, steps: [...node.steps, { text: "", note: "" }] })}><Plus size={13} /> Add step</button></div>;
+}
+
+function LegendEditor({ node, onChange }: { node: Extract<PolicyNode, { kind: "legend" }>; onChange: (node: PolicyNode) => void }) {
+  const update = (index: number, field: "code" | "meaning", value: string) => onChange({ ...node, items: node.items.map((item, i) => i === index ? { ...item, [field]: value } : item) });
+  return <div className="pce-structured"><NodeTag>Legend / key</NodeTag><input className="pce-input pce-mini mb-2" value={node.caption ?? ""} onChange={(e) => onChange({ ...node, caption: e.target.value || undefined })} placeholder="Optional legend note" /><div className="flex flex-col gap-2">{node.items.map((item, index) => <div key={index} className="flex gap-2"><input className="pce-input pce-mini w-28" value={item.code} onChange={(e) => update(index, "code", e.target.value)} placeholder="Code" /><input className="pce-input pce-mini min-w-0 flex-1" value={item.meaning} onChange={(e) => update(index, "meaning", e.target.value)} placeholder="Meaning" /><IconBtn label="Remove legend item" small danger onClick={() => onChange({ ...node, items: node.items.filter((_, i) => i !== index) })}><X size={14} /></IconBtn></div>)}</div><button type="button" className="pce-chipbtn mt-2" onClick={() => onChange({ ...node, items: [...node.items, { code: "", meaning: "" }] })}><Plus size={13} /> Add item</button></div>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1016,15 +1041,7 @@ const CSS = `
   font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
   color:var(--color-ink-soft, #94a3b8);
 }
-.pce-advanced{display:flex;flex-direction:column;gap:5px;}
-.pce-advanced-badge{
-  display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
-  padding:4px 9px;border-radius:8px;
-  font-family:var(--font-display, system-ui, sans-serif);
-  font-size:11.5px;font-weight:800;color:${RED_DEEP};
-  background:color-mix(in srgb, ${RED} 10%, white);
-}
-.pce-advanced-note{font-size:12.5px;line-height:1.5;font-weight:500;color:var(--color-ink-muted, #64748b);margin:0;}
+.pce-structured{display:flex;flex-direction:column;gap:6px;}
 
 .pce-addnode{display:flex;flex-wrap:wrap;align-items:center;gap:7px;}
 .pce-addnode-label{
