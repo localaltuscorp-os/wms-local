@@ -26,6 +26,9 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
   uploaded documents.
 - Added a private HR-admin drafts queue and visible **Edit freely** action on
   policy cards, so drafts and the editor are discoverable without knowing URLs.
+- Reworked the editor after preview review: it now uses a focused full-width
+  edit canvas or a full-width document preview (not a narrow split screen), and
+  keeps version/compliance detail collapsed until needed.
 - Publishing a first draft makes version 1 public; later edits still mint a new
   version and reset acknowledgements using the existing compliance mechanism.
 - Extended the acknowledgement, signature-compliance and single-policy download

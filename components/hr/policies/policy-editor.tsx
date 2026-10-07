@@ -26,6 +26,7 @@ import {
   Blocks,
   ArrowLeft,
   Eye,
+  PencilLine,
   Mic,
   Square,
 } from "lucide-react";
@@ -93,6 +94,7 @@ export function PolicyEditor({
   const [phase, setPhase] = React.useState<Phase>("loading");
   const [errorMsg, setErrorMsg] = React.useState("");
   const [data, setData] = React.useState<PolicyEditorData | null>(null);
+  const [workspaceMode, setWorkspaceMode] = React.useState<"edit" | "preview">("edit");
 
   // Editable fields
   const [title, setTitle] = React.useState("");
@@ -337,8 +339,18 @@ export function PolicyEditor({
         <PinNotice isSuperAdmin={isSuperAdmin} onOpenSet={() => { setSetPinError(null); setPinSetOpen(true); }} />
       )}
 
+      <div className="pce-modebar" role="tablist" aria-label="Policy workspace mode">
+        <button type="button" role="tab" aria-selected={workspaceMode === "edit"} className={workspaceMode === "edit" ? "is-active" : ""} onClick={() => setWorkspaceMode("edit")}>
+          <PencilLine size={15} strokeWidth={2.5} /> Edit freely
+        </button>
+        <button type="button" role="tab" aria-selected={workspaceMode === "preview"} className={workspaceMode === "preview" ? "is-active" : ""} onClick={() => setWorkspaceMode("preview")}>
+          <Eye size={15} strokeWidth={2.5} /> Preview document
+        </button>
+        <span>Changes appear in the preview before publishing.</span>
+      </div>
+
       {/* ── Two-column: editor + live preview ────────────────────────────── */}
-      <div className="pce-grid">
+      <div className={`pce-grid pce-mode-${workspaceMode}`}>
         <div className="pce-left">
           {/* Identity fields */}
           <Card icon={<Type size={18} />} title="Policy Identity" sub="Shown at the top of the document and on the card.">
@@ -353,7 +365,9 @@ export function PolicyEditor({
             </Field>
           </Card>
 
-          {/* Version history + compliance */}
+          {/* Keep audit detail available without interrupting the writing flow. */}
+          <details className="pce-details">
+            <summary><History size={15} strokeWidth={2.4} /> Version history &amp; compliance</summary>
           <Card icon={<History size={18} />} title="Versions & Compliance" sub="Each publish mints a new version and requests a fresh re-sign.">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
               <ComplianceDial signed={data.compliance.signed} total={data.compliance.total} />
@@ -386,6 +400,7 @@ export function PolicyEditor({
               </div>
             </div>
           </Card>
+          </details>
 
           {/* Sections editor */}
           <Card icon={<Blocks size={18} />} title="Body Sections" sub="Edit, reorder, add or remove sections and their content.">
@@ -927,23 +942,32 @@ const CSS = `
 .pce-spin{animation:pce-spin 1s linear infinite;}
 @keyframes pce-spin{to{transform:rotate(360deg);}}
 
-.pce-grid{display:grid;grid-template-columns:1fr;gap:18px;margin-top:18px;}
-@media (min-width:1100px){ .pce-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;} }
+.pce-modebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:16px;padding:6px;border:1px solid var(--color-hairline);border-radius:14px;background:#fff;}
+.pce-modebar button{display:inline-flex;align-items:center;gap:7px;padding:9px 13px;border:0;border-radius:9px;background:transparent;color:var(--color-ink-muted);font:700 13px var(--font-display,system-ui,sans-serif);cursor:pointer;}
+.pce-modebar button.is-active{background:color-mix(in srgb, ${RED} 10%,white);color:${RED_DEEP};}
+.pce-modebar span{margin-left:auto;padding:0 8px;font-size:12px;font-weight:600;color:var(--color-ink-muted);}
+.pce-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;margin-top:14px;}
+.pce-mode-edit .pce-preview{display:none;}
+.pce-mode-preview .pce-left{display:none;}
 .pce-left{display:flex;flex-direction:column;gap:16px;min-width:0;}
+.pce-details{border:1px solid var(--color-hairline);border-radius:14px;background:#fff;overflow:hidden;}
+.pce-details summary{display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 15px;font:800 13px var(--font-display,system-ui,sans-serif);color:var(--color-ink-strong);}
+.pce-details[open] summary{border-bottom:1px solid var(--color-hairline);}
+.pce-details > div{border:0;border-radius:0;box-shadow:none;}
 
 .pce-preview{min-width:0;}
-.pce-preview-inner{position:sticky;top:132px;}
+.pce-preview-inner{position:static;}
 .pce-preview-head{
   display:flex;align-items:center;justify-content:space-between;
   padding:0 2px 10px;
 }
 .pce-preview-stage{
-  max-height:calc(100dvh - 168px);overflow:auto;
+  min-height:calc(100dvh - 260px);
   border-radius:18px;border:1px solid var(--color-hairline, #e2e8f0);
   background:#faf9fb;padding:16px;
   box-shadow:inset 0 2px 24px -18px rgba(24,24,27,.5);
 }
-@media (max-width:1099px){ .pce-preview-inner{position:static;} .pce-preview-stage{max-height:none;} }
+@media (max-width:720px){.pce-modebar span{width:100%;margin:2px 0 0;padding:4px 8px;}.pce-modebar button{flex:1;justify-content:center;}.pce-preview-stage{padding:6px;}}
 
 /* Inputs */
 .pce-input{
