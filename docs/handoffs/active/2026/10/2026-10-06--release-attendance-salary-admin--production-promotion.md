@@ -127,3 +127,16 @@ After promotion:
 - Release commit: `fdbde293` (`feat(email): add SMTP with Resend fallback`) was fast-forwarded to Altus-OS `main` without force-push.
 - Production deployment: Vercel deployment `dpl_B33tw4jFrj3bTVfXF68hm4ugWc6Q` completed `READY` and was aliased to `https://os.altuscorp.in`.
 - Activation status: SMTP credentials were not stored in the repository and were not supplied for the deployment. Production therefore continues through Resend until the six SMTP variables above are added directly to Vercel Production and a redeployment is performed.
+
+## Full-time daily attendance thresholds
+
+- Follow-up objective: classify a standard full-time day as Absent below 5 worked hours, Half Day from 5 hours to below 9 hours, and Full Day at 9 hours or more.
+- Root cause: `resolveEffectiveConfig` still derived the default cutoffs from the older 7.5/9 and 4.5/9 ratios, so a standard full-timer could receive a Full Day below 9 hours and a Half Day below 5 hours.
+- `lib/attendance/effective-config.ts` now uses 9/9 for the default full-day cutoff and 5/9 for the default half-day cutoff. Explicit employee overrides, hourly-shift complete-shift grading, and shortened configured-Saturday scaling remain supported.
+- The weekly pooled-hours rule is unchanged: a standard full-time week reaching 54 worked hours earns all six ordinary attendance days for payroll, while the underlying daily Half Day/Absent labels remain visible for audit.
+- Leave, comp-off, holiday/weekly-off precedence and the forgotten-punch-out Absent rule are unchanged.
+- Database impact: none. Existing punches are reclassified when attendance and salary views are recalculated through their normal read/generation paths; no migration or direct data update is required.
+- Security/access impact: none.
+- Validation: 141 focused attendance/payroll tests passed across seven files, including the 5h and 9h boundaries, 54h weekly behavior, and forgotten-logout cases; TypeScript passed with a 4 GB Node heap; focused ESLint and `git diff --check` passed. Vercel preview `dpl_Dp2W6BaqoGYjM2gETHMJuQpT4MZN` completed `READY` for release commit `e2cd1d78`.
+- Production-build safety: this change does not touch database bootstrap, Next configuration, dependencies, or function tracing. The successful Vercel preview provides the production build gate; the previous dependency release's generated server trace contained zero PGlite references.
+- Rollback: redeploy the prior application commit; no database rollback is required.

@@ -138,10 +138,9 @@ export function computeDayCode(
   }
 
   // THREE-TIER day rule. The cutoffs come from the employee's own resolved
-  // config (lib/attendance/effective-config.ts), which derives them as ratios of
-  // that person's daily target — so a full-timer grades at 7.5h/4.5h against a 9h
-  // day and a part-timer at 3.5h/2.5h against a 4.5h day. Neither can ever
-  // inherit the other's absolute hours.
+  // config (lib/attendance/effective-config.ts). A standard full-timer grades
+  // at 9h/5h; an hourly-shift worker grades against their own complete shift.
+  // Neither can ever inherit the other's absolute hours.
   //
   //   ≥ fullDayMinutes → Full Day (P)
   //   ≥ halfDayMinutes → Half Day (H/D)
