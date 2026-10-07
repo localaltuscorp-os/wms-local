@@ -1,9 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Check, Search, ShieldCheck, UserPlus, X } from "lucide-react";
+import { Search, ShieldCheck, UserPlus, X } from "lucide-react";
 import { fireToast } from "@/lib/toast";
-import { SECURITY_ROLE_LIST, type SecurityRole } from "@/lib/auth/security-roles-catalog";
+import {
+  SECURITY_ROLE_CATEGORIES,
+  SECURITY_ROLE_LIST,
+  type SecurityRole,
+} from "@/lib/auth/security-roles-catalog";
 import { setSecurityRole } from "@/app/(admin)/admin/security-roles/actions";
 
 type Person = { id: string; name: string; email: string };
@@ -34,11 +38,22 @@ export function SecurityRolesPanel({ people, assignments: initial }: { people: P
 
   return <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
     <aside className="rounded-2xl border border-hairline bg-white p-3">
-      <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.12em] text-ink-muted">Hidden roles</p>
-      <div className="max-h-[620px] space-y-1 overflow-y-auto pr-1">
-        {SECURITY_ROLE_LIST.map((item) => <button key={item.key} onClick={() => setRole(item.key)} className={`w-full rounded-xl px-3 py-2.5 text-left transition ${role === item.key ? "bg-[#fff0ef] text-[#a80400]" : "hover:bg-surface-soft text-ink-strong"}`}>
-          <span className="block text-[12px] font-bold">{item.label}</span><span className="mt-0.5 block text-[10px] leading-snug text-ink-muted">{item.category}</span>
-        </button>)}
+      <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-[0.12em] text-ink-muted">Roles by module</p>
+      <div className="max-h-[620px] space-y-4 overflow-y-auto pr-1">
+        {SECURITY_ROLE_CATEGORIES.map((category) => {
+          const roles = SECURITY_ROLE_LIST.filter((item) => item.category === category);
+          return <div key={category}>
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-white px-2 py-1.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-ink-muted">{category}</p>
+              <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[9px] font-bold text-ink-muted">{roles.length}</span>
+            </div>
+            <div className="space-y-1">
+              {roles.map((item) => <button key={item.key} onClick={() => setRole(item.key)} className={`w-full rounded-xl px-3 py-2.5 text-left transition ${role === item.key ? "bg-[#fff0ef] text-[#a80400]" : "hover:bg-surface-soft text-ink-strong"}`}>
+                <span className="block text-[12px] font-bold">{item.label}</span>
+              </button>)}
+            </div>
+          </div>;
+        })}
       </div>
     </aside>
     <section className="rounded-2xl border border-hairline bg-white p-5">
