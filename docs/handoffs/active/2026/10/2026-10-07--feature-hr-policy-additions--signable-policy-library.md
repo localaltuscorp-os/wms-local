@@ -68,6 +68,11 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - The Vercel project is configured to invoke `npm run build:turbopack`. This
   branch adds that missing script, with the same 4 GB Node heap as `build`, so a
   preview can use the configured build command without changing Vercel settings.
+- Preview-only OTP review exception: `previewOtpBypassAllows` is fail-closed
+  unless Vercel sets `VERCEL_ENV=preview` and the server-side
+  `PREVIEW_OTP_BYPASS_EMAIL` configuration matches the logging-in account.
+  The value must be configured only in Vercel's Preview environment; it is not
+  present in source, database records, production settings, or documentation.
 - No automated travel reimbursement, asset monitoring, payroll deductions, leave deductions, or attendance changes were added. These are policy documents and acknowledgement records only.
 - The policy documents must be reviewed by HR/legal before company-wide publication, particularly the Asset Management financial-liability language.
 

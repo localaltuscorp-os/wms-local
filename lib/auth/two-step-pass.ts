@@ -31,6 +31,18 @@ export function twoStepEnabled(): boolean {
   return (process.env.TWO_STEP_VERIFICATION ?? "").trim().toLowerCase() !== "off";
 }
 
+/**
+ * Narrow preview-only exception for a single review account. The approved
+ * identity lives in Vercel's Preview environment configuration, never source.
+ * It is deliberately false for production, local development and any unset or
+ * mismatched value; password, employee-liveness and device checks still apply.
+ */
+export function previewOtpBypassAllows(email: string): boolean {
+  if (process.env.VERCEL_ENV !== "preview") return false;
+  const approved = (process.env.PREVIEW_OTP_BYPASS_EMAIL ?? "").trim().toLowerCase();
+  return approved.length > 0 && approved === email.trim().toLowerCase();
+}
+
 /** The first instant of the next calendar day in India, after `now`. */
 export function nextMidnightIst(now: Date = new Date()): Date {
   const shifted = new Date(now.getTime() + IST_OFFSET_MS);
