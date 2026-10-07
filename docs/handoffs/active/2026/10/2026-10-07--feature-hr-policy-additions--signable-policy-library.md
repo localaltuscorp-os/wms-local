@@ -69,6 +69,10 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 
 - `git diff --check` passed.
 - `pnpm.cmd typecheck` could not run because this clean worktree has no `node_modules`; `tsc` was unavailable. Install dependencies or run the check in an existing dependency-equipped development environment before merge.
+- The first Vercel preview exposed a TypeScript mismatch between a CMS policy
+  card and the registry card type. It is corrected by assigning `ready` only at
+  the display boundary after the database query has already filtered published
+  rows. Rebuild required.
 
 ## Next steps
 

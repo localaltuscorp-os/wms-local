@@ -48,7 +48,9 @@ export default async function PoliciesPage() {
   const cards = new Map(POLICY_CARDS.filter(
     (c) => c.status === "ready" && isPolicyKey(c.key),
   ).map((c) => [c.key, c] as const));
-  for (const card of cmsCards) cards.set(card.key, card);
+  // CMS rows are already filtered to published; normalize the registry-only
+  // status field so both sources share one display shape.
+  for (const card of cmsCards) cards.set(card.key, { ...card, status: "ready" });
   const signable: SignablePolicy[] = [...cards.values()].map((c) => ({
     key: c.key,
     title: c.title,
