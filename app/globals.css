@@ -302,10 +302,85 @@
   body:has(.app-topbar) {
     --app-topbar-h: 56px;
   }
+
+  /* The module switcher lives above the sticky app bar. While visible, both
+     the app bar and page-level sticky controls sit below its in-flow height. */
+  body:has(.module-top-nav[data-hidden="false"]) {
+    --app-topbar-h: 101px;
+  }
+
+  body:has(.module-top-nav[data-hidden="false"]) .aura-topbar {
+    top: 45px;
+  }
+
+  /* HR uses the same two-column frame as the other workspaces: its navigation
+     rail owns the full left edge, while both top rows begin at the rail edge.
+     The value is published by HrConsoleShell, so resizing or collapsing its
+     rail keeps the module navbar and page-title/action ribbon aligned. */
+  body:has(.hr-shell) :is(.module-top-nav, .app-topbar) {
+    width: calc(100% - var(--hr-console-rail-width, 228px));
+    margin-left: var(--hr-console-rail-width, 228px);
+  }
 }
 /* Opt-in class for page headers that were `sticky top-0`. */
 .sticky-below-topbar {
   top: var(--app-topbar-h);
+}
+
+/* An HR page may supply a more specific title through HrTitleBar. In that
+   case it replaces the route-derived sidebar title rather than duplicating it. */
+.hr-rail-title-slot:has(.hr-rail-page-title) .hr-rail-default-title {
+  display: none;
+}
+
+/* ── Top-edge module navigation ────────────────────────────────────────────
+   The module row is visible when a page opens and whenever the user scrolls
+   upward. Scrolling down collapses its in-flow height, so the page reclaims
+   the space instead of moving beneath an overlay. */
+.module-top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 70;
+  flex: none;
+  width: 100%;
+  height: 45px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fdfdff, #f3f5fc);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.95) inset, 0 8px 24px -18px rgba(22,32,68,0.55);
+  transition: height 200ms cubic-bezier(0.2, 0.8, 0.3, 1), background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.module-top-nav[data-hidden="true"] {
+  height: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.module-top-nav-links {
+  display: flex;
+  height: 45px;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 0 24px;
+  scrollbar-width: none;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 130ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1), visibility 0s linear 0s;
+}
+
+.module-top-nav-links::-webkit-scrollbar { display: none; }
+
+.module-top-nav[data-hidden="true"] .module-top-nav-links {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-45px);
+  visibility: hidden;
+  transition: opacity 110ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1), visibility 0s linear 180ms;
+}
+
+@media (max-width: 767px) {
+  .module-top-nav-links { padding: 0 16px; }
 }
 
 :root {
