@@ -24,6 +24,8 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - Extended the Policies workspace with separate **Create policy** and **Upload
   file** actions, so authored/signable policies are not confused with legacy
   uploaded documents.
+- Added a private HR-admin drafts queue and visible **Edit freely** action on
+  policy cards, so drafts and the editor are discoverable without knowing URLs.
 - Publishing a first draft makes version 1 public; later edits still mint a new
   version and reset acknowledgements using the existing compliance mechanism.
 - Extended the acknowledgement, signature-compliance and single-policy download
@@ -40,6 +42,7 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - `app/(app)/hr/policy-cms-actions.ts`
 - `app/(app)/hr/policy-cms-actions-types.ts`
 - `app/(app)/hr/policies/new/page.tsx`
+- `app/(app)/hr/policies/drafts/page.tsx`
 - `components/hr/policies/policy-draft-creator.tsx`
 - `components/hr/policies/policy-editor.tsx`
 - `components/hr/policies/policies-workspace.tsx`
