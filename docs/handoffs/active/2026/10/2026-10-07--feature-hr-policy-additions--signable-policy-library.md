@@ -59,6 +59,9 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - The editor deliberately stores declarative structured content rather than raw
   browser HTML. That keeps document rendering, print/PDF output, version history,
   and sign-off content consistent and avoids unsafe HTML being published.
+- The Vercel project is configured to invoke `npm run build:turbopack`. This
+  branch adds that missing script, with the same 4 GB Node heap as `build`, so a
+  preview can use the configured build command without changing Vercel settings.
 - No automated travel reimbursement, asset monitoring, payroll deductions, leave deductions, or attendance changes were added. These are policy documents and acknowledgement records only.
 - The policy documents must be reviewed by HR/legal before company-wide publication, particularly the Asset Management financial-liability language.
 
