@@ -111,3 +111,16 @@ After promotion:
 - Validation: TypeScript passed; 65 focused Employee Master/editor tests passed across 2 files; focused ESLint passed; `git diff --check` passed.
 - Operational note: no direct production employee update was executed from the development workspace. After deployment, the authorized admin must submit the Employee Master save so the production write is authenticated and audited.
 - Rollback: select the prior Shift Type through Employee Master if the data choice was wrong; application rollback is a redeploy of the prior commit without history rewriting.
+
+## SMTP primary with Resend fallback
+
+- Follow-up objective: support a conventional authenticated SMTP server on Vercel while retaining Resend as a delivery fallback.
+- `lib/email/transport.ts` provides the shared server-only transport adapter. A complete SMTP configuration is used first; when SMTP throws and `RESEND_API_KEY` is present, the same message is retried through Resend. Existing Resend-only environments continue to work unchanged.
+- `lib/email/resend.ts` retains its compatibility API while routing existing callers through the shared adapter. `lib/dispatch/email.ts` now uses the same adapter, removing the remaining application-runtime Resend bypass.
+- `lib/queries/integration-health.ts` reports email connected when either SMTP is fully configured or Resend is configured.
+- Required production configuration to activate SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM_EMAIL`. Keep `RESEND_API_KEY` and `RESEND_FROM_EMAIL` configured for fallback. No credential values belong in Git or this handoff.
+- Database impact: none.
+- Security/access impact: no authorization change. Credentials remain deployment environment variables. SMTP failures are logged without credentials or message contents.
+- Operational risk: a timeout after an SMTP provider accepts a message is ambiguous, so a fallback retry can rarely produce a duplicate. Provider timeouts are bounded to reduce that risk.
+- Validation: TypeScript passed with a 4 GB Node heap; 31 focused tests passed across four email/notification suites; focused ESLint passed; `git diff --check` passed. The local production build compiled successfully, then failed during page-data collection because the isolated worktree has no `DATABASE_URL` or Supabase environment variables. The resulting server bundle contained zero `@electric-sql/pglite` and zero `drizzle-orm/pglite` references, satisfying the production PGlite safety gate. The broader leak command still exited non-zero for pre-existing Firebase Admin, PDFKit, Chromium, and Puppeteer traces unrelated to this change; the Vercel production build remains the final environment-backed gate.
+- Rollback: redeploy the prior application commit and leave the existing Resend variables configured; no database rollback is required.
