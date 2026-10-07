@@ -132,6 +132,7 @@ export function foldIncentiveSources(
   };
 
   for (const e of entries) {
+    if (e.reversed) continue;
     const parts = partByEntry.get(e.id);
     if (parts && parts.length) {
       for (const p of parts) pushParticipant(p, e.periodMonth);

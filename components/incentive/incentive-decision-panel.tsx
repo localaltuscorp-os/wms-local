@@ -18,6 +18,7 @@ import {
   type DecisionAction,
 } from "@/lib/incentive/workflow";
 import type { IncentiveRequestRow } from "@/lib/queries/incentive";
+import { defaultIncentiveAmount } from "@/lib/incentive-amount";
 import { NotesInput } from "./incentive-form-dialog";
 
 const ICON: Record<DecisionAction, typeof Check> = {
@@ -63,6 +64,9 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
 
   const [action, setAction] = useState<DecisionAction | null>(null);
   const [note, setNote] = useState("");
+  const [approvedAmount, setApprovedAmount] = useState(() =>
+    String(defaultIncentiveAmount(row.type, row.details ?? {}) || ""),
+  );
   const [attempted, setAttempted] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -74,6 +78,10 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
     ? checkDecision({ type: row.type, details: row.details, status: row.status, action, note })
     : null;
   const noteError = attempted && check && !check.ok ? check.error : null;
+  const amountRequired = action === "approve" || action === "publish";
+  const amountError = attempted && amountRequired && !(Number(approvedAmount) > 0)
+    ? "Enter an approved amount greater than zero."
+    : null;
   const noteId = `inc-decision-${row.id}`;
   const typeLabel = INCENTIVE_TYPE_LABELS[row.type] ?? row.type;
 
@@ -82,12 +90,15 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
     setAttempted(false);
     setConfirming(false);
     setServerError(null);
+    if ((next === "approve" || next === "publish") && !approvedAmount) {
+      setApprovedAmount(String(defaultIncentiveAmount(row.type, row.details ?? {}) || ""));
+    }
   }
 
   function requestSubmit() {
     setAttempted(true);
     setServerError(null);
-    if (!check || !check.ok) {
+    if (!check || !check.ok || (amountRequired && !(Number(approvedAmount) > 0))) {
       requestAnimationFrame(() => document.getElementById(noteId)?.focus());
       return;
     }
@@ -98,7 +109,12 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
     if (!action || !check || !check.ok) return;
     const chosen = action;
     startTransition(async () => {
-      const res = await decideIncentiveRequest({ id: row.id, action: chosen, note: note.trim() || undefined });
+      const res = await decideIncentiveRequest({
+        id: row.id,
+        action: chosen,
+        note: note.trim() || undefined,
+        approvedAmount: amountRequired ? Number(approvedAmount) : undefined,
+      });
       if (!res.ok) {
         setConfirming(false);
         setServerError(res.error);
@@ -112,6 +128,7 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
       });
       setAction(null);
       setNote("");
+      setApprovedAmount("");
       setAttempted(false);
       setConfirming(false);
     });
@@ -162,6 +179,27 @@ export function IncentiveDecisionPanel({ row }: { row: IncentiveRequestRow }) {
 
       {action && (
         <div className="mt-4">
+          {amountRequired && (
+            <div className="mb-4 max-w-xs">
+              <label htmlFor={`${noteId}-amount`} className="mb-1.5 block text-[14px] font-bold text-ink-strong">
+                Approved amount <span className="text-altus-red">*</span>
+              </label>
+              <input
+                id={`${noteId}-amount`}
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={approvedAmount}
+                onChange={(event) => {
+                  setApprovedAmount(event.target.value);
+                  setConfirming(false);
+                }}
+                className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[14px] text-ink-strong"
+                aria-invalid={!!amountError}
+              />
+              {amountError && <p role="alert" className="mt-1 text-[12.5px] font-semibold text-altus-red-deep">{amountError}</p>}
+            </div>
+          )}
           <label htmlFor={noteId} className="mb-1.5 block text-[14px] font-bold text-ink-strong">
             {decisionNoteLabel(action)}
             {decisionRequiresNote(action) ? (

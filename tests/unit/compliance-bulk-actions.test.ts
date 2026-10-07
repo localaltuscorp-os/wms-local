@@ -92,10 +92,12 @@ const BEFORE_0238 = `
 const M0240 = readFileSync("db/migrations/0240_mcc_frequencies.sql", "utf8");
 const M0241 = readFileSync("db/migrations/0241_wcc_mcc_abandoned.sql", "utf8");
 const M0242 = readFileSync("db/migrations/0242_wcc_minutes.sql", "utf8");
+const M0260 = readFileSync("db/migrations/0260_template_field_configs.sql", "utf8");
 const M0263 = readFileSync("db/migrations/0263_mcc_multi_date_schedules.sql", "utf8");
 
 beforeAll(async () => {
   await h.pg.exec(BEFORE_0238);
+  await h.pg.exec(M0260);
   await h.pg.exec(readFileSync("db/migrations/0238_wcc_mcc.sql", "utf8"));
   await h.pg.exec(readFileSync("db/migrations/0239_wcc_mcc_completed_quantity.sql", "utf8"));
   await h.pg.exec(M0240);

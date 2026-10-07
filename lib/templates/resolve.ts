@@ -18,7 +18,6 @@ import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { listActiveProductNames } from "@/lib/queries/products";
-import { buildIncentiveEntryTemplate } from "@/lib/exports/incentive-entry-template";
 import { jdTemplateMatrix } from "@/lib/jd/bulk";
 import { checklistTemplateMatrix } from "@/lib/operations/checklist-bulk";
 import { buildVendorTemplate } from "./vendors";
@@ -151,13 +150,9 @@ export async function buildTemplate(
     }
 
     case TEMPLATE_KEYS.incentiveEntries: {
-      const [roster, products] = await Promise.all([
-        db.select({ id: employees.id, employeeCode: employees.employeeCode, name: employees.name })
-          .from(employees).where(and(eq(employees.isActive, true), isNotNull(employees.employeeCode))),
-        listActiveProductNames(),
-      ]);
+      const { buildIncentiveRequestTemplate } = await import("@/lib/incentive/bulk-request");
       const required = new Set(await requiredFieldsForTemplate(key, "default"));
-      return { buffer: Buffer.from(await buildIncentiveEntryTemplate({ roster: roster.map((row) => ({ ...row, employeeCode: row.employeeCode! })), products, required })), contentType: XLSX_CONTENT_TYPE, fileName: def.fileName };
+      return { buffer: await buildIncentiveRequestTemplate(required), contentType: XLSX_CONTENT_TYPE, fileName: def.fileName };
     }
 
     case TEMPLATE_KEYS.jobDescriptions:

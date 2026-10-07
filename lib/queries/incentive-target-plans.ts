@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   employees,
@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { istYmd } from "@/lib/weekly-goals/week";
+import { actualForTargetPeriod } from "@/lib/incentive/target-actual";
 import {
   periodBounds,
   type TargetPeriodType,
@@ -287,19 +288,29 @@ async function materialiseRows(joins: PlanProductJoin[]): Promise<TargetPlanRow[
     periodRanges.set(`${j.periodStart}|${j.periodEnd}`, { start: j.periodStart, end: j.periodEnd });
   }
 
-  // One actual-map per distinct period.
+  // Keep actual maps separate. A subject/product can have multiple target
+  // periods; combining maps would assign January actuals to February targets.
   const subjects = [...subjectById.values()];
-  const actual = new Map<string, number>();
-  for (const { start, end } of periodRanges.values()) {
-    const m = await actualMap(start, end, subjects);
-    for (const [k, v] of m) actual.set(k, (actual.get(k) ?? 0) + v);
-  }
+  const actualByPeriod = new Map<string, Map<string, number>>(
+    await Promise.all(
+      [...periodRanges.entries()].map(async ([rangeKey, range]) => [
+        rangeKey,
+        await actualMap(range.start, range.end, subjects),
+      ] as const),
+    ),
+  );
 
   return joins.map((j) => {
     const sid = j.targetLevel === "user" ? j.employeeId : j.teamOwnerId;
     const key = `${j.targetLevel}:${sid ?? "?"}`;
     const targetAmount = num(j.targetAmount);
-    const actualAmount = actual.get(`${key}|${nameKey(j.productName)}`) ?? 0;
+    const actualAmount = actualForTargetPeriod(
+      actualByPeriod,
+      j.periodStart,
+      j.periodEnd,
+      key,
+      j.productName,
+    );
     const periodLabel =
       periodBounds(j.periodType, j.periodType === "week" ? j.periodStart : periodValue(j.periodType, j.periodStart))?.label ?? j.periodStart;
     return {
@@ -531,6 +542,15 @@ export async function getTargetRows(input: {
   }
 
   const levelCol = f.level === "team" ? incentiveTargetPlans.teamOwnerId : incentiveTargetPlans.employeeId;
+  const today = istYmd(new Date());
+  if (f.status === "Completed") {
+    where.push(lte(incentiveTargetPlans.periodEnd, today));
+  } else if (f.status === "Active") {
+    where.push(lte(incentiveTargetPlans.periodStart, today));
+    where.push(gt(incentiveTargetPlans.periodEnd, today));
+  } else if (f.status === "Upcoming") {
+    where.push(gt(incentiveTargetPlans.periodStart, today));
+  }
   const cond = and(...where);
 
   // Count first (server-side total for pagination).
@@ -572,9 +592,9 @@ export async function getTargetRows(input: {
 
   const materialised = await materialiseRows(rows as unknown as PlanProductJoin[]);
 
-  // Client-visible status filter (derived) and any post-SQL sorts that need the
-  // computed achievement/actual, applied in memory over the page.
-  let out = f.status ? materialised.filter((r) => r.status === f.status) : materialised;
+  // Status already filtered in SQL before count/offset/limit. Only computed
+  // metric sorting remains application-side.
+  let out = materialised;
   if (sortKey && ["achievement", "actualAmount"].includes(sortKey)) {
     out = [...out].sort((a, b) => {
       const av = sortKey === "achievement" ? (a.achievement ?? -1) : a.actualAmount;

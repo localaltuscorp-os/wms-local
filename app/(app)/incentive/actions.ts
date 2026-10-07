@@ -69,6 +69,7 @@ const DecideSchema = z
   .object({
     id: z.string().uuid(),
     action: z.enum(DECISION_ACTIONS),
+    approvedAmount: z.number().finite().positive().optional(),
     // Bounded generously here; the real limit and the "reason required" rule
     // are `checkDecision`'s, so the message is the same one the panel shows.
     note: z.string().max(NOTE_MAX * 2).optional(),
@@ -101,6 +102,7 @@ export async function decideIncentiveRequest(input: {
   id: string;
   action: DecisionAction;
   note?: string;
+  approvedAmount?: number;
 }): Promise<ActionResult<{ newStatus: string }>> {
   const me = await requireUser();
   if (!(await canDecideCompensation(me))) {
@@ -113,6 +115,9 @@ export async function decideIncentiveRequest(input: {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+  if ((parsed.data.action === "approve" || parsed.data.action === "publish") && parsed.data.approvedAmount == null) {
+    return { ok: false, error: "Enter an approved amount greater than zero before finalizing this incentive." };
+  }
 
   let outcome: Awaited<ReturnType<typeof recordIncentiveDecision>>;
   try {
@@ -121,6 +126,7 @@ export async function decideIncentiveRequest(input: {
       action: parsed.data.action,
       note: parsed.data.note ?? null,
       reviewerId: me.id,
+      approvedAmount: parsed.data.approvedAmount ?? null,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

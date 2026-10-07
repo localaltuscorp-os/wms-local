@@ -307,12 +307,16 @@ export function EmployeeMasterTable({
   options,
   canSeePay,
   canDelete,
+  canManageAdmins,
+  canManageMasterAdmin,
   currentUserId,
 }: {
   rows: EmployeeMasterRow[];
   options: MasterOptions;
   canSeePay: boolean;
   canDelete: boolean;
+  canManageAdmins: boolean;
+  canManageMasterAdmin: boolean;
   currentUserId: string;
 }) {
   const [query, setQuery] = React.useState("");
@@ -685,7 +689,7 @@ export function EmployeeMasterTable({
             <Select label="Entity" value={filters.entityId} onChange={(v) => setFilters((f) => ({ ...f, entityId: v }))} options={options.entities} />
             <Select label="Designation" value={filters.designationId} onChange={(v) => setFilters((f) => ({ ...f, designationId: v }))} options={options.designations} />
             {/* The Department record, under its new name. */}
-            <Select label="Function" value={filters.departmentId} onChange={(v) => setFilters((f) => ({ ...f, departmentId: v }))} options={options.departments} />
+            <Select label="Function" value={filters.departmentId} onChange={(v) => setFilters((f) => ({ ...f, departmentId: v }))} options={options.functions} />
             <Select label="Manager" value={filters.managerId} onChange={(v) => setFilters((f) => ({ ...f, managerId: v }))} options={options.managers} />
             {/* The worker-type record, under its new name, with real labels
                 rather than the raw enum values the old filter showed. */}
@@ -866,6 +870,8 @@ export function EmployeeMasterTable({
           options={options}
           canSeePay={canSeePay}
           canDelete={canDelete}
+          canManageAdmins={canManageAdmins}
+          canManageMasterAdmin={canManageMasterAdmin}
           currentUserId={currentUserId}
           onClose={() => setOpenId(null)}
         />

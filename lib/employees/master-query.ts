@@ -1,9 +1,11 @@
 import "server-only";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   departments,
+  capabilityGrants,
+  employeeDepartments,
   designations,
   employeeDocuments,
   employees,
@@ -14,7 +16,7 @@ import {
   salaryProfiles,
   shiftTypes,
 } from "@/db/schema";
-import { isCurrentStaff } from "@/lib/queries/employees";
+import { isCurrentStaff, isStaffAccount } from "@/lib/queries/employees";
 import { codeHistoryFor } from "./code-registry";
 import { resolveEmployeeType, type EmployeeTypeCode } from "./employee-type";
 import { backgroundCheckStatusesAll, type BackgroundCheckStatus } from "@/lib/hr/background-check";
@@ -278,7 +280,14 @@ export interface EmployeeMasterRow {
   personalEmail: string | null;
   phone: string | null;
   whatsapp: string | null;
+  whatsappOptedIn: boolean;
   avatarUrl: string | null;
+  role: "doer" | "initiator" | "both";
+  isAdmin: boolean;
+  isMasterAdmin: boolean;
+  canIssueLetters: boolean;
+  canCoordinateDcc: boolean;
+  departments: { id: string; name: string; isPrimary: boolean }[];
 
   /**
    * The DEAD `employees.function_id` column, kept only because the employee
@@ -394,7 +403,10 @@ export async function loadEmployeeMasterRows(
       personalEmail: employees.personalEmail,
       phone: employees.phone,
       whatsapp: employees.whatsappPhone,
+      whatsappOptedIn: employees.whatsappOptedIn,
       avatarUrl: employees.avatarUrl,
+      role: employees.role,
+      isAdmin: employees.isAdmin,
 
       functionId: employees.functionId,
       entityId: employees.payingEntityId,
@@ -448,8 +460,34 @@ export async function loadEmployeeMasterRows(
     // manager is an employee like any other.
     .leftJoin(sql`employees as mgr`, sql`mgr.id = ${employees.managerId}`)
     .leftJoin(salaryProfiles, eq(salaryProfiles.employeeId, employees.id))
-    .where(isCurrentStaff)
+    .where(isStaffAccount)
     .orderBy(asc(employees.name));
+
+  const employeeIds = rows.map((r) => r.id);
+  const [membershipRows, grantRows] = employeeIds.length === 0
+    ? [[], []] as const
+    : await Promise.all([
+        db.select({ employeeId: employeeDepartments.employeeId, id: departments.id, name: departments.name, isPrimary: employeeDepartments.isPrimary })
+          .from(employeeDepartments)
+          .innerJoin(departments, eq(departments.id, employeeDepartments.departmentId))
+          .where(inArray(employeeDepartments.employeeId, employeeIds))
+          .orderBy(sql`${employeeDepartments.isPrimary} desc`, asc(departments.name)),
+        db.select({ employeeId: capabilityGrants.employeeId, capability: capabilityGrants.capability })
+          .from(capabilityGrants)
+          .where(inArray(capabilityGrants.employeeId, employeeIds)),
+      ]);
+  const departmentsByEmployee = new Map<string, { id: string; name: string; isPrimary: boolean }[]>();
+  for (const m of membershipRows) {
+    const list = departmentsByEmployee.get(m.employeeId) ?? [];
+    list.push({ id: m.id, name: m.name, isPrimary: m.isPrimary });
+    departmentsByEmployee.set(m.employeeId, list);
+  }
+  const grantsByEmployee = new Map<string, Set<string>>();
+  for (const g of grantRows) {
+    const set = grantsByEmployee.get(g.employeeId) ?? new Set<string>();
+    set.add(g.capability);
+    grantsByEmployee.set(g.employeeId, set);
+  }
 
   return rows.map((r) => {
     // ON PROBATION means the date is set AND still ahead of us. A probation end
@@ -467,6 +505,14 @@ export async function loadEmployeeMasterRows(
     const annual = r.annualCtc == null ? null : Number(r.annualCtc);
     return {
       ...r,
+      departments: departmentsByEmployee.get(r.id)?.length
+        ? departmentsByEmployee.get(r.id)!
+        : r.departmentId && r.departmentName
+          ? [{ id: r.departmentId, name: r.departmentName, isPrimary: true }]
+          : [],
+      isMasterAdmin: grantsByEmployee.get(r.id)?.has("master_admin.manage") ?? false,
+      canIssueLetters: grantsByEmployee.get(r.id)?.has("hr.letters.issue") ?? false,
+      canCoordinateDcc: grantsByEmployee.get(r.id)?.has("dcc.coordinator") ?? false,
       monthlyPayAtTarget: r.monthlyPayAtTarget == null ? null : Number(r.monthlyPayAtTarget),
       weeklyTargetHours: r.weeklyTargetHours == null ? null : Number(r.weeklyTargetHours),
       monthlyFee: r.monthlyFee == null ? null : Number(r.monthlyFee),

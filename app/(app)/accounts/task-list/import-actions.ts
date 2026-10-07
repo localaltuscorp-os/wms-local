@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { accountsTaskList, accountsScreenshots } from "@/db/schema";
 import { requireAccountsAccess } from "@/lib/accounts/access";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { addAccountsLookup } from "@/lib/accounts/lookups";
 import { parseAccountsTaskWorkbook } from "@/lib/accounts/task-import";
 
@@ -53,6 +55,10 @@ export async function bulkImportAccountsTasks(
   }
 
   const { tasks, shots } = parsed;
+  const taskRequired = await enforceRequiredRows(TEMPLATE_KEYS.accountsTaskList, "task_list", tasks as unknown as Record<string, unknown>[]);
+  if (!taskRequired.ok && tasks.length > 0) return { ok: false, createdTasks: 0, createdShots: 0, skipped: 0, error: taskRequired.error };
+  const shotRequired = await enforceRequiredRows(TEMPLATE_KEYS.accountsTaskList, "screenshots", shots as unknown as Record<string, unknown>[]);
+  if (!shotRequired.ok && shots.length > 0) return { ok: false, createdTasks: 0, createdShots: 0, skipped: 0, error: shotRequired.error };
   if (tasks.length === 0 && shots.length === 0) {
     return {
       ok: false,

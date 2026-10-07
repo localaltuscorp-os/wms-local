@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, employees } from "@/lib/db";
+import { incentiveNotificationDeliveries } from "@/db/schema";
 import {
   getIncentivePeriodSummaries,
   monthStart,
@@ -67,6 +68,7 @@ async function runIncentiveDigest(request: Request): Promise<NextResponse> {
 
   const now = new Date();
   const { start, end, label } = trailingMonthStart(now);
+  const versionKey = `digest:${start}`;
 
   // Per-name incentive summaries for the trailing month + every active
   // employee. Match the two by normalised name key.
@@ -93,7 +95,23 @@ async function runIncentiveDigest(request: Request): Promise<NextResponse> {
       continue;
     }
 
+    let claim: { id: string } | undefined;
     try {
+      [claim] = await db
+        .insert(incentiveNotificationDeliveries)
+        .values({
+          eventType: "incentive_monthly_digest",
+          subjectId: recipient.id,
+          recipientId: recipient.id,
+          versionKey,
+        })
+        .onConflictDoNothing()
+        .returning({ id: incentiveNotificationDeliveries.id });
+      if (!claim) {
+        skipped++;
+        continue;
+      }
+
       const result = await sendIncentiveMonthlyDigestEmail({
         recipient: { email: recipient.email, name: recipient.name },
         periodLabel: label,
@@ -109,6 +127,9 @@ async function runIncentiveDigest(request: Request): Promise<NextResponse> {
         siteUrl,
       });
       if (result.error) {
+        await db
+          .delete(incentiveNotificationDeliveries)
+          .where(eq(incentiveNotificationDeliveries.id, claim.id));
         console.error(
           `[cron/incentive-digest] send failed for ${recipient.email}:`,
           result.error,
@@ -118,6 +139,14 @@ async function runIncentiveDigest(request: Request): Promise<NextResponse> {
         sent++;
       }
     } catch (err) {
+      if (claim) {
+        await db
+          .delete(incentiveNotificationDeliveries)
+          .where(eq(incentiveNotificationDeliveries.id, claim.id))
+          .catch((releaseError) =>
+            console.error("[cron/incentive-digest] claim release failed", releaseError),
+          );
+      }
       console.error(
         `[cron/incentive-digest] send threw for ${recipient.email}`,
         err,

@@ -6,6 +6,7 @@ import {
   employees,
   designations,
   payingEntities,
+  salaryProfiles,
   candidateIntake,
   onboardingSubmissions,
 } from "@/db/schema";
@@ -41,6 +42,8 @@ export interface LetterRosterEmployee {
   addressBlock: string;
   /** Joining date in the canonical letter format ("25 Jul 2026"), or empty. */
   joiningDate: string;
+  /** Current annual CTC from the admin-maintained salary profile. */
+  annualCtc: number | null;
 }
 
 /**
@@ -93,6 +96,7 @@ export async function loadLetterRoster(): Promise<LetterRosterEmployee[]> {
       department: employees.department,
       designation: designations.name,
       payingEntityName: payingEntities.name,
+      annualCtc: salaryProfiles.annualCtc,
       phone: employees.phone,
       whatsappPhone: employees.whatsappPhone,
       joinedAt: employees.joinedAt,
@@ -103,6 +107,7 @@ export async function loadLetterRoster(): Promise<LetterRosterEmployee[]> {
     .from(employees)
     .leftJoin(designations, eq(designations.id, employees.designationId))
     .leftJoin(payingEntities, eq(payingEntities.id, employees.payingEntityId))
+    .leftJoin(salaryProfiles, eq(salaryProfiles.employeeId, employees.id))
     .leftJoin(onboardingSubmissions, eq(onboardingSubmissions.employeeId, employees.id))
     .where(eq(employees.isActive, true))
     .orderBy(sql`lower(${employees.name})`);
@@ -121,6 +126,7 @@ export async function loadLetterRoster(): Promise<LetterRosterEmployee[]> {
     phone: (r.phone ?? "").trim() || (r.whatsappPhone ?? "").trim(),
     addressBlock: addressBlockFrom(r.onboardingFields),
     joiningDate: r.joinedAt ? formatDateHr(r.joinedAt) : "",
+    annualCtc: r.annualCtc == null ? null : Number(r.annualCtc),
   }));
 }
 

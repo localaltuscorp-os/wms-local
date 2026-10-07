@@ -540,7 +540,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       { href: "/incentive" as Route, label: "My Incentives", Icon: Award, tab: "my" },
       { href: "/incentive" as Route, label: "Requests", Icon: ListChecks, tab: "requests" },
       { href: "/incentive" as Route, label: "Targets", Icon: Target, tab: "targets" },
-      { href: "/incentive" as Route, label: "Entries", Icon: Table2, tab: "entries", adminOnly: true },
+      { href: "/incentive" as Route, label: "Ledger", Icon: Table2, tab: "entries", adminOnly: true },
       { href: "/incentive" as Route, label: "Billing", Icon: IndianRupee, tab: "billing" },
     ],
     groups: [],

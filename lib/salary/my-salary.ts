@@ -208,6 +208,15 @@ export async function loadMySalaryMonths(
   // (paid out, recomputed moments ago) simply leaves the stored run in place.
   await refreshSalaryRun(employeeId, open, now);
 
+  // September 2026 is the first punch/day-value month. When October is open,
+  // a prior September run can be absent even though the employee is eligible;
+  // refresh the missing closed month so My Salary does not silently omit it.
+  const [openYear, openMonth] = open.split("-").map(Number);
+  const previous = `${openMonth === 1 ? openYear - 1 : openYear}-${String(openMonth === 1 ? 12 : openMonth - 1).padStart(2, "0")}`;
+  if (isHoursPayrollMonth(previous)) {
+    await refreshSalaryRun(employeeId, previous, now, { missingOnly: true });
+  }
+
   let months = prioritizeActiveSalaryMonth(await loadStoredMonths(employeeId, hourly), open);
 
   // The active month is first when it exists, so "first" is the month the page

@@ -32,7 +32,7 @@ create index if not exists document_events_actor_created_idx
 create index if not exists document_events_created_idx
   on document_events(created_at desc);
 
--- RLS — admin-read (will surface in the /admin/activity feed later);
+-- RLS — admin-read for audit consumers;
 -- writes happen as the DB owner from server actions, so no insert policy
 -- is exposed to PostgREST.
 alter table document_events enable row level security;

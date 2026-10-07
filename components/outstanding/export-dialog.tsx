@@ -18,6 +18,7 @@ import { exportFilename } from "@/lib/exports/csv";
 import { OUTSTANDING_CYCLE_LABELS, type OutstandingCycle } from "@/db/enums";
 import type { DerivedInstallment } from "@/lib/outstanding/types";
 import type { CollectionDisplayRow } from "@/lib/queries/outstanding";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
 
 function cycleLabel(cycle: string | undefined): string {
   if (!cycle) return "";
@@ -223,7 +224,7 @@ export function OutstandingExportDialog({
                 title="Outstanding Template"
                 hint="26 columns · all fields"
                 onClick={() =>
-                  openRoute("/billing/outstanding/export.xlsx?template=outstanding")
+                  openRoute(templateHref(TEMPLATE_KEYS.outstanding))
                 }
               />
               <FormatCard
@@ -231,7 +232,7 @@ export function OutstandingExportDialog({
                 title="Collection Template"
                 hint="7 columns · payment records"
                 onClick={() =>
-                  openRoute("/billing/outstanding/export.xlsx?template=collection")
+                  openRoute(templateHref(TEMPLATE_KEYS.collections))
                 }
               />
             </div>

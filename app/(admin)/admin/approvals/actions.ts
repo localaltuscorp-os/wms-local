@@ -29,6 +29,7 @@ export async function decideApproval(input: z.infer<typeof Schema>) {
       action: decisionInput.status === "approved" ? "approve" : "not_approve",
       note: decisionInput.note ?? null,
       reviewerId: me.id,
+      approvedAmount: decisionInput.amount,
     });
     if (!decision.ok) return decision;
     afterResponse(() => notifyIncentiveDecision(decision));

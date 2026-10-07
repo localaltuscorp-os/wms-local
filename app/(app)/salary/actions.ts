@@ -205,12 +205,13 @@ export async function generateSalaryAll(
   // Mirror into `salary_breakup` exactly as generateSalary does — the /salary
   // page (and the mobile API) read the breakup, so without this a bulk-generated
   // month would show My Salary one number and Accounts another.
-  if (created > 0) {
-    try {
-      await syncBreakupFromApp(month);
-    } catch (err: unknown) {
-      if (!firstError) firstError = err instanceof Error ? err.message : String(err);
-    }
+  try {
+    // Always mirror, including an all-skipped run. Existing salary_runs may
+    // predate their salary_breakup mirror, which otherwise hides the month in
+    // Accounts Salary even though generation succeeded.
+    await syncBreakupFromApp(month);
+  } catch (err: unknown) {
+    if (!firstError) firstError = err instanceof Error ? err.message : String(err);
   }
 
   revalidatePath(PATH);

@@ -107,6 +107,7 @@ async function LetterEditorLoader({
       phone: r.phone,
       addressBlock: r.addressBlock,
       joiningDate: r.joiningDate,
+      annualCtc: r.annualCtc,
     }));
     candidates = cands.map((c) => ({ id: c.id, name: c.name, gender: c.gender }));
     departments = depts.map((d) => d.name).filter(Boolean);

@@ -11,6 +11,7 @@ import { SalaryProfileImportDialog } from "@/components/admin/salary-profile-imp
 import { EmployeeMasterWorkspaceTabs } from "@/components/admin/employee-master/workspace-tabs";
 import { ReportingHierarchy } from "@/components/admin/reporting-hierarchy";
 import { getHierarchy } from "@/lib/queries/hierarchy";
+import { InviteEmployeeDialog } from "@/components/admin/invite-employee-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,16 @@ export default async function EmployeeMasterPage() {
       title="Employee Master"
       subtitle="Employee records, payroll and reporting."
       icon={Users}
-      actions={<SalaryProfileImportDialog />}
+      actions={
+        <>
+          <SalaryProfileImportDialog />
+          <InviteEmployeeDialog
+            departmentOptions={options.functions.map((f) => ({ id: f.id, name: f.name }))}
+            designationOptions={options.designations}
+            canManageAdmins={me.isAdmin}
+          />
+        </>
+      }
     >
       <EmployeeMasterWorkspaceTabs
         employeeMaster={
@@ -73,6 +83,8 @@ export default async function EmployeeMasterPage() {
             options={options}
             canSeePay={canSeePay}
             canDelete={isSuperAdmin(me.email)}
+            canManageAdmins={me.isAdmin}
+            canManageMasterAdmin={isSuperAdmin(me.email)}
             currentUserId={me.id}
           />
         }

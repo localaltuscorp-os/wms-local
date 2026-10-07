@@ -33,12 +33,20 @@ export function isRosterOnlyPath(pathname: string): boolean {
   return ROSTER_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export function adminNavFor(rosterOnly: boolean, hierarchyOnly = false): {
+export function adminNavFor(rosterOnly: boolean, hierarchyOnly = false, canSeeModuleBackups = true): {
   topLevel: readonly AdminNavItem[];
   groups: readonly AdminNavGroup[];
 } {
   if (hierarchyOnly) return { topLevel: [], groups: HIERARCHY_ONLY_NAV };
-  if (!rosterOnly) return { topLevel: ADMIN_TOP_LEVEL, groups: ADMIN_GROUPS };
+  if (!rosterOnly) {
+    const groups = canSeeModuleBackups
+      ? ADMIN_GROUPS
+      : ADMIN_GROUPS.map((group) => ({
+          ...group,
+          items: group.items.filter((item) => item.href !== "/admin/module-backups"),
+        })).filter((group) => group.items.length > 0);
+    return { topLevel: ADMIN_TOP_LEVEL, groups };
+  }
   return {
     topLevel: [],
     groups: ROSTER_ONLY_NAV,

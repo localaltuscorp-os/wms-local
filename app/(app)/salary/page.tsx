@@ -5,6 +5,10 @@ import { DashboardHeader } from "@/components/layout/header";
 import { requireFinanceAccess } from "@/lib/auth/finance-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { salaryBreakupMonths, listSalaryBreakup } from "@/lib/queries/salary-breakup";
+import { listRunsForMonth } from "@/lib/queries/salary";
+import { isHoursPayrollMonth } from "@/lib/attendance/payroll-month";
+import { refreshSalaryMonth } from "@/lib/salary/refresh-run";
+import { syncBreakupFromApp } from "@/lib/salary/breakup-from-app";
 import { SalaryBreakupTable, type SalaryRow } from "@/components/salary/salary-breakup-table";
 import { SalaryPeriodSelect } from "@/components/salary/salary-period-select";
 import { SalaryEntitySelect } from "@/components/salary/salary-entity-select";
@@ -62,8 +66,26 @@ export default async function SalaryPage({ searchParams }: PageProps) {
   const nowYm = new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 7);
   const defaultMonth = nowYm;
   const month = raw && MONTH_RE.test(raw) ? raw : defaultMonth;
-  const selectableMonths = months.includes(nowYm) ? months : [nowYm, ...months];
-  const allRows = month ? await listSalaryBreakup(month) : [];
+  const [nowYear, nowMonth] = nowYm.split("-").map(Number);
+  const previousMonth = `${nowMonth === 1 ? nowYear - 1 : nowYear}-${String(nowMonth === 1 ? 12 : nowMonth - 1).padStart(2, "0")}`;
+  const selectableMonths = [
+    ...new Set([
+      ...(months.includes(nowYm) ? months : [nowYm, ...months]),
+      ...(isHoursPayrollMonth(previousMonth) ? [previousMonth] : []),
+    ]),
+  ];
+  let allRows = month ? await listSalaryBreakup(month) : [];
+  if (month && isHoursPayrollMonth(month)) {
+    // Keep Accounts Salary backed by the same canonical Sep+ run. Older bulk
+    // generation could leave salary_runs without its salary_breakup mirror;
+    // repair that mismatch before rendering, without changing pay formulas.
+    const runs = await listRunsForMonth(month);
+    if (runs.length !== allRows.length) {
+      if (runs.length === 0) await refreshSalaryMonth(month, new Date());
+      await syncBreakupFromApp(month);
+      allRows = await listSalaryBreakup(month);
+    }
+  }
 
   // ENTITY SCOPE, resolved server-side from `?entity=`. It used to be a
   // `useState` inside the workspace, under the header; the brief moves the

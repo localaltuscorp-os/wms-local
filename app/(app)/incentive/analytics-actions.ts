@@ -21,6 +21,8 @@ import {
 } from "@/lib/incentive/analytics/periods";
 import { ANALYTICS_VIEWS, type IncentiveAnalytics } from "@/lib/incentive/analytics/model";
 import { loadIncentiveAnalytics } from "@/lib/queries/incentive-analytics";
+import { effectiveIncentiveTarget } from "@/lib/incentive/target-calculation";
+import { getProfile } from "@/lib/queries/salary";
 
 /**
  * INCENTIVE DASHBOARD — server actions.
@@ -120,7 +122,8 @@ const TargetInput = z
       .number({ message: "Enter the target amount." })
       .finite("Enter the target amount.")
       .positive("A target must be more than ₹0.")
-      .max(1_000_000_000, "That target is too large."),
+      .max(1_000_000_000, "That target is too large.")
+      .optional(),
   })
   .strict();
 
@@ -139,7 +142,7 @@ const TargetInput = z
  */
 export async function setMyIncentiveTarget(input: {
   month: string;
-  amount: number;
+  amount?: number;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await requireUser();
   if (!(await canViewModule(MODULE))) {
@@ -182,13 +185,18 @@ export async function setMyIncentiveTarget(input: {
     .limit(1);
   if (existing.length > 0) return alreadySet;
 
+  const profile = amount == null ? await getProfile(me.id) : null;
+  const monthlySalary = profile ? profile.annualCtc / 12 : 0;
+  const targetAmount = effectiveIncentiveTarget(monthlySalary, "month", amount);
+  if (targetAmount <= 0) return { ok: false, error: "No monthly salary on record for a default target." };
+
   const inserted = await db
     .insert(incentiveTargets)
     .values({
       empName: me.name.trim(),
       employeeId: me.id,
       periodMonth,
-      targetAmount: amount.toFixed(2),
+      targetAmount: targetAmount.toFixed(2),
       note: "Entered by the employee from the Incentive Dashboard",
     })
     .onConflictDoNothing()
@@ -222,7 +230,8 @@ const SelfPeriodTargetInput = z
       .number({ message: "Enter the target amount." })
       .finite("Enter the target amount.")
       .positive("A target must be more than ₹0.")
-      .max(1_000_000_000, "That target is too large."),
+      .max(1_000_000_000, "That target is too large.")
+      .optional(),
   })
   .strict();
 
@@ -322,6 +331,12 @@ export async function setMyIncentivePeriodTarget(
     .limit(1);
   if (existing.length > 0) return alreadySet;
 
+  const profile = amount == null ? await getProfile(me.id) : null;
+  const monthlySalary = profile ? profile.annualCtc / 12 : 0;
+  const targetPeriod = kind === "year" ? "year" : kind === "quarter" ? "quarter" : "month";
+  const targetAmount = effectiveIncentiveTarget(monthlySalary, targetPeriod, amount);
+  if (targetAmount <= 0) return { ok: false, error: "No monthly salary on record for a default target." };
+
   const inserted = await db
     .insert(incentiveTargets)
     .values({
@@ -329,7 +344,7 @@ export async function setMyIncentivePeriodTarget(
       employeeId: me.id,
       periodMonth,
       periodType,
-      targetAmount: amount.toFixed(2),
+      targetAmount: targetAmount.toFixed(2),
       note: "Entered by the employee from the Incentive Dashboard",
     })
     .onConflictDoNothing()

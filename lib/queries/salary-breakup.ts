@@ -1,6 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { db, salaryBreakup, employees } from "@/lib/db";
+import { db, salaryBreakup, salaryRuns, employees } from "@/lib/db";
 import { withRetry } from "@/lib/db/with-timeout";
 import type { SalaryBreakup } from "@/db/schema";
 
@@ -29,16 +29,18 @@ const RETRY = { attempts: 3, timeoutMs: [6000, 10000, 14000] as number[] };
 
 /** Distinct salary months present in the imported sheet, newest first ('YYYY-MM'). */
 export async function salaryBreakupMonths(): Promise<string[]> {
-  const rows = await withRetry(
+  const [breakupRows, runRows] = await withRetry(
     () =>
-      db
-        .select({ ym: sql<string>`to_char(${salaryBreakup.month}, 'YYYY-MM')` })
-        .from(salaryBreakup)
-        .groupBy(sql`to_char(${salaryBreakup.month}, 'YYYY-MM')`)
-        .orderBy(desc(sql`to_char(${salaryBreakup.month}, 'YYYY-MM')`)),
+      Promise.all([
+        db
+          .select({ ym: sql<string>`to_char(${salaryBreakup.month}, 'YYYY-MM')` })
+          .from(salaryBreakup)
+          .groupBy(sql`to_char(${salaryBreakup.month}, 'YYYY-MM')`),
+        db.select({ ym: salaryRuns.month }).from(salaryRuns).groupBy(salaryRuns.month),
+      ]),
     { ...RETRY, label: "salary-breakup-months" },
   );
-  return rows.map((r) => r.ym);
+  return [...new Set([...breakupRows, ...runRows].map((r) => r.ym))].sort().reverse();
 }
 
 /**

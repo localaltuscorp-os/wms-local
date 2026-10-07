@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { employees, incentiveEntries, incentiveParticipants, incentiveTargets } from "@/db/schema";
+import {
+  employees,
+  incentiveEntries,
+  incentivePayoutEvents,
+  incentiveParticipants,
+  incentiveTargets,
+  salaryPayments,
+} from "@/db/schema";
 import { requireAdmin, requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import {
@@ -27,6 +34,7 @@ import { visibleNameKeysFor } from "@/lib/incentive/analytics/visible-names";
 import { nameKey } from "@/lib/incentive/payout-sources";
 import { listActiveProductNames } from "@/lib/queries/products";
 import { resolveEmployeeReference } from "@/lib/employees/resolver";
+import { canDeleteIncentiveEntry } from "@/lib/incentive/entry-deletion";
 
 type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -99,7 +107,8 @@ export async function createIncentiveEntry(
   const me = await requireAdmin();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return limited;
-
+  return { ok: false, error: "Direct incentive entry creation is retired. Submit a New Incentive Request." };
+  /* Legacy implementation retained below for historical source compatibility.
   const parsed = CreateEntrySchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -133,6 +142,7 @@ export async function createIncentiveEntry(
 
   revalidatePath("/incentive");
   return { ok: true, id: row!.id };
+  */
 }
 
 /** Update one incentive_entries row. Admin-only. */
@@ -235,7 +245,66 @@ export async function deleteIncentiveEntry(
   const id = z.string().uuid().safeParse(input.id);
   if (!id.success) return { ok: false, error: "Invalid id" };
 
-  await db.delete(incentiveEntries).where(eq(incentiveEntries.id, id.data));
+  const result = await db.transaction(async (tx) => {
+    const [entry] = await tx
+      .select({
+        approved: incentiveEntries.approved,
+        paid: incentiveEntries.paid,
+        approvedAmt: incentiveEntries.approvedAmt,
+        paidAmt: incentiveEntries.paidAmt,
+        reversed: incentiveEntries.reversed,
+        incentiveRequestId: incentiveEntries.incentiveRequestId,
+        payoutRunId: incentiveEntries.payoutRunId,
+      })
+      .from(incentiveEntries)
+      .where(eq(incentiveEntries.id, id.data))
+      .for("update");
+
+    if (!entry) return { ok: false as const, error: "Incentive entry not found." };
+
+    const [paymentHistory, payoutHistory] = await Promise.all([
+      tx
+        .select({ id: salaryPayments.id })
+        .from(salaryPayments)
+        .where(eq(salaryPayments.incentiveEntryId, id.data))
+        .limit(1),
+      tx
+        .select({ id: incentivePayoutEvents.id })
+        .from(incentivePayoutEvents)
+        .where(
+          and(
+            eq(incentivePayoutEvents.source, "entry"),
+            eq(incentivePayoutEvents.sourceId, id.data),
+          ),
+        )
+        .limit(1),
+    ]);
+
+    if (
+      !canDeleteIncentiveEntry(
+        {
+          approved: entry.approved,
+          paid: entry.paid,
+          approvedAmount: Number(entry.approvedAmt),
+          paidAmount: Number(entry.paidAmt),
+          reversed: entry.reversed,
+          incentiveRequestId: entry.incentiveRequestId,
+          payoutRunId: entry.payoutRunId,
+        },
+        paymentHistory.length > 0,
+        payoutHistory.length > 0,
+      )
+    ) {
+      return {
+        ok: false as const,
+        error: "Committed incentive entries cannot be deleted. Reverse or archive the entry instead.",
+      };
+    }
+
+    await tx.delete(incentiveEntries).where(eq(incentiveEntries.id, id.data));
+    return { ok: true as const };
+  });
+  if (!result.ok) return result;
   revalidatePath("/incentive");
   return { ok: true };
 }
@@ -506,13 +575,14 @@ async function readImport(formData: FormData): Promise<ImportRead> {
 /** Parse every row and return every issue. This action writes nothing. */
 export async function validateIncentiveEntriesImport(formData: FormData): Promise<BulkUploadResult> {
   await requireAdmin();
-  const read = await readImport(formData);
+  return { ok: false, created: 0, skipped: 0, error: "Incentive Entries upload is retired. Submit a New Incentive Request." };
+  /* const read = await readImport(formData);
   if (!read.ok) return { ok: false, created: 0, skipped: 0, error: read.error };
   const parsed = read.parsed;
   if (parsed.fatal) return { ok: false, created: 0, skipped: parsed.skipped, error: parsed.fatal };
   if (parsed.issues.length) return { ok: false, created: 0, skipped: parsed.skipped, issues: parsed.issues, error: "Fix every invalid row before import." };
   if (!parsed.rows.length) return { ok: false, created: 0, skipped: parsed.skipped, error: "No usable rows found." };
-  return { ok: true, created: parsed.rows.length, skipped: parsed.skipped };
+  return { ok: true, created: parsed.rows.length, skipped: parsed.skipped }; */
 }
 
 /** Re-validate then insert all rows in one transaction after user confirmation. */
@@ -520,7 +590,8 @@ export async function confirmIncentiveEntriesImport(formData: FormData): Promise
   const me = await requireAdmin();
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, created: 0, skipped: 0, error: limited.error };
-  const read = await readImport(formData);
+  return { ok: false, created: 0, skipped: 0, error: "Incentive Entries upload is retired. Submit a New Incentive Request." };
+  /* const read = await readImport(formData);
   if (!read.ok) return { ok: false, created: 0, skipped: 0, error: read.error };
   const parsed = read.parsed;
   if (parsed.fatal) return { ok: false, created: 0, skipped: parsed.skipped, error: parsed.fatal };
@@ -551,7 +622,7 @@ export async function confirmIncentiveEntriesImport(formData: FormData): Promise
     return { ok: false, created: 0, skipped: parsed.skipped, error: error instanceof Error ? error.message : "Import failed." };
   }
   revalidatePath("/incentive");
-  return { ok: true, created: values.length, skipped: parsed.skipped };
+  return { ok: true, created: values.length, skipped: parsed.skipped; */
 }
 
 /** Legacy call shape retained for integrations; browser flow uses validation then confirmation. */

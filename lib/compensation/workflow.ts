@@ -258,6 +258,7 @@ export async function compensationApprovalIsPayable(kind: ApprovalKind, subjectI
 }
 
 export async function markCompensationPaid(input: { kind: ApprovalKind; subjectId: string; actorId: string }): Promise<{ ok: true; row: ApprovalRow } | { ok: false; error: string }> {
+  if (input.kind === "incentive") return { ok: false, error: "Incentives are paid from the Incentive Payout salary flow." };
   if (!(await isCompensationApprovalWorkflowReady())) return { ok: false, error: "Approvals are in setup mode. Install the compensation approval database migration before recording a payment." };
   const rows = await listCompensationApprovals(input.kind);
   const row = rows.find((candidate) => candidate.subjectId === input.subjectId);

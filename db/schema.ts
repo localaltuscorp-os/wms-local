@@ -4940,6 +4940,10 @@ export const incentiveEntries = pgTable(
     employeeId: uuid("employee_id").references(() => employees.id, {
       onDelete: "set null",
     }),
+    /** Set when this ledger row is finalized from the New Incentive Request workflow. */
+    incentiveRequestId: uuid("incentive_request_id").references(() => incentiveRequests.id, {
+      onDelete: "set null",
+    }),
     participantName: text("participant_name"),
     prospectGroupName: text("prospect_group_name"),
     amount: numeric("amount", { precision: 14, scale: 2 })
@@ -4989,6 +4993,7 @@ export const incentiveEntries = pgTable(
     index("incentive_entries_period_idx").on(t.periodMonth),
     index("incentive_entries_employee_idx").on(t.employeeId),
     index("incentive_entries_reversed_idx").on(t.reversed),
+    uniqueIndex("incentive_entries_request_uq").on(t.incentiveRequestId),
   ],
 );
 

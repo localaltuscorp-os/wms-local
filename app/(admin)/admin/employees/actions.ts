@@ -1630,7 +1630,7 @@ export async function deleteEmployee(
   }
 
   // 7. Audit the erasure itself under the deleting admin's actor_id. Scoped
-  //    to "employees" + the deleted id so /admin/activity can surface it
+  //    to "employees" + the deleted id for the audit log
   //    alongside other employee-scoped events.
   try {
     await db.insert(settingsEvents).values({

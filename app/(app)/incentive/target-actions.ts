@@ -29,6 +29,7 @@ import {
   type TargetPeriodType,
 } from "@/lib/incentive/target-period";
 import { getProfile } from "@/lib/queries/salary";
+import { effectiveIncentiveTarget, periodTargetBase } from "@/lib/incentive/target-calculation";
 
 const MODULE = "employees.incentive";
 
@@ -222,7 +223,8 @@ export async function createTargetPlan(
   }
   const totalAmount = okLines.reduce((s, l) => s + l.targetAmount, 0);
 
-  // 10% of monthly CTC — user vs team basis.
+  // Monthly base target = 10% of monthly salary. Periods scale that base;
+  // entered product total is the user-defined stretched target.
   let monthlyCtc = 0;
   if (v.targetLevel === "user") {
     const profile = await getProfile(v.subjectId);
@@ -234,8 +236,10 @@ export async function createTargetPlan(
   if (monthlyCtc <= 0) {
     return { ok: false, error: "No CTC on record for this team or user — a target cannot be validated without it." };
   }
-  const minRequired = monthlyCtc * 0.1;
-  if (totalAmount < minRequired) {
+  const targetPeriod = v.periodType === "week" ? "month" : v.periodType;
+  const minRequired = periodTargetBase(monthlyCtc, targetPeriod);
+  const stretchedTarget = effectiveIncentiveTarget(monthlyCtc, targetPeriod, totalAmount);
+  if (stretchedTarget < minRequired) {
     return {
       ok: false,
       error: `Target does not meet the minimum requirement. Minimum required target: Rs. ${Math.round(minRequired).toLocaleString("en-IN")}. Current target: Rs. ${Math.round(totalAmount).toLocaleString("en-IN")}.`,

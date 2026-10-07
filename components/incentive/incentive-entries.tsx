@@ -3,21 +3,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Loader2, Mic, Pencil, Plus, Table2, Trash2, Undo2, Users } from "lucide-react";
+import { Check, Loader2, Mic, Pencil, Table2, Trash2, Undo2, Users } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
 import { formatInr } from "@/lib/format";
 import type { IncentiveEntryAdminRow } from "@/lib/queries/incentives";
 import type { EmployeeOption } from "@/lib/queries/employees";
-import {
-  createIncentiveEntry,
-  updateIncentiveEntry,
-  deleteIncentiveEntry,
-} from "@/app/(app)/incentive/admin-actions";
+import { updateIncentiveEntry, deleteIncentiveEntry } from "@/app/(app)/incentive/admin-actions";
 import { reverseIncentiveEntry } from "@/app/(app)/incentive/reversal-actions";
 import { fireToast } from "@/lib/toast";
-import { IncentiveImportDialog } from "./incentive-import-dialog";
 import { ConfirmDialog } from "./ui/confirm-dialog";
 import { IncentiveBadge } from "./ui/badges";
 import { IncentiveEmptyState } from "./ui/states";
@@ -25,13 +20,14 @@ import { INCENTIVE_BTN_NEUTRAL, INCENTIVE_BTN_PRIMARY } from "./ui/chrome";
 import { useDictation } from "@/components/ui/use-dictation";
 import { IncentiveEntrySplitDialog } from "./incentive-entry-split-dialog";
 
-type Mode = { kind: "create" } | { kind: "edit"; row: IncentiveEntryAdminRow } | null;
+type Mode = { kind: "edit"; row: IncentiveEntryAdminRow } | null;
 
 /**
- * THE INCENTIVE LEDGER (admin).
+ * THE HISTORICAL INCENTIVE LEDGER (admin).
  *
- * The same rows, the same three actions and the same server actions as before.
- * What changed is that a whole year of entries is no longer one unbounded
+ * The same historical rows and payout-compatible management actions remain.
+ * New ledger rows are created only by finalized requests; this view is no longer
+ * an entry point for direct creation or spreadsheet imports. A whole year is no longer
  * `<tbody>` with no search: it is the shared `DataTable`, so it has search,
  * month / incentive / approved / paid filters, sortable columns and paging —
  * and a note that used to be invisible here now shows in the row's detail.
@@ -190,13 +186,6 @@ export function IncentiveEntries({
         <span className="text-[12.5px] font-semibold text-ink-subtle tabular-nums">
           {rows.length} entr{rows.length === 1 ? "y" : "ies"} · {year}
         </span>
-        <div className="ml-auto flex items-center gap-2">
-          <IncentiveImportDialog />
-          <button type="button" onClick={() => setMode({ kind: "create" })} className={INCENTIVE_BTN_PRIMARY}>
-            <Plus size={14} strokeWidth={2.8} />
-            Add entry
-          </button>
-        </div>
       </div>
 
       <DataTable
@@ -314,7 +303,7 @@ export function IncentiveEntries({
           <IncentiveEmptyState
             icon={Table2}
             title={`No incentive entries in ${year}`}
-            body="Add one with the button above, or import a sheet to bring a whole month in at once."
+            body="Approved New Incentive Requests appear here after finalization."
           />
         }
       />
@@ -455,14 +444,13 @@ function EntryDialog({
       note: note.trim() || null,
     };
     startTransition(async () => {
-      const res = editing
-        ? await updateIncentiveEntry({ id: editing.id, ...payload })
-        : await createIncentiveEntry(payload);
+      if (!editing) return;
+      const res = await updateIncentiveEntry({ id: editing.id, ...payload });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
       }
-      fireToast({ message: editing ? "Entry updated." : "Entry created." });
+      fireToast({ message: "Entry updated." });
       router.refresh();
       onClose();
     });
@@ -485,7 +473,7 @@ function EntryDialog({
           style={{ boxShadow: "0 24px 60px -16px rgba(15,23,42,0.40)" }}
         >
           <Dialog.Title className="text-[16px] font-bold text-ink-strong">
-            {editing ? "Edit incentive entry" : "Add incentive entry"}
+            Edit historical incentive entry
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-[13px] font-medium text-ink-muted">
             Select either roster field. Both fields resolve to one current Employee Master record.

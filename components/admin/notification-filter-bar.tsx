@@ -43,8 +43,8 @@ interface Props {
 
 /**
  * Sticky filter bar for /admin/notifications.  Visual + behavioural twin of
- * {@link components/admin/activity-filter-bar.tsx} — same glass header,
- * same chip vocabulary, same Reset / Apply buttons — but wired to the
+ * Uses same glass header, chip vocabulary, Reset and Apply buttons as other
+ * admin filters, but wires to notification-specific params:
  * notification-specific params:
  *  - ?kind=<NotificationKind>,...
  *  - ?to=<userId>,...        (recipient filter; reuses inbox cursor name)

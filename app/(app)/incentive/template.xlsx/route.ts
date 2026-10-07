@@ -1,6 +1,7 @@
 import { apiViewDenial } from "@/lib/permissions/api-guard";
 import { requireAdmin } from "@/lib/auth/current";
-import { buildIncentiveRequestTemplate } from "@/lib/incentive/bulk-request";
+import { templateResponse } from "@/lib/templates/download";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,12 +26,5 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
-  const workbook = await buildIncentiveRequestTemplate();
-  return new Response(new Uint8Array(workbook), {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": 'attachment; filename="Incentive-Requests-Import-Template.xlsx"',
-      "Cache-Control": "no-store",
-    },
-  });
+  return templateResponse(TEMPLATE_KEYS.incentiveEntries);
 }

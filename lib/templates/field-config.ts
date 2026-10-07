@@ -39,3 +39,32 @@ export async function requiredFieldsForTemplate(
 export function requiredHeader(label: string, field: string, required: ReadonlySet<string>): string {
   return required.has(field) ? `${label} *` : label;
 }
+
+export async function enforceRequiredRows(
+  key: string,
+  variant: string,
+  rows: readonly Record<string, unknown>[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const required = await requiredFieldsForTemplate(key, variant);
+  const aliases: Record<string, string[]> = {
+    employee: ["employeeId", "ownerEmployeeId", "employee"],
+    compliance: ["title", "compliance"],
+    frequency: ["mccFrequency", "wccMode"],
+    day1: ["mccDays", "monthDay"],
+    task: ["title", "task"],
+    subject: ["subject", "category"],
+  };
+  const hasValue = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.length > 0;
+    return value !== undefined && value !== null && String(value).trim() !== "";
+  };
+  for (const [index, row] of rows.entries()) {
+    for (const field of required) {
+      const value = [field, ...(aliases[field] ?? [])].map((name) => row[name]).find(hasValue);
+      if (!hasValue(value)) {
+        return { ok: false, error: `Row ${index + 1}: ${field} is required.` };
+      }
+    }
+  }
+  return { ok: true };
+}

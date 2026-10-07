@@ -7,6 +7,8 @@ import { afterResponse } from "@/lib/after";
 import { notifyCompensationApproversOfPendingApproval } from "@/lib/compensation/workflow";
 import { db } from "@/lib/db";
 import { fileIncentiveRequest } from "@/lib/incentive/workflow-server";
+import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import {
   existingRequestKeys,
   parseAndPrepareBulkRequests,
@@ -27,7 +29,8 @@ async function parse(formData: FormData) {
   const file = formData.get("file");
   if (!(file instanceof File)) return { ok: false as const, error: "No .xlsx file uploaded." };
   try {
-    return { ok: true as const, parsed: await parseAndPrepareBulkRequests(file) };
+    const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.incentiveEntries, "default"));
+    return { ok: true as const, parsed: await parseAndPrepareBulkRequests(file, required) };
   } catch (error) {
     return { ok: false as const, error: error instanceof Error ? error.message : "Workbook could not be read." };
   }

@@ -9,6 +9,7 @@ type Props = {
   avatarUrl: string | null;
   /** Super-admins also get the "Accounts" section pill in the admin header. */
   canSeeAccounts: boolean;
+  canSeeModuleBackups: boolean;
   /** Not an admin — only here for the Subjects and Clients lists. */
   rosterOnly?: boolean;
   hierarchyOnly?: boolean;
@@ -26,6 +27,7 @@ export async function AdminShell({
   adminEmail,
   avatarUrl,
   canSeeAccounts,
+  canSeeModuleBackups,
   rosterOnly = false,
   hierarchyOnly = false,
 }: Props) {
@@ -37,10 +39,10 @@ export async function AdminShell({
   return (
     <div className="min-h-screen">
       {/* Phone-only top bar + drawer (unchanged) */}
-      <AdminMobileBar adminName={adminName} adminEmail={adminEmail} backHref={backHref} canSeeAccounts={canSeeAccounts} rosterOnly={rosterOnly} hierarchyOnly={hierarchyOnly} />
+      <AdminMobileBar adminName={adminName} adminEmail={adminEmail} backHref={backHref} canSeeAccounts={canSeeAccounts} canSeeModuleBackups={canSeeModuleBackups} rosterOnly={rosterOnly} hierarchyOnly={hierarchyOnly} />
       {/* Desktop: left rail + main column */}
       <div className="flex min-h-screen">
-        <AdminSidebar adminName={adminName} adminEmail={adminEmail} avatarUrl={avatarUrl} backHref={backHref} rosterOnly={rosterOnly} hierarchyOnly={hierarchyOnly} />
+        <AdminSidebar adminName={adminName} adminEmail={adminEmail} avatarUrl={avatarUrl} backHref={backHref} canSeeModuleBackups={canSeeModuleBackups} rosterOnly={rosterOnly} hierarchyOnly={hierarchyOnly} />
         {/* Matches COMMAND_PAGE_CLASS's rhythm (pt-6 pb-8) so the admin room
             sits at the same vertical scale as every other module now that it
             shares their header. */}

@@ -13,6 +13,8 @@ import {
 import { requireUser } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { canEditPastDccEntries } from "@/lib/security/capabilities";
 import {
   loadDccScope,
@@ -1194,6 +1196,8 @@ export async function bulkAddCompliances(
     };
   }
   const { kind, rows, dryRun } = parsed.data;
+  const required = await enforceRequiredRows(kind === "wcc" ? TEMPLATE_KEYS.wcc : TEMPLATE_KEYS.mcc, "default", rows as unknown as Record<string, unknown>[]);
+  if (!required.ok) return required;
   const checklist = kind.toUpperCase();
 
   const ownerIds = [...new Set(rows.map((r) => r.ownerEmployeeId))];

@@ -15,6 +15,8 @@ import {
   syncEmployeeCode,
   type CodeSyncOutcome,
 } from "@/app/(admin)/admin/employee-master/actions";
+import { updateEmployeeAttendanceSchedule } from "@/app/(admin)/admin/employees/actions";
+import { DepartmentMultiSelect } from "@/components/admin/department-multi-select";
 import { CodePanel } from "./code-panel";
 import {
   EMPLOYEE_KIND_OPTIONS,
@@ -22,6 +24,8 @@ import {
 } from "@/lib/employees/employee-type";
 import {
   asWorkerType,
+  isHalfDayShift,
+  isHourlyShift,
   payBasisFor,
   EMPLOYEE_TYPE_OPTIONS,
   WORKER_TYPE_LABELS,
@@ -92,13 +96,12 @@ import { probationEndAfterDays } from "@/lib/employees/probation";
  *     onboarding submission.
  */
 type SectionKey =
-  | "overview" | "payroll" | "contact" | "documents" | "work" | "other";
+  | "overview" | "payroll" | "contact" | "work" | "other";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "payroll", label: "Payroll" },
   { key: "contact", label: "Contact Details" },
-  { key: "documents", label: "Documents" },
   { key: "work", label: "Work & Attendance" },
   // OTHER (0228) — the employee-level schedule settings. It sits after Work &
   // Attendance rather than inside it because that section is deliberately
@@ -113,6 +116,13 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
 interface Draft {
   name?: string;
   functionId?: string | null;
+  role?: "doer" | "initiator" | "both";
+  departmentIds?: string[];
+  primaryDepartmentId?: string | null;
+  isAdmin?: boolean;
+  isMasterAdmin?: boolean;
+  canIssueLetters?: boolean;
+  canCoordinateDcc?: boolean;
   shiftTypeId?: string | null;
   /**
    * The value the UI now labels SHIFT TYPE.
@@ -139,6 +149,15 @@ interface Draft {
   officialEmail?: string | null;
   personalEmail?: string | null;
   phone?: string | null;
+  whatsappPhone?: string | null;
+  whatsappOptedIn?: boolean;
+  dailyTaskQuota?: number | null;
+  weeklyOff?: number;
+  attLateAfter?: string | null;
+  attEarlyBefore?: string | null;
+  attFullDayMinutes?: number | null;
+  attHalfDayMinutes?: number | null;
+  weeklyTargetMinutes?: number | null;
   // ── Employee schedule settings (0228), the "Other" section ──────────────
   // They ride the SAME draft and the same `editEmployee` call as everything
   // else, which is what keeps one write path per fact. A key only appears here
@@ -165,6 +184,8 @@ export function EmployeeWorkspace({
   options,
   canSeePay,
   canDelete,
+  canManageAdmins,
+  canManageMasterAdmin,
   currentUserId,
   onClose,
 }: {
@@ -172,6 +193,8 @@ export function EmployeeWorkspace({
   options: MasterOptions;
   canSeePay: boolean;
   canDelete: boolean;
+  canManageAdmins: boolean;
+  canManageMasterAdmin: boolean;
   currentUserId: string;
   onClose: () => void;
 }) {
@@ -223,9 +246,12 @@ export function EmployeeWorkspace({
   function set<K extends keyof Draft>(key: K, value: Draft[K], original: Draft[K]) {
     setDraft((prev) => {
       const next = { ...prev };
+      const sameArray = Array.isArray(value) && Array.isArray(original)
+        && value.length === original.length
+        && value.every((item, index) => item === original[index]);
       // Returning a field to its loaded value REMOVES it from the patch, so a
       // change-and-change-back sends nothing at all.
-      if (value === original) delete next[key];
+      if (value === original || sameArray) delete next[key];
       else next[key] = value;
       return next;
     });
@@ -239,12 +265,65 @@ export function EmployeeWorkspace({
     // BEFORE the draft is cleared.
     const touchedCode =
       "payingEntityId" in draft || "designationId" in draft;
-    const res = await editEmployee(employeeId, draft);
-    setSaving(false);
-    if (!res.ok) {
-      setMessage({ tone: "err", text: res.error ?? "Could not save." });
-      return;
+    const {
+      workerType,
+      weeklyOff,
+      attLateAfter,
+      attEarlyBefore,
+      attOfficialStart,
+      attOfficialEnd,
+      attFullDayMinutes,
+      attHalfDayMinutes,
+      weeklyTargetMinutes,
+      ...employeePatch
+    } = draft;
+    const scheduleTouched = [
+      "workerType", "weeklyOff", "attOfficialStart", "attLateAfter",
+      "attOfficialEnd", "attEarlyBefore",
+      "attFullDayMinutes", "attHalfDayMinutes", "weeklyTargetMinutes",
+    ].some((key) => key in draft);
+    if (Object.keys(employeePatch).length > 0) {
+      const normalizedEmployeePatch = {
+        ...employeePatch,
+        dailyTaskQuota: employeePatch.dailyTaskQuota == null ? undefined : employeePatch.dailyTaskQuota,
+      } as Parameters<typeof editEmployee>[1];
+      const res = await editEmployee(employeeId, normalizedEmployeePatch);
+      if (!res.ok) {
+        setSaving(false);
+        setMessage({ tone: "err", text: res.error ?? "Could not save." });
+        return;
+      }
     }
+    if (scheduleTouched) {
+      const nextWorkerType = workerType ?? asWorkerType(detail.row.workerType) ?? "full_time";
+      const res = await updateEmployeeAttendanceSchedule({
+        employeeId,
+        weeklyOff: weeklyOff ?? detail.work.weeklyOff ?? 0,
+        attOfficialStart: attOfficialStart === undefined ? hhmm(detail.work.officialStart) : attOfficialStart,
+        attLateAfter: attLateAfter === undefined ? hhmm(detail.work.lateAfter) : attLateAfter,
+        attOfficialEnd: attOfficialEnd === undefined ? hhmm(detail.work.officialEnd) : attOfficialEnd,
+        attEarlyBefore: attEarlyBefore === undefined ? hhmm(detail.work.earlyBefore) : attEarlyBefore,
+        workerType: workerType === undefined ? undefined : nextWorkerType,
+        attFullDayMinutes: isHalfDayShift(nextWorkerType)
+          ? (attFullDayMinutes === undefined ? detail.work.fullDayMinutes : attFullDayMinutes)
+          : null,
+        attHalfDayMinutes: isHalfDayShift(nextWorkerType)
+          ? (attHalfDayMinutes === undefined ? detail.work.halfDayMinutes : attHalfDayMinutes)
+          : null,
+        weeklyTargetMinutes: isHourlyShift(nextWorkerType)
+          ? (weeklyTargetMinutes === undefined ? detail.work.weeklyTargetMinutes : weeklyTargetMinutes)
+          : null,
+        monthlyPayAtTarget: workerType === undefined ? undefined : nextWorkerType === "hybrid" ? detail.row.monthlyPayAtTarget : null,
+        weeklyTargetHours: workerType === undefined ? undefined : isHourlyShift(nextWorkerType) ? detail.row.weeklyTargetHours : null,
+        monthlyFee: workerType === undefined ? undefined : nextWorkerType === "project_remote" ? detail.row.monthlyFee : null,
+      });
+      if (!res.ok) {
+        setSaving(false);
+        setMessage({ tone: "err", text: res.error ?? "Could not save attendance settings." });
+        return;
+      }
+    }
+    setSaving(false);
     setDraft({});
     setMessage({ tone: "ok", text: "Saved." });
 
@@ -523,6 +602,8 @@ export function EmployeeWorkspace({
                 set={set}
                 canSeePay={canSeePay}
                 canDelete={canDelete}
+                canManageAdmins={canManageAdmins}
+                canManageMasterAdmin={canManageMasterAdmin}
                 currentUserId={currentUserId}
                 onRefresh={async () => setDetail(await fetchEmployeeDetail(employeeId))}
               />
@@ -548,7 +629,7 @@ function statusColour(status: string): string {
 }
 
 /** Whole months between a start date and today, for the tenure stat. */
-function tenure(from: Date | string | null): { value: string; unit: string } {
+function legacyTenure(from: Date | string | null): { value: string; unit: string } {
   if (!from) return { value: "—", unit: "not recorded" };
   const start = typeof from === "string" ? new Date(from) : from;
   if (Number.isNaN(start.getTime())) return { value: "—", unit: "not recorded" };
@@ -564,6 +645,41 @@ function tenure(from: Date | string | null): { value: string; unit: string } {
 
 /* ── Sections ─────────────────────────────────────────────────────────────── */
 
+/** Calendar tenure shown as years/months plus the remaining days. */
+function tenure(from: Date | string | null): { value: string; unit: string } {
+  if (!from) return { value: "—", unit: "not recorded" };
+  const start = typeof from === "string" ? new Date(from) : from;
+  if (Number.isNaN(start.getTime())) return { value: "—", unit: "not recorded" };
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const cursor = day(start);
+  const end = day(new Date());
+  if (end < cursor) return { value: "—", unit: "joins later" };
+
+  let years = end.getFullYear() - cursor.getFullYear();
+  cursor.setFullYear(cursor.getFullYear() + years);
+  if (cursor > end) {
+    years -= 1;
+    cursor.setFullYear(cursor.getFullYear() - 1);
+  }
+
+  let months = end.getMonth() - cursor.getMonth();
+  if (months < 0) months += 12;
+  cursor.setMonth(cursor.getMonth() + months);
+  if (cursor > end) {
+    months -= 1;
+    cursor.setMonth(cursor.getMonth() - 1);
+  }
+
+  const days = Math.floor((end.getTime() - cursor.getTime()) / 86_400_000);
+  const yearLabel = years === 1 ? "year" : "years";
+  const monthLabel = months === 1 ? "month" : "months";
+  const dayLabel = days === 1 ? "day" : "days";
+  if (years > 0) {
+    return { value: `${years} ${yearLabel}`, unit: `${months} ${monthLabel} · ${days} ${dayLabel}` };
+  }
+  return { value: `${months} ${monthLabel}`, unit: `${days} ${dayLabel}` };
+}
+
 function Section(props: {
   section: SectionKey;
   detail: EmployeeMasterDetail;
@@ -572,10 +688,12 @@ function Section(props: {
   set: <K extends keyof Draft>(k: K, v: Draft[K], original: Draft[K]) => void;
   canSeePay: boolean;
   canDelete: boolean;
+  canManageAdmins: boolean;
+  canManageMasterAdmin: boolean;
   currentUserId: string;
   onRefresh: () => Promise<void>;
 }) {
-  const { section, detail, options, draft, set, canSeePay, onRefresh } = props;
+  const { section, detail, options, draft, set, canSeePay, canManageAdmins, canManageMasterAdmin, currentUserId, onRefresh } = props;
   const r = detail.row;
   const v = <K extends keyof Draft>(k: K, original: Draft[K]): Draft[K] =>
     (k in draft ? draft[k] : original) as Draft[K];
@@ -617,7 +735,6 @@ function Section(props: {
           <Panes>
             <Pane title="Identity">
               <Rows>
-                <Field label="Employee Code"><Readout>{r.employeeCode ?? "Not issued"}</Readout></Field>
                 {/* Read-only here: the one-way-door decision (set once "Done",
                     can't be unset) is owned by the HR Record page's card, which
                     also handles the requireHrStaff() gate. Showing it here without
@@ -636,7 +753,23 @@ function Section(props: {
                     gone. Read-only here because a person can hold several
                     (employee_departments is a join table) and the Employees
                     screen owns that multi-select. */}
-                <Field label="Function"><Readout>{r.departmentName ?? "—"}</Readout></Field>
+                <div className="min-[520px]:col-span-2">
+                  <Field label="Functions">
+                    <DepartmentMultiSelect
+                      options={options.functions}
+                      selectedIds={v("departmentIds", r.departments.map((d) => d.id)) ?? []}
+                      primaryId={v("primaryDepartmentId", r.departments.find((d) => d.isPrimary)?.id ?? r.departments[0]?.id ?? null) ?? null}
+                      /* Give Functions the same readable list treatment as the
+                         Employee editor; the field spans the pane so names are
+                         not squeezed into a skimmed half-column. */
+                      compact={false}
+                      onChange={(ids, primary) => {
+                        set("departmentIds", ids, r.departments.map((d) => d.id));
+                        set("primaryDepartmentId", primary, r.departments.find((d) => d.isPrimary)?.id ?? r.departments[0]?.id ?? null);
+                      }}
+                    />
+                  </Field>
+                </div>
               </Rows>
             </Pane>
 
@@ -737,10 +870,32 @@ function Section(props: {
 
             <Pane title="Reporting & entitlements">
               <Rows>
+                <Field label="Task Role">
+                  <select
+                    value={v("role", r.role) ?? r.role}
+                    onChange={(e) => set("role", e.target.value as Draft["role"], r.role)}
+                    className="ctl"
+                  >
+                    <option value="doer">Doer</option>
+                    <option value="initiator">Initiator</option>
+                    <option value="both">Both</option>
+                  </select>
+                </Field>
                 <Pick label="Manager" value={v("managerId", r.managerId) ?? ""} onChange={(x) => set("managerId", x || null, r.managerId)} options={options.managers} />
                 <Toggle label="Team Lead" value={v("isTeamLead", r.isTeamLead) ?? false} onChange={(x) => set("isTeamLead", x, r.isTeamLead)} />
                 <Toggle label="Train Pass" value={v("trainPass", r.trainPass) ?? false} onChange={(x) => set("trainPass", x, r.trainPass)} />
               </Rows>
+            </Pane>
+
+            <Pane title="Task & access">
+              <Rows>
+                <Toggle label="Admin Access" value={v("isAdmin", r.isAdmin) ?? false} onChange={(x) => set("isAdmin", x, r.isAdmin)} disabled={!canManageAdmins || r.id === currentUserId} />
+                <Toggle label="Master Admin" value={v("isMasterAdmin", r.isMasterAdmin) ?? false} onChange={(x) => set("isMasterAdmin", x, r.isMasterAdmin)} disabled={!canManageMasterAdmin} />
+                <Toggle label="Issue Letters" value={v("canIssueLetters", r.canIssueLetters) ?? false} onChange={(x) => set("canIssueLetters", x, r.canIssueLetters)} disabled={v("isAdmin", r.isAdmin) ?? false} />
+                <Toggle label="DCC Coordinator" value={v("canCoordinateDcc", r.canCoordinateDcc) ?? false} onChange={(x) => set("canCoordinateDcc", x, r.canCoordinateDcc)} />
+              </Rows>
+              {!canManageAdmins && <Note>Admin Access changes require administrator permission.</Note>}
+              {!canManageMasterAdmin && <Note>Master Admin changes require super-admin permission.</Note>}
             </Pane>
           </Panes>
 
@@ -761,14 +916,19 @@ function Section(props: {
                 <EmailField label="Office Mail" value={v("officialEmail", r.officialEmail) ?? ""} onChange={(x) => set("officialEmail", x || null, r.officialEmail)} />
                 <EmailField label="Personal Mail" value={v("personalEmail", r.personalEmail) ?? ""} onChange={(x) => set("personalEmail", x || null, r.personalEmail)} />
                 <Text label="Personal Cell" value={v("phone", r.phone) ?? ""} onChange={(x) => set("phone", x || null, r.phone)} />
-                <Field label="WhatsApp"><Readout>{r.whatsapp ?? "—"}</Readout></Field>
-                <Field label="Login Address"><Readout className="email-readout">{r.loginEmail}</Readout></Field>
+                <Text label="WhatsApp (E.164)" value={v("whatsappPhone", r.whatsapp) ?? ""} onChange={(x) => set("whatsappPhone", x || null, r.whatsapp)} />
+                <Toggle label="WhatsApp consent" value={v("whatsappOptedIn", r.whatsappOptedIn) ?? false} onChange={(x) => set("whatsappOptedIn", x, r.whatsappOptedIn)} />
+                <div className="min-[520px]:col-span-2">
+                  <Field label="Login Address"><Readout className="email-readout">{r.loginEmail}</Readout></Field>
+                </div>
               </Rows>
               <Note>System-controlled Firebase sign-in address. Change it through the invite flow, not here.</Note>
             </Pane>
 
-            <Pane title="Current Address"><AddressBlock a={detail.currentAddress} /></Pane>
-            <Pane title="Permanent Address"><AddressBlock a={detail.permanentAddress} /></Pane>
+            <div className="flex min-w-0 flex-col gap-4">
+              <Pane title="Current Address"><AddressBlock a={detail.currentAddress} /></Pane>
+              <Pane title="Permanent Address"><AddressBlock a={detail.permanentAddress} /></Pane>
+            </div>
           </Panes>
 
           {/* Family and emergency contacts, merged in from what used to be
@@ -776,38 +936,78 @@ function Section(props: {
               do we reach this person, and who do we call" — and the same
               source, the onboarding submission. */}
           <FamilyPanes detail={detail} />
+          <DocumentsPane detail={detail} />
         </Stack>
       );
 
-    case "documents":
-      return <DocumentsSection detail={detail} />;
-
     case "work":
+      {
+      const wt = (v("workerType", asWorkerType(r.workerType)) ?? asWorkerType(r.workerType) ?? "full_time");
+      const officialStart = v("attOfficialStart", hhmm(detail.work.officialStart)) ?? "";
+      const officialEnd = v("attOfficialEnd", hhmm(detail.work.officialEnd)) ?? "";
+      const scheduledMinutes = workingMinutes(officialStart, officialEnd);
+      const numeric = (label: string, key: "dailyTaskQuota", value: number | null, original: number | null) => (
+        <Field label={label}>
+          <input
+            type="number"
+            min={0}
+            value={v(key, value) ?? ""}
+            onChange={(e) => set(key, e.target.value === "" ? null : Number(e.target.value), original)}
+            className="ctl num"
+          />
+        </Field>
+      );
+      const hoursNumeric = (
+        label: string,
+        key: "attFullDayMinutes" | "attHalfDayMinutes" | "weeklyTargetMinutes",
+        value: number | null,
+        original: number | null,
+      ) => (
+        <Field label={label}>
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={minutesToHours(v(key, value) ?? null)}
+            onChange={(e) => set(key, hoursToMinutes(e.target.value), original)}
+            className="ctl num"
+          />
+        </Field>
+      );
       return (
         <Stack>
           <Panes>
             <Pane title="Schedule">
               <Rows>
-                <Field label="Weekly off"><Readout>{WEEKDAYS[detail.work.weeklyOff ?? -1] ?? "—"}</Readout></Field>
-                <Field label="Official start"><Readout>{detail.work.officialStart ?? "Company default"}</Readout></Field>
-                <Field label="Official end"><Readout>{detail.work.officialEnd ?? "Company default"}</Readout></Field>
+                <Field label="Weekly off">
+                  <select
+                    value={String(v("weeklyOff", detail.work.weeklyOff ?? 0) ?? 0)}
+                    onChange={(e) => set("weeklyOff", Number(e.target.value), detail.work.weeklyOff ?? 0)}
+                    className="ctl"
+                  >
+                    {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
+                  </select>
+                </Field>
+                <Field label="Official start"><Readout>{officialStart || "Company default"}</Readout></Field>
+                <Field label="Official end"><Readout>{officialEnd || "Company default"}</Readout></Field>
                 <Field label="Timezone"><Readout>{detail.work.timezone ?? "—"}</Readout></Field>
               </Rows>
             </Pane>
 
             <Pane title="Thresholds">
               <Rows>
-                <Field label="Late after"><Readout>{detail.work.lateAfter ?? "—"}</Readout></Field>
-                <Field label="Early before"><Readout>{detail.work.earlyBefore ?? "—"}</Readout></Field>
-                <Field label="Full day"><Readout>{detail.work.fullDayMinutes ? `${detail.work.fullDayMinutes} min` : "Company default"}</Readout></Field>
-                <Field label="Half day"><Readout>{detail.work.halfDayMinutes ? `${detail.work.halfDayMinutes} min` : "Company default"}</Readout></Field>
-                <Field label="Weekly target"><Readout>{detail.work.weeklyTargetMinutes ? `${Math.round(detail.work.weeklyTargetMinutes / 60)}h` : "Company default"}</Readout></Field>
+                <TimeInput label="Late after" value={v("attLateAfter", hhmm(detail.work.lateAfter)) ?? ""} onChange={(x) => set("attLateAfter", x || null, hhmm(detail.work.lateAfter))} />
+                <TimeInput label="Early before" value={v("attEarlyBefore", hhmm(detail.work.earlyBefore)) ?? ""} onChange={(x) => set("attEarlyBefore", x || null, hhmm(detail.work.earlyBefore))} />
+                {isHalfDayShift(wt) && <Field label="Working hours/day"><Readout>{hoursLabel(scheduledMinutes)}</Readout></Field>}
+                {isHalfDayShift(wt) && hoursNumeric("Full-day threshold (hours)", "attFullDayMinutes", detail.work.fullDayMinutes, detail.work.fullDayMinutes)}
+                {isHalfDayShift(wt) && hoursNumeric("Half-day threshold (hours)", "attHalfDayMinutes", detail.work.halfDayMinutes, detail.work.halfDayMinutes)}
+                {isHourlyShift(wt) && hoursNumeric("Attendance weekly target (hours)", "weeklyTargetMinutes", detail.work.weeklyTargetMinutes, detail.work.weeklyTargetMinutes)}
                 <Field label="Works outside office"><Readout>{detail.work.worksOutsideOffice == null ? "—" : detail.work.worksOutsideOffice ? "Yes" : "No"}</Readout></Field>
                 {/* Moved here when the Employment section was removed — it
                     was that section's only field not already on Overview,
                     and this is where the rest of the attendance
                     configuration lives. */}
-                <Field label="Daily task quota"><Readout>{detail.work.dailyTaskQuota ?? "—"}</Readout></Field>
+                {numeric("Daily task quota", "dailyTaskQuota", detail.work.dailyTaskQuota, detail.work.dailyTaskQuota)}
               </Rows>
             </Pane>
           </Panes>
@@ -818,6 +1018,7 @@ function Section(props: {
           </Note>
         </Stack>
       );
+      }
 
     /* ── OTHER (0228) ─────────────────────────────────────────────────────
        The five employee-level settings. Everything here is editable and rides
@@ -825,6 +1026,26 @@ function Section(props: {
        of the record — there is no second save button and no second write path. */
     case "other": {
       const w = detail.work;
+      const wt = (v("workerType", asWorkerType(r.workerType)) ?? asWorkerType(r.workerType) ?? "full_time");
+      const officialStart = v("attOfficialStart", hhmm(w.officialStart)) ?? "";
+      const officialEnd = v("attOfficialEnd", hhmm(w.officialEnd)) ?? "";
+      const scheduledMinutes = workingMinutes(officialStart, officialEnd);
+      const setOfficialTime = (
+        key: "attOfficialStart" | "attOfficialEnd",
+        value: string,
+        original: string | null,
+      ) => {
+        set(key, value, original);
+        if (!isHalfDayShift(wt)) return;
+        const nextStart = key === "attOfficialStart" ? value : officialStart;
+        const nextEnd = key === "attOfficialEnd" ? value : officialEnd;
+        const minutes = workingMinutes(nextStart, nextEnd);
+        if (minutes == null) return;
+        // Official timings are the source for a half-day worker's thresholds:
+        // full day is the scheduled span and half day is exactly half of it.
+        set("attFullDayMinutes", minutes, w.fullDayMinutes);
+        set("attHalfDayMinutes", Math.round(minutes / 2), w.halfDayMinutes);
+      };
       const satOn = (n: 1 | 2 | 3 | 4 | 5): boolean => {
         const key = `sat${n}Working` as const;
         return (v(key, w.saturdayWorking[n - 1]) ?? true) as boolean;
@@ -832,7 +1053,7 @@ function Section(props: {
       const applicable = v("attendanceApplicable", w.attendanceApplicable) ?? true;
 
       return (
-        <Stack>
+        <Stack className="other-settings">
           <Pane title="Attendance">
             <Rows>
               <Toggle
@@ -876,13 +1097,13 @@ function Section(props: {
               <Rows>
                 <TimeInput
                   label="Monday–Friday Start"
-                  value={v("attOfficialStart", hhmm(w.officialStart)) ?? ""}
-                  onChange={(x) => set("attOfficialStart", x, hhmm(w.officialStart))}
+                  value={officialStart}
+                  onChange={(x) => setOfficialTime("attOfficialStart", x, hhmm(w.officialStart))}
                 />
                 <TimeInput
                   label="Monday–Friday End"
-                  value={v("attOfficialEnd", hhmm(w.officialEnd)) ?? ""}
-                  onChange={(x) => set("attOfficialEnd", x, hhmm(w.officialEnd))}
+                  value={officialEnd}
+                  onChange={(x) => setOfficialTime("attOfficialEnd", x, hhmm(w.officialEnd))}
                 />
                 <TimeInput
                   label="Saturday Start"
@@ -897,6 +1118,11 @@ function Section(props: {
                   hint="Blank = same as Mon–Fri"
                 />
               </Rows>
+              {isHalfDayShift(wt) && scheduledMinutes != null && (
+                <p className="quiet mt-3 text-[11.5px]">
+                  Working hours: <b>{scheduledMinutes / 60}</b> hours/day · half-day: <b>{scheduledMinutes / 120}</b> hours
+                </p>
+              )}
               <Note>
                 These are the SAME columns the Attendance schedule screen writes, so the two cannot
                 drift apart. <b>The 54 h/week full-time target is unaffected</b> — timings define
@@ -934,6 +1160,36 @@ const ORDINALS = ["", "1st", "2nd", "3rd", "4th", "5th"] as const;
 /** A `time` column arrives as "HH:mm:ss"; the input wants "HH:mm". */
 function hhmm(v: string | null): string | null {
   return v ? v.slice(0, 5) : null;
+}
+
+/** The database stores attendance thresholds as minutes; admins edit hours. */
+function minutesToHours(v: number | null): string {
+  return v == null ? "" : String(v / 60);
+}
+
+function hoursToMinutes(v: string): number | null {
+  const n = Number(v.trim());
+  return v.trim() === "" || !Number.isFinite(n) || n < 0 ? null : Math.round(n * 60);
+}
+
+function clockMinutes(v: string | null): number | null {
+  if (!v) return null;
+  const [hours, minutes] = v.split(":").map(Number);
+  return Number.isInteger(hours) && Number.isInteger(minutes)
+    && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59
+    ? hours * 60 + minutes
+    : null;
+}
+
+function workingMinutes(start: string | null, end: string | null): number | null {
+  const from = clockMinutes(start);
+  const to = clockMinutes(end);
+  if (from == null || to == null || to <= from) return null;
+  return to - from;
+}
+
+function hoursLabel(minutes: number | null): string {
+  return minutes == null ? "Set official timings" : `${minutes / 60} hours`;
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -1162,7 +1418,7 @@ function FamilyPanes({ detail }: { detail: EmployeeMasterDetail }) {
   );
 }
 
-function DocumentsSection({ detail }: { detail: EmployeeMasterDetail }) {
+function DocumentsPane({ detail }: { detail: EmployeeMasterDetail }) {
   const docs = detail.documents.filter((d) => !d.archived);
   return (
     <Stack>
@@ -1199,8 +1455,8 @@ function DocumentsSection({ detail }: { detail: EmployeeMasterDetail }) {
 /* ── Primitives ───────────────────────────────────────────────────────────── */
 
 /** Vertical rhythm between panes. Whitespace is the only separator (§8). */
-function Stack({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col gap-4 pb-2">{children}</div>;
+function Stack({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`flex flex-col gap-4 pb-2 ${className}`}>{children}</div>;
 }
 
 /** Panes rebalance instead of orphaning — `auto-fit` with a 300px floor (§8). */
@@ -1400,11 +1656,11 @@ function ShiftTypeField({
   );
 }
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ label, value, onChange, disabled = false }: { label: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <Field label={label}>
       <label className="check">
-        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+        <input type="checkbox" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
         {value ? "Yes" : "No"}
       </label>
     </Field>

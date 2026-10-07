@@ -18,6 +18,7 @@ interface Props {
   backHref: string;
   /** Super-admins also get the "Accounts" link in the drawer. */
   canSeeAccounts: boolean;
+  canSeeModuleBackups: boolean;
   /** Not an admin — the drawer shows only Subjects and Clients. */
   rosterOnly?: boolean;
   hierarchyOnly?: boolean;
@@ -29,9 +30,9 @@ interface Props {
  * same nav as the desktop header, but flat with labelled category sections
  * (dropdowns don't belong in a vertical list).
  */
-export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts, rosterOnly = false, hierarchyOnly = false }: Props) {
+export function AdminMobileBar({ adminName, adminEmail, backHref, canSeeAccounts, canSeeModuleBackups, rosterOnly = false, hierarchyOnly = false }: Props) {
   const pathname = usePathname();
-  const nav = adminNavFor(rosterOnly, hierarchyOnly);
+  const nav = adminNavFor(rosterOnly, hierarchyOnly, canSeeModuleBackups);
   const [open, setOpen] = React.useState(false);
 
   async function handleSignOut() {

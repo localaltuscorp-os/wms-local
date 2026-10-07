@@ -29,6 +29,7 @@ export function AdminSidebar({
   backHref,
   rosterOnly = false,
   hierarchyOnly = false,
+  canSeeModuleBackups = true,
 }: {
   adminName: string;
   adminEmail: string;
@@ -37,9 +38,10 @@ export function AdminSidebar({
   /** Not an admin — the menu shows only Subjects and Clients. */
   rosterOnly?: boolean;
   hierarchyOnly?: boolean;
+  canSeeModuleBackups?: boolean;
 }) {
   const pathname = usePathname();
-  const nav = adminNavFor(rosterOnly, hierarchyOnly);
+  const nav = adminNavFor(rosterOnly, hierarchyOnly, canSeeModuleBackups);
   const dropdownActive = isDropDownMasterPath(pathname);
 
   async function handleSignOut() {

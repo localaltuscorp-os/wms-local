@@ -4,35 +4,23 @@ import ExcelJS from "exceljs";
 import { inArray } from "drizzle-orm";
 import { incentiveRequests } from "@/db/schema";
 import { INCENTIVE_TYPES, INCENTIVE_TYPE_LABELS, type IncentiveType } from "@/db/enums";
-import { INCENTIVE_FIELDS, optionsFor, type IncentiveField } from "@/lib/incentive-fields";
+import { optionsFor } from "@/lib/incentive-fields";
+import {
+  bulkRequestHeaders,
+  MAX_SPLIT_COLUMNS,
+  requestFields,
+  splitEmployeeHeader,
+  splitPercentageHeader,
+} from "@/lib/incentive/bulk-request-schema";
 import { prepareIncentiveRequest, type PreparedIncentiveRequest } from "@/lib/incentive/prepare-request";
-import { listEmployeeOptions } from "@/lib/queries/employees";
-import { listActiveProductNames } from "@/lib/queries/products";
-import { listActiveShiftTypeNames } from "@/lib/queries/shift-types";
 import { db } from "@/lib/db";
+import { requiredHeader } from "@/lib/templates/field-config";
+import { bulkRequestFieldId } from "@/lib/incentive/bulk-request-schema";
 
 export const MAX_BULK_REQUEST_ROWS = 500;
-export const MAX_SPLIT_COLUMNS = 5;
 export type BulkIssue = { rowNumber: number; field: string; message: string };
 
-const splitEmployeeHeader = (n: number) => `Split ${n} Employee`;
-const splitPercentageHeader = (n: number) => `Split ${n} Percentage`;
-
-export function requestFields(): IncentiveField[] {
-  const seen = new Set<string>();
-  return INCENTIVE_TYPES.flatMap((type) => INCENTIVE_FIELDS[type]).filter((field) => {
-    if (field.type === "static" || seen.has(field.key)) return false;
-    seen.add(field.key);
-    return true;
-  });
-}
-
-export const BULK_REQUEST_HEADERS = [
-  "Employee",
-  "Incentive Type",
-  ...requestFields().map((field) => field.key),
-  ...Array.from({ length: MAX_SPLIT_COLUMNS }, (_, i) => i + 1).flatMap((n) => [splitEmployeeHeader(n), splitPercentageHeader(n)]),
-];
+export const BULK_REQUEST_HEADERS = bulkRequestHeaders();
 
 function columnLetter(n: number): string {
   let result = "";
@@ -57,12 +45,24 @@ function applyListValidation(cell: ExcelJS.Cell, formula: string) {
   cell.dataValidation = { type: "list", allowBlank: true, formulae: [formula] };
 }
 
-export async function buildIncentiveRequestTemplate(): Promise<Buffer> {
-  const [employees, products, shiftTypes] = await Promise.all([
-    listEmployeeOptions(),
-    listActiveProductNames(),
-    listActiveShiftTypeNames(),
-  ]);
+export async function buildIncentiveRequestTemplate(required?: ReadonlySet<string>): Promise<Buffer> {
+  let employees: { name: string }[] = [];
+  let products: string[] = [];
+  let shiftTypes: string[] = [];
+  try {
+    const [{ listEmployeeOptions }, { listActiveProductNames }, { listActiveShiftTypeNames }] = await Promise.all([
+      import("@/lib/queries/employees"),
+      import("@/lib/queries/products"),
+      import("@/lib/queries/shift-types"),
+    ]);
+    [employees, products, shiftTypes] = await Promise.all([
+      listEmployeeOptions(),
+      listActiveProductNames(),
+      listActiveShiftTypeNames(),
+    ]);
+  } catch {
+    // Workbook remains usable without dropdown sources; import parser rechecks live masters.
+  }
   const fields = requestFields();
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Requests");
@@ -82,7 +82,11 @@ export async function buildIncentiveRequestTemplate(): Promise<Buffer> {
     if (values?.length) staticRanges.set(field.key, listRange(lists, listColumn++, values));
   }
 
-  sheet.columns = BULK_REQUEST_HEADERS.map((header) => ({ header, key: header, width: Math.max(16, Math.min(34, header.length + 4)) }));
+  sheet.columns = BULK_REQUEST_HEADERS.map((header) => ({
+    header: required ? requiredHeader(header, bulkRequestFieldId(header), required) : header,
+    key: header,
+    width: Math.max(16, Math.min(34, header.length + 4)),
+  }));
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   const header = sheet.getRow(1);
   header.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -138,14 +142,14 @@ export function requestDuplicateKey(values: Pick<PreparedIncentiveRequest, "empl
 export type PreparedBulkRow = { rowNumber: number; values: PreparedIncentiveRequest; key: string };
 export type ParsedBulkRequests = { rows: PreparedBulkRow[]; issues: BulkIssue[]; skipped: number };
 
-export async function parseAndPrepareBulkRequests(file: File): Promise<ParsedBulkRequests> {
+export async function parseAndPrepareBulkRequests(file: File, requiredFields: ReadonlySet<string> = new Set(["employee", "incentive_type"])): Promise<ParsedBulkRequests> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await file.arrayBuffer());
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new Error("Workbook has no worksheet.");
   const headers = new Map<string, number>();
-  sheet.getRow(1).eachCell((cell, column) => headers.set(clean(cell.value).toLowerCase(), column));
-  const required = ["employee", "incentive type"];
+  sheet.getRow(1).eachCell((cell, column) => headers.set(clean(cell.value).replace(/\s*\*\s*$/, "").toLowerCase(), column));
+  const required = [...requiredFields].map((field) => field.replace(/_/g, " "));
   const missing = required.filter((header) => !headers.has(header));
   if (missing.length) throw new Error(`Missing required column(s): ${missing.join(", ")}.`);
   const [employeeOptions, productNames, shiftTypeNames] = await Promise.all([listEmployeeOptions(), listActiveProductNames(), listActiveShiftTypeNames()]);
@@ -166,6 +170,13 @@ export async function parseAndPrepareBulkRequests(file: File): Promise<ParsedBul
     });
     if (allBlank) { skipped += 1; continue; }
     const rowIssues: BulkIssue[] = [];
+    for (const field of requiredFields) {
+      const header = BULK_REQUEST_HEADERS.find((candidate) => bulkRequestFieldId(candidate) === field);
+      const column = header ? headers.get(header.toLowerCase()) : undefined;
+      if (column && !clean(row.getCell(column).value)) {
+        rowIssues.push({ rowNumber, field: header ?? field, message: "is required." });
+      }
+    }
     const employeeName = clean(row.getCell(headers.get("employee")!).value);
     const employeeMatches = employeesByName.get(employeeName.toLowerCase()) ?? [];
     if (employeeMatches.length !== 1) rowIssues.push({ rowNumber, field: "Employee", message: employeeMatches.length ? "Employee name is ambiguous." : "Pick an active employee." });

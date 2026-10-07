@@ -90,7 +90,7 @@ altus-dashboard/
 │  │  ├─ employees/(+export), departments/, designations/, clients/, subjects/
 │  │  ├─ settings/, notifications/, activity/(+export), holidays/, salary-profiles/
 │  │  ├─ paying-entities/, outstanding-entities/, outstanding-payment-modes/,
-│  │  │  outstanding-products/, outstanding-responsibles/
+│  │  │  outstanding-products/
 │  └─ api/
 │     ├─ auth/session/route.ts, auth/signout/route.ts
 │     ├─ health/route.ts
@@ -157,7 +157,7 @@ Route groups `(auth)`, `(app)`, `(admin)` are URL-transparent. **Protection mode
 | `/incentive`, `/reimbursements`, `/participant-breakthrough`, `/record-reference`, `/index-hub` | (app) | dynamic forms + ecosystem |
 | `/outstanding`, `/outstanding/contracts` | (app) | |
 | `/inbox` (loading.tsx), `/documents`, `/profile` (loading.tsx), `/archived` (loading.tsx) | (app) | |
-| `/admin` + 18 sub-pages | (admin) | employees, departments, designations, clients, subjects, settings, notifications, activity, holidays, salary-profiles, paying-entities, outstanding-* rosters |
+| `/admin` + current sub-pages | (admin) | employees, functions, designations, clients, subjects, settings, notifications, holidays, salary-profiles, paying-entities, outstanding-* rosters |
 | `/fill-weekly-goals` | root | legacy standalone gate target (gate now renders inline) |
 
 **API route handlers:** auth (session/signout), health, profile/avatar, push (subscribe/vapid-key), google (connect/callback OAuth), whatsapp/webhook, **5 cron** (digest, backup, retry-dispatch, materialize-recurring, weekly-goals), **mobile** (`/api/mobile/*` — me, dashboard, task-form, tasks CRUD + status/comment, attendance + punch), and several **export** routes (tasks/outstanding/attendance/salary → xlsx/pdf), `/t/[shortId]` short-link redirect, admin exports.

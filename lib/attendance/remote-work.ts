@@ -597,8 +597,21 @@ export async function amendRemoteWork(input: {
   reason?: string | null;
   reasonBucket?: RemoteReasonBucket | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!canApproveRemoteWork(input.actor.email)) {
-    return { ok: false, error: "Only Rutvisha, Manan or Om can change a remote-work request." };
+  const approver = canApproveRemoteWork(input.actor.email);
+
+  const [existing] = await db
+    .select({ employeeId: remoteWorkRequests.employeeId, status: remoteWorkRequests.status })
+    .from(remoteWorkRequests)
+    .where(eq(remoteWorkRequests.id, input.requestId))
+    .limit(1);
+  if (!existing) return { ok: false, error: "That request no longer exists." };
+  if (!approver) {
+    if (existing.employeeId !== input.actor.id) {
+      return { ok: false, error: "You can only change your own remote-work requests." };
+    }
+    if (existing.status !== "pending") {
+      return { ok: false, error: "Only pending remote-work requests can be changed." };
+    }
   }
   if (input.workMode === "client_site" && !input.clientLocationId) {
     return { ok: false, error: "Pick the client site for this day." };
@@ -621,9 +634,24 @@ export async function amendRemoteWork(input: {
         reasonBucket: input.reasonBucket ?? null,
         updatedAt: new Date(),
       })
-      .where(eq(remoteWorkRequests.id, input.requestId))
+      .where(
+        approver
+          ? eq(remoteWorkRequests.id, input.requestId)
+          : and(
+              eq(remoteWorkRequests.id, input.requestId),
+              eq(remoteWorkRequests.employeeId, input.actor.id),
+              eq(remoteWorkRequests.status, "pending"),
+            ),
+      )
       .returning({ id: remoteWorkRequests.id });
-    if (!row) return { ok: false, error: "That request no longer exists." };
+    if (!row) {
+      return {
+        ok: false,
+        error: approver
+          ? "That request no longer exists."
+          : "Only pending remote-work requests can be changed.",
+      };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not save the change." };
@@ -652,9 +680,7 @@ export async function removeRemoteWork(input: {
   /** Remove every row of the same repeat, not only this date. */
   wholeSeries?: boolean;
 }): Promise<{ ok: true; removed: number } | { ok: false; error: string }> {
-  if (!canApproveRemoteWork(input.actor.email)) {
-    return { ok: false, error: "Only Rutvisha, Manan or Om can remove a remote-work request." };
-  }
+  const approver = canApproveRemoteWork(input.actor.email);
 
   const cols = {
     id: remoteWorkRequests.id,
@@ -676,6 +702,15 @@ export async function removeRemoteWork(input: {
     input.wholeSeries && row.seriesId
       ? await db.select(cols).from(remoteWorkRequests).where(eq(remoteWorkRequests.seriesId, row.seriesId))
       : [row];
+
+  if (!approver) {
+    if (row.employeeId !== input.actor.id) {
+      return { ok: false, error: "You can only withdraw your own remote-work requests." };
+    }
+    if (targets.some((t) => t.employeeId !== input.actor.id || t.status !== "pending")) {
+      return { ok: false, error: "Only pending remote-work requests can be withdrawn." };
+    }
+  }
 
   for (const t of targets) {
     if (t.status !== "approved") continue;
@@ -699,13 +734,28 @@ export async function removeRemoteWork(input: {
   }
 
   try {
-    await db.delete(remoteWorkRequests).where(
-      inArray(
-        remoteWorkRequests.id,
-        targets.map((t) => t.id),
-      ),
-    );
-    return { ok: true, removed: targets.length };
+    const removed = await db
+      .delete(remoteWorkRequests)
+      .where(
+        approver
+          ? inArray(
+              remoteWorkRequests.id,
+              targets.map((t) => t.id),
+            )
+          : and(
+              inArray(
+                remoteWorkRequests.id,
+                targets.map((t) => t.id),
+              ),
+              eq(remoteWorkRequests.employeeId, input.actor.id),
+              eq(remoteWorkRequests.status, "pending"),
+            ),
+      )
+      .returning({ id: remoteWorkRequests.id });
+    if (removed.length !== targets.length) {
+      return { ok: false, error: "Only pending remote-work requests can be withdrawn." };
+    }
+    return { ok: true, removed: removed.length };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not remove the request." };
   }

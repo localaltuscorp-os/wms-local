@@ -644,3 +644,107 @@ Nothing is committed on top of `639e165`. `origin/Om` is at that commit, so the
 first push needs `-u`. Deploy is gated by `scripts/assert-main-branch.mjs`, which
 refuses unless `HEAD` is `main` — **pushing `Om` does not deploy**; shipping
 requires a merge into `main`.
+
+## 8. 6 October 2026 — September salary visibility/payment
+
+### Problem
+
+Some eligible employees could not see September 2026 in My Salary. Accounts →
+Salary could omit September because it reads `salary_breakup`, while generation
+wrote `salary_runs` first.
+
+### Changes
+
+- `lib/salary/my-salary.ts`: missing prior Sep+ run backfills through canonical
+  `refreshSalaryRun()` with `missingOnly`; existing runs are not repriced.
+- `lib/queries/salary-breakup.ts`: month list includes both `salary_breakup` and
+  `salary_runs` months.
+- `app/(app)/salary/page.tsx`: Sep+ availability remains visible and repairs a
+  run/breakup mismatch through existing refresh/sync functions.
+- `app/(app)/salary/actions.ts`: `generateSalaryAll()` always mirrors breakup,
+  including all-skipped runs.
+
+No attendance, payable-day, deduction, PT/TDS, advance, OT, or historical salary
+calculation changed. No migration or direct database write ran.
+
+## 9. 6 October 2026 — salary slip Page 2 redesign
+
+Display/template-only change in `lib/salary/salary-slip-pdf.ts`.
+
+- Replaced Weekly Summary with compact daily table: Date, Day, Status, Check-In,
+  Check-Out, Work Hours, Adjustments, Salary Earned.
+- Uses existing `ledger.days` values. No daily salary or adjustment calculation
+  added.
+- Shows calendar-day rows for holidays, weekly offs, leave, half days, absences,
+  and other existing statuses.
+- Status markers: green present, orange half day, red absent; neutral styling for
+  non-working statuses.
+- Preserved existing Month Calculation values and three-page PDF structure.
+- Deduplicates repeated legacy ledger dates at display layer only.
+
+Updated `tests/unit/salary-slip-pdf.test.ts` for daily headers, status, times,
+salary values, empty state, and three-page output.
+
+Validation: salary-slip PDF suite passed, **36/36 tests**. No SQL, schema,
+attendance, payroll, or data change. Changes remain uncommitted and unpushed.
+
+## 10. 6 October 2026 — incentive workflow consolidation
+
+New Incentive Request is now the only active path for creating new incentives:
+
+```text
+Request → approval → approved-amount finalization → incentive_entries
+        → existing incentive payout → salary_payments / My Salary / Accounts
+```
+
+Approved requests are finalized transactionally and idempotently into the
+existing `incentive_entries` ledger. Split requests use the existing
+`incentive_participants` rows. Rejected or revision-requested requests never
+enter the ledger. Reversal skips the row in payout folding and emits the
+existing guarded negative payout event/payment once.
+
+Direct New Entry creation, the active Incentive Entries Excel import, and their
+template endpoints are retired (template endpoints return HTTP 410). Historical
+ledger rows, edit/delete/reversal compatibility, and the existing salary
+incentive-payout flow remain intact. Generic Accounts approval/payment paths
+reject or hide incentive payments to prevent duplicate payment ownership.
+
+Database handoff: review `db/migrations/0269_incentive_request_ledger.sql`.
+It adds nullable `incentive_entries.incentive_request_id` referencing
+`incentive_requests(id)` plus a unique request-link index. **Do not execute the
+migration from this handoff without the production preflight and Senior
+Developer approval.** The exact SQL and preflight queries are in
+[`HANDOFF-Production-DB.md`](./HANDOFF-Production-DB.md), section 10.
+
+Validation: targeted incentive/route tests passed; targeted ESLint had zero
+errors. Full TypeScript/build and `pnpm test` remain limited by the documented
+pre-existing generated-route/type and pnpm registry-signature issues. No
+production SQL or migration was executed.
+
+## 11. 7 October 2026 — salary-slip first-page cleanup
+
+The salary-slip PDF remains a three-page, read-only rendering of the existing
+salary/attendance/incentive engines. Only presentation and additive leave
+summary data changed:
+
+- First-page employee block now shows only Employee Code, DOJ, and Function.
+- Employee name is removed from the PDF headers and repeated page titles.
+- Salary/stat and net-total boxes use a neutral grey treatment with dark text.
+- Legacy `Khushboo` entity display is presented as `The Perfect Blend` on slips.
+- Signatory place is `Mumbai`.
+- Generated-by/date/time footer text is removed from salary-slip pages.
+- First page adds approved paid leaves used through the selected payroll month,
+  shown against the seven-day annual policy and remaining balance. Existing
+  paid-leave eligibility is respected; non-eligible worker types show N/A.
+
+Changed files:
+
+- `lib/salary/salary-slip-pdf.ts`
+- `lib/salary/salary-slip-data.ts`
+- `lib/salary/pdf-house-style.ts`
+- `tests/unit/salary-slip-pdf.test.ts`
+
+No schema, migration, salary calculation, attendance calculation, payment, or
+production database change was made. Focused PDF tests passed: **37/37**.
+Targeted ESLint passed with no errors. A local August 2026 salary PDF rendered
+successfully as three pages after the change.

@@ -213,6 +213,8 @@ export interface LetterRosterOption {
   addressBlock?: string;
   /** Joining date already in the canonical letter format ("25 Jul 2026"). */
   joiningDate?: string;
+  /** Current annual CTC from the admin-maintained salary profile. */
+  annualCtc?: number | null;
 }
 
 /**
@@ -1119,7 +1121,11 @@ export function LetterEditor({
 
       {/* ── CTC percentage calculator (CTC letter, structured mode) ── */}
       {isCtc && !usingRich && (
-        <CtcCalculator values={values} setManyValues={setManyValues} />
+        <CtcCalculator
+          values={values}
+          setManyValues={setManyValues}
+          annualCtc={roster.find((r) => r.id === employeeId)?.annualCtc ?? null}
+        />
       )}
 
       {/* ── Training verdict (After Free Training, structured mode) ── */}
@@ -1212,9 +1218,11 @@ export function LetterEditor({
 function CtcCalculator({
   values,
   setManyValues,
+  annualCtc,
 }: {
   values: Record<string, string>;
   setManyValues: (updates: Record<string, string>) => void;
+  annualCtc: number | null;
 }) {
   const [totalCtc, setTotalCtc] = useState("");
   const [pct, setPct] = useState<Record<string, string>>(() => {
@@ -1229,6 +1237,16 @@ function CtcCalculator({
     0,
   );
   const balanced = Math.round(pctSum) === 100;
+
+  // Post-Interview letters are opened directly from the HR rail, not only from
+  // the CTC workbench. Seed the calculator from the admin-maintained salary
+  // profile in that path. A Workbench prefill already has a computed gross
+  // value, so leave its figures untouched until HR explicitly changes the CTC.
+  useEffect(() => {
+    if (totalCtc.trim() || !annualCtc || annualCtc <= 0) return;
+    if (values[CTC_LETTER_TOTALS.subtotalPa]?.trim()) return;
+    setTotalCtc(formatINR(annualCtc));
+  }, [annualCtc, totalCtc, values]);
 
   useEffect(() => {
     if (ctc <= 0) return;

@@ -1,5 +1,6 @@
 import { requireTemplateAccess } from "@/lib/templates/access";
 import { templateResponse } from "@/lib/templates/download";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,9 @@ export async function GET(
 ): Promise<Response> {
   const { key } = await params;
   await requireTemplateAccess(key);
+  if (key === TEMPLATE_KEYS.incentiveEntries) {
+    return new Response("The Incentive Entries import workflow has been retired. Submit a New Incentive Request.", { status: 410 });
+  }
 
   const url = new URL(request.url);
   return templateResponse(key, {

@@ -70,7 +70,7 @@ export async function listRecurringTemplates(): Promise<RecurringTemplateRow[]> 
   // Child counts + earliest future due per template in one query.
   // Bind the cutoff as an ISO string + ::timestamptz cast — postgres-js can
   // choke on a raw Date object inside an ad-hoc sql fragment (the same gotcha
-  // documented in lib/queries/activity.ts); a throw here crashes /admin/settings.
+  // documented in the query layer); a throw here crashes /admin/settings.
   const nowIso = new Date().toISOString();
   const counts = (await db
     .select({

@@ -12,6 +12,8 @@ import {
 } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { goalScopeFor, canManageGoalFor } from "@/lib/weekly-goals/hierarchy";
 import { balanceWeightsToBudget, WEIGHT_BUDGET } from "@/lib/weekly-goals/effective";
 import { mondayOf, nextWeekStart, weekEnd } from "@/lib/weekly-goals/week";
@@ -804,6 +806,12 @@ export async function importWeeklyGoals(
       error: "Couldn't recognise any columns. Make sure the first row has headers like Client, Subject, Priority, Target, % Done.",
     };
   }
+  const requiredFields = await requiredFieldsForTemplate(TEMPLATE_KEYS.weeklyGoals, "default");
+  for (const field of requiredFields) {
+    if (!colMap.includes(field as ImportField)) {
+      return { ok: false, error: `Missing required column: ${field}.` };
+    }
+  }
 
   // For admins, resolve an optional per-row Employee/Email column against the
   // roster (by name or email). Non-admins always file against themselves.
@@ -833,6 +841,12 @@ export async function importWeeklyGoals(
     const explanation = cleanText(get("explanation"), 4000);
     // Skip fully-blank rows silently.
     if (!client && !subject && !target && !explanation) continue;
+    for (const field of requiredFields) {
+      const index = colMap.indexOf(field as ImportField);
+      if (index >= 0 && !cleanText(row[index], 4000)) {
+        return { ok: false, error: `Row ${r + 1}: ${field} is required.` };
+      }
+    }
 
     // Resolve target employee.
     let employeeId = me.isAdmin ? scopedEmployee : me.id;

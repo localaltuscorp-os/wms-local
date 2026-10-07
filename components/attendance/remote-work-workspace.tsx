@@ -816,7 +816,15 @@ function QueueRow({
  * exists for. The server re-checks the same predicate, so hiding these is
  * presentation and never the control.
  */
-function ManageActions({ row, onEdit }: { row: RemoteWorkRow; onEdit: () => void }) {
+function ManageActions({
+  row,
+  onEdit,
+  ownerOnly = false,
+}: {
+  row: RemoteWorkRow;
+  onEdit: () => void;
+  ownerOnly?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
@@ -857,7 +865,7 @@ function ManageActions({ row, onEdit }: { row: RemoteWorkRow; onEdit: () => void
         className="text-ink-muted hover:text-ink-strong inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12.5px] font-bold disabled:opacity-50"
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.6} />}
-        Remove
+        {ownerOnly ? "Withdraw" : "Remove"}
       </button>
       {row.seriesId && (
         <button
@@ -1099,7 +1107,13 @@ function MyRequests({
                 <span className="text-ink-subtle text-[12px]">by {r.decidedByName}</span>
               )}
               <StatusChip status={r.status} />
-              {canManage && <ManageActions row={r} onEdit={() => setEditingId(r.id)} />}
+              {(canManage || r.status === "pending") && (
+                <ManageActions
+                  row={r}
+                  ownerOnly={!canManage}
+                  onEdit={() => setEditingId(r.id)}
+                />
+              )}
             </li>
           ),
         )}

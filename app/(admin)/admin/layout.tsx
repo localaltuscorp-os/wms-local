@@ -5,6 +5,7 @@ import { requireUser, getDelegation } from "@/lib/auth/current";
 import { canManageTaskRosters } from "@/lib/security/capabilities";
 import { isRosterOnlyPath } from "@/components/admin/roster-nav";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canManageModuleBackups } from "@/lib/modules/backup/access";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { DelegationBanner } from "@/components/auth/delegation-banner";
 import { ActivityTracker } from "@/components/logs/activity-tracker";
@@ -44,6 +45,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // delegated — see isPrivilegedAccount in lib/auth/delegation-permission.ts —
   // but an ordinary admin can, so this branch is reachable.)
   const delegation = await getDelegation();
+  const canSeeModuleBackups = await canManageModuleBackups(me);
 
   // Auto sign-out on idle was removed — sessions persist like a normal app.
   return (
@@ -60,6 +62,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         adminEmail={me.email}
         avatarUrl={me.avatarUrl}
         canSeeAccounts={isSuperAdmin(me.email)}
+        canSeeModuleBackups={canSeeModuleBackups}
         rosterOnly={rosterOnly}
         hierarchyOnly={rosterOnly && hierarchyPath}
       >

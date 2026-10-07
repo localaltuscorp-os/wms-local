@@ -211,11 +211,11 @@
 /* Labels, badges, table headers and counts are 700 (§3). */
 .aura .label {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 10.5px;
-  letter-spacing: 0.09em;
+  font-weight: 800;
+  font-size: 11.5px;
+  letter-spacing: 0.075em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: #172033;
 }
 
 /* Secondary text runs at 500–600, never 400 — light type dissolves (§3). */
@@ -225,8 +225,8 @@
 }
 
 .aura .quiet {
-  color: var(--ink-3);
-  font-weight: 500;
+  color: #475569;
+  font-weight: 600;
 }
 
 /* Flat, compact WMS form treatment. */
@@ -362,18 +362,18 @@
 .aura .ctl {
   width: 100%;
   border-radius: var(--r-ctl);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   padding: 8px 11px;
   font-family: var(--font-body);
   font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
+  font-weight: 600;
+  color: #172033;
   outline: none;
   transition: border-color 160ms var(--ease), background 160ms var(--ease), box-shadow 160ms var(--ease);
 }
 
-.aura .ctl:hover { background: rgba(255, 255, 255, 0.78); }
+.aura .ctl:hover { background: #ffffff; border-color: #94a3b8; }
 
 .aura .ctl:focus {
   background: rgba(255, 255, 255, 0.92);
@@ -393,18 +393,24 @@
 /* A read-only value: same footprint as a control, visibly not one. */
 .aura .readout {
   border-radius: var(--r-ctl);
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
   padding: 8px 11px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink-2);
+  color: #172033;
   min-height: 36px;
   overflow-wrap: anywhere;
 }
 
 .aura .email-ctl { min-width: 0; }
-.aura .email-readout, .aura .address-readout { word-break: break-word; }
+.aura .email-readout {
+  word-break: normal;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.aura .address-readout { word-break: break-word; }
+.aura .other-settings .quiet { display: none !important; }
 
 .aura .check {
   display: flex;
@@ -412,16 +418,16 @@
   gap: 8px;
   cursor: pointer;
   border-radius: var(--r-ctl);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   padding: 8px 11px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink);
+  color: #172033;
   transition: background 160ms var(--ease);
 }
 
-.aura .check:hover { background: rgba(255, 255, 255, 0.8); }
+.aura .check:hover { background: #f8fafc; border-color: #94a3b8; }
 .aura .check input { accent-color: var(--accent); width: 14px; height: 14px; }
 
 /* ── Pills, states, avatar ───────────────────────────────────────────────── */

@@ -32,9 +32,8 @@ export const isCurrentStaff = and(
  * pickers (filter bars, assign-doer, reassign) where deactivated
  * employees should not be selectable. Pass `{ includeInactive: true }`
  * for admin/export views that need the full roster including
- * deactivated rows (e.g. the employees CSV export and the
- * /admin/activity + /admin/notifications recipient filters that can
- * filter on a deactivated user's historical events).
+ * deactivated rows (e.g. the employees CSV export and notification
+ * recipient filters that can filter on a deactivated user's history).
  */
 export async function listEmployees(
   opts: { includeInactive?: boolean } = {},

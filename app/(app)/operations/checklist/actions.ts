@@ -39,6 +39,8 @@ import {
   demoUpdateRun,
 } from "@/lib/demo/ops-checklist-demo";
 import { OFFSET_MAX, OFFSET_MIN } from "@/lib/operations/checklist-dates";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 const PATH = "/operations/checklist";
 /** Every page that shows these rows: the area's own page AND the Masters section. */
@@ -481,6 +483,8 @@ export async function bulkCreateChecklistRows(
     return fail(`${row}${issue?.message ?? "Invalid rows."}`);
   }
   const { runId, templateId, rows } = parsed.data;
+  const required = await enforceRequiredRows(TEMPLATE_KEYS.operationsChecklist, runId ? "run" : "master", rows as unknown as Record<string, unknown>[]);
+  if (!required.ok) return required;
   const clash = rows.findIndex((r) => r.backupId && r.backupId === r.doerId);
   if (clash >= 0) return fail(`Row ${clash + 1}: the backup must be someone other than the doer.`);
 
