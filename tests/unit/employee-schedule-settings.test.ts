@@ -32,8 +32,8 @@ describe("the 54-hour week is not a function of the schedule", () => {
     expect(cfg.weeklyTargetMinutes).toBe(FULL_WEEK);
   });
 
-  it("STAYS 54h when the timings are lengthened — the Parvez Khan case", () => {
-    // Live data at the time this was written: Parvez is scheduled 07:30–19:30.
+  it("STAYS 54h when the timings are lengthened", () => {
+    // A 07:30–19:30 schedule is a 12-hour window, not a 72-hour weekly target.
     // The old resolver did `dailyTarget × 6`, turning that 12-hour span into a
     // 72-HOUR weekly requirement — and that number is the threshold the salary
     // deduction is computed against. Nobody set "72" anywhere; it fell out of
@@ -47,7 +47,7 @@ describe("the 54-hour week is not a function of the schedule", () => {
     expect(cfg.waiverThresholdMinutes).toBe(FULL_WEEK);
   });
 
-  it("stays 54h for Jeevan's 10:30-20:30, the brief's own example", () => {
+  it("stays 54h for a 10:30-20:30 schedule", () => {
     const cfg = resolveEffectiveConfig({
       workerType: "full_time",
       attOfficialStart: "10:30",
@@ -63,7 +63,7 @@ describe("the 54-hour week is not a function of the schedule", () => {
   it("keeps the CONTRACTUAL 9h day too, so longer timings never cut attendance", () => {
     // `dailyTargetMinutes` is the hours-rule divisor ("9h = 1 day"), the credit
     // a paid leave is worth, and the base of the full/half-day cutoffs. Left
-    // schedule-driven, Parvez's 12h timings made a complete 54h week earn
+    // schedule-driven, a 12h timing window made a complete 54h week earn
     // 54 ÷ 12 = 4.5 days — timings overriding the 54-hour rule, which the brief
     // forbids. Timings now move punctuality and nothing else.
     const long = resolveEffectiveConfig({
@@ -214,8 +214,8 @@ describe("is attendance applicable", () => {
 });
 
 describe("Saturday's own clock", () => {
-  // Jeevan, the brief's own example: Mon–Fri 10:30–20:30, Saturday 10:30–16:00.
-  const jeevan = resolveEffectiveConfig({
+  // Example schedule: Mon–Fri 10:30–20:30, Saturday 10:30–16:00.
+  const employeeSchedule = resolveEffectiveConfig({
     workerType: "full_time",
     attOfficialStart: "10:30",
     attOfficialEnd: "20:30",
@@ -225,24 +225,26 @@ describe("Saturday's own clock", () => {
 
   it("leaves every other weekday on the ordinary schedule", () => {
     for (let dow = 0; dow <= 5; dow++) {
-      expect(attendanceScheduleForWeekday(jeevan, dow)).toEqual(toAttendanceSchedule(jeevan));
+      expect(attendanceScheduleForWeekday(employeeSchedule, dow)).toEqual(
+        toAttendanceSchedule(employeeSchedule),
+      );
     }
   });
 
   it("does not grade leaving at 16:00 on a Saturday as an early exit", () => {
-    const sat = attendanceScheduleForWeekday(jeevan, 6);
+    const sat = attendanceScheduleForWeekday(employeeSchedule, 6);
     expect(sat.earlyBefore).toBe("16:00");
     // Saturday starts when the weekdays do, so punctuality is unchanged.
-    expect(sat.lateAfter).toBe(toAttendanceSchedule(jeevan).lateAfter);
+    expect(sat.lateAfter).toBe(toAttendanceSchedule(employeeSchedule).lateAfter);
   });
 
   it("scales Saturday's cutoffs to its 5.5h span, never above the weekday ones", () => {
-    // Held to the weekday 7.5h Full Day, every complete Saturday would be coded
+    // Held to the weekday 9h Full Day, every complete Saturday would be coded
     // a half day. Pay is unaffected either way — it pools the week's hours.
-    const sat = attendanceScheduleForWeekday(jeevan, 6);
-    const weekday = toAttendanceSchedule(jeevan);
-    expect(sat.fullDayMinutes).toBe(Math.round(330 * (7.5 / 9))); // 275 = 4h35m
-    expect(sat.halfDayMinutes).toBe(Math.round(330 * (4.5 / 9))); // 165 = 2h45m
+    const sat = attendanceScheduleForWeekday(employeeSchedule, 6);
+    const weekday = toAttendanceSchedule(employeeSchedule);
+    expect(sat.fullDayMinutes).toBe(330); // complete 5h30m Saturday
+    expect(sat.halfDayMinutes).toBe(Math.round(330 * (5 / 9))); // 183 = 3h03m
     expect(sat.fullDayMinutes).toBeLessThan(weekday.fullDayMinutes);
   });
 
@@ -270,7 +272,7 @@ describe("Saturday's own clock", () => {
 
 describe("the hours rule still pays a 54h week in full", () => {
   it("earns 6 days for 54h, whatever the timings", () => {
-    // Under the old schedule-driven day, Parvez's 12h timings made this week
+    // Under the old schedule-driven day, a 12h timing window made this week
     // 54 ÷ 12 = 4.5 days. The day is contractual now, so it earns all six.
     const cfg = resolveEffectiveConfig({
       workerType: "full_time",
