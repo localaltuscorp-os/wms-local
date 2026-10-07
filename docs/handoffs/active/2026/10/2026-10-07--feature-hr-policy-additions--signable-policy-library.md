@@ -2,7 +2,7 @@
 
 - Date: 2026-10-07
 - Branch: `feature/hr-policy-additions`
-- Status: baseline policy documents committed; Policy CMS authoring extension implemented locally and awaiting validation/commit
+- Status: policy CMS authoring and preview-only OTP review support are on the review branch; awaiting feature validation
 - Implementation commit: `28e5686a7d294d5ef2420b4df442ac83e4852d36`
 - Review branch: `origin/feature/hr-policy-additions`
 
@@ -69,16 +69,22 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
   branch adds that missing script, with the same 4 GB Node heap as `build`, so a
   preview can use the configured build command without changing Vercel settings.
 - Preview-only OTP review exception: `previewOtpBypassAllows` is fail-closed
-  unless Vercel sets `VERCEL_ENV=preview` and the server-side
-  `PREVIEW_OTP_BYPASS_EMAIL` configuration matches the logging-in account.
-  The value must be configured only in Vercel's Preview environment; it is not
-  present in source, database records, production settings, or documentation.
+  unless the server-side `PREVIEW_OTP_BYPASS_EMAIL` configuration matches the
+  logging-in account and either Vercel supplies `VERCEL_ENV=preview` or the
+  Preview-only `PREVIEW_OTP_BYPASS_ENABLED=true` setting is present. The latter
+  is necessary because this Vercel project does not expose the system runtime
+  marker. Both values must be configured only in Vercel's Preview environment;
+  they are not present in source, database records, production settings, or
+  documentation.
 - No automated travel reimbursement, asset monitoring, payroll deductions, leave deductions, or attendance changes were added. These are policy documents and acknowledgement records only.
 - The policy documents must be reviewed by HR/legal before company-wide publication, particularly the Asset Management financial-liability language.
 
 ## Testing
 
 - `git diff --check` passed.
+- The focused OTP adjustment also passed `git diff --check`. Targeted ESLint
+  could not run because this worktree's installed command set has no `eslint`
+  executable; the Vercel preview build remains the TypeScript/build validation.
 - `pnpm.cmd typecheck` could not run because this clean worktree has no `node_modules`; `tsc` was unavailable. Install dependencies or run the check in an existing dependency-equipped development environment before merge.
 - The first Vercel preview exposed a TypeScript mismatch between a CMS policy
   card and the registry card type. It is corrected by assigning `ready` only at

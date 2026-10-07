@@ -33,12 +33,17 @@ export function twoStepEnabled(): boolean {
 
 /**
  * Narrow preview-only exception for a single review account. The approved
- * identity lives in Vercel's Preview environment configuration, never source.
- * It is deliberately false for production, local development and any unset or
- * mismatched value; password, employee-liveness and device checks still apply.
+ * identity and enable switch live in Vercel's Preview environment configuration,
+ * never source. Some projects do not expose Vercel's system environment
+ * variables to runtime functions, so the explicit switch is required as a
+ * fallback. It is deliberately false until both values are configured;
+ * password, employee-liveness and device checks still apply.
  */
 export function previewOtpBypassAllows(email: string): boolean {
-  if (process.env.VERCEL_ENV !== "preview") return false;
+  const isVercelPreview = process.env.VERCEL_ENV === "preview";
+  const isExplicitlyEnabled =
+    (process.env.PREVIEW_OTP_BYPASS_ENABLED ?? "").trim().toLowerCase() === "true";
+  if (!isVercelPreview && !isExplicitlyEnabled) return false;
   const approved = (process.env.PREVIEW_OTP_BYPASS_EMAIL ?? "").trim().toLowerCase();
   return approved.length > 0 && approved === email.trim().toLowerCase();
 }
