@@ -3,6 +3,8 @@
 - Date: 2026-10-07
 - Branch: `feature/hr-policy-additions`
 - Status: implementation committed; validation, review and release steps pending
+- Implementation commit: `28e5686a7d294d5ef2420b4df442ac83e4852d36`
+- Review branch: `origin/feature/hr-policy-additions`
 
 ## Objective
 
