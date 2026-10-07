@@ -2,7 +2,7 @@
 
 - Date: 2026-10-07
 - Branch: `feature/hr-policy-additions`
-- Status: policy CMS authoring and preview-only OTP review support are on the review branch; awaiting feature validation
+- Status: policy CMS authoring, preview-only OTP review support, and an isolated reimbursement upload runtime fix are on the review branch; awaiting feature validation
 - Implementation commit: `28e5686a7d294d5ef2420b4df442ac83e4852d36`
 - Review branch: `origin/feature/hr-policy-additions`
 
@@ -60,6 +60,7 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - `app/api/hr/policies/download/route.ts`
 - `app/(app)/hr/policies/sign-status.ts`
 - `app/(app)/hr/policies/signed-pdf.ts`
+- `app/(app)/reimbursements/attachment-actions.ts`
 
 ## Data, security and release notes
 
@@ -81,6 +82,13 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
   necessary because this Vercel project does not expose the system runtime
   marker. It bypasses two-step at both session minting and edge routing, while
   production receives neither setting and keeps two-step verification.
+- Reimbursement upload runtime fix: the production Turbopack bundle attempted
+  to evaluate the TypeScript-only `ClaimUploadRef` interface as a runtime value
+  when loading the reimbursement Server Action. The type is now directly
+  re-exported from its type-definition module, so the action has no runtime
+  reference to that interface. The existing `module_submission_attachments`
+  table was verified present in the target database; this change does not alter
+  receipt data, storage objects, permissions, or schema.
 - No automated travel reimbursement, asset monitoring, payroll deductions, leave deductions, or attendance changes were added. These are policy documents and acknowledgement records only.
 - The policy documents must be reviewed by HR/legal before company-wide publication, particularly the Asset Management financial-liability language.
 
@@ -94,6 +102,8 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
   build, but exceeded the local 60-second command limit without reporting a
   TypeScript error. The next Vercel Preview build must be checked before merge.
 - `pnpm.cmd typecheck` could not run because this clean worktree has no `node_modules`; `tsc` was unavailable. Install dependencies or run the check in an existing dependency-equipped development environment before merge.
+- Targeted ESLint for the reimbursement action was also unavailable because
+  this worktree has no installed `eslint` executable. `git diff --check` passed.
 - The first Vercel preview exposed a TypeScript mismatch between a CMS policy
   card and the registry card type. It is corrected by assigning `ready` only at
   the display boundary after the database query has already filtered published
@@ -107,6 +117,8 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 4. Run the existing CMS seed script once in the target environment so HR can edit dates/text in the policy editor.
 5. Validate draft creation, first publish, subsequent re-publish, and that a draft URL is not readable by a standard employee.
 6. Verify every employee can view and sign each new policy and that acknowledgement status appears in HR records.
+7. In a Preview deployment, submit one reimbursement claim with a synthetic
+   receipt and confirm the claim is created and the attachment count renders.
 
 ## Rollback
 

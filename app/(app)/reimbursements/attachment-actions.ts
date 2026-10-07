@@ -43,8 +43,8 @@ import {
 } from "@/lib/reimbursements/claim-access";
 import {
   buildClaimAttachmentRows,
-  type ClaimUploadRef,
 } from "@/lib/reimbursements/attachment-rows";
+export type { ClaimUploadRef } from "@/lib/reimbursements/attachment-rows";
 import {
   CLAIM_MAX_FILES,
   checkClaimFile,
@@ -58,8 +58,9 @@ import {
 } from "@/lib/reimbursements/attachment-rules";
 
 // The upload-ref shape lives with the vetting logic; re-exported so the client
-// components that build refs can import it from the actions they call.
-export type { ClaimUploadRef };
+// components that build refs can import it from the actions they call. Keep
+// this as a direct type re-export: importing then re-exporting the interface
+// made Turbopack emit a runtime `ClaimUploadRef` reference in production.
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
