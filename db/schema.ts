@@ -261,8 +261,20 @@ export const billingEntityFiles = pgTable(
     entityId: uuid("entity_id")
       .notNull()
       .references(() => payingEntities.id, { onDelete: "cascade" }),
-    /** 'logo' | 'signature' | 'document' — constrained in the database. */
-    kind: text("kind").$type<"logo" | "signature" | "document">().notNull(),
+    /** Billing file role — constrained in the database. */
+    kind: text("kind").$type<
+      | "logo"
+      | "signature"
+      | "document"
+      | "cancelled_cheque"
+      | "gst_certificate"
+      | "pan_card"
+      | "aadhar_card"
+      | "msme_certificate"
+      | "tin_certificate"
+      | "signing_entity_photo"
+      | "signing_entity_signature"
+    >().notNull(),
     storagePath: text("storage_path").notNull(),
     fileName: text("file_name").notNull(),
     mimeType: text("mime_type"),
