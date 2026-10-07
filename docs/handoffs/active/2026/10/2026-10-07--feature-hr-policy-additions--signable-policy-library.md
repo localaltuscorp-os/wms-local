@@ -126,3 +126,12 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 ## Rollback
 
 Revert the registry entries and the three content files before release. If the CMS seed has already run, archive or unpublish the three corresponding policy records through the established policy CMS rather than deleting acknowledgement history.
+
+## Main-branch conflict resolution
+
+- Merged current `origin/main` (`ba3be1de`) into `feature/hr-policy-additions` without rebasing or rewriting history.
+- The only textual conflict was in `package.json`: the feature branch made Turbopack the default build while current main keeps webpack as `build` and exposes Turbopack through `build:turbopack`. The main arrangement was retained because it preserves both commands and the audited local production/leak-check path.
+- All other current-main attendance, salary, admin, email, proxy, and release-document changes merged automatically; no HR policy implementation was discarded.
+- Validation after resolution: `$env:NODE_OPTIONS='--max-old-space-size=4096'; pnpm.cmd typecheck` passed; 99 focused tests passed across nine HR, policy, attendance, punch, and email test files; focused ESLint completed with zero errors and two pre-existing React warnings in `policy-editor.tsx`; `git diff --check` passed.
+- Database impact from conflict resolution: none. No migration or production SQL was executed.
+- Security/access impact from conflict resolution: none; the existing preview-only two-step behavior and production authentication behavior were preserved.

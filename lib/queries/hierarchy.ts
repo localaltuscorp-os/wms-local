@@ -30,6 +30,33 @@ export interface HierarchySnapshot {
   inactivePeople: HierarchyPerson[];
 }
 
+/**
+ * Migration 0262 is additive and may briefly trail an application deploy.
+ * Only that known schema-behind state is safe to treat as "no active breaks";
+ * connection, permission, and other query failures must still reach the route
+ * error boundary instead of producing a misleading hierarchy.
+ */
+export function isMissingTemporaryBreakSchema(error: unknown): boolean {
+  const codeOf = (value: unknown): unknown =>
+    typeof value === "object" && value !== null ? (value as { code?: unknown }).code : undefined;
+  const missing = (code: unknown) => code === "42P01" || code === "42703";
+  if (missing(codeOf(error))) return true;
+  const cause = typeof error === "object" && error !== null ? (error as { cause?: unknown }).cause : undefined;
+  return missing(codeOf(cause));
+}
+
+async function loadActiveBreakRows(employeeIds: string[]) {
+  if (!employeeIds.length) return [];
+  try {
+    return await db.select({ employeeId: employeeTemporaryBreaks.employeeId, previousManagerId: employeeTemporaryBreaks.previousManagerId })
+      .from(employeeTemporaryBreaks)
+      .where(and(isNull(employeeTemporaryBreaks.endedAt), inArray(employeeTemporaryBreaks.employeeId, employeeIds)));
+  } catch (error) {
+    if (isMissingTemporaryBreakSchema(error)) return [];
+    throw error;
+  }
+}
+
 /** Canonical manager_id roster, with break relationships restored for display. */
 export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Promise<HierarchySnapshot> {
   const rows = await db.select({
@@ -46,11 +73,7 @@ export async function getHierarchy(opts: { includeInactive?: boolean } = {}): Pr
 
   const staff = rows.filter((row) => row.accountType === "employee");
   const eligible = staff.filter((row) => row.isActive && (!row.employmentStatus || row.employmentStatus === "active"));
-  const activeBreakRows = eligible.length
-    ? await db.select({ employeeId: employeeTemporaryBreaks.employeeId, previousManagerId: employeeTemporaryBreaks.previousManagerId })
-      .from(employeeTemporaryBreaks)
-      .where(and(isNull(employeeTemporaryBreaks.endedAt), inArray(employeeTemporaryBreaks.employeeId, eligible.map((row) => row.id))))
-    : [];
+  const activeBreakRows = await loadActiveBreakRows(eligible.map((row) => row.id));
   const breaks = new Map(activeBreakRows.map((row) => [row.employeeId, row.previousManagerId]));
   const [sortOrders, managerFlags, founderIds] = await Promise.all([loadSortOrders(), loadManagerFlags(), founderEmployeeIds()]);
 

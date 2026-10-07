@@ -362,6 +362,12 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|xlsx|woff2|woff|ttf|otf|css)$).*)",
+    // Native-app and cron handlers authenticate themselves. Keeping them out
+    // of this cookie-auth proxy avoids a redundant function hop on every call:
+    //   mobile -> Firebase bearer + registered-device check in the route
+    //   cron   -> CRON_SECRET bearer check in the route
+    // tests/unit/proxy-matcher.test.ts keeps both invariants fail-closed when a
+    // new handler is added under either excluded prefix.
+    "/((?!_next/static|_next/image|favicon.ico|api/mobile(?:/|$)|api/cron(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|xlsx|woff2|woff|ttf|otf|css)$).*)",
   ],
 };

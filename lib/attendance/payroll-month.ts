@@ -30,6 +30,7 @@
 
 import {
   monthKeyOf,
+  HALF_DAY_SALARY_FRACTION,
   payableHoursForMonth,
   reconcileMonth,
   type GradedDayInput,
@@ -107,7 +108,9 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    *
    * A complete 31-day month sums to 31 and pays the salary exactly, because
    * weekly offs, holidays, paid leave and comp-off are all worth a full day and
-   * only absence and unpaid leave are worth nothing.
+   * only absence and unpaid leave are worth nothing. Half-days forgiven by the
+   * monthly grace or weekly-hours waiver are restored here; chargeable
+   * half-days remain worth 0.5.
    */
   payableDayValue: number;
   /**
@@ -193,6 +196,10 @@ export function payrollMonthFor(
     refTodayISO,
   });
   const hours = payableHoursForMonth(graded, recon, cfg.dailyTargetMinutes);
+  const rawPayableDayValue = payableDayValue(joined, refTodayISO);
+  const forgivenHalfDayValue =
+    (recon.warnedHalfDays + recon.waiverAbsorbedHalfDays) *
+    HALF_DAY_SALARY_FRACTION;
 
   // Hours the employee was REQUIRED to work so far — elapsed working days ×
   // daily target — through the SAME shared predicate the self-view uses
@@ -220,7 +227,11 @@ export function payrollMonthFor(
       monthlyHourBalanceMinutes: recon.monthlyHourBalanceMinutes,
       // `joined` is already bounded to elapsed, gradeable days, so this is the
       // month SO FAR — the same set every other figure above was derived from.
-      payableDayValue: payableDayValue(joined, refTodayISO),
+      // The grader records every H/D as 0.5. Reconciliation decides which of
+      // those halves are actually forgiven, so restore only those halves here.
+      // Manual/admin waive-offs remain a separate salary-breakup adjustment;
+      // including them here as well would credit the same waiver twice.
+      payableDayValue: rawPayableDayValue + forgivenHalfDayValue,
       elapsedGradedDays: joined.length,
     },
   };

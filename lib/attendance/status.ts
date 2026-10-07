@@ -28,16 +28,12 @@ export interface DayContext {
   compOffRedeemed?: boolean;
   /**
    * The out-punch was written by the compulsory-punch-out cron, not by the
-   * employee.
-   *
-   * WHY THE ENGINE HAS TO KNOW: the cron stamps its out at the CLOCK-IN time, so
-   * worked ≈ 0. Left to the ordinary three-tier rule that lands below the
-   * half-day floor and grades ABSENT — the exact opposite of the policy the cron
-   * is named after, and of the rule that a missing punch-out costs half a day
-   * rather than all of it. Passing the flag lets the day be floored at H/D
-   * without inventing a fake worked duration to get there.
+   * employee. A system-closed forgotten logout is Absent with zero worked
+   * minutes; the marker prevents it being mistaken for a genuine checkout.
    */
   autoClosed?: boolean;
+  /** The calendar day has ended, so an unmatched check-in is no longer live. */
+  dayClosed?: boolean;
 }
 
 export interface DayCodeResult {
@@ -123,24 +119,28 @@ export function computeDayCode(
   // cutoff it is NOT early (Sir: "7:30 ke pehle logout = early").
   const leftEarly = outAt != null && toMin(outAt) < toMin(sched.earlyBefore);
 
-  // Checked in but NEVER checked out (Sir #12): credit a HALF-DAY, not the old
-  // "incomplete/0". The person came in; a missing punch-out shouldn't zero them.
+  // A live check-in keeps accumulating time while today's shift is open. Once
+  // the calendar day has ended, an unmatched check-in is a forgotten logout and
+  // therefore Absent with no credited hours. This fallback matters when the
+  // nightly auto-close job was delayed or missed.
   if (!outAt) {
+    if (ctx.dayClosed) {
+      return { code: "A", dayValue: 0, late, leftEarly: false, lateWaived: false, workedMinutes: 0 };
+    }
     return { code: "H/D", dayValue: 0.5, late, leftEarly: false, lateWaived: false, workedMinutes: worked };
   }
 
-  // Same day, one step later: the cron has since written the out-punch itself.
-  // The rule must not change just because a system row now exists where a
-  // missing one used to be — see DayContext.autoClosed.
+  // The nightly job stamps its out-punch at the check-in time and marks it as a
+  // system close. Policy: forgetting to punch out makes the day Absent and must
+  // never contribute artificial punch-in-to-midnight hours to the weekly total.
   if (ctx.autoClosed) {
-    return { code: "H/D", dayValue: 0.5, late, leftEarly: false, lateWaived: false, workedMinutes: worked };
+    return { code: "A", dayValue: 0, late, leftEarly: false, lateWaived: false, workedMinutes: 0 };
   }
 
   // THREE-TIER day rule. The cutoffs come from the employee's own resolved
-  // config (lib/attendance/effective-config.ts), which derives them as ratios of
-  // that person's daily target — so a full-timer grades at 7.5h/4.5h against a 9h
-  // day and a part-timer at 3.5h/2.5h against a 4.5h day. Neither can ever
-  // inherit the other's absolute hours.
+  // config (lib/attendance/effective-config.ts). A standard full-timer grades
+  // at 9h/5h; an hourly-shift worker grades against their own complete shift.
+  // Neither can ever inherit the other's absolute hours.
   //
   //   ≥ fullDayMinutes → Full Day (P)
   //   ≥ halfDayMinutes → Half Day (H/D)

@@ -1,5 +1,5 @@
 import "server-only";
-import { Resend } from "resend";
+import { getEmailClient } from "@/lib/email/transport";
 import {
   AttendanceConfirmRequestEmail,
   type AttendanceConfirmRow,
@@ -21,15 +21,6 @@ import { isDispatchV2On, isDispatchV2DryRun } from "@/lib/dispatch/flag";
  * unless DISPATCH_V2=on. With DISPATCH_V2_DRY_RUN=on the send is built but not
  * transmitted (returns `{ dryRun: true }`) so recipient lists can be verified.
  */
-
-let cached: Resend | null = null;
-function getResend(): Resend | null {
-  if (cached) return cached;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
-  cached = new Resend(key);
-  return cached;
-}
 
 const FROM =
   process.env.RESEND_FROM_EMAIL || "Altus Corp Dashboard <onboarding@resend.dev>";
@@ -59,8 +50,8 @@ export type DispatchEmailResult =
 function preflight(): DispatchEmailResult | null {
   if (!isDispatchV2On()) return { sent: false, skipped: true };
   if (isDispatchV2DryRun()) return { sent: false, dryRun: true };
-  const resend = getResend();
-  if (!resend) return { sent: false, error: "RESEND_API_KEY not set" };
+  const resend = getEmailClient();
+  if (!resend) return { sent: false, error: "Email transport is not configured" };
   return null;
 }
 
@@ -85,7 +76,7 @@ export async function sendAttendanceConfirmRequestEmail(args: {
   const gate = preflight();
   if (gate) return gate;
   try {
-    const resend = getResend()!;
+    const resend = getEmailClient()!;
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,
@@ -124,7 +115,7 @@ export async function sendPmsQuarterlyReportEmail(args: {
   const gate = preflight();
   if (gate) return gate;
   try {
-    const resend = getResend()!;
+    const resend = getEmailClient()!;
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: args.recipient.email,

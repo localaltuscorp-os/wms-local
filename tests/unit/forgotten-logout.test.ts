@@ -10,12 +10,12 @@ import { computeDayCode } from "@/lib/attendance/status";
 import { forgottenLogoutHalfDayOn } from "@/lib/goals/flag";
 
 /**
- * FORGOTTEN LOGOUT → AUTOMATIC HALF DAY.
+ * FORGOTTEN LOGOUT → AUTOMATIC ABSENT.
  *
  * Three separable things, tested separately:
  *
  *   · the STAMP — what marks a row as the system's, and what does not;
- *   · the GRADE — that such a day comes out Half Day and a normal day does not;
+ *   · the GRADE — that such a day comes out Absent and a normal day does not;
  *   · the SCHEDULE — that 23:59 Asia/Kolkata is what the cron entry actually
  *     means, since a wrong UTC offset here is silent and costs a whole day.
  *
@@ -75,31 +75,31 @@ const sched = {
 } as never;
 
 describe("how a forgotten logout grades", () => {
-  it("Case 1 — checked in, no check-out at all → Half Day", () => {
-    // Before the job runs. The day is already half, not zero: the person came in.
-    const r = computeDayCode({ inAt: "10:00", outAt: null }, sched, {} as never, "23:59");
-    expect(r.code).toBe("H/D");
-    expect(r.dayValue).toBe(0.5);
+  it("Case 1 — unmatched check-in after the day closes → Absent", () => {
+    const r = computeDayCode(
+      { inAt: "10:00", outAt: null },
+      sched,
+      { dayClosed: true } as never,
+      "23:59",
+    );
+    expect(r.code).toBe("A");
+    expect(r.dayValue).toBe(0);
+    expect(r.workedMinutes).toBe(0);
   });
 
-  it("Case 1 — after the job writes its out-punch → still Half Day", () => {
-    // The job stamps the out AT THE CLOCK-IN TIME, so worked === 0. Without
-    // `autoClosed` the ordinary three-tier rule would call that ABSENT — the
-    // opposite of what the policy promises. This is the assertion that catches
-    // it if the grader link is ever broken.
+  it("Case 1 — after the job writes its out-punch → Absent", () => {
     const r = computeDayCode(
       { inAt: "10:00", outAt: "10:00" },
       sched,
       { autoClosed: true } as never,
       "23:59",
     );
-    expect(r.code).toBe("H/D");
-    expect(r.dayValue).toBe(0.5);
+    expect(r.code).toBe("A");
+    expect(r.dayValue).toBe(0);
+    expect(r.workedMinutes).toBe(0);
   });
 
-  it("proves the autoClosed flag is what saves it", () => {
-    // The same zero-minute pair WITHOUT the flag grades Absent. If this ever
-    // starts returning H/D the previous test stops proving anything.
+  it("the same zero-minute pair without the flag also grades absent", () => {
     const r = computeDayCode({ inAt: "10:00", outAt: "10:00" }, sched, {} as never, "23:59");
     expect(r.code).not.toBe("H/D");
   });
@@ -112,7 +112,7 @@ describe("how a forgotten logout grades", () => {
     expect(r.dayValue).toBe(1);
   });
 
-  it("Case 5 — an admin correction releases the half-day floor", () => {
+  it("Case 5 — an admin correction releases the absent classification", () => {
     // Ruchita re-times the check-out to 19:30. Her row carries `recordedById`,
     // so `autoClosed` is false and the day grades on its real hours again.
     expect(

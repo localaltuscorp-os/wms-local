@@ -72,11 +72,11 @@ describe("Test 2 — Full-Time genuine early checkout", () => {
     expect(r.leftEarly).toBe(true);
   });
 
-  it("still earns a full day when the hours are there (deviation forgiven)", () => {
-    // 10:00→18:30 = 8h30 ≥ the 7.5h full-day cutoff.
+  it("is a half day when total work is below nine hours", () => {
+    // 10:00→18:30 = 8h30, below the 9h full-day cutoff.
     const r = grade(FULL_TIME, "10:00", "18:30");
-    expect(r.code).toBe("P");
-    expect(r.lateWaived).toBe(true);
+    expect(r.code).toBe("H/D");
+    expect(r.lateWaived).toBe(false);
   });
 });
 
@@ -108,7 +108,7 @@ describe("Test 3 — Part-Time targets are never the Full-Time ones", () => {
   });
 
   it("the full-time thresholds are never applied to an hourly shift", () => {
-    // 5h would be a HALF day under full-time rules (≥4.5h, <7.5h); for this
+    // 5h is a HALF day under full-time rules (≥5h, <9h); for this
     // shift it is the complete day.
     const r = grade(PART_TIME, "10:00", "15:00");
     expect(r.code).toBe("P");
@@ -116,15 +116,15 @@ describe("Test 3 — Part-Time targets are never the Full-Time ones", () => {
   });
 });
 
-describe("§3 — Full-Time three-tier daily classification (7.5h / 4.5h)", () => {
+describe("§3 — Full-Time three-tier daily classification (9h / 5h)", () => {
   const cases: [string, string, string][] = [
     ["10:00", "19:00", "P"], // 9h    → full day
-    ["10:00", "18:30", "P"], // 8h30
-    ["10:00", "17:30", "P"], // 7h30  → exactly the full-day bar
-    ["10:00", "17:24", "H/D"], // 7h24 → NOT "anything under 9h is half" — but under 7.5h is
+    ["10:00", "18:30", "H/D"], // 8h30 → under the full-day bar
+    ["10:00", "17:30", "H/D"], // 7h30
+    ["10:00", "17:24", "H/D"], // 7h24
     ["10:00", "16:00", "H/D"], // 6h
-    ["10:00", "14:30", "H/D"], // 4h30 → exactly the half-day floor
-    ["10:00", "14:24", "A"], // 4h24  → under the 4.5h floor
+    ["10:00", "15:00", "H/D"], // 5h → exactly the half-day floor
+    ["10:00", "14:59", "A"], // 4h59 → under the 5h floor
     ["10:00", "14:00", "A"], // 4h
   ];
   for (const [inAt, outAt, code] of cases) {
@@ -134,7 +134,7 @@ describe("§3 — Full-Time three-tier daily classification (7.5h / 4.5h)", () =
   }
 
   it("an under-floor day still records its marks for audit (§5)", () => {
-    const r = grade(FULL_TIME, "11:30", "14:00"); // 2h30 < 4.5h
+    const r = grade(FULL_TIME, "11:30", "14:00"); // 2h30 < 5h
     expect(r.code).toBe("A");
     expect(r.late).toBe(true); // 11:30 > 10:50
     expect(r.workedMinutes).toBe(150);

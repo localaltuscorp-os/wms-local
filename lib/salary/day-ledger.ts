@@ -672,6 +672,20 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
     }
   }
   const chargesUnpaidLeave = pay.mode === "hours_schedule";
+  const forgivenHalfDays = new Set<string>();
+  if (pay.mode === "daily") {
+    for (const c of recon.halfDayCharges) {
+      if (c.waived) forgivenHalfDays.add(c.date);
+    }
+    const waivedWeeks = new Set(
+      recon.weeks.filter((w) => w.deviationsWaived).map((w) => w.weekKey),
+    );
+    for (const d of input.days) {
+      if (d.code === "H/D" && waivedWeeks.has(weekKeyOf(d.logDate))) {
+        forgivenHalfDays.add(d.logDate);
+      }
+    }
+  }
 
   // ── Rows ───────────────────────────────────────────────────────────────────
   const days: LedgerDay[] = [];
@@ -736,7 +750,7 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
       dailyRate != null
         ? future
           ? null
-          : round2(dailyRate * d.dayValue)
+          : round2(dailyRate * (forgivenHalfDays.has(d.logDate) ? 1 : d.dayValue))
         : rate == null
           ? null
           : future && payableMinutes === 0
@@ -811,6 +825,9 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
         dailyTarget,
         scheduled: isScheduledWorkDay(d.code),
       });
+      if (forgivenHalfDays.has(d.logDate)) {
+        adjustmentReason = "Half day forgiven by attendance grace; no salary was deducted.";
+      }
     }
 
     const status = statusFor(d, { future, ordinary, requiredMinutes, workedMinutes });

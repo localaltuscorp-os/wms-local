@@ -474,11 +474,10 @@ describe("month-level effects are reported as their own lines", () => {
     expect(l.reconciliation!.roundedDownToWholeHours).toBe(0);
   });
 
-  it("a half day earns HALF a day, on every half day — no grace, no separate charge", () => {
-    // Six half-days. The retired engine waived the first three and then levied
-    // a charge for the rest; the daily model has no such step. Every half day
-    // is simply worth 0.5 of the daily rate, which is both simpler and what the
-    // spec asks for (§4).
+  it("forgives eligible half days and charges only those left by reconciliation", () => {
+    // Six half-days. Reconciliation owns which ones are forgiven; the daily
+    // ledger must attribute the same money as payrollMonthFor so its rows close
+    // exactly on the payslip gross.
     const halves = new Set([3, 4, 5, 6, 7, 8].map((d) => `2026-08-${String(d).padStart(2, "0")}`));
     const l = ledgerFor(
       gradeMonth({
@@ -487,18 +486,28 @@ describe("month-level effects are reported as their own lines", () => {
     );
     expectReconciles(l);
     const dailyRate = MONTHLY_SALARY / DAYS_IN_MONTH;
+    const forgiven = l.engine.warnedHalfDays + l.engine.waiverAbsorbedHalfDays;
+    const forgivenDates = new Set(
+      l.days
+        .filter((d) => d.adjustmentReason?.includes("forgiven by attendance grace"))
+        .map((d) => d.date),
+    );
+    expect(forgivenDates.size).toBe(forgiven);
     for (const ymd of halves) {
       const d = dayAt(l, ymd);
       expect(d.code).toBe("H/D");
-      expect(d.earned).toBeCloseTo(dailyRate / 2, 2);
-      // And the ADJ. column says what it cost, measured against a normal day.
+      const isForgiven = forgivenDates.has(ymd);
+      expect(d.earned).toBeCloseTo(isForgiven ? dailyRate : dailyRate / 2, 2);
+      // And the ADJ. column shows a deduction only when reconciliation charged it.
       expect(d.standardEarning).toBeCloseTo(dailyRate, 2);
-      expect(d.adjustment).toBeCloseTo(-dailyRate / 2, 2);
+      expect(d.adjustment).toBeCloseTo(isForgiven ? 0 : -dailyRate / 2, 2);
     }
     // Every OTHER day reads flat: under the daily model a full day, a weekly off
     // and a declared holiday are all worth exactly one daily rate.
     for (const d of l.days) {
-      const expected = d.code === "H/D" ? -dailyRate / 2 : d.code === "A" ? -dailyRate : 0;
+      const expected = d.code === "H/D"
+        ? (forgivenDates.has(d.date) ? 0 : -dailyRate / 2)
+        : d.code === "A" ? -dailyRate : 0;
       expect(d.adjustment ?? 0).toBeCloseTo(expected, 2);
     }
     // AND IT IS STILL NOT A CHARGE. The earning already nets it, so none of it
@@ -975,7 +984,7 @@ describe("sorting", () => {
       gradeMonth({
         workedMinutes: (ymd) => {
           const d = Number(ymd.slice(8, 10));
-          return d === 10 ? 11 * 60 : d === 11 ? 5 * 60 : 9 * 60;
+          return d === 10 ? 11 * 60 : d === 11 ? 0 : 9 * 60;
         },
       }),
     ).days;
@@ -1358,8 +1367,8 @@ describe("weekly earnings", () => {
     expect(views.length).toBeGreaterThan(0);
     for (const w of views) expect(w.totals.earned).not.toBeNull();
     const t = viewTotals(views, l.hasMoney);
-    expect(t.earned!).toBeCloseTo((MONTHLY_SALARY / DAYS_IN_MONTH / 2) * halves.size, 1);
-    expect(t.adjustment!).toBeCloseTo(-(MONTHLY_SALARY / DAYS_IN_MONTH / 2) * halves.size, 1);
+    expect(t.earned!).toBeCloseTo((MONTHLY_SALARY / DAYS_IN_MONTH) * halves.size, 1);
+    expect(t.adjustment!).toBeCloseTo(0, 1);
   });
 });
 

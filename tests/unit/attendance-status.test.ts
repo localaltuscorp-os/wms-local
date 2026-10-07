@@ -3,8 +3,8 @@ import { computeDayCode } from "@/lib/attendance/status";
 import type { AttendanceSchedule } from "@/lib/attendance/schedule";
 // An EXPLICIT schedule, so these cases exercise the engine directly. In
 // production the two cutoffs are resolved per employee from their own daily
-// target (lib/attendance/effective-config.ts) — 7h/5h for a 9h full-timer,
-// 3.5h/2.5h for a 4.5h part-timer. Grading is three-tier:
+// target (lib/attendance/effective-config.ts) — 9h/5h for a full-timer;
+// hourly shifts use their own complete-shift threshold. Grading is three-tier:
 //   >= fullDayMinutes -> P,  >= halfDayMinutes -> H/D,  below -> A.
 const sched: AttendanceSchedule = { lateAfter:"10:50", earlyBefore:"19:20", fullDayMinutes:540, halfDayMinutes:300 };
 const work = { isWeeklyOff:false };

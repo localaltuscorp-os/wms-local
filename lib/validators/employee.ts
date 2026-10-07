@@ -187,6 +187,8 @@ export const EditEmployeeSchema = z
     functionId: z.string().uuid().nullable().optional(),
     /** FK to `shift_types`. NOT the pay basis — see `workerType`. */
     shiftTypeId: z.string().uuid().nullable().optional(),
+    /** Payroll/attendance classification; pay_type is derived server-side. */
+    workerType: z.enum(WORKER_TYPES).optional(),
     /** FK to `paying_entities`. */
     payingEntityId: z.string().uuid().nullable().optional(),
     /** FK to `designations`. */
