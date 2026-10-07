@@ -18,6 +18,7 @@ import {
   TWO_STEP_PASS_COOKIE,
   createTwoStepPass,
   isValidTwoStepPass,
+  previewTwoStepBypassEnabled,
   twoStepEnabled,
   twoStepPassSetCookie,
 } from "@/lib/auth/two-step-pass";
@@ -123,7 +124,7 @@ export async function mintSessionForIdToken(
   // goes through it. A gate on one entry point only would be a gate with a
   // side door.
   let passSetCookie: string | null = null;
-  if (twoStepEnabled() && !DUMMY_MODE) {
+  if (twoStepEnabled() && !DUMMY_MODE && !previewTwoStepBypassEnabled()) {
     if (opts.twoStepVerification) {
       const pass = await createTwoStepPass(decoded.uid, opts.twoStepVerification.id);
       passSetCookie = twoStepPassSetCookie(pass.value, pass.expiresAt);

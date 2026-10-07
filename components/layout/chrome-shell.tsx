@@ -57,9 +57,8 @@ export function ChromeShell({
   children,
 }: {
   sidebar: ReactNode;
-  /** Site-wide module footer, server-rendered once and passed in (same pattern
-   *  as `sidebar`). Rendered as the LAST child of the page column in BOTH
-   *  branches, so every route ends with it. */
+  /** Site-wide module navigation, server-rendered once and passed in (same
+   *  pattern as `sidebar`). Rendered at the top of the page column. */
   footer?: ReactNode;
   /** App-wide top bar (global search + notification bell). FIRST child of the
    *  page column in BOTH branches, so every route — rail or full-bleed — carries
@@ -117,7 +116,9 @@ export function ChromeShell({
   // appended after it necessarily sits past the fold — making the OUTER page
   // scrollable purely to reach a strip of chrome. A stray Space keypress
   // scrolled into that dead band and there was nothing above to scroll back to.
-  const dock = footer;
+  // The Hub is the module picker itself, so it must not repeat the module
+  // navigation above its own header. Every workspace section keeps the bar.
+  const moduleNavigation = isHub ? null : footer;
   // The dock is `sticky bottom-0` — pinned to the foot of the viewport at any
   // scroll position, but still in flow, so it reserves its own height at the END
   // of the page (see module-footer.tsx). That reserved band is what lets the last
@@ -157,6 +158,7 @@ export function ChromeShell({
             : `flex min-h-dvh flex-col ${bottomPad}`
         }
       >
+        {moduleNavigation}
         {/* The provider wraps BAR + CHILDREN together: a page portals its title
             and its own controls up into the bar, and the two are siblings, so a
             context above both is their only meeting point. */}
@@ -165,7 +167,6 @@ export function ChromeShell({
           <PageFilterRibbonSlot />
           {children}
         </PageChromeSlotsProvider>
-        {dock}
       </div>
     );
   }
@@ -174,12 +175,12 @@ export function ChromeShell({
     <div className="flex min-h-dvh">
       {sidebar}
       <div className={`flex min-w-0 flex-1 flex-col max-md:pt-14 ${bottomPad}`}>
+        {moduleNavigation}
         <PageChromeSlotsProvider>
           {bar}
           <PageFilterRibbonSlot />
           {children}
         </PageChromeSlotsProvider>
-        {dock}
       </div>
     </div>
   );

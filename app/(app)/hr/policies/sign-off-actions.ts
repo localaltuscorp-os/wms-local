@@ -8,7 +8,7 @@ import { employeePolicySignatures, policyCompliance } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
-import { getPolicy, isPolicyKey } from "@/lib/hr/policies/registry";
+import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { currentPolicyVersion } from "@/lib/hr/policies/compliance-sync";
 import { policiesCompleteSnapshot, notifyIfPoliciesJustCompleted } from "@/lib/hr/policies/signed-notify";
 
@@ -57,7 +57,7 @@ export async function signPolicyWithSignature(input: {
   if (limited) return { ok: false, error: limited.error };
 
   const key = (input.key ?? "").trim();
-  if (!key || !isPolicyKey(key) || !getPolicy(key)) {
+  if (!key || !(await loadPublishedPolicy(key))) {
     return { ok: false, error: "That policy isn't available to sign." };
   }
 

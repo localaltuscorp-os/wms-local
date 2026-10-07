@@ -7,6 +7,8 @@ import type { Route } from "next";
 import {
   Loader2,
   Upload,
+  Plus,
+  PencilLine,
   FileText,
   Download,
   Trash2,
@@ -72,11 +74,12 @@ function fmtDate(iso: string): string {
 export function PoliciesWorkspace({
   groups,
   signable,
-  isAdmin,
+  canManage,
 }: {
   groups: Group[];
   signable: SignablePolicy[];
-  isAdmin: boolean;
+  /** Mirrors the server-side HR publisher guard for upload and removal. */
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -144,14 +147,18 @@ export function PoliciesWorkspace({
                 <Download size={13} strokeWidth={2.4} aria-hidden /> Download all
               </a>
             )}
-            {isAdmin && (
-              <button
-                onClick={() => setOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white"
-                style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-              >
-                <Upload size={14} /> Upload policy
-              </button>
+            {canManage && (
+              <>
+                <Link href="/hr/policies/new" className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
+                  <Plus size={14} /> Create policy
+                </Link>
+                <Link href="/hr/policies/drafts" className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-4 py-2 text-[13px] font-bold text-ink-strong">
+                  <PencilLine size={14} /> Manage drafts
+                </Link>
+                <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-4 py-2 text-[13px] font-bold text-ink-strong">
+                  <Upload size={14} /> Upload file
+                </button>
+              </>
             )}
           </span>
         </div>
@@ -210,6 +217,14 @@ export function PoliciesWorkspace({
                         <Download size={12} strokeWidth={2.4} aria-hidden /> Download
                       </a>
                     )}
+                    {canManage && (
+                      <Link
+                        href={`/hr/policies/${p.key}/edit` as Route}
+                        className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
+                      >
+                        <PencilLine size={12} strokeWidth={2.4} aria-hidden /> Edit freely
+                      </Link>
+                    )}
                   </span>
                 </div>
               </li>
@@ -229,7 +244,7 @@ export function PoliciesWorkspace({
           <ScrollText size={30} className="mx-auto text-ink-soft" />
           <p className="mt-3 text-[14px] font-medium text-ink-muted">
             No uploaded policy documents yet.
-            {isAdmin ? " Upload one above." : " Check back soon."}
+            {canManage ? " Upload one above." : " Check back soon."}
           </p>
         </div>
       ) : visibleUploadedCount === 0 ? (
@@ -271,7 +286,7 @@ export function PoliciesWorkspace({
                     ) : (
                       <span className="text-[12px] font-medium text-ink-muted">Preview unavailable</span>
                     )}
-                    {isAdmin && <DeleteButton id={p.id} onDone={() => router.refresh()} />}
+                    {canManage && <DeleteButton id={p.id} onDone={() => router.refresh()} />}
                   </li>
                 ))}
               </ul>

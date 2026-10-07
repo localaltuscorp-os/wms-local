@@ -5,6 +5,7 @@ import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import {
   TWO_STEP_PASS_COOKIE,
   isValidTwoStepPass,
+  previewTwoStepBypassEnabled,
   twoStepEnabled,
 } from "@/lib/auth/two-step-pass";
 
@@ -276,7 +277,7 @@ export async function proxy(request: NextRequest) {
       // makes "asked again the next day" true for someone who never signed
       // out. No pass, yesterday's, or one issued to a different person → the
       // session is dropped and they sign in again: password, then code.
-      if (twoStepEnabled()) {
+      if (twoStepEnabled() && !previewTwoStepBypassEnabled()) {
         const pass = request.cookies.get(TWO_STEP_PASS_COOKIE)?.value;
         if (!(await isValidTwoStepPass(pass, tokens.decodedToken.uid))) {
           const url = request.nextUrl.clone();

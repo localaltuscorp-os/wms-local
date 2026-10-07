@@ -18,7 +18,14 @@ type PunchLocation = { lat: number; lng: number; accuracyM: number };
 export function resolvePunchGeofence(
   settings: OrgSettings,
   location: PunchLocation | undefined,
+  bypass = false,
 ): { ok: true; distanceM: number | null } | { ok: false; error: string } {
+  if (bypass) {
+    const distanceM = location && settings.officeLat != null && settings.officeLng != null
+      ? distanceMeters(location.lat, location.lng, settings.officeLat, settings.officeLng)
+      : null;
+    return { ok: true, distanceM };
+  }
   const fenced = settings.officeLat != null && settings.officeLng != null;
   if (!fenced) {
     return { ok: true, distanceM: null };

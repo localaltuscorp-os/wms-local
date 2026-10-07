@@ -4,6 +4,7 @@ import {
   ContactRound,
   ClipboardList,
   Gauge,
+  BarChart3,
   ClipboardCheck,
   FileCheck2,
   FileX2,
@@ -14,7 +15,6 @@ import {
   IndianRupee,
   ScrollText,
   Briefcase,
-  GraduationCap,
   Award,
   BadgeCheck,
   Target,
@@ -28,24 +28,17 @@ import {
   Rocket,
   Star,
   Milestone,
-  UserPlus,
-  ShieldCheck,
-  BarChart3,
   UserRoundCheck,
   UserRoundX,
+  ShieldCheck,
+  GraduationCap,
 } from "lucide-react";
+import { approvedLetterByKey } from "@/lib/hr/letters/catalog";
 
 /**
- * The Altus employee lifecycle — the HR room's five stages and the sidebar
- * surfaces inside each. ONE source of truth: the HR front-door cards, each
- * stage's sub-hub, its sidebar (main-nav HR_SECTION_NAV) and the per-item pages
- * (/hr/<stage>/<item>) are all generated from this.
- *
- * item.kind:
- *   "doc"    — a letter/agreement/certificate → redirects to that letter's own
- *              page /hr/letters/<typeKey> (the key of a registered LetterTemplate).
- *   "screen" — a workflow surface still to be planned → placeholder page.
- *   "link"   — jumps to an existing module route (`href`), no page of its own.
+ * The HR lifecycle and all console navigation derive from this file. Approved
+ * letters use the catalogue metadata (code/name/order); legacy templates remain
+ * addressable in the registry for historical records but are not offered here.
  */
 export type HrStageKey =
   | "pre-interview"
@@ -62,8 +55,10 @@ export interface HrItem {
   label: string;
   Icon: LucideIcon;
   kind: HrItemKind;
-  /** kind === "doc": the LetterTemplate key opened at /hr/letters/<typeKey>. */
+  /** kind === "doc": the letter route key. */
   typeKey?: string;
+  /** Approved catalogue code shown beside this letter in navigation. */
+  code?: string;
   /** kind === "link": the existing route to jump to. */
   href?: string;
   blurb: string;
@@ -78,6 +73,20 @@ export interface HrStage {
   items: HrItem[];
 }
 
+function approvedDoc(slug: string, typeKey: string, Icon: LucideIcon): HrItem {
+  const letter = approvedLetterByKey(typeKey);
+  if (!letter) throw new Error(`Missing approved HR letter catalogue entry: ${typeKey}`);
+  return {
+    slug,
+    label: letter.title,
+    code: letter.code,
+    Icon,
+    kind: "doc",
+    typeKey,
+    blurb: letter.blurb,
+  };
+}
+
 export const HR_STAGES: HrStage[] = [
   {
     key: "pre-interview",
@@ -90,9 +99,6 @@ export const HR_STAGES: HrStage[] = [
       { slug: "first-assessment", label: "Candidate Evaluation Checklist", Icon: ClipboardList, kind: "link", href: "/hr/evaluation", blurb: "The interactive interview evaluation checklist." },
       { slug: "management-assessment", label: "Management Assessment", Icon: Gauge, kind: "link", href: "/hr/management-assessment", blurb: "The management-round evaluation - notes, voice notes & attachments." },
       { slug: "hiring-analytics", label: "Hiring Analytics", Icon: BarChart3, kind: "link", href: "/hr/hiring-analytics", blurb: "The executive read-out - pipeline, hire rate, scores & interview trends." },
-      // The candidate records table pinned to one outcome. Their own routes
-      // rather than a query param on /hr/candidates, because these are steps in
-      // the rail and the console builds the rail from this list.
       { slug: "selected-candidates", label: "Selected Candidates", Icon: UserRoundCheck, kind: "link", href: "/hr/selected-candidates", blurb: "Everyone the management assessment selected." },
       { slug: "rejected-candidates", label: "Rejected Candidates", Icon: UserRoundX, kind: "link", href: "/hr/rejected-candidates", blurb: "Everyone who was turned down - their form links are closed." },
     ],
@@ -101,34 +107,31 @@ export const HR_STAGES: HrStage[] = [
     key: "post-interview",
     slug: "post-interview",
     title: "Post-Interview",
-    blurb: "After the conversation - the decision and the letter that follows.",
+    blurb: "Approved post-interview letters.",
     Icon: ClipboardCheck,
     items: [
-      { slug: "offer-letter", label: "Selection Letter", Icon: FileCheck2, kind: "doc", typeKey: "selection", blurb: "Extend the role to the selected candidate." },
-      { slug: "reject-letter", label: "Regret Letter", Icon: FileX2, kind: "doc", typeKey: "rejection", blurb: "A considerate decline." },
-      { slug: "assignment-letter", label: "Assignment Needed Letter", Icon: FileText, kind: "doc", typeKey: "assignment", blurb: "Send a pre-hire assignment." },
-      { slug: "next-round", label: "One More Interview Needed Letter", Icon: Repeat, kind: "doc", typeKey: "next-round", blurb: "Invite the candidate to another round." },
-      // No Acceptance Letter here: it is unregistered (it duplicated the
-      // Selection Letter). What follows the training is its OUTCOME - Accept /
-      // Extend / Regret - recorded on the After Free Training letter.
-      { slug: "free-training", label: "Free Training Letter", Icon: Award, kind: "doc", typeKey: "free-training", blurb: "Pre-employment training & evaluation letter." },
+      approvedDoc("selection-letter", "selection", FileCheck2),
+      approvedDoc("rejection-letter", "rejection", FileX2),
+      approvedDoc("assignment-needed", "assignment", FileText),
+      approvedDoc("next-round-of-interview", "next-round", Repeat),
+      approvedDoc("free-training", "free-training", Award),
     ],
   },
   {
     key: "pre-joining",
     slug: "pre-joining",
     title: "Post-Appointment",
-    blurb: "Between offer and day one - appointment, CTC, policies and forms.",
+    blurb: "Approved appointment and joining letters.",
     Icon: DoorOpen,
     items: [
-      // Candidate Records sits with Pre-Joining: it is where a decided candidate
-      // is picked up and carried into their appointment paperwork.
       { slug: "candidate-records", label: "Candidate Records", Icon: Users, kind: "link", href: "/hr/candidates", blurb: "Every candidate whose interview form was filled." },
-      { slug: "appointment-letter", label: "Appointment Letter", Icon: FileSignature, kind: "doc", typeKey: "appointment", blurb: "The formal appointment letter." },
-      { slug: "intern-appointment", label: "Intern Appointment Letter", Icon: UserPlus, kind: "doc", typeKey: "intern-appointment", blurb: "The internship offer & appointment letter." },
-      { slug: "minor-intern-undertaking", label: "Undertaking - Minor Intern", Icon: ShieldCheck, kind: "doc", typeKey: "minor-internship-undertaking", blurb: "Parental-consent undertaking for a minor intern." },
-      { slug: "ctc-breakup", label: "CTC Breakup", Icon: IndianRupee, kind: "link", href: "/hr/ctc", blurb: "Build the structured CTC breakup & compensation letters." },
-      { slug: "all-policies-signatory", label: "Policy Signatures", Icon: ScrollText, kind: "link", href: "/hr?policies=1", blurb: "Every firm policy to acknowledge and sign." },
+      approvedDoc("employee-compliance-acknowledgment", "declaration", FileSignature),
+      approvedDoc("policy-signature", "policy-acknowledgement", ScrollText),
+      approvedDoc("undertaking-minor", "minor-internship-undertaking", ShieldCheck),
+      approvedDoc("appointment-letter", "appointment", Briefcase),
+      approvedDoc("declaration-letter", "declaration-letter", FileText),
+      approvedDoc("end-of-probation", "confirmation", BadgeCheck),
+      approvedDoc("ctc-breakup-letter", "ctc-breakup", IndianRupee),
       { slug: "employment-form", label: "Onboarding Form", Icon: ClipboardList, kind: "link", href: "/dossier/onboarding", blurb: "The joining data form - the full onboarding intake." },
     ],
   },
@@ -136,70 +139,44 @@ export const HR_STAGES: HrStage[] = [
     key: "during",
     slug: "during",
     title: "During Employment",
-    blurb: "The settled employee - induction, recognition and the day-to-day of a tenure.",
+    blurb: "Approved in-employment letters and related records.",
     Icon: Milestone,
     items: [
-      // Declaration comes BEFORE Induction: it is what the joiner signs on
-      // arrival, and the induction record is the step that follows it.
-      { slug: "declaration", label: "Declaration Letter", Icon: FileSignature, kind: "doc", typeKey: "declaration", blurb: "The employee's own declaration - the documents and policies read, information given is true, and confidentiality." },
-      // The register of who has actually returned a signed one. Next to the
-      // letter, because printing it and chasing it are the same job.
       { slug: "declaration-status", label: "Declaration Status", Icon: ShieldCheck, kind: "link", href: "/hr/declaration", blurb: "Who has returned a signed declaration, and who has not." },
       { slug: "induction", label: "Induction", Icon: GraduationCap, kind: "link", href: "/hr/induction", blurb: "Confirm the new joiner's details - auto-filled from their onboarding form." },
-      // And AFTER it, the outcome of the pre-employment programme. The letter
-      // the candidate signs before that programme is the Free Training Letter
-      // in Post-Interview; this is the one the firm issues when it ends.
-      { slug: "after-free-training", label: "After Pre-Employment Training", Icon: Award, kind: "doc", typeKey: "after-free-training", blurb: "The outcome of the 15-day pre-employment training & evaluation." },
-      { slug: "employee-of-the-month", label: "Employee of the Month", Icon: Trophy, kind: "doc", typeKey: "employee-of-the-month", blurb: "Recognise a standout performer." },
-      { slug: "birthday-wishes", label: "Birthday Wishes", Icon: Cake, kind: "doc", typeKey: "birthday", blurb: "A warm birthday note from the team." },
-      { slug: "resignation-rejection", label: "Resignation Rejection Letter", Icon: FileX2, kind: "doc", typeKey: "resignation-rejection", blurb: "Decline a resignation and retain the employee." },
+      approvedDoc("employee-of-the-month", "employee-of-the-month", Trophy),
+      approvedDoc("birthday-wishes", "birthday", Cake),
+      approvedDoc("work-anniversary", "work-anniversary", Award),
+      approvedDoc("resignation-rejection", "resignation-rejection", FileX2),
+      approvedDoc("resignation-acceptance", "resignation-acceptance", FileCheck2),
     ],
   },
   {
     key: "appraisal",
     slug: "appraisal",
-    title: "Appraisal",
-    blurb: "Reward and progression - the appraisal outcome and every letter that follows it.",
+    title: "Appraisal Letters",
+    blurb: "Approved progression and compensation letters.",
     Icon: Target,
     items: [
-      { slug: "end-of-probation", label: "End of Probation", Icon: BadgeCheck, kind: "doc", typeKey: "confirmation", blurb: "Confirm the employee on successful completion of probation." },
-      { slug: "appraisal", label: "Appraisal Letter", Icon: Target, kind: "link", href: "/appraisal", blurb: "The live rolling scorecard & appraisal outcome." },
-      // ORDER IS THE WORKFLOW: probation → appraisal → promotion → increment,
-      // then the two revised-CTC letters that follow an appraisal / promotion.
-      { slug: "promotion", label: "Promotion Letter", Icon: Rocket, kind: "doc", typeKey: "promotion", blurb: "Elevate the employee to a new role." },
-      { slug: "increment", label: "Increment Letter", Icon: TrendingUp, kind: "doc", typeKey: "increment", blurb: "Revise compensation with a salary increment." },
-      // Both revised-CTC templates existed in the registry but were reachable
-      // from nowhere in the nav until this section gave them a home.
-      { slug: "appraisal-revised-ctc", label: "New CTC - Appraisal", Icon: IndianRupee, kind: "doc", typeKey: "appraisal-revised-ctc", blurb: "The revised CTC that follows an appraisal." },
-      { slug: "promotion-revised-ctc", label: "New CTC - Promotion", Icon: IndianRupee, kind: "doc", typeKey: "promotion-revised-ctc", blurb: "The revised CTC that follows a promotion." },
+      { slug: "appraisal", label: "Appraisal", Icon: Target, kind: "link", href: "/appraisal", blurb: "The live rolling scorecard & appraisal outcome." },
+      approvedDoc("promotion", "promotion", Rocket),
+      approvedDoc("salary-revision", "increment", TrendingUp),
+      approvedDoc("appraisal-promotion", "promotion-revised-ctc", IndianRupee),
     ],
   },
   {
     key: "exit",
     slug: "exit",
-    // "Exit Process", not "Exit" (2026-09-12): the rail row sat directly under
-    // "During Employment" and read as a verb — a button that ends someone's
-    // employment — rather than as the name of the paperwork trail below it.
-    // The SLUG is untouched, so /hr/exit and every link into it still resolve.
-    title: "Exit Process",
-    blurb: "A clean separation - interview, settlement and closing documents.",
+    title: "Exit",
+    blurb: "Approved separation letters.",
     Icon: LogOut,
     items: [
       { slug: "exit-interview", label: "Exit Interview & Handover", Icon: MessagesSquare, kind: "link", href: "/hr/exit/interview", blurb: "The exit interview questionnaire & handover clearance checklist." },
-      { slug: "full-and-final", label: "Full & Final Settlement", Icon: Banknote, kind: "doc", typeKey: "ffs", blurb: "The full & final settlement letter." },
-      { slug: "ffs-acknowledgement", label: "FFS Acknowledgement", Icon: FileSignature, kind: "doc", typeKey: "ffs-acknowledgement", blurb: "The employee's acknowledgement of the settlement." },
-      // The Relieving Letter IS the resignation acceptance - it is the written
-      // acceptance + Last Working Day confirmation that exit-policy §4.4
-      // describes. No separate "Resignation Acceptance" letter exists, by design.
-      { slug: "relieving-letter", label: "Relieving Letter", Icon: FileText, kind: "doc", typeKey: "relieving", blurb: "Accept the resignation and relieve the employee on their last day." },
-      // The Experience Letter comes before the Letter of Recommendation: it
-      // certifies the tenure, and the recommendation builds on it.
-      { slug: "experience-letter", label: "Experience Letter", Icon: Award, kind: "doc", typeKey: "experience-letter", blurb: "Certify the employee's tenure & contribution." },
-      { slug: "letter-of-recommendation", label: "Letter of Recommendation", Icon: Star, kind: "doc", typeKey: "letter-of-recommendation", blurb: "A strong recommendation for the employee." },
-      // ⚠ Employee Certificate: the artwork/content is coming from Shreya Randhe
-      // (already built for the PS App, Consultant module). Until it lands this
-      // stays the placeholder screen it has always been - it is NOT authored.
-      { slug: "completion-certificate", label: "Employee Certificate", Icon: BadgeCheck, kind: "screen", blurb: "Certificate of completion - awaiting the PS App version." },
+      approvedDoc("ffs", "ffs", Banknote),
+      approvedDoc("ffs-acknowledgement", "ffs-acknowledgement", FileSignature),
+      approvedDoc("relieving-letter", "relieving", FileText),
+      approvedDoc("letter-of-recommendation", "letter-of-recommendation", Star),
+      approvedDoc("experience-letter", "experience-letter", Award),
     ],
   },
 ];
@@ -215,11 +192,9 @@ export function getHrItem(stageKey: string, itemSlug: string): HrItem | undefine
 }
 
 /** Where a sidebar/card item points: an external module for links, else its own
- *  station page under the stage. */
+ * station page under the stage. */
 export function hrItemHref(stageSlug: string, item: HrItem): string {
   if (item.kind === "link" && item.href) return item.href;
-  // Letters open on their OWN page directly — skip the intermediate stage/item
-  // redirect (which briefly flashed the rail).
   if (item.kind === "doc" && item.typeKey) return `/hr/letters/${item.typeKey}`;
   return `/hr/${stageSlug}/${item.slug}`;
 }

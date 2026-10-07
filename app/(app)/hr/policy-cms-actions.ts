@@ -8,10 +8,79 @@ import { requireWorkspaceAdmin } from "@/lib/auth/workspace-access";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { setAdminPin, hasAdminPin, verifyAdminPin } from "@/lib/hr/admin-pin";
-import type { PolicyEditorData, PublishPolicyInput, PolicyVersionMeta } from "./policy-cms-actions-types";
+import { isPolicyKey } from "@/lib/hr/policies/registry";
+import type { CreatePolicyDraftInput, PolicyEditorData, PublishPolicyInput, PolicyVersionMeta } from "./policy-cms-actions-types";
 
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
 type VoidResult = { ok: true } | { ok: false; error: string };
+
+function policyKeyFromTitle(title: string) {
+  const base = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72);
+  return base || "policy";
+}
+
+/** Create a private v1 draft. It is not visible to employees until published. */
+export async function createPolicyDraft(input: CreatePolicyDraftInput): Promise<Result<{ key: string }>> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+  try {
+    await requireWorkspaceAdmin("hr");
+  } catch {
+    return { ok: false, error: "Admins only." };
+  }
+  const title = (input.title ?? "").trim();
+  const summary = (input.summary ?? "").trim();
+  const effectiveDate = (input.effectiveDate ?? "").trim();
+  if (!title || title.length > 200) return { ok: false, error: "Enter a policy title of up to 200 characters." };
+  if (summary.length > 2000 || effectiveDate.length > 100) return { ok: false, error: "Policy details are too long." };
+
+  try {
+    const base = policyKeyFromTitle(title);
+    let key = base;
+    for (let suffix = 2; suffix < 100; suffix += 1) {
+      const [existing] = await db.select({ key: policyDocuments.key }).from(policyDocuments).where(eq(policyDocuments.key, key)).limit(1);
+      if (!existing && !isPolicyKey(key)) break;
+      key = `${base}-${suffix}`;
+    }
+    const [existing] = await db.select({ key: policyDocuments.key }).from(policyDocuments).where(eq(policyDocuments.key, key)).limit(1);
+    if (existing || isPolicyKey(key)) return { ok: false, error: "Could not allocate a unique policy URL. Please try a more specific title." };
+
+    const sections = [{ heading: "Purpose & scope", nodes: [{ kind: "p", text: "" }] }];
+    await db.transaction(async (tx) => {
+      await tx.insert(policyDocuments).values({
+        key,
+        title,
+        docCode: "",
+        category: "policy",
+        badge: title.slice(0, 2).toUpperCase(),
+        blurb: summary,
+        summary,
+        owner: "Human Resources",
+        status: "draft",
+        currentVersion: 1,
+        updatedById: me.id,
+      });
+      await tx.insert(policyVersions).values({
+        policyKey: key,
+        version: 1,
+        title,
+        effectiveDate,
+        summary,
+        sections,
+        publishedById: me.id,
+      });
+    });
+    return { ok: true, key };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not create the draft." };
+  }
+}
 
 /** Admin-only: load a policy for the editor (current sections + version history + compliance). */
 export async function loadPolicyEditor(key: string): Promise<Result<{ data: PolicyEditorData }>> {
@@ -92,22 +161,24 @@ export async function publishPolicy(input: PublishPolicyInput): Promise<Result<{
   try {
     const [doc] = await db.select().from(policyDocuments).where(eq(policyDocuments.key, input.key)).limit(1);
     if (!doc) return { ok: false, error: "Policy not found." };
-    const nextVersion = doc.currentVersion + 1;
+    const isFirstPublish = doc.status === "draft";
+    const nextVersion = isFirstPublish ? doc.currentVersion : doc.currentVersion + 1;
 
-    await db.insert(policyVersions).values({
-      policyKey: input.key,
-      version: nextVersion,
-      title: input.title,
-      docCode: doc.docCode,
-      effectiveDate: input.effectiveDate,
-      summary: input.summary,
-      sections: input.sections as object,
-      publishedById: me.id,
-    });
+    if (isFirstPublish) {
+      await db.update(policyVersions).set({
+        title: input.title, docCode: doc.docCode, effectiveDate: input.effectiveDate,
+        summary: input.summary, sections: input.sections as object, publishedById: me.id, publishedAt: new Date(),
+      }).where(and(eq(policyVersions.policyKey, input.key), eq(policyVersions.version, nextVersion)));
+    } else {
+      await db.insert(policyVersions).values({
+        policyKey: input.key, version: nextVersion, title: input.title, docCode: doc.docCode,
+        effectiveDate: input.effectiveDate, summary: input.summary, sections: input.sections as object, publishedById: me.id,
+      });
+    }
 
     await db
       .update(policyDocuments)
-      .set({ title: input.title, summary: input.summary, currentVersion: nextVersion, updatedById: me.id, updatedAt: new Date() })
+      .set({ title: input.title, blurb: input.summary, summary: input.summary, status: "published", currentVersion: nextVersion, updatedById: me.id, updatedAt: new Date() })
       .where(eq(policyDocuments.key, input.key));
 
     // Re-signing request: reset every active employee to 'pending' for the new version.
