@@ -44,6 +44,7 @@ import {
 import {
   buildClaimAttachmentRows,
 } from "@/lib/reimbursements/attachment-rows";
+import type { ClaimUploadRef } from "@/lib/reimbursements/attachment-rows";
 export type { ClaimUploadRef } from "@/lib/reimbursements/attachment-rows";
 import {
   CLAIM_MAX_FILES,

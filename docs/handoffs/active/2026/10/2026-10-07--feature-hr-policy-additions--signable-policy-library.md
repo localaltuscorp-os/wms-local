@@ -104,6 +104,9 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 - `pnpm.cmd typecheck` could not run because this clean worktree has no `node_modules`; `tsc` was unavailable. Install dependencies or run the check in an existing dependency-equipped development environment before merge.
 - Targeted ESLint for the reimbursement action was also unavailable because
   this worktree has no installed `eslint` executable. `git diff --check` passed.
+- The first reimbursement-fix Preview build reached TypeScript validation and
+  exposed a missing local type-only import in `attachClaimFiles`. It is restored
+  while retaining the direct type re-export; a fresh Preview build is required.
 - The first Vercel preview exposed a TypeScript mismatch between a CMS policy
   card and the registry card type. It is corrected by assigning `ready` only at
   the display boundary after the database query has already filtered published
