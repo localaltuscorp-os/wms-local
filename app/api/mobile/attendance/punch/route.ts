@@ -3,6 +3,7 @@ import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { resolvePunchGeofence, insertPunchRow } from "@/lib/attendance/record-punch";
+import { mayPunchAttendanceAnywhere } from "@/lib/auth/security-roles";
 import { resolveMobileDevice } from "@/lib/attendance/mobile-devices";
 import { attendanceIntegrityMode } from "@/lib/attendance/integrity-mode";
 import { consumePunchNonce } from "@/lib/attendance/punch-nonce";
@@ -87,7 +88,8 @@ export async function POST(req: Request) {
 
   // ── Gate 1: geofence (shared with web) ──
   const settings = await getOrgSettings();
-  const geo = resolvePunchGeofence(settings, location);
+  const mayPunchAnywhere = await mayPunchAttendanceAnywhere(me);
+  const geo = resolvePunchGeofence(settings, location, mayPunchAnywhere);
   if (!geo.ok) return err(400, geo.error);
 
   // ── Gate 2: device allowlist (the mobile anti-proxy) ──

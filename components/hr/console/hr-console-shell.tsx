@@ -1,15 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { HR_CONSOLE_MODULES, locateHrRoute } from "@/lib/hr/console-nav";
 import { visibleConsoleModules } from "@/lib/hr/console-visibility";
 import { cn } from "@/lib/utils";
 import { HrModuleRail } from "./hr-module-rail";
-import { HrStepNav } from "./hr-step-nav";
 import { HrConsoleContextProvider } from "./hr-console-context";
-import { HrModuleGhost } from "./hr-module-ghost";
+
+const HR_RAIL_DEFAULT_WIDTH = 228;
+const HR_RAIL_MIN_WIDTH = 200;
+const HR_RAIL_MAX_WIDTH = 420;
+const HR_RAIL_COLLAPSED_WIDTH = 74;
+const HR_RAIL_WIDTH_STORAGE_KEY = "hr-console-rail-width";
+
+function clampRailWidth(value: number): number {
+  return Math.min(HR_RAIL_MAX_WIDTH, Math.max(HR_RAIL_MIN_WIDTH, Math.round(value)));
+}
 
 /**
  * The HR workspace — a two-column console wrapping every /hr surface:
@@ -55,7 +63,7 @@ export function HrConsoleShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/hr";
-  const searchParams = useSearchParams();
+  const [railTitleSlot, setRailTitleSlot] = React.useState<HTMLDivElement | null>(null);
 
   // The ONE filter, applied to the module list this shell owns. Everything below
   // reads `modules`, never the raw catalogue.
@@ -66,37 +74,94 @@ export function HrConsoleShell({
   // Two independently collapsible columns. The steps list is a real column again
   // (see below), so it gets its own toggle beside the rail's.
   const [railCollapsed, setRailCollapsed] = React.useState(false);
+  const [railWidth, setRailWidth] = React.useState(HR_RAIL_DEFAULT_WIDTH);
+  const [isResizingRail, setIsResizingRail] = React.useState(false);
+
+  // Restore only a valid, user-selected width. The initial default remains
+  // server-safe, then the saved client preference lands on the next frame.
+  React.useEffect(() => {
+    const stored = Number(window.localStorage.getItem(HR_RAIL_WIDTH_STORAGE_KEY));
+    if (!Number.isFinite(stored)) return;
+    const frame = window.requestAnimationFrame(() => setRailWidth(clampRailWidth(stored)));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  // The top bar is a sibling of this shell, so publish the live rail width on
+  // the document root. Its HR-only CSS rule reads the same value, preventing a
+  // widened/narrowed rail and page title from drifting apart.
+  React.useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--hr-console-rail-width",
+      `${railCollapsed ? HR_RAIL_COLLAPSED_WIDTH : railWidth}px`,
+    );
+  }, [railCollapsed, railWidth]);
+
+  const commitRailWidth = React.useCallback((next: number) => {
+    const clamped = clampRailWidth(next);
+    setRailWidth(clamped);
+    window.localStorage.setItem(HR_RAIL_WIDTH_STORAGE_KEY, String(clamped));
+  }, []);
+
+  const startRailResize = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (railCollapsed || event.button !== 0) return;
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = railWidth;
+    let finalWidth = startWidth;
+    setIsResizingRail(true);
+
+    const onMove = (moveEvent: PointerEvent) => {
+      finalWidth = clampRailWidth(startWidth + moveEvent.clientX - startX);
+      setRailWidth(finalWidth);
+    };
+    const onEnd = () => {
+      setIsResizingRail(false);
+      window.localStorage.setItem(HR_RAIL_WIDTH_STORAGE_KEY, String(finalWidth));
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onEnd);
+      document.removeEventListener("pointercancel", onEnd);
+    };
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onEnd, { once: true });
+    document.addEventListener("pointercancel", onEnd, { once: true });
+  }, [railCollapsed, railWidth]);
+
+  const resizeRailWithKeyboard = React.useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (railCollapsed) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      commitRailWidth(railWidth - 12);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      commitRailWidth(railWidth + 12);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      commitRailWidth(HR_RAIL_MIN_WIDTH);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      commitRailWidth(HR_RAIL_MAX_WIDTH);
+    }
+  }, [commitRailWidth, railCollapsed, railWidth]);
 
 
 
   const located = React.useMemo(() => locateHrRoute(pathname), [pathname]);
   const activeModuleId = located.module?.id ?? null;
 
-  const [selectedModuleId, setSelectedModuleId] = React.useState<string | null>(activeModuleId);
+  const selectedModuleId = activeModuleId;
   // Follow the route: a soft navigation into another module re-points column 2.
-  React.useEffect(() => {
-    if (activeModuleId) setSelectedModuleId(activeModuleId);
-  }, [activeModuleId]);
-
   // Picking a module in the rail points the step nav at it immediately, ahead
   // of the navigation that the rail row (a real link) also kicks off.
-  const selectModule = React.useCallback((id: string) => {
-    setSelectedModuleId(id);
-  }, []);
+  const selectModule = React.useCallback(() => {}, []);
 
   // /hr?open=<stage> preselects that module without navigating into a step —
   // the target of every "Back to <Stage>" button in the room (the old landing
   // page used the same param to re-open its stage pop-up).
-  const openParam = searchParams?.get("open") ?? null;
-  React.useEffect(() => {
-    if (openParam && modules.some((m) => m.id === openParam)) {
-      setSelectedModuleId(openParam);
-    }
-  }, [openParam]);
-
   const selectedModule = React.useMemo(
     () => modules.find((m) => m.id === selectedModuleId) ?? null,
-    [selectedModuleId],
+    [modules, selectedModuleId],
   );
 
   // Picked a module in the rail while a page from a DIFFERENT module is still
@@ -109,31 +174,31 @@ export function HrConsoleShell({
   // Guarded on `activeModuleId !== null` so the bare /hr route is untouched:
   // there `children` IS HrConsoleHome, which already renders the same ghost
   // (and owns the ?policies=1 popup, which must stay mounted).
-  const previewingOtherModule =
-    activeModuleId !== null && selectedModuleId !== null && selectedModuleId !== activeModuleId;
-
   // The rail's own label for wherever we are: the open step, else its module.
   const routeTitle = located.subModule?.title ?? located.module?.title ?? null;
+  const railTitle = `HR · ${routeTitle ?? "Dashboard"}`;
 
   const consoleContext = React.useMemo(
     () => ({
       selectedModule,
       routeTitle,
+      railTitleSlot,
     }),
-    [selectedModule, routeTitle],
+    [selectedModule, railTitleSlot, routeTitle],
   );
 
   return (
     <div
-      // `hr-shell` / `hr-shell-scroll` are PRINT HOOKS, not styling. This shell
-      // pins itself to the viewport and scrolls internally, which is right on
+      // hr-shell / hr-shell-scroll are PRINT HOOKS, not styling. This shell
+      // shares the viewport with the two right-column navigation rows and
+      // scrolls internally, which is right on
       // screen and fatal on paper: the printed document was clipped to a single
       // ~848px page with this pane's scrollbar painted down its side.
       // globals.css unclips both under @media print. Keep the class names.
-      className="hr-shell flex overflow-hidden bg-canvas-base"
-      // The viewport MINUS the full-width top bar. The bar is now a sibling ABOVE
-      // this shell (rendered by ChromeShell, same as every other module), so this
-      // shell must take the remaining height or the page would overflow.
+      className="hr-shell relative flex overflow-hidden bg-canvas-base"
+      // Pull the shell up to the viewport edge so the HR rail occupies the
+      // complete left column. The shared module navbar and title ribbon are
+      // constrained to the right column by globals.css.
       //
       // NO `flex-1` HERE, EVER. This is a flex ITEM (app/(app)/template.tsx is
       // a flex column between us and ChromeShell's min-h-dvh frame). `flex-1`
@@ -141,11 +206,15 @@ export function HrConsoleShell({
       // size property — so the height below would be silently ignored and the
       // shell would size to its content instead. With the default
       // `flex-basis: auto` the height is used.
-      style={{ height: "calc(100dvh - var(--app-topbar-h))" }}
+      style={{
+        height: "100dvh",
+        marginTop: "calc(var(--app-topbar-h) * -1)",
+      }}
     >
       <div
         className={cn(
-          "shrink-0 overflow-hidden transition-all duration-300 ease-in-out max-lg:hidden",
+          "relative z-[61] shrink-0 overflow-visible max-lg:hidden",
+          isResizingRail ? "transition-none" : "transition-[width] duration-300 ease-in-out",
           // Collapsed → a 74px ICON STRIP, not a full hide. The rail's own
           // collapse/expand toggle lives inside HrModuleRail, so hiding this
           // column entirely (w-0) would hide the only control that could bring
@@ -168,24 +237,43 @@ export function HrConsoleShell({
           // of slack — enough to absorb font-rendering variance without
           // stranding visibly empty rail beside the longest row. The Directory
           // contact table keeps its own horizontal scroll for its many columns.
-          railCollapsed ? "w-[74px]" : "w-[228px]",
+          railCollapsed ? "w-[74px]" : "",
         )}
+        style={{ width: railCollapsed ? HR_RAIL_COLLAPSED_WIDTH : railWidth }}
       >
         <HrModuleRail
+          key={activeModuleId ?? "hr"}
           modules={modules}
           collapsed={railCollapsed}
           selectedModuleId={selectedModuleId}
           activeModuleId={activeModuleId}
+          activeHref={located.subModule?.href ?? null}
           onSelect={selectModule}
           onToggleRail={() => setRailCollapsed((v) => !v)}
           user={user}
+          pageTitle={railTitle}
+          onRailTitleSlot={setRailTitleSlot}
         />
+        {!railCollapsed && (
+          <button
+            type="button"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize HR sidebar"
+            aria-valuemin={HR_RAIL_MIN_WIDTH}
+            aria-valuemax={HR_RAIL_MAX_WIDTH}
+            aria-valuenow={railWidth}
+            title="Drag to resize sidebar"
+            onPointerDown={startRailResize}
+            onKeyDown={resizeRailWithKeyboard}
+            className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-transparent hover:after:bg-altus-red focus-visible:after:bg-altus-red"
+          />
+        )}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* The CONTENT column: the page itself. The full-width top bar lives
-            above this shell (ChromeShell), and the steps live in column 2
-            (HrStepList above), so the page is the only thing here. */}
+      <div className="flex min-w-0 flex-1 flex-col pt-[var(--app-topbar-h)]">
+        {/* The page content starts below the right-column module navbar and
+            title ribbon; the left rail remains continuous from the top edge. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* --app-topbar-h is a body-scoped CSS var (see globals.css) that
               individual /hr pages use via the `.sticky-below-topbar` utility
@@ -216,17 +304,11 @@ export function HrConsoleShell({
                   z-45      this row.
                   >= z-50   `fixed inset-0` overlays - the letter, policy and
                             assessment modals, which MUST paint over it. */}
-            <div className="z-[45] shrink-0">
-              <HrStepNav
-                module={selectedModule}
-                activeHref={previewingOtherModule ? null : (located.subModule?.href ?? null)}
-              />
-            </div>
             <div
               className="hr-shell-scroll min-h-0 min-w-0 flex-1 overflow-y-auto bg-canvas-base"
               style={{ "--app-topbar-h": "0px" } as React.CSSProperties}
             >
-              {previewingOtherModule ? <HrModuleGhost module={selectedModule} /> : children}
+              {children}
             </div>
           </HrConsoleContextProvider>
         </div>

@@ -247,13 +247,13 @@ function colId(c: TaskCol): string {
 
 /** Selection and row-action controls are positional furniture, not data, so
  * they stay pinned to their table edges. */
-const UNMOVABLE_COLUMNS = new Set(["select", "actions"]);
+const UNMOVABLE_COLUMNS = new Set(["select", "timer", "actions"]);
 
 /** Default left-to-right sequence for the task workflow fields. */
 const TASK_WORKFLOW_COLUMN_ORDER = [
   "select",
-  "taskNo",
   "timer",
+  "taskNo",
   "client",
   "subject",
   "title",
@@ -824,6 +824,7 @@ export function TaskTable({
   // is that the order does not follow a user to another browser or device.
   const orderKey = `altus.tasks.columnOrder.v1:${me.id}`;
   const workflowColumnsMigrationKey = `${orderKey}:workflow-columns.v3`;
+  const timerPositionMigrationKey = `${orderKey}:timer-after-select.v1`;
   const defaultOrder = React.useMemo(() => {
     const ids = columns.map((c) => colId(c));
     return [
@@ -859,6 +860,18 @@ export function TaskTable({
         localStorage.setItem(workflowColumnsMigrationKey, "1");
       }
 
+      // Shreya's task workflow puts Start/Stop at the beginning of every row,
+      // directly beside its checkbox. Existing users may still have `timer`
+      // at the far right in their persisted v1 layout, so repair that saved
+      // position once instead of requiring each person to drag it back.
+      if (!localStorage.getItem(timerPositionMigrationKey)) {
+        const withoutTimer = kept.filter((id) => id !== "timer");
+        const selectIndex = withoutTimer.indexOf("select");
+        withoutTimer.splice(selectIndex >= 0 ? selectIndex + 1 : 0, 0, "timer");
+        kept.splice(0, kept.length, ...withoutTimer);
+        localStorage.setItem(timerPositionMigrationKey, "1");
+      }
+
       // A NEW COLUMN IS SPLICED IN AT ITS DEFAULT POSITION, NOT APPENDED.
       //
       // Appending was the bug that put Initiator Status at the far right of the
@@ -889,7 +902,7 @@ export function TaskTable({
     } catch {
       /* ignore malformed storage */
     }
-  }, [orderKey, workflowColumnsMigrationKey, defaultOrder]);
+  }, [orderKey, workflowColumnsMigrationKey, timerPositionMigrationKey, defaultOrder]);
   React.useEffect(() => {
     try {
       localStorage.setItem(orderKey, JSON.stringify(columnOrder));

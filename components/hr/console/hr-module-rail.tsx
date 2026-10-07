@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ChevronUp,
   PanelLeft,
   PanelLeftOpen,
@@ -16,6 +17,7 @@ import {
 
 import { HrMark } from "./hr-mark";
 import type { HrConsoleModule } from "@/lib/hr/console-nav";
+import { AuraRailLens } from "@/components/layout/aura-rail-lens";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,9 +37,12 @@ export function HrModuleRail({
   collapsed,
   selectedModuleId,
   activeModuleId,
+  activeHref,
   onSelect,
   onToggleRail,
   user,
+  pageTitle,
+  onRailTitleSlot,
 }: {
   /** The modules to draw — ALREADY FILTERED by the permission matrix.
    *  Passed in rather than read from `HR_CONSOLE_MODULES` so this component
@@ -50,12 +55,19 @@ export function HrModuleRail({
   selectedModuleId: string | null;
   /** The module the CURRENT ROUTE lives in — drives the red active row. */
   activeModuleId: string | null;
+  /** The nested item on the current route, if there is one. */
+  activeHref: string | null;
   onSelect: (id: string) => void;
   /** Collapses THIS column only (the module rail) — column 2 is untouched. */
   onToggleRail: () => void;
   user: { name: string; role: string };
+  pageTitle: string;
+  onRailTitleSlot: (element: HTMLDivElement | null) => void;
 }) {
   const router = useRouter();
+  const [expandedModuleIds, setExpandedModuleIds] = useState<Set<string>>(
+    () => new Set(activeModuleId ? [activeModuleId] : []),
+  );
 
   const initials =
     user.name
@@ -73,7 +85,8 @@ export function HrModuleRail({
       // two could disagree — widening only the wrapper left the rail at its
       // old width, truncating labels while an empty gap opened beside it.
       // One source of truth avoids that entirely.
-      className="flex h-full min-h-full w-full shrink-0 flex-col border-r border-hairline bg-surface-card"
+      data-collapsed={collapsed ? "true" : "false"}
+      className="sidebar-rail aura-rail-skin header-light flex h-full min-h-full w-full shrink-0 flex-col"
     >
       {/* Box 1 — navigation controls + brand */}
       {/* Matches components/layout/dashboard-sidebar.tsx box for box: the same
@@ -111,6 +124,17 @@ export function HrModuleRail({
             {collapsed ? <PanelLeftOpen size={15} strokeWidth={2.3} /> : <PanelLeft size={15} strokeWidth={2.3} />}
           </button>
         </div>
+
+        {!collapsed && (
+          <div
+            ref={onRailTitleSlot}
+            className="hr-rail-title-slot flex h-10 min-w-0 items-center border-y border-hairline px-1"
+          >
+            <h1 className="hr-rail-default-title topbar-heading min-w-0 truncate">
+              {pageTitle}
+            </h1>
+          </div>
+        )}
 
         <Link
           href={"/hub" as Route}
@@ -174,7 +198,14 @@ export function HrModuleRail({
 
       {/* Box 2 — the module list */}
       <div aria-hidden className="mx-4 border-t border-hairline" />
-      <nav aria-label="HR modules" className={cn("min-h-0 flex-1 overflow-y-auto py-2", collapsed ? "px-2" : "px-3")}>
+      <nav
+        aria-label="HR modules"
+        className={cn(
+          "sidebar-nav nav-scroll min-h-0 flex-1 overflow-y-auto py-2",
+          collapsed ? "px-2" : "px-3",
+        )}
+      >
+        <AuraRailLens itemSelector=".nav-pill" activeSelector=".nav-pill-active" />
         <ul className="space-y-1">
           {modules.map((mod) => {
             // `onRoute` is real navigation (drives aria-current, for a11y —
@@ -187,11 +218,13 @@ export function HrModuleRail({
             const onRoute = mod.id === activeModuleId;
             const selected = mod.id === selectedModuleId;
             const leaf = mod.subModules.length === 0 && mod.href;
+            const hasActiveChild = onRoute && activeHref !== null;
+            const expanded = expandedModuleIds.has(mod.id);
 
             const inner = (
               <>
                 <mod.Icon
-                  className={cn("h-[18px] w-[18px] shrink-0", selected ? "text-altus-red" : "text-ink-soft")}
+                  className="h-[18px] w-[18px] shrink-0 text-current"
                 />
                 {/* min-w-0 so `truncate` can still shrink it: a flex item's
                     default min-width:auto would otherwise refuse to go below
@@ -200,7 +233,7 @@ export function HrModuleRail({
                 {/* ml-auto parks it against the row's right edge, absorbing
                     whatever space the label doesn't use. */}
                 {!collapsed && mod.external && (
-                  <ArrowUpRight className="ml-auto h-3 w-3 shrink-0 text-ink-subtle" aria-hidden />
+                  <ArrowUpRight className="ml-auto h-3 w-3 shrink-0 text-current opacity-70" aria-hidden />
                 )}
               </>
             );
@@ -216,11 +249,9 @@ export function HrModuleRail({
             // the rail to its content. Flex lets the label size to its own
             // text; the external-link arrow right-aligns itself via ml-auto.
             const className = cn(
-              "flex w-full items-center gap-2.5 rounded-xl px-3 py-[9px] text-left text-[14px] font-semibold transition-colors",
+              "nav-pill flex w-full items-center gap-2.5 text-left text-[14px] font-semibold transition-colors",
               collapsed && "justify-center",
-              selected
-                ? "bg-[color-mix(in_srgb,var(--color-altus-red-soft)_35%,var(--color-altus-red-wash))] text-altus-red"
-                : "text-ink-soft hover:bg-surface-soft",
+              selected && !hasActiveChild && "nav-pill-active",
             );
 
             return (
@@ -251,16 +282,63 @@ export function HrModuleRail({
 
                      onSelect still runs, so column 2 expands on click as before
                      rather than waiting for the navigation to land. */
-                  <Link
-                    href={`/hr/${mod.id}` as Route}
-                    onClick={() => onSelect(mod.id)}
-                    aria-current={onRoute ? "page" : undefined}
-                    aria-expanded={selected}
-                    title={mod.title}
-                    className={className}
-                  >
-                    {inner}
-                  </Link>
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/hr/${mod.id}` as Route}
+                        onClick={() => {
+                          onSelect(mod.id);
+                          setExpandedModuleIds((current) => new Set(current).add(mod.id));
+                        }}
+                        aria-current={onRoute ? "page" : undefined}
+                        aria-expanded={expanded}
+                        title={mod.title}
+                        className={className}
+                      >
+                        {inner}
+                      </Link>
+                      {!collapsed && (
+                        <button
+                          type="button"
+                          aria-label={`${expanded ? "Collapse" : "Expand"} ${mod.title}`}
+                          aria-expanded={expanded}
+                          onClick={() => setExpandedModuleIds((current) => {
+                            const next = new Set(current);
+                            if (next.has(mod.id)) next.delete(mod.id);
+                            else next.add(mod.id);
+                            return next;
+                          })}
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink"
+                        >
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} />
+                        </button>
+                      )}
+                    </div>
+                    {!collapsed && expanded && (
+                      <ul className="ml-3 mt-1 space-y-0.5 border-l border-hairline pl-2">
+                        {mod.subModules.map((sub) => {
+                          const subActive = sub.href === activeHref;
+                          return (
+                            <li key={sub.id}>
+                              <Link
+                                href={sub.href as Route}
+                                aria-current={subActive ? "page" : undefined}
+                                title={sub.external ? `${sub.title} - opens outside HR` : sub.title}
+                                className={cn(
+                                  "nav-pill flex min-h-8 w-full items-center gap-2 px-2 text-[12px] font-semibold text-ink-subtle transition-colors hover:text-ink",
+                                  subActive && "nav-pill-active",
+                                )}
+                              >
+                                {sub.code && <span className="shrink-0 text-[10px] font-bold text-altus-red">{sub.code}</span>}
+                                <span className="min-w-0 truncate">{sub.title}</span>
+                                {sub.external && <ArrowUpRight className="ml-auto h-3 w-3 shrink-0 opacity-70" aria-hidden />}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 )}
               </li>
             );
