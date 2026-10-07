@@ -64,7 +64,9 @@ export function SalaryProfileDialog({
     setPayingEntityId(row.payingEntityId ?? "");
     setProbationEnd(row.probationEnd ?? "");
     setWorkerType(row.workerType ?? "full_time");
-    setMonthlyPayAtTarget(row.monthlyPayAtTarget ? String(row.monthlyPayAtTarget) : "3500");
+    setMonthlyPayAtTarget(
+      row.monthlyPayAtTargetRaw != null ? String(row.monthlyPayAtTargetRaw) : "",
+    );
     setWeeklyTargetHours(row.weeklyTargetHours ? String(row.weeklyTargetHours) : "27");
     setMonthlyFee(row.monthlyFee ? String(row.monthlyFee) : "");
     setError(null);

@@ -44,7 +44,7 @@ export interface SalaryProfileRow {
   // are read only for their basis (hourly → payAtTarget/weeklyTargetHours;
   // fixed_fee → monthlyFee). `weeklyTargetMinutes` is the part-time hours target.
   workerType: WorkerType;
-  monthlyPayAtTarget: number;   // hourly: ₹ at full target (default 3500 for display)
+  monthlyPayAtTarget: number;   // hourly: ₹ at full target (0 when not configured)
   /** The RAW admin-set value, null when never set — lets the pay engine tell
    *  "unset" from an explicit 3500 and fall back to CTC/12 only when truly unset. */
   monthlyPayAtTargetRaw: number | null;
@@ -115,7 +115,10 @@ export async function listSalaryProfiles(): Promise<SalaryProfileRow[]> {
     ptExempt: r.ptExempt ?? false,
     probationEnd: defaultProbationEnd(r.joinedAt, r.probationEnd),
     workerType: asWorkerType(r.workerType),
-    monthlyPayAtTarget: r.monthlyPayAtTarget == null ? 3500 : Number(r.monthlyPayAtTarget),
+    // Do not turn an unset database value into a plausible salary. Payroll uses
+    // the raw value to decide whether a profile exists; the admin UI must show
+    // that same truth instead of making an incomplete profile look configured.
+    monthlyPayAtTarget: r.monthlyPayAtTarget == null ? 0 : Number(r.monthlyPayAtTarget),
     monthlyPayAtTargetRaw: r.monthlyPayAtTarget == null ? null : Number(r.monthlyPayAtTarget),
     weeklyTargetHours: r.weeklyTargetHours == null ? 30 : Number(r.weeklyTargetHours),
     monthlyFee: r.monthlyFee == null ? 0 : Number(r.monthlyFee),

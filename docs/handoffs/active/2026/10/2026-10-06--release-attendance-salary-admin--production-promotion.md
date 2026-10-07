@@ -88,3 +88,14 @@ After promotion:
 - Security/access impact: none; the existing page authorization and salary engine are unchanged.
 - Validation: focused salary tests passed (42 tests across 3 files); full TypeScript check passed; focused ESLint passed. The full-repository lint attempt exceeded the 120-second command limit before returning a result.
 - Rollback: redeploy the prior application commit. Rows created by a valid calculation can remain because older code already reads them; no destructive database rollback is required.
+
+## Unconfigured hourly salary visibility
+
+- Follow-up objective: stop the Salary Breakup admin from presenting an unsaved hourly salary as a configured 3,500 value.
+- Root cause: `listSalaryProfiles` converted a null `monthly_pay_at_target` to 3,500 for display, while payroll correctly inspected the raw nullable value. The edit dialog also prefilled 3,500 for null rows. This made incomplete profiles look valid even though generation returned `no-profile`.
+- The query now exposes 0 for the legacy numeric display field while preserving `monthlyPayAtTargetRaw = null`; the Salary Breakup list, sort, configured count, and edit form use the raw saved value.
+- An unset hourly profile now shows `Not configured`, is excluded from `With pay set`, and opens with a blank Monthly Pay at Target field. A saved 3,500 remains 3,500.
+- Database impact: none. Existing salary-profile values are neither backfilled nor changed.
+- Security/access impact: none; the screen remains admin-only and payroll authorization is unchanged.
+- Validation: TypeScript passed; 16 focused salary tests passed across 2 files; focused ESLint completed with zero errors and three pre-existing React effect warnings in the touched components.
+- Rollback: redeploy the prior application commit; no data rollback is needed.
