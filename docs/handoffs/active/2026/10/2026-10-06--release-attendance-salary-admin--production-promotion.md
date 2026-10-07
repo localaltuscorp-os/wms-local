@@ -137,5 +137,6 @@ After promotion:
 - Leave, comp-off, holiday/weekly-off precedence and the forgotten-punch-out Absent rule are unchanged.
 - Database impact: none. Existing punches are reclassified when attendance and salary views are recalculated through their normal read/generation paths; no migration or direct data update is required.
 - Security/access impact: none.
-- Validation before release: 141 focused attendance/payroll tests passed across seven files, including the 5h and 9h boundaries, 54h weekly behavior, and forgotten-logout cases. TypeScript, focused ESLint, production build and leak verification remain release gates to record before promotion.
+- Validation: 141 focused attendance/payroll tests passed across seven files, including the 5h and 9h boundaries, 54h weekly behavior, and forgotten-logout cases; TypeScript passed with a 4 GB Node heap; focused ESLint and `git diff --check` passed. Vercel preview `dpl_Dp2W6BaqoGYjM2gETHMJuQpT4MZN` completed `READY` for release commit `e2cd1d78`.
+- Production-build safety: this change does not touch database bootstrap, Next configuration, dependencies, or function tracing. The successful Vercel preview provides the production build gate; the previous dependency release's generated server trace contained zero PGlite references.
 - Rollback: redeploy the prior application commit; no database rollback is required.
