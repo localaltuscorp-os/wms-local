@@ -670,6 +670,7 @@ export async function editEmployee(
   const D = parsed.data;
   if (D.functionId !== undefined) patch.functionId = D.functionId;
   if (D.shiftTypeId !== undefined) patch.shiftTypeId = D.shiftTypeId;
+  if (D.workerType !== undefined) patch.workerType = D.workerType;
   if (D.payingEntityId !== undefined) patch.payingEntityId = D.payingEntityId;
   if (D.designationId !== undefined) patch.designationId = D.designationId;
   if (D.isTeamLead !== undefined) patch.isTeamLead = D.isTeamLead;
@@ -777,7 +778,22 @@ export async function editEmployee(
   }
 
   try {
-    await db.update(employees).set(patch).where(eq(employees.id, emp.id));
+    // Worker type controls both attendance grading and payroll basis. Keep the
+    // employee row and the derived salary-profile pay_type in one transaction
+    // so a partial save can never leave those two systems disagreeing.
+    await db.transaction(async (tx) => {
+      await tx.update(employees).set(patch).where(eq(employees.id, emp.id));
+      if (D.workerType !== undefined) {
+        const payType = payBasisFor(D.workerType);
+        await tx
+          .insert(salaryProfiles)
+          .values({ employeeId: emp.id, payType })
+          .onConflictDoUpdate({
+            target: salaryProfiles.employeeId,
+            set: { payType, updatedAt: new Date() },
+          });
+      }
+    });
   } catch (err: any) {
     return { ok: false, error: `DB: ${err.message ?? err}` };
   }

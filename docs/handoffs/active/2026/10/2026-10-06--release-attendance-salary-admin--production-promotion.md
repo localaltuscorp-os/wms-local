@@ -99,3 +99,15 @@ After promotion:
 - Security/access impact: none; the screen remains admin-only and payroll authorization is unchanged.
 - Validation: TypeScript passed; 16 focused salary tests passed across 2 files; focused ESLint completed with zero errors and three pre-existing React effect warnings in the touched components.
 - Rollback: redeploy the prior application commit; no data rollback is needed.
+
+## Employee Master shift-type save
+
+- Follow-up objective: allow the single-employee Employee Master to save a Shift Type change such as Hybrid.
+- Root cause: the workspace included `workerType` in its sparse patch, but `EditEmployeeSchema` omitted that key. Strict validation rejected the request before any database write with `Unrecognized key: workerType`.
+- `EditEmployeeSchema` now accepts the canonical worker-type enum, and `editEmployee` writes it through its existing admin-only, audited path.
+- Because worker type determines payroll basis, the employee row and the derived `salary_profiles.pay_type` are updated in one database transaction. Existing salary amounts, tax settings, and target values are preserved.
+- Database impact: no schema migration. A successful admin save changes the selected employee's `employees.worker_type` and the corresponding derived `salary_profiles.pay_type`.
+- Security/access impact: none; `requireAdmin` and the existing audit records remain in force.
+- Validation: TypeScript passed; 65 focused Employee Master/editor tests passed across 2 files; focused ESLint passed; `git diff --check` passed.
+- Operational note: no direct production employee update was executed from the development workspace. After deployment, the authorized admin must submit the Employee Master save so the production write is authenticated and audited.
+- Rollback: select the prior Shift Type through Employee Master if the data choice was wrong; application rollback is a redeploy of the prior commit without history rewriting.
