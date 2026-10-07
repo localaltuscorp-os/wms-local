@@ -61,7 +61,11 @@ Add three organisation-wide, read-and-sign HR policies to the existing Policies 
 ## Data, security and release notes
 
 - No database schema changes are required.
-- The policies fall back to their code-authored baseline immediately, but the existing CMS needs its idempotent seed operation after deployment to create editable `policy_documents` and `policy_versions` records. Use `scripts/seed-policy-cms.ts` against the intended database. New policies use those tables directly and need no new migration.
+- The production CMS seed was applied on 2026-10-07 through the authenticated
+  Supabase management path. It inserted the missing editable document and
+  version-1 rows for the three added policies only. Read-only verification
+  confirmed all three are published with version 1 present. The policy editor
+  therefore no longer needs an initial seed for these three policies.
 - The editor deliberately stores declarative structured content rather than raw
   browser HTML. That keeps document rendering, print/PDF output, version history,
   and sign-off content consistent and avoids unsafe HTML being published.
