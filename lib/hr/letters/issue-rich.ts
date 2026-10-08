@@ -16,25 +16,23 @@ import {
   documentInstances,
   documentSignatures,
   employees,
-  type Employee,
 } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "./issue-access";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { getEntity } from "@/lib/hr/entities";
 import { getLetter } from "./registry";
 import { sendLetterPdfEmail } from "@/lib/email/hr-letter-email";
 import type { DocKind } from "@/lib/documents/signing";
 import type { LetterSignature } from "./types";
+import { employeeLetterRecipientEmail } from "./recipient";
+import { findReusableLetterInstance } from "./issue-core";
+import { letterDeliveryKey } from "./idempotency";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
 const UUID = z.string().uuid();
 const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-function isAdmin(me: Employee): boolean {
-  return me.isAdmin || isSuperAdmin(me.email);
-}
 
 /** Agreements sign as 'agreement'; everything else signs as a 'letter'. */
 function docKindForCategory(category: string): DocKind {
@@ -72,7 +70,7 @@ export async function issueRichLetter(
   input: IssueRichLetterInput,
 ): Promise<Result<{ instanceId: string; pdfPath: string; signatureId: string | null; emailed: boolean; emailedTo: string | null }>> {
   const me = await requireUser();
-  if (!isAdmin(me)) return { ok: false, error: "Forbidden" };
+  if (!(await canIssueLetters(me))) return { ok: false, error: LETTER_ISSUE_REFUSAL };
 
   const parsed = IssueRichSchema.safeParse(input);
   if (!parsed.success) {
@@ -93,10 +91,20 @@ export async function issueRichLetter(
     const emp = await db.query.employees.findFirst({ where: eq(employees.id, employeeId) });
     if (!emp) return { ok: false, error: "Employee not found." };
     recipientName = emp.name;
-    recipientEmail = (emp.email ?? "").trim();
+    recipientEmail = employeeLetterRecipientEmail(emp);
   }
 
   const resolvedEntity = getEntity(entity ?? template?.entityDefault ?? null);
+  const deliveryKey = letterDeliveryKey({
+    key,
+    entity: resolvedEntity.id,
+    bodyHtml,
+    signingModel,
+    fitOnePage: fitOnePage === true,
+    employeeId: employeeId ?? null,
+    candidateEmail: employeeId ? null : candidateEmail ?? null,
+    candidateName: employeeId ? null : recipientName,
+  });
 
   // ── Render (headless Chromium) ──
   let pdfBuffer: Uint8Array;
@@ -105,6 +113,25 @@ export async function issueRichLetter(
     pdfBuffer = await renderRichLetterPdf({ entity: resolvedEntity.id, bodyHtml, fitOnePage: fitOnePage === true });
   } catch (err) {
     return { ok: false, error: `Could not render the PDF: ${errorMessage(err)}` };
+  }
+
+  const existing = await findReusableLetterInstance({ key, employeeId, deliveryKey });
+  if (existing) {
+    let emailed = false;
+    let emailedTo: string | null = null;
+    if (recipientEmail) {
+      const sent = await sendLetterPdfEmail({
+        to: recipientEmail,
+        recipientName,
+        letterTitle: template?.title ?? key,
+        entityName: resolvedEntity.displayName,
+        pdf: existing.pdfBuffer,
+        filename: `${key}.pdf`,
+      });
+      emailed = sent.ok;
+      if (sent.ok) emailedTo = recipientEmail;
+    }
+    return { ok: true, instanceId: existing.instanceId, pdfPath: existing.pdfPath, signatureId: existing.signatureId, emailed, emailedTo };
   }
 
   // ── Upload (same path convention as issue-core) ──
@@ -131,7 +158,7 @@ export async function issueRichLetter(
         contentKind: "rich",
         bodyRich: { html: bodyHtml },
         bodyHtml,
-        mergeValues: { __entity: resolvedEntity.id },
+        mergeValues: { __entity: resolvedEntity.id, __deliveryKey: deliveryKey },
         renderedPdfPath: pdfPath,
         issuedById: me.id,
         issuedAt,

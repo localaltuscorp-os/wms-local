@@ -12,6 +12,7 @@ import { getLetter } from "@/lib/hr/letters/registry";
 import { normalizeGender } from "@/lib/hr/pronouns";
 import { letterDate } from "@/lib/hr/letters/roster";
 import { sendLetterPdfEmail } from "@/lib/email/hr-letter-email";
+import { employeeLetterRecipientEmail } from "@/lib/hr/letters/recipient";
 
 export const dynamic = "force-dynamic";
 
@@ -89,7 +90,7 @@ export async function POST(req: Request): Promise<Response> {
   if (b.employeeId) {
     const emp = await db.query.employees.findFirst({ where: eq(employees.id, b.employeeId) });
     if (!emp) return NextResponse.json({ ok: false, error: "Employee not found." });
-    to = (emp.email ?? "").trim();
+    to = employeeLetterRecipientEmail(emp);
     recipientName = emp.name;
   }
   if (!to) {

@@ -21,6 +21,7 @@ export interface LeaveRequestsClientProps {
   statusCounts: Record<"all" | "pending" | "approved" | "rejected", number>;
   /** Paid-balance facts keyed by employee id, for the review panel. */
   balances: Record<string, ReviewBalance>;
+  canRevoke: boolean;
   employeeOptions: { id: string; name: string }[];
   /** Departments to offer. Empty for a manager — see LeaveRequestFilters. */
   departmentOptions: { id: string; name: string }[];
@@ -55,6 +56,7 @@ export function LeaveRequestsClient({
   rows,
   statusCounts,
   balances,
+  canRevoke,
   employeeOptions,
   departmentOptions,
   filters,
@@ -320,6 +322,7 @@ export function LeaveRequestsClient({
         key={reviewRow?.id ?? "none"}
         row={reviewRow}
         balance={reviewRow ? (balances[reviewRow.employeeId] ?? null) : null}
+        canRevoke={canRevoke}
         onClose={() => setReviewId(null)}
       />
     </>

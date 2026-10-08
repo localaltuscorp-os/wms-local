@@ -82,7 +82,7 @@ export async function createDepartment(
 
   revalidatePath("/admin/functions");
   revalidatePath("/admin/departments");
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   return { ok: true, id: inserted.id };
 }
 
@@ -196,6 +196,6 @@ export async function deleteDepartments(ids: string[]): Promise<ActionResult<{ d
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
   revalidatePath("/admin/functions");
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   return { ok: true, deleted: validIds.length };
 }

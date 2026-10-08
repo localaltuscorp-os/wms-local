@@ -16,6 +16,7 @@ import { localDateString } from "@/lib/format";
 import { mondayOf } from "@/lib/hh/calendar";
 import { autoLinkHhPeople } from "@/lib/hh/auto-link";
 import { loadHhCalendarWeek, listHhEmployeeOptions } from "@/lib/queries/hh-calendar";
+import { listActiveDdOptions } from "@/lib/queries/dd-options";
 
 /** HAND-HOLDING — employees and interns, and the sections each carries. */
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function HandHoldingPage({
   // Not `as const`: withRetry takes a mutable number[], and a readonly tuple
   // is not assignable to it.
   const budget: { timeoutMs: number[]; attempts: number } = { timeoutMs: [6000, 12000], attempts: 2 };
-  const [canAdd, people, entries, calls, ambassadors, ambassadorCalls, accessActivity] = await Promise.all([
+  const [canAdd, people, entries, calls, ambassadors, ambassadorCalls, accessActivity, ddBatchOptions] = await Promise.all([
     withRetry(() => canAddPerson(me), { ...budget, label: "hh.canAdd" }),
     withRetry(() => listHhPeople(), { ...budget, label: "hh.people" }),
     withRetry(() => listHhEntries(), { ...budget, label: "hh.entries" }),
@@ -55,6 +56,7 @@ export default async function HandHoldingPage({
     withRetry(() => listAmbassadors(), { ...budget, label: "hh.ambassadors" }),
     withRetry(() => listAmbassadorCalls(), { ...budget, label: "hh.ambassadorCalls" }),
     withRetry(() => listAccessActivity(), { ...budget, label: "hh.accessActivity" }),
+    listActiveDdOptions("batch_number").catch(() => [] as { code: string; label: string }[]),
   ]);
 
   // The calendar's DCC for this week. A failure leaves the calendar showing
@@ -92,6 +94,7 @@ export default async function HandHoldingPage({
         calendarWeek={calendarWeek}
         today={today}
         employeeOptions={employeeOptions}
+        ddBatchOptions={ddBatchOptions}
         openAdd={canAdd && sp.add === "1"}
       />
     </PageShell>

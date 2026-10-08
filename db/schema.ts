@@ -3089,6 +3089,10 @@ export const attendanceLogs = pgTable(
     /** WFH/on-site attendance (migration 0127): work mode + photo evidence.
      *  Office geofenced punches leave these null. */
     workMode: text("work_mode"), // office | wfh | client_site | field | other
+    remoteWorkRequestId: uuid("remote_work_request_id").references(
+      (): AnyPgColumn => remoteWorkRequests.id,
+      { onDelete: "set null" },
+    ),
     evidencePath: text("evidence_path"),
     recordedById: uuid("recorded_by_id").references(() => employees.id, {
       onDelete: "set null",

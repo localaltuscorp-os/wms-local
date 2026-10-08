@@ -69,6 +69,7 @@ export function AllocationScreen({
   calendarWeek,
   today,
   employeeOptions,
+  ddBatchOptions = [],
   openAdd = false,
 }: {
   people: HhPerson[];
@@ -92,6 +93,8 @@ export function AllocationScreen({
   today: string;
   /** Active employees, for linking a name (Admin and Ruchita; empty otherwise). */
   employeeOptions: { id: string; name: string }[];
+  /** Active Batch Number values from DD Master, plus historical values below. */
+  ddBatchOptions?: { code: string; label: string }[];
   /** `?add=1` opens the Add dialog on load, so it has a URL of its own. */
   openAdd?: boolean;
 }) {
@@ -140,7 +143,12 @@ export function AllocationScreen({
 
   const mine = entries.filter((e) => e.personId === personId);
   // Suggestions only — every batch offered is one already in use somewhere.
-  const batchOptions = [...new Set(entries.map((e) => e.batchNo).filter((b): b is string => Boolean(b)))].sort();
+  const batchOptions = [
+    ...new Set([
+      ...ddBatchOptions.map((o) => o.label),
+      ...entries.map((e) => e.batchNo).filter((b): b is string => Boolean(b)),
+    ]),
+  ].sort();
   // On-hold rows are excluded from the counts, per the brief.
   const countFor = (code: string) => mine.filter((e) => e.section === code && !e.onHold).length;
 

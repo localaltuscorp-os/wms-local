@@ -20,6 +20,8 @@ import {
 } from "@/lib/attendance/leave-cycle";
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 
+type LeaveDb = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export interface LeaveBalance {
   cycleStart: string;
   cycleEnd: string;
@@ -81,10 +83,11 @@ async function usedDays(
   kind: LeaveKind,
   from: string,
   to: string,
+  executor: LeaveDb = db,
 ): Promise<number> {
   // Pull approved leaves that could overlap the window, then count the clamped
   // overlap in JS (cheap; leave rows per employee are few).
-  const rows = await db
+  const rows = await executor
     .select({
       startDate: leaveRequests.startDate,
       endDate: leaveRequests.endDate,
@@ -127,8 +130,9 @@ async function usedDays(
 export async function getLeaveBalance(
   employeeId: string,
   refTodayISO: string,
+  executor: LeaveDb = db,
 ): Promise<LeaveBalance> {
-  const emp = await db.query.employees.findFirst({
+  const emp = await executor.query.employees.findFirst({
     where: eq(employees.id, employeeId),
     columns: { probationEnd: true, workerType: true },
   });
@@ -151,6 +155,7 @@ export async function getLeaveBalance(
     "unpaid",
     cycle.cycleStart,
     cycle.cycleEnd,
+    executor,
   );
 
   const base = {
@@ -186,7 +191,7 @@ export async function getLeaveBalance(
   }
 
   const win = balanceWindow(probationEnd, cycle.cycleStart, cycle.cycleEnd);
-  const used = win ? await usedDays(employeeId, "paid", win.from, win.to) : 0;
+  const used = win ? await usedDays(employeeId, "paid", win.from, win.to, executor) : 0;
   const remaining = Math.max(0, cycle.allowance - used);
 
   // Prior period, shown read-only. Deliberately NOT added to this period's
@@ -201,7 +206,7 @@ export async function getLeaveBalance(
       ? null
       : balanceWindow(probationEnd, prior.cycleStart, prior.cycleEnd);
     if (priorWin) {
-      const priorUsed = await usedDays(employeeId, "paid", priorWin.from, priorWin.to);
+      const priorUsed = await usedDays(employeeId, "paid", priorWin.from, priorWin.to, executor);
       carryForward = Math.max(0, prior.allowance - priorUsed);
     }
   }

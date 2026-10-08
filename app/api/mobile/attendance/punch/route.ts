@@ -27,6 +27,7 @@ import {
   notifyOnDayFinalized,
   clockInTz,
 } from "@/lib/attendance/punch-notify";
+import { approvedLeaveCoversDate, assertNoMixedAttendance } from "@/lib/attendance/attendance-gates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -147,6 +148,12 @@ export async function POST(req: Request) {
   }
 
   const tz = me.timezone || "Asia/Kolkata";
+  const today = localDateString(tz);
+  if (await approvedLeaveCoversDate(me.id, today)) {
+    return err(409, "Approved leave covers today. Attendance is blocked.");
+  }
+  const modeCheck = await assertNoMixedAttendance(me.id, today, "office");
+  if (!modeCheck.ok) return err(409, modeCheck.error);
 
   // ── Saturday commit gate (NEW, default OFF; mirrors the web punch) ──
   // On Saturday, punch-out is blocked until next week is committed + this week's
@@ -191,7 +198,6 @@ export async function POST(req: Request) {
   //
   // FAIL-OPEN: any read error resolves to "nothing pending".
   if (body.kind === "in" && weekLossAckGateOn()) {
-    const today = localDateString(tz);
     const week = await getWeekReportState(me.id, today).catch(() => null);
     if (week?.pending && week.loss) {
       if (weekLossAckMobileGateOn()) {

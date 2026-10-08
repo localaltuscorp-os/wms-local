@@ -30,7 +30,7 @@ import { CACHE_TAGS } from "@/lib/cache-tags";
  * amount to.
  */
 
-const PATHS = ["/admin/hierarchy", "/admin/employees"];
+const PATHS = ["/admin/hierarchy", "/admin/employee-master"];
 
 async function requireHierarchyEditor() {
   const me = await requireAdmin();

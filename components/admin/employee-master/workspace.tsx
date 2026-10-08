@@ -20,6 +20,7 @@ import { DepartmentMultiSelect } from "@/components/admin/department-multi-selec
 import { CodePanel } from "./code-panel";
 import {
   EMPLOYEE_KIND_OPTIONS,
+  resolveEmployeeType,
   type EmployeeTypeCode,
 } from "@/lib/employees/employee-type";
 import {
@@ -701,12 +702,20 @@ function Section(props: {
   const dateStr = (d: Date | string | null) =>
     !d ? "" : typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
   const joinedDate = dateStr(v("joinedAt", dateStr(r.joinedAt)) ?? null);
+  const selectedDesignationId = v("designationId", r.designationId) ?? null;
+  const effectiveEmployeeType = resolveEmployeeType({
+    override: v("employeeType", r.employeeType),
+    designationType:
+      options.designations.find((d) => d.id === selectedDesignationId)?.employeeType ??
+      r.designationEmployeeType,
+  });
+  const isIntern = effectiveEmployeeType === "intern";
   const shownProbationEnd = "probationEnd" in draft
     ? (v("probationEnd", r.probationEnd) ?? "")
-    : r.probationEndExplicit
-      ? (r.probationEnd ?? "")
-      : (probationEndAfterDays(joinedDate, 180) ?? "");
-  const probationDuration = r.effectiveEmployeeType === "intern"
+      : r.probationEndExplicit
+        ? (r.probationEnd ?? "")
+        : (probationEndAfterDays(joinedDate, 180) ?? "");
+  const probationDuration = isIntern
     ? ""
     : shownProbationEnd === probationEndAfterDays(joinedDate, 180) ? "180" : shownProbationEnd === probationEndAfterDays(joinedDate, 90) ? "90" : "custom";
 
@@ -785,14 +794,14 @@ function Section(props: {
                 <div>
                   <DateInput
                     label={
-                      r.effectiveEmployeeType === "intern"
+                      isIntern
                         ? "Probation Ends On"
                         : "Probation Ends On *"
                     }
                     value={shownProbationEnd}
                     onChange={(x) => set("probationEnd", x || null, r.probationEnd)}
                   />
-                  {r.effectiveEmployeeType !== "intern" && (
+                  {!isIntern && (
                     <label className="mt-2 block text-[11.5px] text-ink-muted">
                       Default duration
                       <select
@@ -809,7 +818,7 @@ function Section(props: {
                       </select>
                     </label>
                   )}
-                  {!r.probationEnd && r.effectiveEmployeeType !== "intern" && (
+                  {!r.probationEnd && !isIntern && (
                     <p className="mt-1 text-[11.5px]" style={{ color: "var(--color-red-deep, #b91c1c)" }}>
                       Required — this employee cannot be saved without it.
                     </p>
@@ -836,7 +845,7 @@ function Section(props: {
                     options={EMPLOYEE_KIND_OPTIONS.map((o) => ({ id: o.value, name: o.label }))}
                   />
                   <p className="mt-1 text-[11.5px] text-ink-subtle">
-                    Effective: <strong>{r.effectiveEmployeeType === "intern" ? "Intern" : "Employee"}</strong>.
+                    Effective: <strong>{isIntern ? "Intern" : "Employee"}</strong>.
                     Interns do not earn incentives.
                   </p>
                 </div>
@@ -844,17 +853,19 @@ function Section(props: {
                 {/* INTERNSHIP — start only. The end date is computed by the
                     database as start + 6 months, so it is shown and never
                     typed; nothing in the app can write a pair that disagrees. */}
-                <div>
-                  <DateInput
-                    label="Internship Start"
-                    value={v("internshipStart", r.internshipStart) ?? ""}
-                    onChange={(x) => set("internshipStart", x || null, r.internshipStart)}
-                  />
-                  <p className="mt-1 text-[11.5px] text-ink-subtle">
-                    Internship end: <strong>{r.internshipEnd ? formatDate(r.internshipEnd) : "—"}</strong>{" "}
-                    (start + 6 months, computed)
-                  </p>
-                </div>
+                {isIntern && (
+                  <div>
+                    <DateInput
+                      label="Internship Start"
+                      value={v("internshipStart", r.internshipStart) ?? ""}
+                      onChange={(x) => set("internshipStart", x || null, r.internshipStart)}
+                    />
+                    <p className="mt-1 text-[11.5px] text-ink-subtle">
+                      Internship end: <strong>{r.internshipEnd ? formatDate(r.internshipEnd) : "—"}</strong>{" "}
+                      (start + 6 months, computed)
+                    </p>
+                  </div>
+                )}
 
                 <DateInput label="Date of Completion" value={v("lastWorkingDay", r.dateOfCompletion) ?? ""} onChange={(x) => set("lastWorkingDay", x || null, r.dateOfCompletion)} />
                 {/* SHIFT TYPE is the worker-type record, relabelled and now

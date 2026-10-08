@@ -50,6 +50,7 @@ import {
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { withTimeout } from "@/lib/db/with-timeout";
 import { assertRemoteWorkApproved } from "@/lib/attendance/remote-work";
+import { approvedLeaveCoversDate, assertNoMixedAttendance } from "@/lib/attendance/attendance-gates";
 import {
   authorizeAttendanceMutation,
   isPrivilegedChange,
@@ -187,6 +188,12 @@ export async function punchAttendance(input: {
 
   const tz = me.timezone || "Asia/Kolkata";
   const today = localDateString(tz);
+
+  if (await approvedLeaveCoversDate(me.id, today)) {
+    return { ok: false, error: "Approved leave covers today. Attendance is blocked." };
+  }
+  const officeModeCheck = await assertNoMixedAttendance(me.id, today, "office");
+  if (!officeModeCheck.ok) return officeModeCheck;
 
   // ── Saturday commit gate (NEW, default OFF) ──────────────────────────
   // On Saturday the week-close ritual is COMMIT — freeze next week's goals +
@@ -1069,6 +1076,12 @@ export async function punchRemote(form: FormData): Promise<ActionResult<{ date: 
   // refuses the same insert regardless, for the writers that forget to ask.
   // Deliberately before the upload — an unapproved punch must not leave an
   // orphaned photo in storage.
+  if (await approvedLeaveCoversDate(me.id, today)) {
+    return { ok: false, error: "Approved leave covers today. Attendance is blocked." };
+  }
+  const remoteModeCheck = await assertNoMixedAttendance(me.id, today, "remote");
+  if (!remoteModeCheck.ok) return remoteModeCheck;
+
   const gate = await assertRemoteWorkApproved(me.id, today, workMode);
   if (!gate.ok) return { ok: false, error: gate.error };
 
@@ -1086,6 +1099,7 @@ export async function punchRemote(form: FormData): Promise<ActionResult<{ date: 
     employeeId: me.id,
     logDate: today,
     kind: kind as "in" | "out",
+    loggedAt: new Date(),
     note: reason.slice(0, 500),
     lat,
     lng,
@@ -1095,6 +1109,7 @@ export async function punchRemote(form: FormData): Promise<ActionResult<{ date: 
     source: "self" as const,
     reason: (workMode === "wfh" ? "wfh" : "client_visit") as PunchReason,
     workMode,
+    remoteWorkRequestId: gate.requestId,
     // Which client site, taken from the APPROVED request rather than from the
     // client — the browser does not get to choose where it was.
     clientLocationId: gate.clientLocationId,

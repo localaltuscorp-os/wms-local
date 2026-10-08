@@ -164,6 +164,8 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       { ...RETRY, label: "att-holidays" },
     ),
   ]);
+  const approvedLeaveToday = await listEmployeeLeaveForRange([me.id], today, today).catch(() => []);
+  const attendanceBlockedByLeave = approvedLeaveToday.length > 0;
 
   // ── PENDING LEAVE (spec §3) + the live board ─────────────────────────────
   // The Employees module's front door is where a manager finds out that someone
@@ -298,6 +300,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       officeLng={settings.officeLng}
       radiusM={settings.attendanceRadiusM}
       lastPunchLabel={lastPunchLabel}
+      blocked={attendanceBlockedByLeave}
     />
   );
 
@@ -320,7 +323,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const wfhBox = (
     <>
       {correctionControls}
-      <RemoteCheckInTrigger hasCheckedIn={!!todayRow?.in} hasCheckedOut={!!todayRow?.out} />
+      <RemoteCheckInTrigger hasCheckedIn={!!todayRow?.in} hasCheckedOut={!!todayRow?.out} disabled={attendanceBlockedByLeave} />
     </>
   );
   // ── MY EFFECTIVE CONFIGURATION (spec §10) ────────────────────────────────

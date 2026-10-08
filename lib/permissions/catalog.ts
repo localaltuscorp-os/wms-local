@@ -1002,8 +1002,8 @@ export const PERMISSION_CATALOG: readonly PermissionNode[] = [
         children: [
           {
             key: "admin.people.employees",
-            label: "Employees",
-            routes: ["/admin/employees", "/api/admin/exit-register"],
+            label: "Employee Master",
+            routes: ["/admin/employee-master", "/api/admin/exit-register"],
           },
           {
             key: "admin.people.hierarchy",

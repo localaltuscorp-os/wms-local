@@ -5,15 +5,16 @@ import { MapPinned } from "lucide-react";
 import { RemoteCheckInDialog } from "./remote-checkin-dialog";
 
 /** "Working remotely?" entry point — opens the evidence-backed remote check-in. */
-export function RemoteCheckInTrigger({ hasCheckedIn, hasCheckedOut }: { hasCheckedIn: boolean; hasCheckedOut: boolean }) {
+export function RemoteCheckInTrigger({ hasCheckedIn, hasCheckedOut, disabled = false }: { hasCheckedIn: boolean; hasCheckedOut: boolean; disabled?: boolean }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setOpen(true)}
         className="wg-btn flex w-full items-center gap-3 rounded-2xl bg-surface-card px-5 py-3.5 text-left transition hover:-translate-y-px"
-        style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 8px 24px -18px rgba(15,23,42,0.3)" }}
+        style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 8px 24px -18px rgba(15,23,42,0.3)", opacity: disabled ? 0.5 : 1 }}
       >
         <span className="inline-grid size-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: "linear-gradient(135deg, #E10600, #A80400)" }}>
           <MapPinned size={19} strokeWidth={2.3} />

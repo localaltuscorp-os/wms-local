@@ -36,7 +36,7 @@ function ShareCard({ share, index }: { share: ShareForFeedback; index: number })
 
   return (
     <div
-      className="wg-rise border-b border-hairline bg-surface-card px-4 py-3 last:border-b-0"
+      className="wg-rise border-b border-hairline bg-surface-card px-3 py-2.5 last:border-b-0"
       style={{ animationDelay: `${index * 35}ms` }}
     >
       <div className="flex items-start gap-3">
@@ -46,7 +46,7 @@ function ShareCard({ share, index }: { share: ShareForFeedback; index: number })
             <span className="text-[14px] font-bold text-ink-strong">{share.employeeName}</span>
             <span className="text-[12px] font-semibold text-ink-subtle">{weekLabel(share.weekStart)}</span>
           </div>
-          <p className="mt-0.5 text-[14px] font-semibold text-ink-strong" style={{ lineHeight: 1.35 }}>{share.topic}</p>
+          <p className="mt-0.5 text-[13.5px] font-semibold text-ink-strong" style={{ lineHeight: 1.3 }}>{share.topic}</p>
           <div className="mt-1 flex items-center gap-3 flex-wrap text-[12px] font-semibold text-ink-subtle">
             <span className="tabular-nums">{share.minutes} min</span>
             {share.videoUrl && (
@@ -64,12 +64,12 @@ function ShareCard({ share, index }: { share: ShareForFeedback; index: number })
       </div>
 
       {share.notes && (
-        <p className="mt-2 rounded-lg bg-surface-soft px-3 py-2 text-[12.5px] font-medium text-ink-muted" style={{ lineHeight: 1.4 }}>
+        <p className="mt-1.5 rounded-lg bg-surface-soft px-3 py-1.5 text-[12px] font-medium text-ink-muted" style={{ lineHeight: 1.35 }}>
           {share.notes}
         </p>
       )}
 
-      <div className="mt-3 border-t border-hairline pt-3">
+      <div className="mt-2 border-t border-hairline pt-2.5">
         <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-soft">
           {share.myRating ? "Your feedback" : "Rate this Share"}
         </p>
@@ -79,7 +79,7 @@ function ShareCard({ share, index }: { share: ShareForFeedback; index: number })
           maxLength={2000}
           onChange={(e) => setComment(e.target.value)}
           placeholder="A line of feedback (optional)"
-          className="mt-2 w-full rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle resize-y min-h-[42px]"
+          className="mt-1.5 w-full rounded-lg border border-hairline-strong bg-white px-3 py-1.5 text-[12.5px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle resize-y min-h-[38px]"
           onFocus={(e) => (e.currentTarget.style.borderColor = ACCENT)}
           onBlur={(e) => (e.currentTarget.style.borderColor = "")}
           onKeyDown={(e) => {
@@ -89,12 +89,12 @@ function ShareCard({ share, index }: { share: ShareForFeedback; index: number })
             }
           }}
         />
-        <div className="mt-2 flex justify-end">
+        <div className="mt-1.5 flex justify-end">
           <button
             type="button"
             onClick={submit}
             disabled={saving || !dirty || rating == null}
-            className="brand-btn inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-white transition-transform active:scale-[0.99] disabled:opacity-50"
+            className="brand-btn inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-bold text-white transition-transform active:scale-[0.99] disabled:opacity-50"
             style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})` }}
           >
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.4} />}

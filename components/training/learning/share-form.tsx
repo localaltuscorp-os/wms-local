@@ -12,8 +12,8 @@ const ACCENT_DEEP = "#A80400";
 const SHARE_MIN = 10;
 
 const FIELD =
-  "w-full rounded-lg border border-hairline-strong bg-white px-3.5 py-3 text-[15px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle";
-const LABEL = "mb-1.5 block text-[12px] font-bold uppercase tracking-[0.06em] text-ink-soft";
+  "w-full rounded-lg border border-hairline-strong bg-white px-3 py-2.5 text-[14px] font-medium text-ink-strong outline-none transition-colors placeholder:font-normal placeholder:text-ink-subtle";
+const LABEL = "mb-1 block text-[11px] font-bold uppercase tracking-[0.06em] text-ink-soft";
 
 export function ShareForm({
   existing,
@@ -51,10 +51,10 @@ export function ShareForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+    <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
       {/* Status banner */}
       <div
-        className="flex items-center gap-3 rounded-xl px-4 py-3"
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2.5"
         style={
           existing
             ? { background: "color-mix(in srgb, #16a34a 10%, transparent)", border: "1px solid color-mix(in srgb, #16a34a 36%, transparent)" }
@@ -67,7 +67,7 @@ export function ShareForm({
           <Video size={20} strokeWidth={2.2} style={{ color: ACCENT_DEEP }} />
         )}
         <div className="min-w-0">
-          <p className="text-[14.5px] font-bold" style={{ color: existing ? "#15803d" : ACCENT_DEEP }}>
+          <p className="text-[13.5px] font-bold" style={{ color: existing ? "#15803d" : ACCENT_DEEP }}>
             {existing ? "Done — this week's Share is logged" : "You haven't done this week's Share yet"}
           </p>
           <p className="text-[12.5px] font-medium text-ink-muted">{weekLabel} · {SHARE_MIN} min compulsory</p>
@@ -114,7 +114,7 @@ export function ShareForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 max-md:grid-cols-1">
+      <div className="grid grid-cols-2 gap-3 max-md:grid-cols-1">
         <div>
           <label className={LABEL}>Minutes</label>
           <input
@@ -128,7 +128,7 @@ export function ShareForm({
             onFocus={(e) => (e.currentTarget.style.borderColor = ACCENT)}
             onBlur={(e) => (e.currentTarget.style.borderColor = "")}
           />
-          <p className="mt-1 text-[12.5px] font-medium text-ink-subtle">Minimum {SHARE_MIN} minutes.</p>
+          <p className="mt-1 text-[11.5px] font-medium text-ink-subtle">Minimum {SHARE_MIN} minutes.</p>
         </div>
         <div>
           <label className={LABEL}>Video Link</label>
@@ -149,7 +149,7 @@ export function ShareForm({
       <div>
         <label className={LABEL}>Notes (optional)</label>
         <textarea
-          className={FIELD + " min-h-[72px] resize-y"}
+          className={FIELD + " min-h-[56px] resize-y"}
           value={notes}
           maxLength={2000}
           onChange={(e) => setNotes(e.target.value)}
@@ -162,18 +162,18 @@ export function ShareForm({
       {error && (
         <div
           role="alert"
-          className="rounded-lg px-4 py-3 text-[14px] font-semibold"
+          className="rounded-lg px-3 py-2.5 text-[13px] font-semibold"
           style={{ background: "color-mix(in srgb, var(--color-altus-red) 8%, transparent)", color: "var(--color-altus-red-deep)" }}
         >
           {error}
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3 border-t border-hairline pt-5">
+      <div className="flex items-center justify-end gap-3 border-t border-hairline pt-3">
         <button
           type="submit"
           disabled={submitting}
-          className="brand-btn inline-flex items-center gap-2 rounded-xl py-3 px-7 text-[15px] font-bold text-white transition-transform active:scale-[0.99] disabled:opacity-60"
+          className="brand-btn inline-flex items-center gap-2 rounded-lg py-2.5 px-5 text-[14px] font-bold text-white transition-transform active:scale-[0.99] disabled:opacity-60"
           style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DEEP})`, boxShadow: "0 12px 30px -12px rgba(225,6,0,0.6)" }}
         >
           {submitting ? <Loader2 size={17} className="animate-spin" /> : <Video size={17} strokeWidth={2.4} />}

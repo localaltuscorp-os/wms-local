@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import {
   BadgeCheck,
   ChevronDown,
@@ -13,6 +15,7 @@ import {
   Search,
   Sun,
   Users,
+  BarChart3,
   X,
 } from "lucide-react";
 import type { EmployeeMasterRow, MasterOptions } from "@/lib/employees/master-query";
@@ -843,6 +846,15 @@ export function EmployeeMasterTable({
                     carries the per-employee actions (§15) — the same set the
                     Employees screen offers, calling the same server actions. */}
                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                  <Link
+                    href={`/attendance/insights/employee/${r.id}` as Route}
+                    title={`Open ${r.name}'s attendance dashboard`}
+                    aria-label={`Attendance dashboard for ${r.name}`}
+                    className="mr-1 inline-flex items-center gap-1 rounded-pill px-2 py-1 text-[11.5px] font-bold text-[#A80400] transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_10%,transparent)]"
+                  >
+                    <BarChart3 size={13} strokeWidth={2.4} />
+                    <span className="max-xl:hidden">Attendance</span>
+                  </Link>
                   <MasterRowActions
                     employee={{
                       id: r.id,

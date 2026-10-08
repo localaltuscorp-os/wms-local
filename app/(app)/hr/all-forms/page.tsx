@@ -4,7 +4,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
 import { requireHrStaff } from "@/lib/hr/access";
 import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
+import { candidateIntake, employees } from "@/db/schema";
 import { hrFormSubmissions, asHrFormStatus } from "@/lib/hr/forms/schema";
 import { hrSectionLabel } from "@/lib/hr/forms/registry";
 import { formatDateHr } from "@/lib/format";
@@ -52,10 +52,11 @@ export default async function AllFilledFormsPage() {
       status: hrFormSubmissions.status,
       submittedAt: hrFormSubmissions.submittedAt,
       updatedAt: hrFormSubmissions.updatedAt,
-      employeeName: employees.name,
+      employeeName: sql<string | null>`case when ${hrFormSubmissions.employeeId} is null then concat('Candidate · ', ${candidateIntake.fullName}) else ${employees.name} end`,
     })
     .from(hrFormSubmissions)
-    .innerJoin(employees, eq(hrFormSubmissions.employeeId, employees.id))
+    .leftJoin(employees, eq(hrFormSubmissions.employeeId, employees.id))
+    .leftJoin(candidateIntake, eq(hrFormSubmissions.candidateIntakeId, candidateIntake.id))
     // NULLS LAST is explicit because Postgres defaults DESC to NULLS FIRST —
     // which floats every draft to the top of a list captioned "newest first",
     // and leaves the (submitted_at DESC NULLS LAST) index unable to serve the
@@ -72,7 +73,7 @@ export default async function AllFilledFormsPage() {
     formName: r.formName,
     section: r.section,
     sectionLabel: hrSectionLabel(r.section),
-    employeeName: r.employeeName,
+    employeeName: r.employeeName ?? undefined,
     submittedOn: r.submittedAt ? formatDateHr(r.submittedAt) : r.updatedAt ? formatDateHr(r.updatedAt) : "",
     submittedTs: r.submittedAt ? new Date(r.submittedAt).getTime() : 0,
     status: asHrFormStatus(r.status),

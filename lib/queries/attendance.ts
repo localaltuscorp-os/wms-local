@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { attendanceLogs, employees } from "@/db/schema";
+import { attendanceLogs, employees, remoteWorkRequests } from "@/db/schema";
 
 export interface PunchDetail {
   at: Date;
@@ -10,6 +10,8 @@ export interface PunchDetail {
   verifyMethod: "biometric" | "gps_only" | "none";
   /** Metres from the office anchor, when a geofence was active. */
   distanceM: number | null;
+  workMode?: string | null;
+  remoteStatus?: string | null;
 }
 
 export interface DayPunches {
@@ -59,8 +61,11 @@ export async function listMyAttendance(
       note: attendanceLogs.note,
       verifyMethod: attendanceLogs.verifyMethod,
       distanceM: attendanceLogs.distanceM,
+      workMode: attendanceLogs.workMode,
+      remoteStatus: remoteWorkRequests.status,
     })
     .from(attendanceLogs)
+    .leftJoin(remoteWorkRequests, eq(attendanceLogs.remoteWorkRequestId, remoteWorkRequests.id))
     .where(
       and(
         eq(attendanceLogs.employeeId, employeeId),
@@ -68,7 +73,7 @@ export async function listMyAttendance(
       ),
     )
     .orderBy(desc(attendanceLogs.logDate));
-  return foldByDay(rows);
+  return foldByDay(rows.filter((r) => !r.workMode || r.workMode === "office" || r.remoteStatus !== "rejected"));
 }
 
 /**
@@ -86,8 +91,9 @@ export async function listMyAttendance(
  */
 export async function hasCheckedInOn(employeeId: string, ymd: string): Promise<boolean> {
   const [row] = await db
-    .select({ id: attendanceLogs.id })
+    .select({ id: attendanceLogs.id, remoteStatus: remoteWorkRequests.status })
     .from(attendanceLogs)
+    .leftJoin(remoteWorkRequests, eq(attendanceLogs.remoteWorkRequestId, remoteWorkRequests.id))
     .where(
       and(
         eq(attendanceLogs.employeeId, employeeId),
@@ -96,7 +102,7 @@ export async function hasCheckedInOn(employeeId: string, ymd: string): Promise<b
       ),
     )
     .limit(1);
-  return !!row;
+  return !!row && row.remoteStatus !== "rejected";
 }
 
 /**
@@ -111,8 +117,9 @@ export async function hasCheckedInOn(employeeId: string, ymd: string): Promise<b
  */
 export async function hasCheckedOutOn(employeeId: string, ymd: string): Promise<boolean> {
   const [row] = await db
-    .select({ id: attendanceLogs.id })
+    .select({ id: attendanceLogs.id, remoteStatus: remoteWorkRequests.status })
     .from(attendanceLogs)
+    .leftJoin(remoteWorkRequests, eq(attendanceLogs.remoteWorkRequestId, remoteWorkRequests.id))
     .where(
       and(
         eq(attendanceLogs.employeeId, employeeId),
@@ -121,7 +128,7 @@ export async function hasCheckedOutOn(employeeId: string, ymd: string): Promise<
       ),
     )
     .limit(1);
-  return !!row;
+  return !!row && row.remoteStatus !== "rejected";
 }
 
 export interface TeamAttendanceRow {
@@ -156,9 +163,11 @@ export async function listTeamAttendanceForDate(
         loggedAt: attendanceLogs.loggedAt,
         note: attendanceLogs.note,
         verifyMethod: attendanceLogs.verifyMethod,
-        distanceM: attendanceLogs.distanceM,
-      })
-      .from(attendanceLogs)
+      distanceM: attendanceLogs.distanceM,
+      remoteStatus: remoteWorkRequests.status,
+    })
+    .from(attendanceLogs)
+    .leftJoin(remoteWorkRequests, eq(attendanceLogs.remoteWorkRequestId, remoteWorkRequests.id))
       .where(eq(attendanceLogs.logDate, date)),
   ]);
 
@@ -166,7 +175,7 @@ export async function listTeamAttendanceForDate(
     string,
     { in: TeamAttendanceRow["in"]; out: TeamAttendanceRow["out"] }
   >();
-  for (const p of punches) {
+  for (const p of punches.filter((r) => !r.remoteStatus || r.remoteStatus !== "rejected")) {
     let slot = byEmployee.get(p.employeeId);
     if (!slot) {
       slot = { in: null, out: null };

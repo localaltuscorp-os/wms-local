@@ -12,6 +12,10 @@ import { EmployeeMasterWorkspaceTabs } from "@/components/admin/employee-master/
 import { ReportingHierarchy } from "@/components/admin/reporting-hierarchy";
 import { getHierarchy } from "@/lib/queries/hierarchy";
 import { InviteEmployeeDialog } from "@/components/admin/invite-employee-dialog";
+import { PreviousEmployees } from "@/components/admin/previous-employees";
+import { LeaveRequestsCallout } from "@/components/attendance/leave/leave-requests-callout";
+import { countPendingLeaveForReview, leaveReviewScopeFor } from "@/lib/queries/leave";
+import { getFormerEmployeeDetails } from "@/lib/queries/offboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +28,9 @@ export const dynamic = "force-dynamic";
  * second copy of anything.
  *
  * ── WHAT IT DOES NOT REPLACE ───────────────────────────────────────────────
- * The existing People → Employees screen stays exactly where it is, and so does
- * every HR surface. This is an additional door onto the same records, not a
- * migration: the brief is explicit that HR Records continue to live in the HR
- * module, and the workspace LINKS there rather than reimplementing it (§14).
+ * This is the single Admin Panel employee surface. HR Records continue to live
+ * in the HR module, and this workspace links to that source rather than
+ * reimplementing it (§14).
  *
  * ── SERVER COMPONENT, SERVER AUTHORIZATION ─────────────────────────────────
  * `requireAdmin()` gates the page, and every mutation the table can start goes
@@ -39,11 +42,17 @@ export const dynamic = "force-dynamic";
 export default async function EmployeeMasterPage() {
   const me = await requireAdmin();
 
-  const [rows, options, hierarchy] = await Promise.all([
+  const leaveScope = await leaveReviewScopeFor(me);
+  const [rows, options, hierarchy, pendingLeave, former] = await Promise.all([
     loadEmployeeMasterRows(),
     loadMasterOptions(),
     getHierarchy({ includeInactive: true }),
+    countPendingLeaveForReview(leaveScope).catch(() => ({ requests: 0, employees: 0 })),
+    getFormerEmployeeDetails(),
   ]);
+
+  const activeCount = rows.filter((row) => row.isActive).length;
+  const invitedCount = rows.filter((row) => row.isActive && !row.joinedAt).length;
 
   // Pay visibility follows the existing rule on the Employees screen: salary is
   // a super-admin concern. Read here so the payload never carries CTC to a
@@ -65,6 +74,11 @@ export default async function EmployeeMasterPage() {
       title="Employee Master"
       subtitle="Employee records, payroll and reporting."
       icon={Users}
+      stats={[
+        { label: "Total", value: rows.length },
+        { label: "Active", value: activeCount, tone: "green" },
+        { label: "Pending invite", value: invitedCount, tone: "amber" },
+      ]}
       actions={
         <>
           <SalaryProfileImportDialog />
@@ -76,6 +90,10 @@ export default async function EmployeeMasterPage() {
         </>
       }
     >
+      <LeaveRequestsCallout
+        requests={pendingLeave.requests}
+        employees={pendingLeave.employees}
+      />
       <EmployeeMasterWorkspaceTabs
         employeeMaster={
           <EmployeeMasterTable
@@ -97,6 +115,15 @@ export default async function EmployeeMasterPage() {
           />
         }
       />
+      <div className="mt-10">
+        <h2 className="mb-1 font-serif text-lg text-ink-strong">Previous employees</h2>
+        <p className="mb-3 text-[13px] text-ink-muted">
+          {former.length === 0
+            ? "Nobody has been offboarded yet."
+            : `${former.length} former ${former.length === 1 ? "employee" : "employees"} · records retained, logins destroyed`}
+        </p>
+        <PreviousEmployees rows={former} />
+      </div>
     </AdminSection>
   );
 }

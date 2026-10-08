@@ -6,7 +6,7 @@ import { Info, X } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { LEAVE_KIND_LABELS, OFFICE_PHONE_AVAILABILITY_LABELS } from "@/db/enums";
 import type { LeaveRow } from "@/lib/queries/leave";
-import { decideLeave } from "@/app/(app)/attendance/leave/actions";
+import { decideLeave, revokeLeave } from "@/app/(app)/attendance/leave/actions";
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import {
   LEAVE_INPUT_CLASS,
@@ -29,7 +29,7 @@ export interface ReviewBalance {
 
 /**
  * The REVIEW side panel (spec §4). One request, everything needed to rule on
- * it, and two buttons.
+ * it, verdict buttons, and an explicit revoke action for approved leave.
  *
  * It is a panel rather than an expanded row because the decision needs the
  * reason text and the requester's remaining balance at full width — details the
@@ -46,10 +46,12 @@ export interface ReviewBalance {
 export function ReviewLeavePanel({
   row,
   balance,
+  canRevoke,
   onClose,
 }: {
   row: LeaveRow | null;
   balance: ReviewBalance | null;
+  canRevoke: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -116,6 +118,20 @@ export function ReviewLeavePanel({
         message: verdict === "approved" ? "Leave approved." : "Leave rejected.",
         type: verdict === "approved" ? "success" : "info",
       });
+      onClose();
+      router.refresh();
+    });
+  }
+
+  function revoke() {
+    if (!row || row.status !== "approved") return;
+    startTransition(async () => {
+      const res = await revokeLeave({ id: row.id });
+      if (!res.ok) {
+        fireToast({ message: res.error, type: "error" });
+        return;
+      }
+      fireToast({ message: "Leave revoked.", type: "info" });
       onClose();
       router.refresh();
     });
@@ -281,12 +297,25 @@ export function ReviewLeavePanel({
           )}
 
           {decided ? (
-            <p className="mt-4 text-[12.5px] text-ink-subtle">
-              {row.decidedByName
-                ? `Decided by ${row.decidedByName}.`
-                : "Already decided."}
-              {row.decisionNote ? ` ${row.decisionNote}` : ""}
-            </p>
+            <div className="mt-4 space-y-3">
+              <p className="text-[12.5px] text-ink-subtle">
+                {row.decidedByName
+                  ? `Decided by ${row.decidedByName}.`
+                  : "Already decided."}
+                {row.decisionNote ? ` ${row.decisionNote}` : ""}
+              </p>
+              {canRevoke && row.status === "approved" && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={revoke}
+                  className="wg-btn rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-50"
+                  style={{ color: "#A80400", border: "1px solid rgba(225,6,0,0.28)" }}
+                >
+                  {pending ? "Saving…" : "Revoke approved leave"}
+                </button>
+              )}
+            </div>
           ) : (
             <div className="mt-4">
               <LeaveField label="Note" hint="optional" htmlFor="review-note">

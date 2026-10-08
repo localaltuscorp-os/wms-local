@@ -58,8 +58,8 @@ test.describe("M2.0 auth flow", () => {
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL("/", { timeout: 10_000 });
 
-    // Step 2: Admin opens /admin/employees and invites a new user
-    await page.goto("/admin/employees");
+    // Step 2: Admin opens Employee Master and invites a new user
+    await page.goto("/admin/employee-master");
     await page.click("text=Invite employee");
     await page.fill(
       'label:has-text("Full name") + input, label:has-text("Full name") input',

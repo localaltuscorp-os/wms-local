@@ -52,7 +52,7 @@ describe("Dropdown configuration explorer", () => {
   it("uses one Dropdown rail entry and keeps excluded People routes out", () => {
     expect(ADMIN_TOP_LEVEL.some((item) => item.href === "/admin/drop-down-master" && item.label === "Dropdown")).toBe(true);
     const railRoutes = ADMIN_GROUPS.flatMap((group) => group.items.map((item) => item.href));
-    expect(railRoutes).toEqual(expect.arrayContaining(["/admin/employees", "/admin/employee-master", "/admin/hierarchy", "/admin/upload-master"]));
+    expect(railRoutes).toEqual(expect.arrayContaining(["/admin/employee-master", "/admin/hierarchy", "/admin/upload-master"]));
     expect(railRoutes).not.toEqual(expect.arrayContaining(["/admin/functions", "/admin/designations", "/admin/holidays"]));
   });
 

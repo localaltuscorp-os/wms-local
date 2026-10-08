@@ -120,6 +120,14 @@ export async function approvedRemoteWorkMapForRange(
       workMode: remoteWorkRequests.workMode,
     })
     .from(remoteWorkRequests)
+    .innerJoin(
+      attendanceLogs,
+      and(
+        eq(attendanceLogs.employeeId, remoteWorkRequests.employeeId),
+        eq(attendanceLogs.logDate, remoteWorkRequests.workDate),
+        eq(attendanceLogs.workMode, remoteWorkRequests.workMode),
+      ),
+    )
     .where(
       and(
         inArray(remoteWorkRequests.employeeId, employeeIds),
@@ -141,7 +149,7 @@ export async function approvedRemoteWorkMapForRange(
 }
 
 export type RemoteWorkGate =
-  | { ok: true; clientLocationId: string | null }
+  | { ok: true; requestId: string | null; clientLocationId: string | null }
   | { ok: false; error: string };
 
 /**
@@ -168,33 +176,50 @@ export async function assertRemoteWorkApproved(
   workMode: string | null | undefined,
 ): Promise<RemoteWorkGate> {
   if (!workMode || workMode === "office" || workMode === "other") {
-    return { ok: true, clientLocationId: null };
+    return { ok: true, requestId: null, clientLocationId: null };
   }
 
-  const approved = await approvedRemoteWorkFor(employeeId, workDate);
-  if (!approved) {
+  const [request] = await db
+    .select({
+      id: remoteWorkRequests.id,
+      workMode: remoteWorkRequests.workMode,
+      status: remoteWorkRequests.status,
+      clientLocationId: remoteWorkRequests.clientLocationId,
+    })
+    .from(remoteWorkRequests)
+    .where(
+      and(
+        eq(remoteWorkRequests.employeeId, employeeId),
+        eq(remoteWorkRequests.workDate, workDate),
+        inArray(remoteWorkRequests.status, ["pending", "approved"]),
+      ),
+    )
+    .limit(1);
+
+  if (!request) {
     // FULL TIME WFH (0228) is a standing entitlement: no per-day request. It is
     // honoured by RECORDING today's approval rather than by skipping this gate,
     // because migration 0205's trigger refuses a remote punch with no approved
     // row regardless of what this function says — see `standingWfhGrant`.
     if (workMode === "wfh" && (await standingWfhGrant(employeeId, workDate))) {
-      return { ok: true, clientLocationId: null };
+      const approved = await approvedRemoteWorkFor(employeeId, workDate);
+      return { ok: true, requestId: approved?.id ?? null, clientLocationId: null };
     }
     return {
       ok: false,
-      error: `No approved ${label(workMode)} request for ${workDate}. Ask Rutvisha, Manan or Om to approve it first.`,
+      error: `No pending or approved ${label(workMode)} request for ${workDate}. Submit a request first.`,
     };
   }
-  if (approved.workMode !== workMode) {
+  if (request.workMode !== workMode) {
     // An approval is for a SPECIFIC mode. Approving a client visit is not
     // approving a day at home, and silently accepting the mismatch would make
     // the approval mean "away from the office, somehow".
     return {
       ok: false,
-      error: `Your approval for ${workDate} is for ${label(approved.workMode)}, not ${label(workMode)}.`,
+      error: `Your approval for ${workDate} is for ${label(request.workMode)}, not ${label(workMode)}.`,
     };
   }
-  return { ok: true, clientLocationId: approved.clientLocationId };
+  return { ok: true, requestId: request.id, clientLocationId: request.clientLocationId };
 }
 
 function label(mode: string): string {
@@ -408,50 +433,6 @@ export async function requestRemoteWork(
   if (!expanded.ok) return expanded;
   const dates = expanded.dates;
 
-  // ONE query for the whole series rather than one per date: a sixty-day repeat
-  // would otherwise be sixty round-trips before a single row is written.
-  const existing = await db
-    .select({
-      id: remoteWorkRequests.id,
-      workDate: remoteWorkRequests.workDate,
-      status: remoteWorkRequests.status,
-    })
-    .from(remoteWorkRequests)
-    .where(
-      and(
-        eq(remoteWorkRequests.employeeId, input.employeeId),
-        inArray(remoteWorkRequests.workDate, dates),
-      ),
-    );
-  const priorByDate = new Map(existing.map((r) => [r.workDate, r]));
-
-  const skipped: { date: string; reason: string }[] = [];
-  const claimable: string[] = [];
-  for (const d of dates) {
-    const prior = priorByDate.get(d);
-    if (prior && prior.status !== "pending") {
-      skipped.push({
-        date: d,
-        reason: prior.status === "approved" ? "already approved" : "already rejected",
-      });
-      continue;
-    }
-    claimable.push(d);
-  }
-
-  if (claimable.length === 0) {
-    const only = skipped[0];
-    return {
-      ok: false,
-      error:
-        dates.length === 1 && only
-          ? only.reason === "already approved"
-            ? `You already have an approved request for ${only.date}.`
-            : `Your request for ${only.date} was rejected — ask Rutvisha, Manan or Om directly.`
-          : "Every day in that repeat has already been decided.",
-    };
-  }
-
   // One id for the whole submission, so the rows can be shown — and removed — as
   // the single thing the person actually asked for. A one-off stays null: it is
   // not a series of one.
@@ -499,25 +480,70 @@ export async function requestRemoteWork(
   };
 
   try {
-    const ids: string[] = [];
-    for (const d of claimable) {
-      const prior = priorByDate.get(d);
-      if (prior) {
-        await db
-          .update(remoteWorkRequests)
-          .set({ ...base, workDate: d })
-          .where(eq(remoteWorkRequests.id, prior.id));
-        ids.push(prior.id);
-        continue;
+    return await db.transaction(async (tx) => {
+      // Read duplicate state and write every date in one transaction. Any
+      // insert/update failure rolls back the complete recurrence.
+      const existing = await tx
+        .select({
+          id: remoteWorkRequests.id,
+          workDate: remoteWorkRequests.workDate,
+          status: remoteWorkRequests.status,
+        })
+        .from(remoteWorkRequests)
+        .where(
+          and(
+            eq(remoteWorkRequests.employeeId, input.employeeId),
+            inArray(remoteWorkRequests.workDate, dates),
+          ),
+        );
+      const priorByDate = new Map(existing.map((r) => [r.workDate, r]));
+      const skipped: { date: string; reason: string }[] = [];
+      const claimable: string[] = [];
+      for (const d of dates) {
+        const prior = priorByDate.get(d);
+        if (prior && prior.status !== "pending") {
+          skipped.push({
+            date: d,
+            reason: prior.status === "approved" ? "already approved" : "already rejected",
+          });
+          continue;
+        }
+        claimable.push(d);
       }
-      const [row] = await db
-        .insert(remoteWorkRequests)
-        .values({ ...base, workDate: d })
-        .returning({ id: remoteWorkRequests.id });
-      if (row) ids.push(row.id);
-    }
-    if (ids.length === 0) return { ok: false, error: "Could not save the request." };
-    return { ok: true, ids, skipped };
+
+      if (claimable.length === 0) {
+        const only = skipped[0];
+        throw new Error(
+          dates.length === 1 && only
+            ? only.reason === "already approved"
+              ? `You already have an approved request for ${only.date}.`
+              : `Your request for ${only.date} was rejected — ask Rutvisha, Manan or Om directly.`
+            : "Every day in that repeat has already been decided.",
+        );
+      }
+
+      const ids: string[] = [];
+      for (const d of claimable) {
+        const prior = priorByDate.get(d);
+        if (prior) {
+          const [row] = await tx
+            .update(remoteWorkRequests)
+            .set({ ...base, workDate: d })
+            .where(and(eq(remoteWorkRequests.id, prior.id), eq(remoteWorkRequests.status, "pending")))
+            .returning({ id: remoteWorkRequests.id });
+          if (!row) throw new Error("Remote-work request changed while saving. Retry.");
+          ids.push(row.id);
+          continue;
+        }
+        const [row] = await tx
+          .insert(remoteWorkRequests)
+          .values({ ...base, workDate: d })
+          .returning({ id: remoteWorkRequests.id });
+        if (!row) throw new Error("Could not save the request.");
+        ids.push(row.id);
+      }
+      return { ok: true, ids, skipped };
+    });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not save the request." };
   }
@@ -552,16 +578,29 @@ export async function decideRemoteWork(input: {
   }
 
   try {
-    await db
-      .update(remoteWorkRequests)
-      .set({
-        status: input.decision,
-        decidedById: input.decidedBy.id,
-        decidedAt: new Date(),
-        decisionNote: input.note?.trim() || null,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(remoteWorkRequests.id, input.requestId), eq(remoteWorkRequests.status, "pending")));
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(remoteWorkRequests)
+        .set({
+          status: input.decision,
+          decidedById: input.decidedBy.id,
+          decidedAt: new Date(),
+          decisionNote: input.note?.trim() || null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(remoteWorkRequests.id, input.requestId), eq(remoteWorkRequests.status, "pending")))
+        .returning({ id: remoteWorkRequests.id });
+      if (!row) return null;
+      if (input.decision === "rejected") {
+        // Rejected remote punches cannot occupy the employee/day/kind unique key;
+        // removing them lets the employee use normal office attendance later.
+        await tx
+          .delete(attendanceLogs)
+          .where(eq(attendanceLogs.remoteWorkRequestId, input.requestId));
+      }
+      return row;
+    });
+    if (!updated) return { ok: false, error: "This request was already decided by another approver." };
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not record the decision." };

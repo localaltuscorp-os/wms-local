@@ -8,6 +8,7 @@ import { rateLimitOrError } from "@/lib/rate-limit";
 import { localDateString } from "@/lib/format";
 import { withTimeout } from "@/lib/db/with-timeout";
 import { assertRemoteWorkApproved } from "@/lib/attendance/remote-work";
+import { approvedLeaveCoversDate, assertNoMixedAttendance } from "@/lib/attendance/attendance-gates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +73,12 @@ export async function POST(req: Request) {
   const tz = me.timezone || "Asia/Kolkata";
   const today = localDateString(tz);
 
+  if (await approvedLeaveCoversDate(me.id, today)) {
+    return NextResponse.json({ ok: false, error: "Approved leave covers today. Attendance is blocked." }, { status: 409, headers: MOBILE_CORS });
+  }
+  const modeCheck = await assertNoMixedAttendance(me.id, today, "remote");
+  if (!modeCheck.ok) return NextResponse.json(modeCheck, { status: 409, headers: MOBILE_CORS });
+
   // Same gate as the web action; see lib/attendance/remote-work.ts.
   const gate = await assertRemoteWorkApproved(me.id, today, d.workMode);
   if (!gate.ok) {
@@ -82,6 +89,7 @@ export async function POST(req: Request) {
     employeeId: me.id,
     logDate: today,
     kind: d.kind,
+    loggedAt: new Date(),
     note: d.reason.slice(0, 500),
     lat: d.lat,
     lng: d.lng,
@@ -91,6 +99,7 @@ export async function POST(req: Request) {
     source: "self" as const,
     reason: (d.workMode === "wfh" ? "wfh" : "client_visit") as PunchReason,
     workMode: d.workMode,
+    remoteWorkRequestId: gate.requestId,
     clientLocationId: gate.clientLocationId,
     evidencePath,
   };

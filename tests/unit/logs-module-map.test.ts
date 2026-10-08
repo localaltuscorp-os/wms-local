@@ -8,9 +8,9 @@ import { nodesToMatches } from "@/lib/logs/filters";
  */
 describe("classifyRoute", () => {
   it("classifies an admin sub-page to its module and page", () => {
-    expect(classifyRoute("/admin/employees")).toEqual({
+    expect(classifyRoute("/admin/employee-master")).toEqual({
       module: "Admin Panel",
-      page: "Employees",
+      page: "Employee Master",
       key: "admin.people.employees",
     });
   });
@@ -32,7 +32,7 @@ describe("classifyRoute", () => {
   });
 
   it("strips query strings before classifying", () => {
-    expect(classifyRoute("/admin/employees?foo=1").key).toBe("admin.people.employees");
+    expect(classifyRoute("/admin/employee-master?foo=1").key).toBe("admin.people.employees");
   });
 });
 

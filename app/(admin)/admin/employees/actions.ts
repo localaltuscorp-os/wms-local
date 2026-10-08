@@ -6,6 +6,7 @@ import { eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   authSessions,
+  compensationApprovals,
   departments,
   designations,
   documentEvents,
@@ -13,10 +14,22 @@ import {
   employeeEvents,
   employees,
   functions,
+  incentiveEntries,
+  incentiveParticipants,
+  incentivePayoutEvents,
+  incentiveProjects,
+  incentiveRequests,
+  incentiveTargetPlans,
+  incentiveTargets,
   notifications,
   outstandingFollowups,
   payingEntities,
+  salaryAdvances,
+  salaryCtcBreakup,
+  salaryBreakup,
+  salaryPayments,
   salaryProfiles,
+  salaryRuns,
   settingsEvents,
   taskEvents,
   tasks,
@@ -436,7 +449,7 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
     console.error("[inviteEmployee] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true, id: inserted.id, warning: emailWarning };
 }
@@ -470,6 +483,8 @@ export async function editEmployee(
     where: eq(employees.id, parsedId.data),
   });
   if (!emp) return { ok: false, error: "Employee not found" };
+
+  let grantChanged = false;
 
   // Any admin may now grant or revoke another employee's admin access (Sir,
   // 2026-08). The one protection kept is the priv-esc guard: a non-super-admin
@@ -515,6 +530,7 @@ export async function editEmployee(
         actorEmail: signedIn?.email ?? me.email,
       });
       if (!res.ok) return { ok: false, error: res.error };
+      grantChanged = true;
     }
   }
 
@@ -542,6 +558,7 @@ export async function editEmployee(
         actorEmail: signedIn?.email ?? me.email,
       });
       if (!res.ok) return { ok: false, error: res.error };
+      grantChanged = true;
     }
   }
 
@@ -565,6 +582,7 @@ export async function editEmployee(
         actorEmail: signedIn?.email ?? me.email,
       });
       if (!res.ok) return { ok: false, error: res.error };
+      grantChanged = true;
     }
   }
 
@@ -740,6 +758,11 @@ export async function editEmployee(
   if (D.satOfficialEnd !== undefined) patch.satOfficialEnd = clock(D.satOfficialEnd);
 
   if (Object.keys(patch).length === 0) {
+    if (grantChanged) {
+  revalidatePath("/admin/employee-master");
+      updateTag(CACHE_TAGS.employees);
+      return { ok: true };
+    }
     return { ok: false, error: "No changes to save." };
   }
 
@@ -766,6 +789,21 @@ export async function editEmployee(
     override: patch.employeeType !== undefined ? patch.employeeType : emp.employeeType,
     designationType: await designationTypeFor(patch.designationId !== undefined ? patch.designationId : emp.designationId),
   });
+  // Internship dates have meaning only for an intern. Clear stale internship
+  // data when a person is or becomes a regular employee so the database and
+  // every downstream reader agree with the Employee Master UI.
+  if (effectiveType !== "intern") {
+    patch.internshipStart = null;
+  }
+  const internshipStartAfter = patch.internshipStart !== undefined
+    ? patch.internshipStart
+    : emp.internshipStart;
+  if (effectiveType === "intern" && internshipStartAfter == null) {
+    return {
+      ok: false,
+      error: "Set the Internship Start Date for an intern.",
+    };
+  }
   const probationEndAfter = patch.probationEnd !== undefined
     ? patch.probationEnd
     : defaultProbationEnd(D.joinedAt !== undefined ? D.joinedAt : emp.joinedAt, emp.probationEnd);
@@ -777,7 +815,19 @@ export async function editEmployee(
   }
 
   try {
-    await db.update(employees).set(patch).where(eq(employees.id, emp.id));
+    await db.transaction(async (tx) => {
+      await tx.update(employees).set(patch).where(eq(employees.id, emp.id));
+      // Keep the optional CTC-breakup snapshot aligned with the employee's
+      // canonical paying entity. The employee FK remains the source of truth;
+      // this prevents payroll/letter readers of the breakup row from retaining
+      // the previous entity after an Employee Master change.
+      if (patch.payingEntityId !== undefined) {
+        await tx
+          .update(salaryCtcBreakup)
+          .set({ payingEntityId: patch.payingEntityId })
+          .where(eq(salaryCtcBreakup.employeeId, emp.id));
+      }
+    });
   } catch (err: any) {
     return { ok: false, error: `DB: ${err.message ?? err}` };
   }
@@ -859,7 +909,7 @@ export async function editEmployee(
       await auditLog({
         eventType: "UPDATE",
         employeeId: me.id,
-        route: "/admin/employees",
+        route: "/admin/employee-master",
         module: "Admin Panel",
         page: "Employees",
         resourceType: "employee",
@@ -875,7 +925,7 @@ export async function editEmployee(
     console.error("[editEmployee] global-log write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
 }
@@ -1081,7 +1131,7 @@ export async function updateEmployeeAttendanceSchedule(
     console.error("[updateEmployeeAttendanceSchedule] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   revalidatePath("/attendance/dashboard");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
@@ -1180,7 +1230,7 @@ export async function resendInvite(employeeId: string): Promise<{ ok: boolean; e
     console.error("[resendInvite] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
 }
@@ -1271,7 +1321,7 @@ export async function resetEmployeePassword(
     console.error("[resetEmployeePassword] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true, warning };
 }
@@ -1325,7 +1375,7 @@ export async function deactivateEmployee(
     console.error("[deactivateEmployee] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
 }
@@ -1373,7 +1423,7 @@ export async function reactivateEmployee(
     console.error("[reactivateEmployee] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
 }
@@ -1526,6 +1576,41 @@ export async function deleteEmployee(
     return { ok: false, error: "Confirmation email does not match." };
   }
 
+  // Financial rows are historical records, not disposable employee metadata.
+  // Block before cleanup starts; several tables otherwise cascade from
+  // employees and would erase the audit trail with the account.
+  const financialRows = await Promise.all([
+    db.select({ n: sql<number>`count(*)::int` }).from(salaryProfiles).where(eq(salaryProfiles.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(salaryCtcBreakup).where(eq(salaryCtcBreakup.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(salaryAdvances).where(eq(salaryAdvances.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(salaryRuns).where(eq(salaryRuns.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(salaryBreakup).where(eq(salaryBreakup.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(salaryPayments).where(eq(salaryPayments.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentiveRequests).where(eq(incentiveRequests.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentiveEntries).where(eq(incentiveEntries.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentiveProjects).where(or(eq(incentiveProjects.supervisorId, id), eq(incentiveProjects.internId, id))),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentiveParticipants).where(eq(incentiveParticipants.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentiveTargets).where(eq(incentiveTargets.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentiveTargetPlans).where(or(eq(incentiveTargetPlans.employeeId, id), eq(incentiveTargetPlans.teamOwnerId, id))),
+    db.select({ n: sql<number>`count(*)::int` }).from(incentivePayoutEvents).where(eq(incentivePayoutEvents.employeeId, id)),
+    db.select({ n: sql<number>`count(*)::int` }).from(compensationApprovals).where(eq(compensationApprovals.employeeId, id)),
+  ]);
+  const financialLabels = [
+    "salary profile", "CTC breakup", "salary advance", "salary run", "salary history",
+    "salary payment", "incentive request", "incentive entry", "incentive project",
+    "incentive participant", "incentive target", "incentive target plan",
+    "incentive payout", "compensation approval",
+  ];
+  const protectedFinancial = financialRows
+    .map((rows, index) => ({ label: financialLabels[index], count: Number(rows[0]?.n ?? 0) }))
+    .filter((row) => row.count > 0);
+  if (protectedFinancial.length > 0) {
+    return {
+      ok: false,
+      error: `Cannot delete employee: protected financial history exists (${protectedFinancial.map((row) => `${row.label}: ${row.count}`).join(", ")}). Archive or retain the employee record instead.`,
+    };
+  }
+
   // Snapshot identity BEFORE we wipe the row so we can audit the deletion.
   const snapshot = {
     id: emp.id,
@@ -1645,7 +1730,7 @@ export async function deleteEmployee(
     console.error("[deleteEmployee] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true, deleted: counts };
 }
@@ -1810,6 +1895,8 @@ export async function bulkEditEmployees(
       if (p.trainPass !== undefined) fields.trainPass = p.trainPass;
       if (p.joinedAt !== undefined) fields.joinedAt = p.joinedAt;
       if (p.probationEnd !== undefined) fields.probationEnd = p.probationEnd;
+      if (p.internshipStart !== undefined) fields.internshipStart = p.internshipStart;
+      if (p.employeeType !== undefined) fields.employeeType = p.employeeType;
       if (p.lastWorkingDay !== undefined) fields.lastWorkingDay = p.lastWorkingDay;
       if (Object.keys(fields).length > 0) {
         const res = await editEmployee(id, fields);
@@ -1841,7 +1928,7 @@ export async function bulkEditEmployees(
     if (touched) updated++;
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   revalidatePath("/attendance/dashboard");
   updateTag(CACHE_TAGS.employees);
   return { ok: failed.length === 0, updated, failed };

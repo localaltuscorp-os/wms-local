@@ -33,25 +33,25 @@ export default async function WeeklySharePage() {
       <main className="w-full px-8 max-md:px-4 pt-8 pb-16">
         <PageCommandBar title="Share & Learn" />
 
-        <div className="mb-4 rounded-xl border border-hairline bg-surface-card p-4">
-          <h2 className="text-[15px] font-bold text-ink-strong">Daily Learning Share Schedule</h2>
+        <div className="mb-3 rounded-xl border border-hairline bg-surface-card p-3">
+          <h2 className="text-[14px] font-bold text-ink-strong">Daily Learning Share Schedule</h2>
           <p className="mt-0.5 mb-3 text-[12.5px] font-medium text-ink-subtle">Juniors 1:30 PM · Team Leads 1:40 PM.</p>
           <ShareScheduleBoard rows={schedule} employeeOptions={employeeOptions} canManage={canManage} meId={me.id} meName={me.name} />
         </div>
 
-        <div className="grid grid-cols-5 gap-5 max-lg:grid-cols-1">
+        <div className="grid grid-cols-5 gap-4 max-lg:grid-cols-1">
           {/* This week's Share form */}
           <section className="col-span-2 max-lg:col-span-1">
-            <div className="wg-rise rounded-xl border border-hairline bg-surface-card p-4 shadow-sm" style={{ animationDelay: "0ms" }}>
+            <div className="wg-rise rounded-xl border border-hairline bg-surface-card p-3 shadow-sm" style={{ animationDelay: "0ms" }}>
               <h2 className="text-[15px] font-bold text-ink-strong">Your Share This Week</h2>
-              <p className="mt-0.5 mb-4 text-[13px] font-medium text-ink-subtle">{weekLabel}</p>
+              <p className="mt-0.5 mb-3 text-[12.5px] font-medium text-ink-subtle">{weekLabel}</p>
               <ShareForm existing={mine} weekLabel={weekLabel} mySelfLearning={myLearning.map((s) => ({ id: s.id, title: s.title }))} />
             </div>
           </section>
 
           {/* Peer-feedback feed */}
           <section className="col-span-3 max-lg:col-span-1">
-            <div className="mb-3 flex items-end justify-between gap-3">
+            <div className="mb-2 flex items-end justify-between gap-3">
               <div>
                 <h2 className="text-[17px] font-bold text-ink-strong" style={{ letterSpacing: "-0.01em" }}>
                   Recent Colleague Shares

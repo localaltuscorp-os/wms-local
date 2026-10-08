@@ -7,5 +7,5 @@ import { redirect } from "next/navigation";
  * screen before this page can render.
  */
 export default function AdminRootPage() {
-  redirect("/admin/employees");
+  redirect("/admin/employee-master");
 }
