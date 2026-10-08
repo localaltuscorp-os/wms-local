@@ -181,3 +181,71 @@ the shared rail passed.
    and monitor the required GitHub `test` check for the resulting head SHA.
    Do not merge without the user's explicit instruction and a passing required
    check.
+
+## 2026-10-07 follow-up: HR directory and local Approvals preview
+
+### Objective and status
+
+Complete the requested HR console alignment, make the Directory usable with
+synthetic local preview data, and keep the Approvals screen usable when the
+local dummy backend cannot be opened. Ready to commit and push on
+`feature/hr-console-policy-library`.
+
+### Changes
+
+- HR page titles now use the shared top ribbon. The Dashboard and Directory
+  titles are restored there, while the duplicate Directory body header is
+  removed.
+- The shared module-navigation row hides on downward HR-content scrolling and
+  reappears on upward scrolling.
+- The HR rail no longer shows the bottom signed-in profile block.
+- Directory supports synthetic preview records only in development when no
+  contacts are returned. Fixture identities and contact details are explicitly
+  synthetic (`Test …` and `example.test`).
+- Directory validates primary and secondary phone values as numeric ten-digit
+  values, has expandable search, sortable and reorderable movable columns, and
+  retains the left reference columns and right Actions column during horizontal
+  scrolling. The table scrollbar is visually hidden without disabling scroll.
+- Approvals provides editable synthetic preview records in development when the
+  approval backend is unavailable, empty, or the local account cannot view it.
+  Preview decisions remain in browser state and never write real records.
+- The dummy database and storage directories now normalise relative filesystem
+  paths and relative `file:` URLs to absolute local paths. This prevents the
+  PGlite `File URL path must be absolute` crash during dummy-user lookup.
+
+### Files changed
+
+- HR chrome: `components/hr/console/*`, `components/layout/module-footer.tsx`,
+  `components/layout/app-top-bar.tsx`, `app/aura.css`, and `app/globals.css`.
+- Directory: `app/(app)/hr/directory/{page,actions}.tsx` and
+  `components/hr/directory/hr-directory.tsx`.
+- Approvals: `app/(admin)/admin/{layout,approvals/page}.tsx`,
+  `components/admin/approvals/approval-workbench.tsx`, and
+  `lib/compensation/approval-preview.ts`.
+- Dummy runtime: `lib/db/dummy-dir.ts`.
+
+### Database, access, and rollback
+
+- No schema or migration changes.
+- Production access rules are unchanged. The admin shell and approval preview
+  relaxation apply only when the existing `DUMMY_MODE` development flag is
+  active; production forces that flag off.
+- Preview approval edits are not persisted. Rollback is limited to reverting
+  the listed application files; no data cleanup is required.
+
+### Validation
+
+- `node_modules\\.bin\\vitest.cmd run` with
+  `NODE_OPTIONS=--max-old-space-size=6144` — passed: 400 files, 5,329 tests;
+  5 files and 34 tests skipped.
+- `node_modules\\.bin\\tsc.cmd --noEmit` with the same memory allowance —
+  passed.
+- `node.exe node_modules\\next\\dist\\bin\\next build` with a 4 GB heap —
+  completed; the final build wrote `.next/BUILD_ID` at 2026-10-07 20:09 local
+  time.
+- `node scripts/measure-functions-storage.mjs --leaks` — passed with zero
+  PGlite trace leaks across 4,159 built server files.
+- `git diff --check` — passed.
+- Full `node_modules\\.bin\\eslint.cmd .` was attempted but exceeded the
+  120-second local command window without diagnostics. Focused ESLint checks
+  for all changed TypeScript/TSX files passed during implementation.

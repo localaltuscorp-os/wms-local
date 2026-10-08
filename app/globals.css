@@ -327,12 +327,6 @@
   top: var(--app-topbar-h);
 }
 
-/* An HR page may supply a more specific title through HrTitleBar. In that
-   case it replaces the route-derived sidebar title rather than duplicating it. */
-.hr-rail-title-slot:has(.hr-rail-page-title) .hr-rail-default-title {
-  display: none;
-}
-
 /* ── Top-edge module navigation ────────────────────────────────────────────
    The module row is visible when a page opens and whenever the user scrolls
    upward. Scrolling down collapses its in-flow height, so the page reclaims
@@ -4734,4 +4728,13 @@ table {
   .billing-print-sheet tr {
     break-inside: avoid;
   }
+}
+/* Keep directory table scrolling available without drawing a scrollbar. */
+.directory-table-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.directory-table-scroll::-webkit-scrollbar {
+  display: none;
 }

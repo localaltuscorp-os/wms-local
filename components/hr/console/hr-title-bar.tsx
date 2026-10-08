@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { useHrRailTitleSlot, useHrRouteTitle } from "./hr-console-context";
+import { useHrRouteTitle } from "./hr-console-context";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 
 /**
@@ -51,14 +51,13 @@ export function HrTitleBar({
   // pages that are more specific than their nav label (a named letter, a named
   // policy, one candidate).
   const routeTitle = useHrRouteTitle();
-  const railTitleSlot = useHrRailTitleSlot();
   const shownTitle = title ?? routeTitle;
 
   // Tell the bar a page has named itself, so it stops ALSO drawing the
   // route-derived name. Cleared on unmount, which returns a page with no title
   // of its own to the derived one.
   const setHasPageTitle = slots?.setHasPageTitle;
-  const claims = Boolean(slots && shownTitle && !railTitleSlot);
+  const claims = Boolean(slots && shownTitle);
   React.useEffect(() => {
     if (!setHasPageTitle || !claims) return;
     setHasPageTitle(true);
@@ -73,15 +72,15 @@ export function HrTitleBar({
 
   return (
     <>
-      {(railTitleSlot ?? slots.title) && shownTitle
+      {slots.title && shownTitle
         ? createPortal(
             // `topbar-heading` (app/globals.css) is the same type the bar's own
             // derived title uses, so a page that names itself looks identical to
             // one that does not rather than introducing a second heading style
             // into the same strip. truncate + min-w-0 so a long title ellipses
             // instead of pushing the clusters off the right edge.
-            <h1 className="hr-rail-page-title topbar-heading min-w-0 truncate">{shownTitle}</h1>,
-            railTitleSlot ?? slots.title!,
+            <h1 className="topbar-heading min-w-0 truncate">{shownTitle}</h1>,
+            slots.title,
           )
         : null}
 

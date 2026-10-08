@@ -128,7 +128,7 @@ function sortKeyForColumn(column: ApprovalColumn): ApprovalSortKey | null {
     : null;
 }
 
-export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode }: { rows: ApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean }) {
+export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode, preview = false }: { rows: ApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean; preview?: boolean }) {
   const [kind, setKind] = useState<ApprovalKind>("attendance");
   // The local test workspace starts on every status so Edit controls are
   // immediately visible for each approval tab. The real queue remains
@@ -148,9 +148,11 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
   const [decisionNote, setDecisionNote] = useState("");
   const [decisionAmount, setDecisionAmount] = useState("");
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [previewRows, setPreviewRows] = useState(rows);
   const [pending, start] = useTransition();
+  const sourceRows = preview ? previewRows : rows;
   const visible = useMemo(() => {
-    const filtered = rows.filter((row) => row.kind === kind && (filter === "all" || row.status === filter));
+    const filtered = sourceRows.filter((row) => row.kind === kind && (filter === "all" || row.status === filter));
     if (!sort) return filtered;
 
     return filtered.slice().sort((left, right) => {
@@ -171,7 +173,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
         : textCollator.compare(String(leftValue), String(rightValue));
       return sort.direction === "asc" ? comparison : -comparison;
     });
-  }, [rows, kind, filter, sort]);
+  }, [sourceRows, kind, filter, sort]);
 
   function toggleSort(key: ApprovalSortKey) {
     setSort((current) => current?.key === key
@@ -299,6 +301,13 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     }
 
     setDecisionError(null);
+    if (preview) {
+      setPreviewRows((current) => current.map((candidate) => candidate.subjectId === row.subjectId
+        ? { ...candidate, status, note: note || null, amount: candidate.kind === "attendance" ? candidate.amount : amount }
+        : candidate));
+      setDecisionDialog(null);
+      return;
+    }
     start(async () => {
       const result = await decideApproval({
         kind: row.kind,
@@ -349,6 +358,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
   return (
     <Tooltip.Provider delayDuration={150}>
     <section className="space-y-3">
+      {preview && <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900">Preview data is active because the local approvals backend is unavailable. You can approve, reject, and edit these records in this session without changing live data.</div>}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Approval sections">
           {TABS.map((tab) => (

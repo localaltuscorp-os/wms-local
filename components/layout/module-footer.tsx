@@ -35,7 +35,10 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
   const [hidden, setHidden] = React.useState(false);
 
   React.useEffect(() => {
+    const scrollYFor = (source: Window | HTMLElement) =>
+      source instanceof HTMLElement ? source.scrollTop : source.scrollY;
     let lastY = window.scrollY;
+    let scrollSource: Window | HTMLElement = window;
     let frame: number | null = null;
     let settleTimer: number | null = null;
     let isSettling = false;
@@ -52,7 +55,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
       settleTimer = window.setTimeout(() => {
         // Changing the bar's in-flow height can adjust scrollY. Treat that
         // adjustment as part of the transition, not as a new user gesture.
-        lastY = window.scrollY;
+        lastY = scrollYFor(scrollSource);
         isSettling = false;
         settleTimer = null;
       }, 240);
@@ -60,7 +63,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
 
     const update = () => {
       frame = null;
-      const nextY = window.scrollY;
+      const nextY = scrollYFor(scrollSource);
       const movement = nextY - lastY;
       if (isSettling) {
         lastY = nextY;
@@ -73,13 +76,34 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
       lastY = nextY;
     };
 
-    const onScroll = () => {
+    const onScroll = (event: Event) => {
+      // HR owns an internal page scroller (`HrConsoleShell`) while every other
+      // workspace scrolls the window. Capture its scroll event here so this
+      // shared navbar follows the same hide-on-down / reveal-on-up behaviour.
+      const target = event.target;
+      const hrScroller =
+        target instanceof HTMLElement && target.classList.contains("hr-shell-scroll")
+          ? target
+          : null;
+      const nextSource = hrScroller ?? window;
+
+      // Do not treat switching between the window and HR's inner scroller as a
+      // user direction change; establish a baseline first.
+      if (nextSource !== scrollSource) {
+        scrollSource = nextSource;
+        lastY = scrollYFor(scrollSource);
+        return;
+      }
+
       if (frame === null) frame = window.requestAnimationFrame(update);
     };
 
-    window.addEventListener("scroll", onScroll, { passive: true });
+    // Scroll does not bubble from an element, but it is observable in capture
+    // phase. That covers HR's internal scroll panel and ordinary page scrolling
+    // with one handler.
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("scroll", onScroll, true);
       if (frame !== null) window.cancelAnimationFrame(frame);
       if (settleTimer !== null) window.clearTimeout(settleTimer);
     };

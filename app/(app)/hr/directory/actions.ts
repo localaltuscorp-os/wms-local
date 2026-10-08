@@ -17,16 +17,18 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 const optionalText = (max: number) => z.string().trim().max(max).optional().transform((value) => value || null);
 const optionalEmail = z.string().trim().max(160).optional().refine((value) => !value || z.string().email().safeParse(value).success, "Enter a valid email address.").transform((value) => value ? value.toLowerCase() : null);
+const phoneNumber = z.string().trim().regex(/^\d{10}$/, "Enter a 10-digit cell number.");
+const optionalPhoneNumber = z.string().trim().optional().refine((value) => !value || /^\d{10}$/.test(value), "Enter a 10-digit cell number.").transform((value) => value || null);
 
 const ContactSchema = z.object({
   id: z.string().uuid().optional(),
   directoryType: z.enum(["vendor", "hr_consultant"]),
   personName: z.string().trim().min(1, "Enter the contact name.").max(120),
   companyName: optionalText(160),
-  cellNo: z.string().trim().min(1, "Enter the cell number.").max(24),
+  cellNo: phoneNumber,
   email: optionalEmail,
   contact2Name: optionalText(120),
-  contact2CellNo: optionalText(24),
+  contact2CellNo: optionalPhoneNumber,
   contact2Email: optionalEmail,
   service: optionalText(80),
   notes: optionalText(1000),
