@@ -237,6 +237,10 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 - The configured `pnpm build` could not start because Corepack rejected the pinned pnpm signature after registry retrieval failed. The local installed Next executable was used to validate compilation without changing package-manager security settings.
 - Generated `.next-dev-cache-backup/` and `.pnpm-store/` remain local-only and must stay out of commits.
 
+### CI follow-up (2026-10-08)
+
+- PR #22 initially failed its required TypeScript check because the Day Review unit-test helper permits an omitted `onViewUpcoming` callback while the component prop had been made mandatory. The callback is now optional at the component boundary; production callers still provide it, and React safely treats an omitted click callback as no action in isolated tests.
+
 ### Rollback and deployment
 
 - Revert the application commit to undo UI and resilience changes. The attendance migration is additive; if it is applied, do not drop live columns as a casual rollback. Use the normal migration rollback decision process.

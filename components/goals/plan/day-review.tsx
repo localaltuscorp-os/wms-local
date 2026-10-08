@@ -41,8 +41,8 @@ interface Props {
   /** Move from the day-started screen into the close-out list. */
   onToCloseout: () => void;
   /** Leave the completed-day summary and prepare only upcoming commitments. */
-  onViewUpcoming: () => void;
-  onResetStart: () => void;
+  onViewUpcoming?: () => void;
+  onResetStart?: () => void;
   resettingStart?: boolean;
   /** Back to the BOARD without un-starting the day — the plan stays committed,
    *  you just want to look at it / move things around. */
