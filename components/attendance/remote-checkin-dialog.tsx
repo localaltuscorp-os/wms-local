@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   X, Home, Building2, MapPinned, MoreHorizontal, LocateFixed, Loader2,
-  Camera, Check, LogIn, LogOut, type LucideIcon,
+  Camera, Check, LogIn, LogOut, Upload, type LucideIcon,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import { punchRemote } from "@/app/(app)/attendance/actions";
@@ -37,6 +37,8 @@ export function RemoteCheckInDialog({
   const [reason, setReason] = React.useState("");
   const [photo, setPhoto] = React.useState<File | null>(null);
   const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const uploadInputRef = React.useRef<HTMLInputElement>(null);
   const [loc, setLoc] = React.useState<{ lat: number; lng: number; acc: number } | null>(null);
   const [locBusy, setLocBusy] = React.useState(false);
 
@@ -149,19 +151,31 @@ export function RemoteCheckInDialog({
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} rows={2} placeholder="e.g. Client meeting at Andheri site" className="w-full resize-y rounded-xl px-3.5 py-2.5 text-[14px] font-medium text-ink-strong bg-white outline-none focus:border-[#E10600]" style={{ border: "2px solid var(--color-hairline-strong)" }} />
           </div>
 
-          {/* photo */}
+          {/* photo — separate pickers keep camera capture and gallery upload reliable on mobile. */}
           <div>
             <div className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.1em] text-ink-subtle">Photo evidence <span className="text-[color:var(--color-altus-red)]">*</span></div>
-            <label className="relative flex cursor-pointer items-center gap-3 rounded-xl border-2 border-solid border-hairline-strong bg-surface-soft px-3.5 py-3">
+            <div className="flex items-center gap-3 rounded-xl border-2 border-solid border-hairline-strong bg-surface-soft px-3.5 py-3">
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photoUrl} alt="evidence" className="h-14 w-14 rounded-lg object-cover" />
               ) : (
                 <span className="inline-grid h-14 w-14 place-items-center rounded-lg bg-white text-ink-subtle" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}><Camera size={20} /></span>
               )}
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-muted">{photo ? photo.name : "Take / choose a photo"}</span>
-              <input type="file" accept="image/*" capture="environment" onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} className="absolute inset-0 cursor-pointer opacity-0" />
-            </label>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold text-ink-muted">{photo ? photo.name : "Add a photo of your work location"}</p>
+                <p className="mt-0.5 text-[11.5px] font-medium text-ink-subtle">Use your camera or upload from your phone.</p>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => cameraInputRef.current?.click()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2.5 text-[13px] font-bold text-ink-strong hover:bg-surface-soft">
+                <Camera size={16} strokeWidth={2.3} /> Take photo
+              </button>
+              <button type="button" onClick={() => uploadInputRef.current?.click()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2.5 text-[13px] font-bold text-ink-strong hover:bg-surface-soft">
+                <Upload size={16} strokeWidth={2.3} /> Upload photo
+              </button>
+            </div>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} className="sr-only" />
+            <input ref={uploadInputRef} type="file" accept="image/*" onChange={(e) => pickPhoto(e.target.files?.[0] ?? null)} className="sr-only" />
           </div>
         </div>
 
