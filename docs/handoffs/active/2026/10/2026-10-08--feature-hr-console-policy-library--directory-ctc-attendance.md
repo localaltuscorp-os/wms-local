@@ -1,7 +1,7 @@
 # Directory, CTC approvals, global navigation, and attendance sessions
 
 - Date: 2026-10-08
-- Branch: `feature/hr-console-policy-library`
+- Branch: `feature/directory-ctc-attendance`
 - Status: Ready to push for development review. Do not merge without the required
   GitHub `test` check passing on the pushed head commit and explicit approval.
 
