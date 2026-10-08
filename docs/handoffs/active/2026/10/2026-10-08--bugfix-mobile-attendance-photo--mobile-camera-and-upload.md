@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-08
 - **Work item:** `bugfix/mobile-attendance-photo`
-- **Status:** Pending CI and review
+- **Status:** CI passed; awaiting approved merge and production deployment
 
 ## Objective
 
@@ -25,9 +25,10 @@ Make the remote attendance evidence step reliable on mobile by giving people sep
 - `git diff --check` passed.
 - File-level ESLint completed with no errors. It reports one existing warning for `setMounted(true)` in the component's mount effect; this change does not alter that effect.
 - Full typecheck was attempted with a 4 GB temporary Node heap. It reached an unrelated missing local `nodemailer` module resolution error because this worktree initially had no installed dependencies.
-- A clean `pnpm install --frozen-lockfile` was started but exceeded the local command time limit; use GitHub CI for the authoritative clean install, typecheck, and test run.
+- GitHub Actions run `37732940884` passed its clean `pnpm install --frozen-lockfile`, `pnpm typecheck`, and `pnpm test` stages for commit `33aaffa7`.
+- Visual tests were skipped because the required secret-backed environment is not configured in the workflow.
 
 ## Release / rollback
 
-- No production deployment has occurred.
+- No production deployment has occurred yet.
 - Rollback is a one-file revert of the UI picker change.
