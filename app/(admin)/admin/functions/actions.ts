@@ -181,7 +181,7 @@ export async function updateDepartment(
 
   revalidatePath("/admin/functions");
   revalidatePath("/admin/departments");
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   return { ok: true };
 }
 
