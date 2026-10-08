@@ -703,13 +703,15 @@ export function AgingHeatmap({
                 hidden while transposed - it orders LANES, and there are none. */}
             <button
               type="button"
+              data-sec="transpose"
+              style={{ order: 3 }}
               onClick={() => setIsTransposed((v) => !v)}
               aria-pressed={isTransposed}
+              aria-label={isTransposed ? "Return to lanes" : "Transpose buckets as rows"}
               title={isTransposed ? "Back to lanes" : "Transpose: buckets as rows"}
-              className={`${SECTION_CONTROL} ${isTransposed ? "text-altus-red" : ""}`}
+              className={`${SECTION_CONTROL} h-9 w-9 justify-center px-0 ${isTransposed ? "bg-slate-100 text-altus-red" : ""}`}
             >
-              <ArrowLeftRight className="size-3.5" strokeWidth={2.6} />
-              Transpose
+              <ArrowLeftRight size={19} strokeWidth={2.6} />
             </button>
             <CollapseToggle
               expanded={open}
@@ -1207,7 +1209,7 @@ function Lane({
       // Tier-3 mobile fix - at 390px the desktop grid overflows the section, so
       // `aging-lane-mobile` (globals.css) collapses it to 2 stacked rows on
       // max-md, where the height has to go back to auto.
-      className="aging-lane aging-lane-mobile grid h-[56px] items-center gap-3 rounded-xl px-3 transition-colors hover:bg-slate-50 max-md:h-auto max-md:gap-2 max-md:px-2 max-md:py-2"
+      className="aging-lane aging-lane-mobile grid h-[56px] items-center gap-3 rounded-xl px-3 transition-colors hover:bg-gray-50/80 max-md:h-auto max-md:gap-2 max-md:px-2 max-md:py-2"
       style={{
         gridTemplateColumns: LANE_COLUMNS,
         opacity: 0,
@@ -1536,7 +1538,7 @@ function Segment({
               <li key={t.id}>
                 <Link
                   href={`/tasks/${t.id}` as Route}
-                  className="block rounded-lg border border-slate-100 p-2 transition-colors hover:bg-slate-50"
+                  className="block rounded-lg border border-slate-100 p-2 transition-colors hover:bg-gray-50/80"
                 >
                   {/* DESCRIPTION, not `title`. `title` in this schema is the
                       CLIENT NAME, so this list used to read "Altus Corp / AA

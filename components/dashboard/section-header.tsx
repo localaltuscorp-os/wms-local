@@ -164,7 +164,7 @@ export function DashboardSectionHeader({
           sequence and they still land in the same places, and a section added
           next year inherits it without knowing the rule exists. */}
       {actions && (
-        <div className="section-actions flex shrink-0 items-center gap-2.5">{actions}</div>
+        <div className="section-actions -mr-3 flex shrink-0 items-center gap-2.5 md:-mr-12">{actions}</div>
       )}
     </header>
   );

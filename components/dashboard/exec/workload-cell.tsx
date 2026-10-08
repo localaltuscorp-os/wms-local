@@ -34,6 +34,8 @@ import {
 const GREEN = "var(--color-green-deep)";
 const AMBER = "var(--color-amber-deep)";
 const RED = "var(--color-altus-red)";
+// Matches Tailwind's `text-slate-600`, used by the adjacent Breakdown control.
+const NEUTRAL = "#475569";
 
 export function attainColor(actual: number, target: number): string {
   const pct = target > 0 ? (actual / target) * 100 : actual > 0 ? 100 : 0;
@@ -276,7 +278,7 @@ export function WorkloadCountCell({
    * one screen; making the choice a prop keeps that property visible instead
    * of hiding it behind a hardcoded palette that only one caller wanted.
    */
-  tone?: "attainment" | "red";
+  tone?: "attainment" | "red" | "neutral";
 }) {
   const meta = WORKLOAD_FAMILIES.find((f) => f.key === family)!;
   const rel =
@@ -316,6 +318,7 @@ export function WorkloadCountCell({
      recession the brief asks of it, rather than a slate that would drop the
      attainment signal from half the cell. */
   const red = tone === "red";
+  const neutral = tone === "neutral";
 
   /* One red, and it is the brand token the rest of the app reads from rather
      than a second near-identical hex. `--color-altus-red` is #E10600; the
@@ -334,6 +337,8 @@ export function WorkloadCountCell({
           fontFamily: "var(--font-display), system-ui, sans-serif",
           color: red
             ? "var(--color-altus-red)"
+            : neutral
+              ? NEUTRAL
             : target != null && !isShare
               ? attainColor(value, target)
               : hero
@@ -351,6 +356,8 @@ export function WorkloadCountCell({
           style={{
             color: red
               ? "color-mix(in srgb, var(--color-altus-red) 80%, transparent)"
+              : neutral
+                ? NEUTRAL
               : isShare
                 ? "var(--color-ink-subtle)"
                 : attainColor(value, target),

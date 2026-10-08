@@ -29,7 +29,11 @@ export const hasDatabaseSuperAdminGrant = cache(
         .limit(1);
       return Boolean(row);
     } catch (error) {
-      console.error("[super-admin-grants] membership read failed", error);
+      // This is an optional recovery-path check. A database that is offline or
+      // has not received the grants migration must deny the database-backed
+      // grant, but it must not turn every protected page render into a Next.js
+      // error overlay. Keep an actionable, parameter-free server warning.
+      console.warn("[super-admin-grants] membership read unavailable; denying database-backed grant:", dbErrorAdvice(error));
       return false;
     }
   },

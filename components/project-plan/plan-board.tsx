@@ -56,7 +56,7 @@ import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
-import { PlanStatusKpiStrip, type PlanStatusPerspective } from "./plan-status-kpi-strip";
+import { PlanStatusKpiStrip } from "./plan-status-kpi-strip";
 
 /**
  * Project Plan — the hierarchy table.
@@ -645,7 +645,6 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
   const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
   const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
-  const [statusPerspective, setStatusPerspective] = React.useState<PlanStatusPerspective>("doer");
 
   /**
    * One click on a header, three states — ascending, descending, back to the
@@ -1478,15 +1477,10 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
         </div>
 
         <PlanStatusKpiStrip
-          perspective={statusPerspective}
-          onPerspectiveChange={setStatusPerspective}
           counts={planStatusCounts}
           total={counts.total}
-          activeStatus={(statusPerspective === "doer" ? doerStatus : initiatorStatus)[0] ?? null}
-          onStatusChange={(status) => {
-            if (statusPerspective === "doer") setDoerStatus(status ? [status] : []);
-            else setInitiatorStatus(status ? [status] : []);
-          }}
+          activeStatus={doerStatus[0] ?? null}
+          onStatusChange={(status) => setDoerStatus(status ? [status] : [])}
         />
 
       </header>

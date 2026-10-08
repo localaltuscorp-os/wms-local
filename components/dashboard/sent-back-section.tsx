@@ -177,7 +177,7 @@ const RED = "var(--color-altus-red, #E10600)";
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border border-gray-200 bg-white p-6 shadow-sm max-md:p-5 ${className ?? ""}`}
+      className={`relative overflow-hidden rounded-none border border-gray-200 bg-white p-6 shadow-sm max-md:p-5 ${className ?? ""}`}
     >
       {children}
     </div>
@@ -344,7 +344,7 @@ function NotApprovedPanel({
                       `/tasks?emp=${encodeURIComponent(p.employeeId)}&status=not_approved&overdue=true` as Route
                     }
                     title={`Open ${p.employeeName}'s overdue sent-back tasks`}
-                    className="-mx-1 flex items-center gap-3 rounded-lg px-1 py-2.5 transition-colors hover:bg-slate-50"
+                    className="-mx-1 flex items-center gap-3 rounded-lg px-1 py-2.5 transition-colors hover:bg-gray-50/80"
                   >
                   <Avatar name={p.employeeName} avatarUrl={avatarById[p.employeeId] ?? null} size={32} />
                   <span

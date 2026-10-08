@@ -19,7 +19,9 @@ export function ModuleSectionTitle({ section }: { section: React.ReactNode }) {
   return (
     <h1 className="topbar-heading min-w-0 truncate">
       {moduleName && <span className="text-altus-red">{moduleName}</span>}
-      {moduleName && section && !repeatsModule && <span className="mx-2 text-ink-faint">·</span>}
+      {moduleName && section && !repeatsModule && (
+        <span className="mx-1.5 inline-block text-[0.68em] align-[0.08em] text-altus-red" aria-hidden="true">▶</span>
+      )}
       {!repeatsModule && <span className="text-ink-strong">{section}</span>}
     </h1>
   );

@@ -56,7 +56,7 @@ export default async function Page({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 pt-8 max-lg:px-6 max-md:px-4">
+      <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 pt-0 max-lg:px-6 max-md:px-4">
         <ProjectViews
           tree={tree.map(toRow)}
           initialSelection={selectionFromQuery(one)}

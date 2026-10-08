@@ -57,13 +57,14 @@ export function FunctionToggle({
       role="tablist"
       aria-label="Which function to show"
       /* `inline-flex`, NOT `flex`. A flex container is block-level, so the grey
-         pill stretched the full width of the card and read as a toolbar band
+         bar stretched the full width of the card and read as a toolbar band
          rather than a segmented control.
 
          `flex-wrap` + `max-w-full` are the floor: inline-flex still cannot
          exceed its container, and without wrapping ten pills would be clipped
-         on a narrow screen instead of dropping to a second line. */
-      className={`inline-flex w-auto max-w-full flex-wrap items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold ${className}`}
+         on a narrow screen instead of dropping to a second line. The corners
+         are square to match the dashboard's rectangular card treatment. */
+      className={`inline-flex w-auto max-w-full flex-wrap items-center gap-1 rounded-none bg-slate-100 p-1 text-xs font-bold ${className}`}
     >
       {FUNCTION_VIEWS.map((id) => {
         const active = view === id;
@@ -76,7 +77,7 @@ export function FunctionToggle({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(id)}
-            className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 ${
+            className={`flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-1.5 ${
               active
                 ? "bg-white text-slate-900 shadow-sm transition-all"
                 : empty
@@ -86,7 +87,7 @@ export function FunctionToggle({
           >
             {FUNCTION_LABELS[id]}
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${
+              className={`rounded-none px-2 py-0.5 text-[10px] font-extrabold tabular-nums ${
                 active
                   ? "bg-slate-100 text-slate-700"
                   : empty

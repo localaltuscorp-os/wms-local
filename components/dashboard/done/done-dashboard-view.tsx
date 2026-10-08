@@ -230,7 +230,7 @@ export function DoneDashboardView({
                 rows.map((p) => (
                   <tr
                     key={p.employeeId}
-                    className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-slate-50"
+                    className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/80"
                   >
                     {/* The row links to that person's completed work. `emp` and
                         `status` are params /tasks already parses, so the

@@ -120,10 +120,27 @@ const DROPPED_CONNECTION_CODES = new Set([
   "ETIMEDOUT",
 ]);
 
+/**
+ * Some versions of the fetch/socket layer omit a useful Node error code and
+ * surface a dropped pooled connection as a bare `TypeError: network error`.
+ * These phrases are transport failures, not SQL failures, so they deserve the
+ * same one fresh-connection retry as ECONNRESET. Keep this deliberately narrow:
+ * a missing column, constraint violation, or any other database error must
+ * still fail immediately rather than being obscured by a retry.
+ */
+const DROPPED_CONNECTION_MESSAGES = [
+  /^network error$/i,
+  /^fetch failed$/i,
+  /connection (?:closed|ended|destroyed|terminated)/i,
+];
+
 function isDroppedConnection(err: unknown): boolean {
   for (let e: unknown = err, depth = 0; e && depth < 4; depth++) {
-    const code = (e as { code?: unknown }).code;
+    const fields = e as { code?: unknown; message?: unknown };
+    const code = fields.code;
     if (typeof code === "string" && DROPPED_CONNECTION_CODES.has(code)) return true;
+    const message = typeof fields.message === "string" ? fields.message.trim() : "";
+    if (DROPPED_CONNECTION_MESSAGES.some((pattern) => pattern.test(message))) return true;
     e = (e as { cause?: unknown }).cause;
   }
   return false;

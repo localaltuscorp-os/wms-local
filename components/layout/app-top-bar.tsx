@@ -135,12 +135,11 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
               type="button"
               aria-label="Global search"
               title="Global search — tasks, clients, people, documents (⌘K)"
-              // Same 36px square, same radius and the same hover as the focus
-              // toggle beside it, so the four controls read as one cluster
-              // rather than as a search box that happened to shrink.
-              className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              // Match the neighbouring toolbar controls exactly: same 36px
+              // box, border, surface and icon scale.
+              className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-hairline-strong bg-surface-soft text-ink-strong transition-colors hover:bg-surface-card hover:text-ink-strong"
             >
-              <Search className="size-5" strokeWidth={2.2} />
+              <Search size={17} strokeWidth={2.3} />
             </button>
           }
         />

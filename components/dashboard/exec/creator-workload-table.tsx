@@ -28,7 +28,6 @@ import {
 // delegation board's, so the same figure cannot read two ways on one screen.
 import {
   WorkloadCountCell,
-  attainColor,
   SortHead,
   HEAD_MAIN,
   nextSortConfig,
@@ -74,7 +73,7 @@ function EmployeeRow({
 }) {
   return (
     <>
-      <tr className="border-t border-slate-100 transition-colors hover:bg-slate-50/70">
+      <tr className="border-t border-slate-100 transition-colors hover:bg-gray-50/80">
         <td className="px-2 py-2.5">
           <span className="flex min-w-0 items-center gap-2">
             <Avatar name={row.employeeName} avatarUrl={resolveAvatar(row.employeeId)} size={26} />
@@ -87,6 +86,7 @@ function EmployeeRow({
           <td key={f.key} className="px-2 py-2.5 text-center">
             {/* The window's own quota for this family — see totalTarget. */}
             <WorkloadCountCell
+              tone="neutral"
               value={splitOf(row, f.key).total}
               target={totalTarget(targets, f.key)}
               creatorId={row.employeeId}
@@ -107,14 +107,14 @@ function EmployeeRow({
               className="text-base font-black tabular-nums md:text-lg"
               style={{
                 fontFamily: "var(--font-display), system-ui, sans-serif",
-                color: attainColor(row.grandTotal, grandTotalTarget(targets)),
+                color: "#475569",
               }}
             >
               {row.grandTotal}
             </span>
             <span
               className="text-xs font-bold tabular-nums opacity-80 md:text-sm"
-              style={{ color: attainColor(row.grandTotal, grandTotalTarget(targets)) }}
+              style={{ color: "#475569" }}
             >
               /{grandTotalTarget(targets)}
             </span>
@@ -159,6 +159,7 @@ function EmployeeRow({
               return (
                 <td key={f.key} className="px-2 py-1.5 text-center">
                   <WorkloadCountCell
+                    tone="neutral"
                     value={splitOf(row, f.key)[rel.key]}
                     target={quota ?? famTotal}
                     denominator={quota != null ? "target" : "share"}
@@ -214,7 +215,7 @@ function TransposedTable({
   resolveAvatar: (id: string) => string | null;
 }) {
   return (
-    <div className="table-scroll max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
+    <div className="table-scroll no-scrollbar max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
       <table className="min-w-full border-collapse">
         <thead className="sticky top-0 z-10" style={{ background: "#f9fafb" }}>
           <tr>
@@ -238,6 +239,7 @@ function TransposedTable({
               {rows.map((r) => (
                 <td key={r.employeeId} className="px-2 py-2.5 text-center">
                   <WorkloadCountCell
+                    tone="neutral"
                     value={splitOf(r, f.key).total}
                     target={totalTarget(targets, f.key)}
                     creatorId={r.employeeId}
@@ -258,13 +260,13 @@ function TransposedTable({
                 <span className="inline-flex items-baseline gap-0.5 whitespace-nowrap leading-none">
                   <span
                     className="text-base font-black tabular-nums md:text-lg"
-                    style={{ color: attainColor(r.grandTotal, grandTotalTarget(targets)) }}
+                    style={{ color: "#475569" }}
                   >
                     {r.grandTotal}
                   </span>
                   <span
                     className="text-xs font-bold tabular-nums opacity-80 md:text-sm"
-                    style={{ color: attainColor(r.grandTotal, grandTotalTarget(targets)) }}
+                    style={{ color: "#475569" }}
                   >
                     /{grandTotalTarget(targets)}
                   </span>
@@ -453,13 +455,14 @@ export function CreatorWorkloadTable({
       {rows.length > 0 && (
         <button
           type="button"
+          data-sec="transpose"
           onClick={() => setIsTransposed((v) => !v)}
           aria-pressed={isTransposed}
+          aria-label={isTransposed ? "Return to employees as rows" : "Transpose categories as rows"}
           title={isTransposed ? "Back to employees as rows" : "Transpose: categories as rows"}
-          className={`${SECTION_CONTROL} ${isTransposed ? "text-altus-red" : ""}`}
+          className={`${SECTION_CONTROL} h-9 w-9 justify-center px-0 ${isTransposed ? "bg-slate-100 text-altus-red" : ""}`}
         >
-          <ArrowLeftRight className="size-3.5" strokeWidth={2.6} aria-hidden />
-          Transpose
+          <ArrowLeftRight size={19} strokeWidth={2.6} aria-hidden />
         </button>
       )}
       <CollapseToggle
@@ -507,7 +510,7 @@ export function CreatorWorkloadTable({
           {isTransposed ? (
             <TransposedTable rows={rows} targets={targets} resolveAvatar={resolveAvatar} />
           ) : (
-            <div className="table-scroll max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
+            <div className="table-scroll no-scrollbar max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
               <table className="min-w-full border-collapse">
                 <thead className="sticky top-0 z-10" style={{ background: "#f9fafb" }}>
                   <tr>

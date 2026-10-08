@@ -35,6 +35,8 @@ interface Props {
   onTransfer: (id: string, off: number) => void;
   /** Set (or clear) what time a commitment happens. */
   onSetTime: (item: PlanItem, time: { startMin: number | null; durationMin: number | null }) => void;
+  /** Daily Commitments uses drag-and-drop as its sole card-level action. */
+  dragOnly?: boolean;
   /** A search is running — an empty column means "no match", not "nothing planned". */
   searching?: boolean;
   /** Type a DAILY COMMITMENT straight onto this day, optionally at a time. */
@@ -66,12 +68,15 @@ export function DayColumn({
   onRename,
   onTransfer,
   onSetTime,
+  dragOnly = false,
   searching,
   onAddCommitment,
   unruledInitiatorLabel,
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: dayDropId(day.offset) });
   const [draft, setDraft] = React.useState("");
+  const [composerOpen, setComposerOpen] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   // Optional time on the new commitment — blank means "Anytime".
   const [at, setAt] = React.useState("");
   const [until, setUntil] = React.useState("");
@@ -81,6 +86,10 @@ export function DayColumn({
   const ids = React.useMemo(() => day.items.map((i) => i.id), [day.items]);
   const open = day.items.filter((i) => !i.done).length;
   const doneCount = day.items.length - open;
+
+  React.useEffect(() => {
+    if (composerOpen) inputRef.current?.focus();
+  }, [composerOpen]);
 
   function submitDraft(e: React.FormEvent) {
     e.preventDefault();
@@ -96,7 +105,28 @@ export function DayColumn({
 
   return (
     <section className="flex min-w-0 flex-col">
-      <header className="mb-1.5 px-0.5">
+      {dragOnly ? (() => {
+        const addButton = (
+          <button
+            type="button"
+            id={`plan-add-trigger-${day.offset}`}
+            onClick={() => setComposerOpen((open) => !open)}
+            aria-expanded={composerOpen}
+            aria-controls={`plan-add-${day.offset}`}
+            aria-label={`${composerOpen ? "Hide" : "Add"} a commitment to ${day.word}`}
+            title={`${composerOpen ? "Hide" : "Add"} a commitment to ${day.word}`}
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-2"
+            style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
+          >
+            <Plus size={14} strokeWidth={2.8} />
+          </button>
+        );
+        // The visible control is mounted in the shared top bar by PlanBoard.
+        // Keep this trigger in the DOM so that control can open Today's
+        // otherwise-collapsed composer without creating a second visible +.
+        return <div className="sr-only">{addButton}</div>;
+      })() : null}
+      {!dragOnly || !isToday || composerOpen ? <header className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
         <h2 className="flex min-w-0 items-baseline gap-1.5">
           <span
             className="truncate text-ink-strong"
@@ -112,15 +142,16 @@ export function DayColumn({
           </span>
           <span className="shrink-0 text-[11px] font-semibold tabular-nums text-ink-subtle">{day.date}</span>
         </h2>
-      </header>
+      </header> : null}
 
       {/* ADD A COMMITMENT — at the TOP of the column, above the count (Sir).
           This is the column's ONE composer; it used to sit at the bottom, below
           a long list, where you had to scroll to reach it. The time + length are
           optional: leave them blank and the commitment is "Anytime" work. */}
-      <form onSubmit={submitDraft} className="mb-1.5 flex flex-col gap-1.5">
+      {!dragOnly || composerOpen ? <form onSubmit={submitDraft} className="mb-1.5 flex flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
           <input
+            ref={inputRef}
             id={`plan-add-${day.offset}`}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -134,6 +165,7 @@ export function DayColumn({
             type="submit"
             disabled={draft.trim().length < 2 || !range.ok}
             aria-label={`Add commitment on ${day.word}`}
+            title={`Add commitment on ${day.word}`}
             className="inline-flex size-7 shrink-0 items-center justify-center rounded-chip text-white disabled:opacity-35 focus-visible:outline-1"
             style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
           >
@@ -170,18 +202,18 @@ export function DayColumn({
             {range.error}
           </p>
         ) : null}
-      </form>
+      </form> : null}
 
       {/* The count sits UNDER the day and the composer — across three columns a
           right-aligned number read as if it belonged to the next day along. */}
-      <p className="mb-2 px-0.5 text-[10.5px] font-bold tabular-nums text-ink-muted">
+      {!dragOnly ? <p className="mb-2 px-0.5 text-[10.5px] font-bold tabular-nums text-ink-muted">
         {doneCount > 0 ? `${doneCount} done · ` : ""}
         {open} to do
-      </p>
+      </p> : null}
 
       <div
         ref={setNodeRef}
-        className="flex min-h-[220px] flex-1 flex-col rounded-2xl border p-2 transition-colors"
+        className="flex min-h-[220px] flex-1 flex-col rounded-none border p-2 transition-colors"
         style={{
           borderStyle: day.items.length === 0 && !isOver ? "dashed" : "solid",
           // EVERY column wears the red edge, not just today (Sir) — the day it
@@ -194,6 +226,11 @@ export function DayColumn({
           background: isOver ? `color-mix(in srgb, ${GOALS_ACCENT} 5%, transparent)` : "#ffffff",
         }}
       >
+        {dragOnly ? (
+          <p className="mb-2 px-0.5 text-[10.5px] font-bold tabular-nums text-ink-muted">
+            {open} to do
+          </p>
+        ) : null}
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-1">
             <AnimatePresence initial={false}>
@@ -210,6 +247,7 @@ export function DayColumn({
                   onRename={onRename}
                   onTransfer={onTransfer}
                   onSetTime={onSetTime}
+                  dragOnly={dragOnly}
                   unruledInitiatorLabel={unruledInitiatorLabel}
                   dayOffset={day.offset}
                   dayYmd={day.ymd}

@@ -63,7 +63,7 @@ export function CollapseToggle({
       aria-expanded={expanded}
       aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
       title={expanded ? "Collapse" : "Expand"}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-slate-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40"
     >
       <ChevronUp
         size={15}
@@ -140,7 +140,7 @@ export function CollapsibleBody({
  * carry their own shapes because they are not buttons.
  */
 export const SECTION_CONTROL =
-  "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50";
+  "inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-100";
 
 export function CollapsibleSection({
   children,
@@ -343,7 +343,7 @@ export function usePagedRows<T>(rows: T[], pageSize: number) {
  * red glow would have muddied the colour it exists to suggest.
  */
 export const DASHBOARD_CARD =
-  "bg-white border rounded-2xl dashboard-card-edge";
+  "bg-white border rounded-none text-ink-soft dashboard-card-edge";
 
 /** The card with its standard internal padding. Tables that need to bleed to
  *  the scroll edge use DASHBOARD_CARD and pad their own wrapper instead. */
@@ -437,13 +437,16 @@ export function SectionSearchBox({
        existed because a header carrying two dispatch buttons, a pager and a
        transpose toggle cannot spare 220px for a box that is empty most of the
        time; resting as an icon settles that properly. The widening below still
-       governs the OPEN box. size-8 matches this header's 32px control row. */
+       governs the OPEN box. size-9 matches this header's 36px icon controls. */
     /* The wrapper exists only to carry `data-sec` — CollapsibleSearch is the
        root element and takes no arbitrary props. `contents` is NOT usable here:
        the ordering below acts on flex ITEMS, and a display:contents box is not
        one. `inline-flex` keeps it the same size as what it wraps. */
     <span data-sec="search" className="inline-flex shrink-0">
-    <CollapsibleSearch scope={searchScope(placeholder)} className="size-8">
+    <CollapsibleSearch
+      scope={searchScope(placeholder)}
+      className="size-9 border border-gray-200 bg-white shadow-2xs hover:bg-slate-100"
+    >
     <div
       /* h-8 and w-36, widening to w-48 while it has focus — a header now
          carrying two dispatch buttons, a pager and a transpose toggle cannot

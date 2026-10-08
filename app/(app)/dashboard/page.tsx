@@ -20,7 +20,7 @@ import { AgingHeatmap } from "@/components/dashboard/aging-heatmap";
 import { WelcomeHero } from "@/components/dashboard/welcome-hero";
 import { DashboardLoadError } from "@/components/dashboard/dashboard-load-error";
 import { PageShell } from "@/components/layout/page-shell";
-import { listEmployees } from "@/lib/queries/employees";
+import { listDashboardEmployeeOptions } from "@/lib/queries/employees";
 import { listDistinctSubjects } from "@/lib/queries/tasks";
 import { loadDashboardData } from "@/lib/queries/dashboard";
 import { getStatusDisplayMap } from "@/lib/queries/status-display";
@@ -84,7 +84,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // page. The three CORE reads aren't degradable, so on a genuine error we show
   // a friendly in-place Retry panel instead of throwing to the global boundary.
   let loaded: [
-    Awaited<ReturnType<typeof listEmployees>>,
+    Awaited<ReturnType<typeof listDashboardEmployeeOptions>>,
     Awaited<ReturnType<typeof loadDashboardData>>,
     Awaited<ReturnType<typeof getStatusDisplayMap>>,
     Awaited<ReturnType<typeof getMyDayCounts>> | null,
@@ -93,7 +93,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   ];
   try {
     loaded = await Promise.all([
-      listEmployees(),
+      listDashboardEmployeeOptions(),
       loadDashboardData(filters),
       getStatusDisplayMap(),
       me ? getMyDayCounts(me.id).catch(() => null) : Promise.resolve(null),
@@ -142,7 +142,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // tint here; this opaque layer covers it for THIS route only, leaving every
     // other module's backdrop alone. min-h-dvh so short dashboards stay white
     // all the way down.
-    <div className="flex min-h-dvh flex-1 flex-col" style={{ background: "#ffffff" }}>
+    <div data-wms-dashboard className="flex min-h-dvh flex-1 flex-col" style={{ background: "#ffffff" }}>
       <DashboardHeader generatedAt={new Date()} />
 
       {/* Sticky filter bar: WMS now uses the vertical left rail (no horizontal
