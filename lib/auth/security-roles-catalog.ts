@@ -38,6 +38,16 @@ export const SECURITY_ROLES = [
 export type SecurityRole = (typeof SECURITY_ROLES)[number];
 export type SecurityRoleCategory = "Security" | "Attendance" | "Work" | "Finance" | "HR" | "Operations";
 
+/** Stable module order for the Super Admin role panel. */
+export const SECURITY_ROLE_CATEGORIES: readonly SecurityRoleCategory[] = [
+  "Security",
+  "Attendance",
+  "Work",
+  "Finance",
+  "HR",
+  "Operations",
+];
+
 export interface SecurityRoleDef {
   key: SecurityRole;
   label: string;
