@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import {
   ADMIN_PANEL_ENTRY,
   MODULE_ORDER,
   MODULE_THEME,
-  moduleShortcutHint,
   moduleShortcutLabel,
 } from "@/lib/module-theme";
 import {
@@ -19,10 +20,8 @@ import {
 
 /**
  * Site-wide module switcher. It is named ModuleFooter for backwards-compatible
- * imports, but is rendered at the very top of ChromeShell as a scroll-aware bar.
- *
- * It is visible when a page opens and while the user scrolls upward. Scrolling
- * down hides it and gives the page that space back, rather than covering content.
+ * imports, but is rendered at the very top of ChromeShell as a compact handle.
+ * Hovering or focusing the centre chevron opens the complete modules bar.
  */
 export interface ModuleFooterProps {
   access: WorkspaceAccessInput;
@@ -32,107 +31,75 @@ export interface ModuleFooterProps {
 export function ModuleFooter({ access, modules }: ModuleFooterProps) {
   const pathname = usePathname();
   const activeWs = workspaceForPath(pathname ?? "/");
-  const [hidden, setHidden] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
+  const closeTimer = React.useRef<number | null>(null);
 
-  React.useEffect(() => {
-    const scrollYFor = (source: Window | HTMLElement) =>
-      source instanceof HTMLElement ? source.scrollTop : source.scrollY;
-    let lastY = window.scrollY;
-    let scrollSource: Window | HTMLElement = window;
-    let frame: number | null = null;
-    let settleTimer: number | null = null;
-    let isSettling = false;
-    let currentlyHidden = false;
+  const openNav = React.useCallback(() => {
+    if (closeTimer.current) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setExpanded(true);
+  }, []);
 
-    const setNavigationHidden = (nextHidden: boolean) => {
-      if (currentlyHidden === nextHidden) return;
+  const closeNav = React.useCallback(() => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    // The short delay makes moving from the small centre handle into the row
+    // feel reliable instead of closing the menu under the cursor.
+    closeTimer.current = window.setTimeout(() => {
+      setExpanded(false);
+      closeTimer.current = null;
+    }, 160);
+  }, []);
 
-      currentlyHidden = nextHidden;
-      isSettling = true;
-      setHidden(nextHidden);
-
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        // Changing the bar's in-flow height can adjust scrollY. Treat that
-        // adjustment as part of the transition, not as a new user gesture.
-        lastY = scrollYFor(scrollSource);
-        isSettling = false;
-        settleTimer = null;
-      }, 240);
-    };
-
-    const update = () => {
-      frame = null;
-      const nextY = scrollYFor(scrollSource);
-      const movement = nextY - lastY;
-      if (isSettling) {
-        lastY = nextY;
-        return;
-      }
-
-      if (nextY <= 8) setNavigationHidden(false);
-      else if (movement > 6) setNavigationHidden(true);
-      else if (movement < -6) setNavigationHidden(false);
-      lastY = nextY;
-    };
-
-    const onScroll = (event: Event) => {
-      // HR owns an internal page scroller (`HrConsoleShell`) while every other
-      // workspace scrolls the window. Capture its scroll event here so this
-      // shared navbar follows the same hide-on-down / reveal-on-up behaviour.
-      const target = event.target;
-      const hrScroller =
-        target instanceof HTMLElement && target.classList.contains("hr-shell-scroll")
-          ? target
-          : null;
-      const nextSource = hrScroller ?? window;
-
-      // Do not treat switching between the window and HR's inner scroller as a
-      // user direction change; establish a baseline first.
-      if (nextSource !== scrollSource) {
-        scrollSource = nextSource;
-        lastY = scrollYFor(scrollSource);
-        return;
-      }
-
-      if (frame === null) frame = window.requestAnimationFrame(update);
-    };
-
-    // Scroll does not bubble from an element, but it is observable in capture
-    // phase. That covers HR's internal scroll panel and ordinary page scrolling
-    // with one handler.
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener("scroll", onScroll, true);
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      if (settleTimer !== null) window.clearTimeout(settleTimer);
-    };
+  React.useEffect(() => () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
   }, []);
 
   return (
     <div
       className="module-footer module-top-nav print:hidden"
-      data-hidden={hidden ? "true" : "false"}
+      data-expanded={expanded ? "true" : "false"}
+      onMouseEnter={openNav}
+      onMouseLeave={closeNav}
+      onFocusCapture={openNav}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeNav();
+      }}
     >
+      <div className="module-top-nav-hover-zone" aria-hidden="true" />
+      <button
+        type="button"
+        className="module-top-nav-handle"
+        aria-label="Show all modules navigation"
+        aria-expanded={expanded}
+        aria-controls="module-top-nav-links"
+        title="Show all modules"
+        onMouseEnter={openNav}
+        onClick={openNav}
+      >
+        <ChevronDown size={9} strokeWidth={2.5} />
+      </button>
       <nav
         id="module-top-nav-links"
         aria-label="All modules"
-        aria-hidden={hidden}
+        aria-hidden={!expanded}
         className="module-top-nav-links"
       >
+        <Link href="/hub" aria-label="Altus Hub" className="module-top-nav-logo">
+          <Image src="/logo.png" alt="" width={26} height={26} priority className="h-6 w-6 object-contain" />
+        </Link>
         {modules.map((id) => {
           const moduleConfig = MODULE_THEME[id];
           const index = MODULE_ORDER.indexOf(id);
           const allowed = canAccessWorkspace(id, access);
           const Icon = moduleConfig.Icon;
-          const shortcut = moduleShortcutHint(index);
           const shortcutLabel = moduleShortcutLabel(index);
           const active = activeWs === id;
 
           const inner = (
             <>
-              {shortcut && <span aria-hidden className="opacity-55">{shortcut}</span>}
-              <Icon size={15} strokeWidth={2.3} aria-hidden />
+              <Icon size={14} strokeWidth={2.3} aria-hidden />
               <span className="whitespace-nowrap">{moduleConfig.label}</span>
             </>
           );
@@ -142,7 +109,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
               <span
                 key={id}
                 title={`${moduleConfig.label} — you don't have access to this module`}
-                className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold"
+                className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-semibold"
                 style={{ color: "rgba(15,23,42,0.30)" }}
               >
                 {inner}
@@ -157,7 +124,7 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
               href={moduleConfig.href}
               title={shortcutLabel ? `${moduleConfig.label} — ${shortcutLabel}` : moduleConfig.label}
               aria-current={active ? "page" : undefined}
-              className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+              className="group inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
               style={{
                 ["--mod-accent" as string]: moduleConfig.accent,
                 color: active ? moduleConfig.accent : "rgba(15,23,42,0.62)",
@@ -175,14 +142,13 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
           <Link
             href={ADMIN_PANEL_ENTRY.href}
             title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
-            className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+            className="group inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
             style={{
               ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
               color: "rgba(15,23,42,0.62)",
             }}
           >
-            <span aria-hidden className="opacity-55">{`Alt+${ADMIN_PANEL_ENTRY.shortcut}`}</span>
-            <ADMIN_PANEL_ENTRY.Icon size={15} strokeWidth={2.3} aria-hidden />
+            <ADMIN_PANEL_ENTRY.Icon size={14} strokeWidth={2.3} aria-hidden />
             <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
           </Link>
         )}

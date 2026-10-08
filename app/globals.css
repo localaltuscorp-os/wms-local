@@ -303,21 +303,30 @@
     --app-topbar-h: 56px;
   }
 
-  /* The module switcher lives above the sticky app bar. While visible, both
-     the app bar and page-level sticky controls sit below its in-flow height. */
-  body:has(.module-top-nav[data-hidden="false"]) {
+  /* Opening the centre chevron adds the modules row in flow, so every sticky
+     page control remains correctly positioned below it. */
+  body:has(.module-top-nav[data-expanded="true"]) {
     --app-topbar-h: 101px;
   }
 
-  body:has(.module-top-nav[data-hidden="false"]) .aura-topbar {
+  body:has(.module-top-nav[data-expanded="true"]) .aura-topbar {
     top: 45px;
   }
 
-  /* HR uses the same two-column frame as the other workspaces: its navigation
-     rail owns the full left edge, while both top rows begin at the rail edge.
-     The value is published by HrConsoleShell, so resizing or collapsing its
-     rail keeps the module navbar and page-title/action ribbon aligned. */
-  body:has(.hr-shell) :is(.module-top-nav, .app-topbar) {
+  body:has(.module-top-nav[data-expanded="true"]) .aura-app {
+    min-height: calc(100dvh - 45px);
+  }
+
+  /* The full-width module tray sits above BOTH columns. Keep the sticky rail
+     below it while open so its controls never slide underneath the tray. */
+  body:has(.module-top-nav[data-expanded="true"]) .sidebar-rail {
+    top: 45px;
+    height: calc(100dvh - 45px);
+  }
+
+  /* Keep the HR page-title/action ribbon aligned with its own rail. The shared
+     modules navbar deliberately stays viewport-wide, matching every module. */
+  body:has(.hr-shell) .app-topbar {
     width: calc(100% - var(--hr-console-rail-width, 228px));
     margin-left: var(--hr-console-rail-width, 228px);
   }
@@ -337,43 +346,139 @@
   z-index: 70;
   flex: none;
   width: 100%;
-  height: 45px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #fdfdff, #f3f5fc);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.95) inset, 0 8px 24px -18px rgba(22,32,68,0.55);
-  transition: height 200ms cubic-bezier(0.2, 0.8, 0.3, 1), background-color 160ms ease, box-shadow 160ms ease;
+  height: 0;
+  overflow: visible;
+  background: transparent;
+  transition: height 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
-.module-top-nav[data-hidden="true"] {
-  height: 0;
-  background: transparent;
-  box-shadow: none;
+.module-top-nav[data-expanded="true"] {
+  height: 45px;
+}
+
+/* The full, very thin top border is also the reveal target. This lets people
+   open the modules tray from anywhere along the top edge, while the small
+   centre chevron remains a clear visual cue. */
+.module-top-nav-hover-zone {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 75;
+  height: 16px;
+}
+.module-top-nav[data-expanded="true"] .module-top-nav-hover-zone {
+  pointer-events: none;
 }
 
 .module-top-nav-links {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
   display: flex;
   height: 45px;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   overflow-x: auto;
-  padding: 0 24px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #fdfdff, #f3f5fc);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.95) inset, 0 8px 24px -18px rgba(22,32,68,0.55);
   scrollbar-width: none;
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 130ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1), visibility 0s linear 0s;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  visibility: hidden;
+  transition: opacity 130ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1), visibility 0s linear 200ms;
 }
 
 .module-top-nav-links::-webkit-scrollbar { display: none; }
 
-.module-top-nav[data-hidden="true"] .module-top-nav-links {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-45px);
-  visibility: hidden;
-  transition: opacity 110ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1), visibility 0s linear 180ms;
+/* Desktop: each module receives an equal share of the full-width tray. This
+   removes the empty right side while keeping the complete navbar on one line. */
+@media (min-width: 1181px) {
+  .module-top-nav-links > :not(.module-top-nav-logo) {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+  }
+  .module-top-nav-logo {
+    margin-right: 0;
+    padding-right: 0;
+    border-right: 0;
+  }
+}
+
+/* A compact Altus mark starts every full modules tray and leaves a clear gap
+   before WMS. The mark returns to the Hub; no extra label is needed. */
+.module-top-nav-logo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: 7px;
+  padding-right: 9px;
+  border-right: 1px solid rgba(22,32,68,0.12);
+  text-decoration: none;
+}
+.module-top-nav-logo:hover { opacity: 0.78; }
+.module-top-nav-logo:focus-visible {
+  outline: 2px solid var(--color-altus-red);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.module-top-nav[data-expanded="true"] .module-top-nav-links {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  visibility: visible;
+  transition: opacity 150ms ease 70ms, transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1), visibility 0s linear 0s;
+}
+
+/* The precise, top-centre affordance requested for the hidden full navbar.
+   It remains visible when the tray is closed and becomes the close control
+   once the module links are open. */
+.module-top-nav-handle {
+  /* Fixed to the viewport rather than the module content column: sidebars have
+     different widths, but this cue should always sit in the centre of the
+     entire page. */
+  position: fixed;
+  /* A small tab on the top border is a cue that the modules tray exists. It
+     stays out of the page-title ribbon and consumes no layout space. */
+  top: 0;
+  left: 50vw;
+  z-index: 80;
+  display: grid;
+  width: 26px;
+  height: 12px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(22,32,68,0.14);
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(180deg, #fff, #f1f4fb);
+  color: #53617c;
+  box-shadow: 0 5px 12px -10px rgba(22,32,68,0.58);
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+.module-top-nav-handle:hover,
+.module-top-nav-handle:focus-visible {
+  background: #fff;
+  color: var(--color-altus-red);
+  box-shadow: 0 6px 14px -9px rgba(168,4,0,0.42);
+  outline: none;
+}
+.module-top-nav-handle:focus-visible {
+  outline: 2px solid var(--color-altus-red);
+  outline-offset: 2px;
 }
 
 @media (max-width: 767px) {
+  /* Phones already have their own compact module drawer in DashboardSidebar. */
+  .module-top-nav { display: none; }
   .module-top-nav-links { padding: 0 16px; }
 }
 

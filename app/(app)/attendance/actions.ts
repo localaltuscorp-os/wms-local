@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   attendanceLogs,
@@ -489,6 +489,7 @@ async function currentPunch(
         eq(attendanceLogs.kind, kind),
       ),
     )
+    .orderBy(desc(attendanceLogs.loggedAt))
     .limit(1);
   return row ?? null;
 }
@@ -587,9 +588,19 @@ async function upsertPunchCore(
   if (!auth.ok) return auth;
 
   try {
-    await db
-      .insert(attendanceLogs)
-      .values({
+    if (before) {
+      await db
+        .update(attendanceLogs)
+        .set({
+          loggedAt,
+          source: "admin",
+          reason,
+          recordedById: meId,
+          verifyMethod: "none",
+        })
+        .where(eq(attendanceLogs.id, before.id));
+    } else {
+      await db.insert(attendanceLogs).values({
         employeeId,
         logDate,
         kind,
@@ -598,21 +609,8 @@ async function upsertPunchCore(
         reason,
         recordedById: meId,
         verifyMethod: "none",
-      })
-      .onConflictDoUpdate({
-        target: [
-          attendanceLogs.employeeId,
-          attendanceLogs.logDate,
-          attendanceLogs.kind,
-        ],
-        set: {
-          loggedAt,
-          source: "admin",
-          reason,
-          recordedById: meId,
-          verifyMethod: "none",
-        },
       });
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };
@@ -702,6 +700,7 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
   if (!editable.ok) return editable;
 
   const before = await currentPunch(employeeId, logDate, kind);
+  if (!before) return { ok: false, error: "There's no matching punch to clear." };
   const auth = await authorizeAttendanceMutation({
     actor: me,
     targetEmployeeId: employeeId,
@@ -713,15 +712,7 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
 
   const tz = (await targetTz(employeeId)) ?? "Asia/Kolkata";
   try {
-    await db
-      .delete(attendanceLogs)
-      .where(
-        and(
-          eq(attendanceLogs.employeeId, employeeId),
-          eq(attendanceLogs.logDate, logDate),
-          eq(attendanceLogs.kind, kind),
-        ),
-      );
+    await db.delete(attendanceLogs).where(eq(attendanceLogs.id, before.id));
   } catch (err) {
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
@@ -936,6 +927,7 @@ export async function adminDeletePunch(
   if (!editable.ok) return editable;
 
   const before = await currentPunch(employeeId, logDate, kind);
+  if (!before) return { ok: false, error: "There's no matching punch to delete." };
   const auth = await authorizeAttendanceMutation({
     actor: me,
     targetEmployeeId: employeeId,
@@ -947,15 +939,7 @@ export async function adminDeletePunch(
 
   const tz = (await targetTz(employeeId)) ?? "Asia/Kolkata";
   try {
-    await db
-      .delete(attendanceLogs)
-      .where(
-        and(
-          eq(attendanceLogs.employeeId, employeeId),
-          eq(attendanceLogs.logDate, logDate),
-          eq(attendanceLogs.kind, kind),
-        ),
-      );
+    await db.delete(attendanceLogs).where(eq(attendanceLogs.id, before.id));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };

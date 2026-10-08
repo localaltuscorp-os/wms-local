@@ -49,18 +49,35 @@ export interface DayCodeResult {
   workedMinutes: number;
 }
 
+export interface DayPunchInput {
+  inAt: string | null;
+  outAt: string | null;
+  /** Completed minutes across every check-in/check-out pair for this day. */
+  workedMinutes?: number;
+  /** The last check-in has not yet been paired with a check-out. */
+  openInAt?: string | null;
+}
+
+function workedForDay(punch: DayPunchInput, refNow: string): number {
+  const completed = punch.workedMinutes ?? (punch.inAt ? Math.max(0, (punch.outAt ? toMin(punch.outAt) : toMin(refNow)) - toMin(punch.inAt)) : 0);
+  const open = punch.openInAt ? Math.max(0, toMin(refNow) - toMin(punch.openInAt)) : 0;
+  return Math.max(0, completed + open);
+}
+
 /**
  * Pure day-code rules engine. Given a check-in/check-out pair, the resolved
  * schedule, the day context, and a reference "now" (HH:mm) used to compute
  * worked minutes when the person hasn't checked out yet, return the day code.
  */
 export function computeDayCode(
-  punch: { inAt: string | null; outAt: string | null },
+  punch: DayPunchInput,
   sched: AttendanceSchedule,
   ctx: DayContext,
   refNow: string,
 ): DayCodeResult {
   const { inAt, outAt } = punch;
+  const worked = workedForDay(punch, refNow);
+  const hasOpenSession = !!punch.openInAt || (!!inAt && !outAt && punch.workedMinutes == null);
 
   // ── Phase-B precedence (runs before the Phase-A work logic) ──────────────
   // 1. Approved leave wins outright — paid grants a full day, unpaid is unpaid.
@@ -82,9 +99,8 @@ export function computeDayCode(
   // 3. Holiday or weekly-off. Working on one earns holiday-pay (HP, 2×) or a
   //    holiday half-day (H-H/D, 1.5×); not working credits a plain H / W/O day.
   if (ctx.isHoliday || ctx.isWeeklyOff) {
-    if (inAt) {
-      const worked = Math.max(0, (outAt ? toMin(outAt) : toMin(refNow)) - toMin(inAt));
-      const late = toMin(inAt) > toMin(sched.lateAfter);
+    if (inAt || worked > 0) {
+      const late = inAt ? toMin(inAt) > toMin(sched.lateAfter) : false;
       // Strict `<`, matching the ordinary-day rule below: leaving exactly AT the
       // cutoff is on time, never early.
       const leftEarly = outAt != null && toMin(outAt) < toMin(sched.earlyBefore);
@@ -111,21 +127,25 @@ export function computeDayCode(
     // was here: something happened at the end of a day they were present for.
     // Grading that ABSENT punishes a missing punch as though it were a missing
     // day. Half a day, exactly like forgetting to punch out.
+    if (worked > 0) {
+      if (worked >= sched.fullDayMinutes) return { code: "P", dayValue: 1, late: false, leftEarly: false, lateWaived: false, workedMinutes: worked };
+      if (worked >= sched.halfDayMinutes) return { code: "H/D", dayValue: 0.5, late: false, leftEarly: false, lateWaived: false, workedMinutes: worked };
+      return { code: "A", dayValue: 0, late: false, leftEarly: false, lateWaived: false, workedMinutes: worked };
+    }
     if (outAt) {
       return { code: "H/D", dayValue: 0.5, late: false, leftEarly: false, lateWaived: false, workedMinutes: 0 };
     }
     return { code: "A", dayValue: 0, late: false, leftEarly: false, lateWaived: false, workedMinutes: 0 };
   }
 
-  const worked = Math.max(0, (outAt ? toMin(outAt) : toMin(refNow)) - toMin(inAt));
   const late = toMin(inAt) > toMin(sched.lateAfter);
   // Early = left strictly BEFORE the early-before time (7:30 pm). At exactly the
   // cutoff it is NOT early (Sir: "7:30 ke pehle logout = early").
-  const leftEarly = outAt != null && toMin(outAt) < toMin(sched.earlyBefore);
+  const leftEarly = !hasOpenSession && outAt != null && toMin(outAt) < toMin(sched.earlyBefore);
 
   // Checked in but NEVER checked out (Sir #12): credit a HALF-DAY, not the old
   // "incomplete/0". The person came in; a missing punch-out shouldn't zero them.
-  if (!outAt) {
+  if (hasOpenSession) {
     return { code: "H/D", dayValue: 0.5, late, leftEarly: false, lateWaived: false, workedMinutes: worked };
   }
 
@@ -181,13 +201,12 @@ export function computeDayCode(
  * the cutoffs — and marking nobody is the direction that cannot overcharge.
  */
 function halfLeaveDay(
-  punch: { inAt: string | null; outAt: string | null },
+  punch: DayPunchInput,
   sched: AttendanceSchedule,
   leave: "paid" | "unpaid",
   refNow: string,
 ): DayCodeResult {
-  const { inAt, outAt } = punch;
-  const worked = inAt ? Math.max(0, (outAt ? toMin(outAt) : toMin(refNow)) - toMin(inAt)) : 0;
+  const worked = workedForDay(punch, refNow);
   const workedTheHalf = worked >= sched.halfDayMinutes;
 
   if (leave === "paid") {
