@@ -240,6 +240,7 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 ### CI follow-up (2026-10-08)
 
 - PR #22 initially failed its required TypeScript check because the Day Review unit-test helper permits an omitted `onViewUpcoming` callback while the component prop had been made mandatory. The callback is now optional at the component boundary; production callers still provide it, and React safely treats an omitted click callback as no action in isolated tests.
+- The replacement CI run reached the unit-test stage and found that `task-actions-create-edit.test.ts` mocked inserts and updates but not the `db.select` now used by Daily Commitments task synchronization. The mock now supplies an empty select result, correctly modelling a newly created task with no follow-up rows. A focused local Vitest run could not start because Vite hit Windows `spawn EPERM` while loading its config; rely on the replacement Linux CI run.
 
 ### Rollback and deployment
 
