@@ -120,7 +120,18 @@ export interface SnapshotEntityInput {
 }
 
 export interface SnapshotFileInput {
-  kind: "logo" | "signature" | "document";
+  kind:
+    | "logo"
+    | "signature"
+    | "document"
+    | "cancelled_cheque"
+    | "gst_certificate"
+    | "pan_card"
+    | "aadhar_card"
+    | "msme_certificate"
+    | "tin_certificate"
+    | "signing_entity_photo"
+    | "signing_entity_signature";
   storagePath: string;
   fileName: string;
   mimeType: string | null;
