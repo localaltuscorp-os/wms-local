@@ -116,9 +116,10 @@ export function ChromeShell({
   // appended after it necessarily sits past the fold — making the OUTER page
   // scrollable purely to reach a strip of chrome. A stray Space keypress
   // scrolled into that dead band and there was nothing above to scroll back to.
-  // The Hub is the module picker itself, so it must not repeat the module
-  // navigation above its own header. Every workspace section keeps the bar.
-  const moduleNavigation = isHub ? null : footer;
+  // The centre-chevron module tray belongs on the Hub too. It stays compact
+  // until hovered, then opens in flow above the Hub header just like it does
+  // above every module page.
+  const moduleNavigation = footer;
   // The dock is `sticky bottom-0` — pinned to the foot of the viewport at any
   // scroll position, but still in flow, so it reserves its own height at the END
   // of the page (see module-footer.tsx). That reserved band is what lets the last
@@ -172,15 +173,20 @@ export function ChromeShell({
   }
 
   return (
-    <div className="flex min-h-dvh">
-      {sidebar}
-      <div className={`flex min-w-0 flex-1 flex-col max-md:pt-14 ${bottomPad}`}>
-        {moduleNavigation}
-        <PageChromeSlotsProvider>
-          {bar}
-          <PageFilterRibbonSlot />
-          {children}
-        </PageChromeSlotsProvider>
+    <div className="flex min-h-dvh flex-col">
+      {/* The modules tray belongs to the whole application frame, not only the
+          content column. Rendering it before the sidebar/content split makes
+          the expanded row run edge-to-edge across the entire page. */}
+      {moduleNavigation}
+      <div className="flex min-h-0 flex-1">
+        {sidebar}
+        <div className={`flex min-w-0 flex-1 flex-col max-md:pt-14 ${bottomPad}`}>
+          <PageChromeSlotsProvider>
+            {bar}
+            <PageFilterRibbonSlot />
+            {children}
+          </PageChromeSlotsProvider>
+        </div>
       </div>
     </div>
   );

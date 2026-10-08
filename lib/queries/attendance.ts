@@ -16,6 +16,8 @@ export interface DayPunches {
   date: string; // YYYY-MM-DD
   in: PunchDetail | null;
   out: PunchDetail | null;
+  /** Every punch for the day, earliest first. */
+  punches: Array<PunchDetail & { kind: "in" | "out" }>;
 }
 
 interface RawPunch {
@@ -33,17 +35,22 @@ function foldByDay(rows: RawPunch[]): DayPunches[] {
   for (const r of rows) {
     let day = byDay.get(r.logDate);
     if (!day) {
-      day = { date: r.logDate, in: null, out: null };
+      day = { date: r.logDate, in: null, out: null, punches: [] };
       byDay.set(r.logDate, day);
     }
-    day[r.kind] = {
+    const detail = {
       at: r.loggedAt,
       note: r.note,
       verifyMethod: r.verifyMethod,
       distanceM: r.distanceM,
     };
+    day.punches.push({ ...detail, kind: r.kind });
+    if (r.kind === "in" && (!day.in || detail.at < day.in.at)) day.in = detail;
+    if (r.kind === "out" && (!day.out || detail.at > day.out.at)) day.out = detail;
   }
-  return [...byDay.values()].sort((a, b) => b.date.localeCompare(a.date));
+  return [...byDay.values()]
+    .map((day) => ({ ...day, punches: day.punches.sort((left, right) => left.at.getTime() - right.at.getTime()) }))
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /** My punches for the last `days` calendar days (employee timezone dates). */
@@ -67,7 +74,7 @@ export async function listMyAttendance(
         gte(attendanceLogs.logDate, sinceDate),
       ),
     )
-    .orderBy(desc(attendanceLogs.logDate));
+    .orderBy(desc(attendanceLogs.logDate), desc(attendanceLogs.loggedAt));
   return foldByDay(rows);
 }
 

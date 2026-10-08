@@ -1138,6 +1138,8 @@ export const hrContacts = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     companyName: text("company_name"),
     personName: text("person_name").notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
     cellNo: text("cell_no"),
     alternateNo: text("alternate_no"),
     email: text("email"),
@@ -1146,6 +1148,25 @@ export const hrContacts = pgTable(
     contact2Name: text("contact_2_name"),
     contact2CellNo: text("contact_2_cell_no"),
     contact2Email: text("contact_2_email"),
+    category: text("category"),
+    utility: text("utility"),
+    amcOnCall: text("amc_on_call"),
+    addressLine1: text("address_line_1"),
+    addressLine2: text("address_line_2"),
+    addressLine3: text("address_line_3"),
+    addressLine4: text("address_line_4"),
+    pincode: text("pincode"),
+    gstNo: text("gst_no"),
+    panNo: text("pan_no"),
+    gstName: text("gst_name"),
+    bankDetails: jsonb("bank_details").notNull().default({}),
+    contact1Name: text("contact_1_name"),
+    contact1CellNo: text("contact_1_cell_no"),
+    contact1Email: text("contact_1_email"),
+    attachments: jsonb("attachments").notNull().default({}),
+    rateNegotiated: text("rate_negotiated"),
+    paymentTerms: text("payment_terms"),
+    registrationSubmittedAt: timestamp("registration_submitted_at", { withTimezone: true }),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -1167,6 +1188,26 @@ export const hrContacts = pgTable(
     index("hr_contacts_directory_type_idx").on(t.directoryType, t.isActive, t.personName),
   ],
 );
+
+/** One-time public links used to collect a vendor's registration form. Only a
+ * SHA-256 hash is stored, so a database export cannot replay a link. */
+export const vendorRegistrationLinks = pgTable(
+  "vendor_registration_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contactId: uuid("contact_id").notNull().references(() => hrContacts.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdById: uuid("created_by_id").references(() => employees.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("vendor_registration_links_contact_idx").on(t.contactId),
+    index("vendor_registration_links_expiry_idx").on(t.expiresAt),
+  ],
+);
+export type VendorRegistrationLink = typeof vendorRegistrationLinks.$inferSelect;
 
 export const hrAssetCounters = pgTable("hr_asset_counters", {
   prefix: text("prefix").primaryKey(),
@@ -3110,7 +3151,7 @@ export const attendanceLogs = pgTable(
     anomalyFlags: jsonb("anomaly_flags").$type<string[]>(), // ["mock_location","integrity_weak",…]
   },
   (t) => [
-    uniqueIndex("attendance_logs_employee_day_kind_uq").on(
+    index("attendance_logs_employee_day_kind_idx").on(
       t.employeeId,
       t.logDate,
       t.kind,

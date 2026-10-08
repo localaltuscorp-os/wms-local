@@ -8,8 +8,11 @@ import type { ApprovalKind, ApprovalRow, ApprovalStatus, AttendancePerformanceDa
 import { decideApproval } from "@/app/(admin)/admin/approvals/actions";
 import { listClaimAttachments, type ClaimAttachmentView } from "@/app/(app)/reimbursements/attachment-actions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CtcBreakupTab } from "@/components/admin/approvals/ctc-breakup-tab";
+import type { CtcApprovalRow } from "@/lib/hr/ctc/approval-list";
 
-const TABS: readonly ApprovalKind[] = ["attendance", "incentive", "reimbursement", "salary"];
+type ApprovalTab = ApprovalKind | "ctc";
+const TABS: readonly ApprovalTab[] = ["attendance", "incentive", "reimbursement", "salary", "ctc"];
 const STATUSES: readonly ("all" | ApprovalStatus)[] = ["pending", "approved", "rejected", "paid", "all"];
 
 const money = (amount: number) => `Rs. ${amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -128,8 +131,9 @@ function sortKeyForColumn(column: ApprovalColumn): ApprovalSortKey | null {
     : null;
 }
 
-export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode, preview = false }: { rows: ApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean; preview?: boolean }) {
-  const [kind, setKind] = useState<ApprovalKind>("attendance");
+export function ApprovalWorkbench({ rows, ctcRows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode, preview = false }: { rows: ApprovalRow[]; ctcRows: CtcApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean; preview?: boolean }) {
+  const [kind, setKind] = useState<ApprovalTab>("attendance");
+  const approvalKind: ApprovalKind = kind === "ctc" ? "attendance" : kind;
   // The local test workspace starts on every status so Edit controls are
   // immediately visible for each approval tab. The real queue remains
   // focused on pending items by default.
@@ -152,7 +156,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
   const [pending, start] = useTransition();
   const sourceRows = preview ? previewRows : rows;
   const visible = useMemo(() => {
-    const filtered = sourceRows.filter((row) => row.kind === kind && (filter === "all" || row.status === filter));
+    const filtered = sourceRows.filter((row) => row.kind === approvalKind && (filter === "all" || row.status === filter));
     if (!sort) return filtered;
 
     return filtered.slice().sort((left, right) => {
@@ -173,7 +177,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
         : textCollator.compare(String(leftValue), String(rightValue));
       return sort.direction === "asc" ? comparison : -comparison;
     });
-  }, [sourceRows, kind, filter, sort]);
+  }, [sourceRows, approvalKind, filter, sort]);
 
   function toggleSort(key: ApprovalSortKey) {
     setSort((current) => current?.key === key
@@ -222,7 +226,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     && workflowReady
     && allowEdit
     && (selectedRow.status === "approved" || selectedRow.status === "rejected");
-  const columns = useMemo(() => columnsFor(kind, columnOrder), [kind, columnOrder]);
+  const columns = useMemo(() => columnsFor(approvalKind, columnOrder), [approvalKind, columnOrder]);
   const columnCount = columns.length + 1;
 
   function toggleRowSelection(id: string, selected: boolean) {
@@ -243,7 +247,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     });
   }
 
-  function selectKind(nextKind: ApprovalKind) {
+  function selectKind(nextKind: ApprovalTab) {
     setKind(nextKind);
     if (nextKind === "attendance" && sort?.key === "request") setSort(null);
   }
@@ -363,11 +367,12 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Approval sections">
           {TABS.map((tab) => (
             <button key={tab} type="button" role="tab" aria-selected={kind === tab} onClick={() => selectKind(tab)} className={`rounded-lg border px-3 py-2 text-sm font-bold transition-colors ${kind === tab ? "border-red-200 bg-red-50 text-red-700" : "border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50"}`}>
-              {labelFor(tab)}
+              {tab === "ctc" ? "CTC Breakup" : labelFor(tab)}
             </button>
           ))}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {kind === "ctc" ? <Link href="/hr/ctc" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"><ClipboardList size={15} strokeWidth={2.4} aria-hidden /> CTC workspace</Link> : <>
           {kind === "attendance" && (
             <Link
               href="/attendance/dashboard"
@@ -383,9 +388,11 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
               {STATUSES.map((status) => <option key={status} value={status}>{status === "all" ? "All statuses" : status.charAt(0).toUpperCase() + status.slice(1)}</option>)}
             </select>
           </label>
+          </>}
         </div>
       </div>
 
+      {kind === "ctc" ? <CtcBreakupTab rows={ctcRows} /> : <>
       {selectedVisibleCount > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm shadow-[0_8px_20px_-18px_rgba(15,23,42,0.4)]" aria-live="polite" role="region" aria-label="Actions for selected approvals">
         <span className="mr-1 font-semibold text-slate-700">{selectedVisibleCount} approval{selectedVisibleCount === 1 ? "" : "s"} selected</span>
         <button type="button" disabled={!canUseSelectedEdit || pending} onClick={() => selectedRow && openDecisionDialog(selectedRow, selectedRow.status === "approved" ? "approved" : "rejected", true)} title={canUseSelectedEdit ? "Edit the selected approval" : "Select one approved or rejected unpaid approval to edit"} className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:border-red-200 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45"><Pencil size={14} aria-hidden /> Edit</button>
@@ -407,7 +414,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
                 <DraggableApprovalHeader
                   key={column}
                   column={column}
-                  kind={kind}
+                  kind={approvalKind}
                   sort={sort}
                   dragging={draggedColumn === column}
                   onSort={toggleSort}
@@ -426,11 +433,12 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
               </tr>
               {row.kind === "attendance" && openAttendanceId === row.subjectId && <tr className="border-t border-slate-100 bg-slate-50/60"><td colSpan={columnCount} className="p-0"><AttendanceWeeksTable row={row} openWeekIds={openWeekIds} onToggleWeek={toggleWeek} /></td></tr>}
             </Fragment>)}
-            {visible.length === 0 && <tr><td colSpan={columnCount} className="px-4 py-12 text-center text-slate-500">No {filter === "all" ? "" : `${filter} `}{labelFor(kind).toLowerCase()} items.</td></tr>}
+            {visible.length === 0 && <tr><td colSpan={columnCount} className="px-4 py-12 text-center text-slate-500">No {filter === "all" ? "" : `${filter} `}{labelFor(approvalKind).toLowerCase()} items.</td></tr>}
           </tbody>
         </table>
       </div>
       </div>
+      </>}
       {attachmentRow && <ReimbursementAttachmentsDialog row={attachmentRow} files={attachmentFiles} error={attachmentError} loading={attachmentsLoading} onClose={() => setAttachmentRow(null)} />}
       {decisionDialog && <ApprovalDecisionDialog state={decisionDialog} note={decisionNote} amount={decisionAmount} error={decisionError} pending={pending} onNoteChange={setDecisionNote} onAmountChange={setDecisionAmount} onClose={closeDecisionDialog} onSubmit={submitDecision} />}
     </section>

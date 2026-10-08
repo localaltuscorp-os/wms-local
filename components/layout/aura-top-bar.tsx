@@ -236,7 +236,10 @@ export function AuraTopBar({
      plumbed down as a prop, because the `(app)` layout is SHARED and does not
      re-run on a soft navigation: a prop decided up there would freeze on the
      first page landed. */
-  const onDashboard = pathname === "/hub";
+  // Hub keeps the compact controls bar, but its old logo-and-link navigation is
+  // replaced by the shared hoverable modules tray above it.
+  const isHub = pathname === "/hub";
+  const onDashboard = false;
 
   // Aura replaced AppTopBar but initially kept only its portal mount points.
   // That left the header blank on every page that did not explicitly provide a
@@ -252,6 +255,10 @@ export function AuraTopBar({
      you are in gets no tab of its own: when it is under More, More lights up. */
   const { tabs, more: overflow } = React.useMemo(() => tabsAndMore(rooms, tabCount), [rooms, tabCount]);
   const inMore = overflow.find((r) => r.id === ws) ?? null;
+  // On the Hub the top strip is the whole workspace navigator. Hovering its
+  // centre should reveal the rest of the rooms, rather than making people
+  // discover that only the tiny chevron beside "More" is interactive.
+  const [workspaceNavHovered, setWorkspaceNavHovered] = React.useState(false);
 
   return (
     // Phones already carry a fixed 56px bar from DashboardSidebar, so off the
@@ -259,7 +266,7 @@ export function AuraTopBar({
     <header
       className={[
         "aura-topbar app-topbar",
-        onDashboard ? "" : "max-md:hidden",
+        isHub ? "" : "max-md:hidden",
         hasHrConsoleRail ? "aura-topbar-with-console-rail" : "",
       ]
         .filter(Boolean)
@@ -281,11 +288,16 @@ export function AuraTopBar({
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
       <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center">
-        {!slots?.hasPageTitle && !hasHrConsoleRail && <ModuleSectionTitle section={sectionTitle} />}
+        {!slots?.hasPageTitle && !hasHrConsoleRail && !isHub && <ModuleSectionTitle section={sectionTitle} />}
       </div>
 
       {onDashboard && (
-        <nav className="aura-tabs" aria-label="Workspaces">
+        <nav
+          className="aura-tabs"
+          aria-label="Workspaces"
+          onMouseEnter={() => setWorkspaceNavHovered(true)}
+          onMouseLeave={() => setWorkspaceNavHovered(false)}
+        >
           {tabs.map((r) => (
             <a
               key={r.id}
@@ -298,7 +310,7 @@ export function AuraTopBar({
               {r.label}
             </a>
           ))}
-          <MoreMenu rooms={overflow} current={ws} active={inMore} />
+          <MoreMenu rooms={overflow} current={ws} active={inMore} revealOnNavHover={workspaceNavHovered} />
         </nav>
       )}
 
@@ -403,10 +415,13 @@ function MoreMenu({
   rooms,
   current,
   active,
+  revealOnNavHover = false,
 }: {
   rooms: AuraRoom[];
   current: WorkspaceId | null | undefined;
   active: AuraRoom | null;
+  /** Hub-only: hovering the workspace strip reveals the complete menu. */
+  revealOnNavHover?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -445,12 +460,13 @@ function MoreMenu({
   }, [open]);
 
   if (rooms.length === 0) return null;
+  const visible = open || revealOnNavHover;
 
   return (
     <div
       ref={wrap}
       className="aura-more"
-      data-open={open ? "true" : "false"}
+      data-open={visible ? "true" : "false"}
       onMouseEnter={() => {
         cancelClose();
         setOpen(true);
@@ -461,7 +477,7 @@ function MoreMenu({
         type="button"
         className="aura-tab"
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={visible}
         data-active={active ? "true" : undefined}
         aria-label={active ? `More — you are in ${active.label}` : undefined}
         title={active ? `You are in ${active.label}` : undefined}
