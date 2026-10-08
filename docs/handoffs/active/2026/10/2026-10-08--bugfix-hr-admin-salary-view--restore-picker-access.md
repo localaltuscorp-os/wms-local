@@ -1,7 +1,7 @@
 # HR Admin Salary Viewer Access
 
-Date: 2026-10-08  
-Branch: `bugfix/hr-admin-salary-view`  
+Date: 2026-10-08
+Branch: `bugfix/hr-admin-salary-view`
 Status: Ready for review
 
 ## Objective
