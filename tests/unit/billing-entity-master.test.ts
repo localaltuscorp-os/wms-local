@@ -296,8 +296,20 @@ describe("THERE IS NO ENTITY CODE", () => {
    ════════════════════════════════════════════════════════════════════════════ */
 
 describe("file kinds", () => {
-  it("knows exactly three", () => {
-    expect([...ENTITY_FILE_KINDS]).toEqual(["logo", "signature", "document"]);
+  it("knows every supported file kind", () => {
+    expect([...ENTITY_FILE_KINDS]).toEqual([
+      "logo",
+      "signature",
+      "document",
+      "cancelled_cheque",
+      "gst_certificate",
+      "pan_card",
+      "aadhar_card",
+      "msme_certificate",
+      "tin_certificate",
+      "signing_entity_photo",
+      "signing_entity_signature",
+    ]);
   });
 
   it("refuses an unknown kind", () => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   SECURITY_ROLES,
+  SECURITY_ROLE_CATEGORIES,
   SECURITY_ROLE_DEFS,
   isSecurityRole,
 } from "@/lib/auth/security-roles-catalog";
@@ -22,6 +23,13 @@ describe("the role catalogue", () => {
       expect(def.key).toBe(key);
       expect(def.label.length).toBeGreaterThan(0);
       expect(def.blurb.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("places every role in one visible module group", () => {
+    expect(new Set(SECURITY_ROLE_CATEGORIES).size).toBe(SECURITY_ROLE_CATEGORIES.length);
+    for (const key of SECURITY_ROLES) {
+      expect(SECURITY_ROLE_CATEGORIES).toContain(SECURITY_ROLE_DEFS[key].category);
     }
   });
 

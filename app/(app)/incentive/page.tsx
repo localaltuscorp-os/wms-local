@@ -6,6 +6,7 @@ import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { IncentiveTabs } from "@/components/incentive/incentive-tabs";
 import { BillingDashboard } from "@/components/incentive/billing-dashboard";
 import { IncentiveFormDialog } from "@/components/incentive/incentive-form-dialog";
+import { IncentiveImportDialog } from "@/components/incentive/incentive-import-dialog";
 import { IncentiveTableSkeleton } from "@/components/incentive/ui/states";
 import { requireUser } from "@/lib/auth/current";
 import { canEditIncentiveTable } from "@/lib/auth/incentive-permissions";
@@ -304,6 +305,7 @@ export default async function IncentivePage({ searchParams }: PageProps) {
                 employees={employees}
                 me={me}
               />
+              {me.isAdmin ? <IncentiveImportDialog /> : null}
             </>
           }
           toolbar={
