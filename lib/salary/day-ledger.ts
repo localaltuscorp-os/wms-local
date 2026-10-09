@@ -661,9 +661,9 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
 
   // ── The two per-date charges the engine makes ──────────────────────────────
   // Read from the engine's own record, keyed by the date IT recorded, so the
-  // report can never charge a day the payslip did not. Every half-day in a
-  // missed-target week is chargeable; only a week that meets its target waives
-  // its half-days.
+  // report can never charge a day the payslip did not. A met weekly target
+  // waives its half-days; in a missed-target week the first three late
+  // half-days are also protected.
   // `recon.halfDayCharges` carries the date and the ordinal, which is the whole
   // reason a per-day attribution of this charge is possible at all.
   //
@@ -676,17 +676,22 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
     }
   }
   const chargesUnpaidLeave = pay.mode === "hours_schedule";
-  const forgivenHalfDays = new Set<string>();
+  const forgivenHalfDays = new Map<string, string>();
   if (pay.mode === "daily") {
     for (const c of recon.halfDayCharges) {
-      if (c.waived) forgivenHalfDays.add(c.date);
+      if (c.waived) {
+        forgivenHalfDays.set(
+          c.date,
+          `Late half-day #${c.ordinal} this week is protected by the first-three late-arrival grace.`,
+        );
+      }
     }
     const waivedWeeks = new Set(
       recon.weeks.filter((w) => w.deviationsWaived).map((w) => w.weekKey),
     );
     for (const d of input.days) {
       if (d.code === "H/D" && waivedWeeks.has(weekKeyOf(d.logDate))) {
-        forgivenHalfDays.add(d.logDate);
+        forgivenHalfDays.set(d.logDate, "Half-day pay protected because this week's attendance target was met.");
       }
     }
   }
@@ -794,10 +799,7 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
       dailyRate != null && !future && forgivenHalfDays.has(d.logDate)
         ? round2(dailyRate / 2)
         : null;
-    const waiverReason =
-      waivedAmount != null
-        ? "Half-day pay protected because this week's attendance target was met."
-        : null;
+    const waiverReason = waivedAmount != null ? forgivenHalfDays.get(d.logDate) ?? null : null;
 
     if (pay.mode === "hours_schedule") {
       // ── THE RETIRED MODEL'S CHARGES, UNCHANGED ────────────────────────
