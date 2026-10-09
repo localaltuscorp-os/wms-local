@@ -11,10 +11,12 @@
 //
 //     Daily Attendance   ≠   Weekly Hour Reconciliation
 //
-// THE CARRY IS SIGNED (spec 2026-08) — BOTH directions travel week to week
-// inside the month. A 58h week leaves +4h that LOWERS next week's effective
-// target to 50h; a 50h week leaves −4h that RAISES it to 58h. The effective
-// target is floored at zero so a huge surplus can never demand negative hours.
+// BEFORE OCTOBER 2026, THE CARRY IS SIGNED — BOTH directions travel week to
+// week inside the month. A 58h week leaves +4h that LOWERS next week's
+// effective target to 50h; a 50h week leaves −4h that RAISES it to 58h.
+// From October 2026 each week is independent: no surplus or deficit crosses
+// into the next week. The effective target is floored at zero so it can never
+// become negative.
 //
 // MONTH BOUNDARY (spec §4) — balances are scoped to a calendar month and start
 // at zero. August surplus can never pay for a September shortfall, and an
@@ -75,6 +77,10 @@ export interface WeekReconciliation {
    * calendar week, not hours borrowed from a previous one.
    */
   deviationsWaived: boolean;
+  /** Late arrivals on ordinary scheduled days in this week. */
+  lateMarks: number;
+  /** Additional half-day deductions triggered by this week's late-mark policy. */
+  latePenaltyHalfDays: number;
 }
 
 export interface HalfDayCharge {
@@ -89,10 +95,9 @@ export interface MonthReconciliation {
   month: string;
   weeks: WeekReconciliation[];
   /**
-   * SIGNED balance at month end: totalActual − totalTarget. Positive surplus
-   * simply dies here (it is a target-balancing device, never pay — spec §14/§15);
-   * negative is the month's unmet hours, which the salary engine prices.
-   * Never carried out of the month.
+   * Signed monthly difference, never carried out of the month. Before October
+   * 2026 it is the final running carry; from October it is informational only
+   * because each week is settled independently.
    */
   monthlyHourBalanceMinutes: number;
   totalTargetMinutes: number;
@@ -105,6 +110,8 @@ export interface MonthReconciliation {
   warnedHalfDays: number;
   /** Half-days removed by the weekly-hours waiver — these do NOT use a grace slot. */
   waiverAbsorbedHalfDays: number;
+  /** Additional half-day deductions caused by late marks in short full-time weeks. */
+  latePenaltyHalfDays: number;
 }
 
 /** How many of the month's half-days are forgiven before salary is touched. */
@@ -112,6 +119,32 @@ export const MONTHLY_HALF_DAY_GRACE = 3;
 
 /** Each chargeable half-day costs half of that day's salary. */
 export const HALF_DAY_SALARY_FRACTION = 0.5;
+
+/** October 2026: late-mark penalties and weekly hour caps became independent. */
+export const WEEKLY_LATE_POLICY_FROM = "2026-10";
+
+/** The late-mark policy is for the standard six-day, 54-hour full-time week. */
+export const FULL_TIME_WEEKLY_TARGET_MINUTES = 54 * 60;
+
+/**
+ * From October 2026 a long week cannot reduce the next week's target.
+ * Salary therefore caps ordinary payable hours week by week, not month by month.
+ */
+export function usesIndependentWeeklyHours(month: string): boolean {
+  return month >= WEEKLY_LATE_POLICY_FROM;
+}
+
+/**
+ * Three late marks are a warning. In a short 54-hour week the fourth creates
+ * two half-day deductions; every later mark creates one more.
+ */
+export function latePenaltyHalfDaysForWeek(
+  lateMarks: number,
+  requirementMet: boolean,
+): number {
+  if (requirementMet || lateMarks < 4) return 0;
+  return lateMarks - 2;
+}
 
 /** yyyy-mm-dd → yyyy-mm. */
 export function monthKeyOf(ymd: string): string {
@@ -206,6 +239,8 @@ export function reconcileMonth(
   const weeks: WeekReconciliation[] = [];
   /** Week keys whose deviations the hours waiver cleared. */
   const waivedWeeks = new Set<string>();
+  const independentWeeks = usesIndependentWeeklyHours(month);
+  let latePenaltyHalfDays = 0;
 
   for (const weekKey of weekOrder) {
     const week = byWeek.get(weekKey)!;
@@ -238,9 +273,10 @@ export function reconcileMonth(
       (weeklyTargetMinutes * expectedDays) / Math.max(1, workingDaysPerWeek),
     );
 
-    // BOTH directions carry (spec §5/§6): surplus banked earlier lowers this
-    // week's effective target, a deficit raises it — never below zero.
-    const carryIn = balance;
+    // Before October 2026 both directions carried inside the month. From that
+    // month onward each week stands alone: a long week cannot offset a later
+    // short week, and it cannot become a lower target for that next week.
+    const carryIn = independentWeeks ? 0 : balance;
     const effectiveTarget = Math.max(0, target - carryIn);
 
     const net = actualMinutes - target;
@@ -250,7 +286,7 @@ export function reconcileMonth(
     const balanceApplied =
       net < 0 ? Math.min(Math.max(carryIn, 0), -net) : 0;
 
-    balance = carryIn + net;
+    balance = independentWeeks ? 0 : carryIn + net;
 
     const requirementSatisfied = actualMinutes >= effectiveTarget;
 
@@ -261,6 +297,17 @@ export function reconcileMonth(
     );
     const deviationsWaived = expectedDays > 0 && actualMinutes >= waiverBar;
     if (deviationsWaived) waivedWeeks.add(weekKey);
+
+    // The approved late-mark rule applies only to the normal 54-hour
+    // full-time roster. A holiday or partial week uses its prorated target, so
+    // no one is penalised for a day they were not scheduled to work.
+    const lateMarks = ordinary.filter((d) => d.late).length;
+    const latePenalty =
+      month >= WEEKLY_LATE_POLICY_FROM &&
+      weeklyTargetMinutes === FULL_TIME_WEEKLY_TARGET_MINUTES
+        ? latePenaltyHalfDaysForWeek(lateMarks, deviationsWaived)
+        : 0;
+    latePenaltyHalfDays += latePenalty;
 
     totalTarget += target;
     totalActual += actualMinutes;
@@ -279,6 +326,8 @@ export function reconcileMonth(
       closingBalanceMinutes: balance,
       requirementSatisfied,
       deviationsWaived,
+      lateMarks,
+      latePenaltyHalfDays: latePenalty,
     });
   }
 
@@ -306,13 +355,16 @@ export function reconcileMonth(
   return {
     month,
     weeks,
-    monthlyHourBalanceMinutes: balance,
+    monthlyHourBalanceMinutes: independentWeeks
+      ? totalActual - totalTarget
+      : balance,
     totalTargetMinutes: totalTarget,
     totalActualMinutes: totalActual,
     halfDayCharges,
     chargeableHalfDays: halfDayCharges.filter((c) => !c.waived).length,
     warnedHalfDays: halfDayCharges.filter((c) => c.waived).length,
     waiverAbsorbedHalfDays: waiverAbsorbed,
+    latePenaltyHalfDays,
   };
 }
 
@@ -334,11 +386,9 @@ export function halfDayDeductionDays(m: MonthReconciliation): number {
                               those days never grade as ordinary attendance)
         ↓ target hours
      actual worked hours
-        ↓ MONTH-LEVEL netting: payable = min(actual, target) across the whole
-          month, so a short week later repaid — in either order — costs nothing
-          (spec §9: no deduction for one sub-54h week if the running month is
-          eventually square), while hours beyond the month's requirement never
-          become pay (spec §14/§15: surplus balances targets, it is not money)
+        ↓ before October 2026: month-level netting, so one week could repay
+          another; from October 2026: each week is capped at its own target,
+          so surplus hours never carry forward to cover a later short week
         ↓ credited days (paid leave / comp-off / holiday-working) paid at target
      final payable hours
         ↓ ROUNDED DOWN to a whole hour (spec §2)
@@ -426,15 +476,12 @@ export function payableHoursForMonth(
   recon: MonthReconciliation,
   dailyTargetMinutes: number,
 ): PayableHoursResult {
-  // Ordinary days: the MONTH-LEVEL net (spec §9). Hours are payable up to what
-  // the whole month required — a 50h week followed by a 58h week is square and
-  // pays in full, whichever order the two weeks came in. The min() is also what
-  // stops hours beyond the month's requirement becoming pay: month-end surplus
-  // balances targets (spec §14/§15), it is never money, and it dies here.
-  const ordinaryPayable = Math.min(
-    recon.totalActualMinutes,
-    recon.totalTargetMinutes,
-  );
+  // Until September 2026, ordinary time was balanced over the month. From
+  // October 2026 each week is independently capped: a 58h week pays at most
+  // its own 54h target and cannot make a later 50h week whole.
+  const ordinaryPayable = usesIndependentWeeklyHours(recon.month)
+    ? recon.weeks.reduce((sum, week) => sum + Math.min(week.actualMinutes, week.weeklyTargetMinutes), 0)
+    : Math.min(recon.totalActualMinutes, recon.totalTargetMinutes);
 
   // Credited paid days expect no hours but must still be paid, so they add to
   // BOTH sides. Without that a month spent entirely on approved paid leave
@@ -453,10 +500,9 @@ export function payableHoursForMonth(
   // Credited days sit on both sides of the comparison, so they cancel — a month
   // spent partly on approved paid leave is neither in surplus nor in deficit
   // because of that leave.
-  const netSurplusMinutes = Math.max(
-    0,
-    recon.totalActualMinutes - recon.totalTargetMinutes,
-  );
+  const netSurplusMinutes = usesIndependentWeeklyHours(recon.month)
+    ? recon.weeks.reduce((sum, week) => sum + week.surplusMinutes, 0)
+    : Math.max(0, recon.totalActualMinutes - recon.totalTargetMinutes);
 
   return {
     targetMinutes,
