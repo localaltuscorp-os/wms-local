@@ -38,6 +38,13 @@ schedule:
   policy accurately.
 - Added and updated unit tests for half-day deductions, employee-specific early
   cutoffs, part-time late policy, and duplicate-penalty prevention.
+- Follow-up on the same branch:
+  - An arrival from an employee's configured `lateAfter` cutoff through the
+    next 60 minutes remains a late mark; a later arrival grades Half Day when
+    the employee has met the configured half-day minimum.
+  - The daily salary report now shows the total salary protected by the weekly
+    target waiver and lists each affected date, reason, and amount. The values
+    come from the server-built ledger; the browser does not calculate them.
 
 ## Database and migration impact
 
@@ -65,6 +72,8 @@ None.
 - Passed full TypeScript validation with a temporary 4 GB Node heap after
   installing the lockfile-pinned dependencies in this isolated worktree:
   `pnpm typecheck`.
+- Follow-up validation: 220 focused attendance and salary-report tests passed,
+  followed by `pnpm typecheck` and `git diff --check`.
 - GitHub Actions CI passed on pull request #17: dependency installation,
   type-check, and the full test suite. Visual tests were skipped by CI because
   the repository has no complete secret-backed visual-test environment.

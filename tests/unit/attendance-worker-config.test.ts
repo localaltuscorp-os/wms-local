@@ -470,7 +470,7 @@ describe("other worker types are left alone", () => {
 });
 
 describe("Regression: paired hybrid punches retain their worked duration", () => {
-  it("grades 13:20 to 19:55 as Present even with a legacy-wide schedule window", () => {
+  it("keeps the worked duration but grades an arrival over an hour late as Half Day", () => {
     const cfg = resolveEffectiveConfig(
       {
         workerType: "hybrid",
@@ -489,7 +489,7 @@ describe("Regression: paired hybrid punches retain their worked duration", () =>
     );
 
     expect(result.workedMinutes).toBe(395);
-    expect(result.code).toBe("P");
+    expect(result.code).toBe("H/D");
   });
 });
 

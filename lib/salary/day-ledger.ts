@@ -387,6 +387,10 @@ export interface LedgerDay {
   adjustment: number | null;
   /** Why the day differs from a normal one, in the pay model's own terms. */
   adjustmentReason: string | null;
+  /** Salary protected for a half-day because its week met the weekly target. */
+  waivedAmount?: number | null;
+  /** The employee-readable reason for the protected salary. */
+  waiverReason?: string | null;
   /** Minutes of this day that were payable at the hourly rate. */
   payableMinutes: number;
   late: boolean;
@@ -786,6 +790,14 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
     let adjustment: number | null = null;
     let standardEarning: number | null = null;
     let adjustmentReason: string | null = null;
+    const waivedAmount =
+      dailyRate != null && !future && forgivenHalfDays.has(d.logDate)
+        ? round2(dailyRate / 2)
+        : null;
+    const waiverReason =
+      waivedAmount != null
+        ? "Half-day pay protected because this week's attendance target was met."
+        : null;
 
     if (pay.mode === "hours_schedule") {
       // ── THE RETIRED MODEL'S CHARGES, UNCHANGED ────────────────────────
@@ -851,6 +863,8 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
       standardEarning,
       adjustment,
       adjustmentReason,
+      waivedAmount,
+      waiverReason,
       payableMinutes,
       late: d.late,
       leftEarly: d.leftEarly,
