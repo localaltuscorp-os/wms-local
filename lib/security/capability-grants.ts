@@ -22,6 +22,8 @@ import { emailsWithCapability } from "./capabilities";
  *   hr.letters.issue    — one page and two route handlers (migration 0228)
  *   dcc.coordinator     — the WCC / MCC scope loader and one action
  *                         (migration 0248)
+ *   employee_pay.manage — the Employee Master pay actions and the invite action
+ *                         (migration 0271)
  *
  * `DB_BACKED_CAPABILITIES` is the one list that says which capabilities are read
  * from here. It is mirrored by a CHECK constraint in migration 0226, widened by
@@ -35,6 +37,7 @@ export const DB_BACKED_CAPABILITIES = [
   "master_admin.manage",
   "hr.letters.issue",
   "dcc.coordinator",
+  "employee_pay.manage",
 ] as const;
 export type DbBackedCapability = (typeof DB_BACKED_CAPABILITIES)[number];
 

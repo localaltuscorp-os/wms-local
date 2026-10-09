@@ -41,6 +41,8 @@ interface Props {
   letterIssuerIds: string[];
   /** Employee ids holding the narrow `dcc.coordinator` grant. */
   dccCoordinatorIds: string[];
+  /** Employee ids holding the `employee_pay.manage` grant. */
+  payManagerIds: string[];
   /** Employee ids on the super-admin allow-list. Computed server-side so the
    *  email allow-list itself never reaches the browser. */
   superAdminIds: string[];
@@ -197,6 +199,7 @@ export function EmployeeList({
   masterAdminIds,
   letterIssuerIds,
   dccCoordinatorIds,
+  payManagerIds,
   departmentOptions,
   managerOptions,
 }: Props) {
@@ -216,6 +219,10 @@ export function EmployeeList({
   const dccCoordinatorSet = React.useMemo(
     () => new Set(dccCoordinatorIds),
     [dccCoordinatorIds],
+  );
+  const payManagerSet = React.useMemo(
+    () => new Set(payManagerIds),
+    [payManagerIds],
   );
 
   const deptNames = (e: Employee) =>
@@ -238,6 +245,7 @@ export function EmployeeList({
       isMasterAdmin: masterAdminSet.has(e.id),
       canIssueLetters: letterIssuerSet.has(e.id),
       canCoordinateDcc: dccCoordinatorSet.has(e.id),
+      canManagePay: payManagerSet.has(e.id),
       phone: e.phone,
       whatsappPhone: e.whatsappPhone,
       whatsappOptedIn: e.whatsappOptedIn,
@@ -261,7 +269,7 @@ export function EmployeeList({
     // Each is memoised on its own id array, which only changes when the server
     // sends a new one, so this re-creates the row mapper no more often than the
     // roster itself changes.
-    [membershipsByEmployee, salaryProfileByEmployee, masterAdminSet, letterIssuerSet, dccCoordinatorSet],
+    [membershipsByEmployee, salaryProfileByEmployee, masterAdminSet, letterIssuerSet, dccCoordinatorSet, payManagerSet],
   );
 
   return (

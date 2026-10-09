@@ -16,6 +16,7 @@ import {
   notifications,
   outstandingFollowups,
   payingEntities,
+  salaryCtcBreakup,
   salaryProfiles,
   settingsEvents,
   taskEvents,
@@ -33,6 +34,7 @@ import { getSignedInEmployee, requireAdmin } from "@/lib/auth/current";
 import { auditLog } from "@/lib/logs/audit";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { isFounder } from "@/lib/auth/founder";
+import { canManageEmployeePay, EMPLOYEE_PAY_REFUSAL } from "@/lib/employees/pay-access";
 import {
   hasCapabilityGrant,
   isMasterAdmin,
@@ -279,6 +281,14 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
     return { ok: false, error: "Set the Internship Start Date for an intern." };
   }
 
+  // A starting salary needs the pay capability, not just admin. Checked HERE —
+  // before the Firebase account exists — so a refusal leaves nothing to undo.
+  const startingCtc =
+    parsed.annualCtc != null && parsed.annualCtc > 0 ? parsed.annualCtc : null;
+  if (startingCtc !== null && !(await canManageEmployeePay(me))) {
+    return { ok: false, error: EMPLOYEE_PAY_REFUSAL };
+  }
+
   // 1. Create Firebase user with a fresh per-invite password (same value is
   //    emailed below — no shared default credential).
   const auth = getFirebaseAdminAuth();
@@ -397,6 +407,39 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
     console.error("[inviteEmployee] writeMemberships failed", err);
   }
 
+  // 3c. Starting salary. Same two rows, in one transaction, as the Employee
+  //     Master's `saveCtcBreakup`: `salary_profiles.annual_ctc` is what the
+  //     engine reads, `salary_ctc_breakup` the (here empty) component split.
+  //     Non-fatal like the memberships: the account exists and cannot be
+  //     un-created cheaply, so a failure is reported and the pay can be set from
+  //     the Employee Master.
+  let salaryWarning: string | undefined;
+  if (startingCtc !== null) {
+    try {
+      const annual = startingCtc.toFixed(2);
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(salaryProfiles)
+          .values({ employeeId: inserted.id, annualCtc: annual })
+          .onConflictDoUpdate({
+            target: salaryProfiles.employeeId,
+            set: { annualCtc: annual, updatedAt: new Date() },
+          });
+        await tx
+          .insert(salaryCtcBreakup)
+          .values({ employeeId: inserted.id, annualCtc: annual, components: [], updatedById: me.id })
+          .onConflictDoUpdate({
+            target: salaryCtcBreakup.employeeId,
+            set: { annualCtc: annual, components: [], updatedById: me.id, updatedAt: new Date() },
+          });
+      });
+    } catch (err) {
+      console.error("[inviteEmployee] salary write failed", err);
+      salaryWarning =
+        "The employee was created but the salary could not be saved. Set it from the Employee Master.";
+    }
+  }
+
   // 4. Generate the password-reset (invite) link and email it. We DON'T
   //    roll back the row + Firebase user if the email fails — the admin
   //    can re-send from the row's overflow menu. But we DO surface the
@@ -438,7 +481,8 @@ export async function inviteEmployee(input: InviteEmployeeInput): Promise<{
 
   revalidatePath("/admin/employees");
   updateTag(CACHE_TAGS.employees);
-  return { ok: true, id: inserted.id, warning: emailWarning };
+  const warning = [emailWarning, salaryWarning].filter(Boolean).join(" ") || undefined;
+  return { ok: true, id: inserted.id, warning };
 }
 
 export async function editEmployee(
@@ -561,6 +605,31 @@ export async function editEmployee(
         employeeEmail: emp.email,
         capability: "dcc.coordinator",
         grant: parsed.data.canCoordinateDcc,
+        actorId: signedIn?.id ?? me.id,
+        actorEmail: signedIn?.email ?? me.email,
+      });
+      if (!res.ok) return { ok: false, error: res.error };
+    }
+  }
+
+  // ── MANAGE PAY: SUPER-ADMIN GRANTS IT, THE GRANT IS A DATABASE ROW ─────────
+  // Who may VIEW and EDIT pay is the `employee_pay.manage` row; who may hand that
+  // row out is a super-admin. Different questions, kept separate so a holder
+  // cannot extend access to others and an admin cannot grant it to themselves.
+  // Runs before the row update so a refused grant leaves the rest of the patch
+  // unapplied, like the master-admin block above.
+  if (parsed.data.canManagePay !== undefined) {
+    const currently = await hasCapabilityGrant(emp.email, "employee_pay.manage");
+    if (parsed.data.canManagePay !== currently) {
+      if (!isSuperAdmin(me.email)) {
+        return { ok: false, error: "Only a super-admin can change who manages salary." };
+      }
+      const signedIn = await getSignedInEmployee();
+      const res = await setCapabilityGrant({
+        employeeId: emp.id,
+        employeeEmail: emp.email,
+        capability: "employee_pay.manage",
+        grant: parsed.data.canManagePay,
         actorId: signedIn?.id ?? me.id,
         actorEmail: signedIn?.email ?? me.email,
       });

@@ -11,6 +11,7 @@ import { PreviousEmployees } from "@/components/admin/previous-employees";
 import type { SalaryProfileRates } from "@/components/admin/employee-list";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canManageEmployeePay } from "@/lib/employees/pay-access";
 import { grantsFor, masterAdminEmployeeIds } from "@/lib/security/capability-grants";
 import {
   listActiveDepartments,
@@ -78,6 +79,10 @@ export default async function EmployeesPage() {
   // stop a non-super-admin from touching a super-admin's row.
   const canManageAdmins = me.isAdmin;
 
+  // Whether the invite form offers a starting salary. Any admin may invite; only
+  // a holder of `employee_pay.manage` may set pay, and `inviteEmployee` re-checks.
+  const canSetSalary = await canManageEmployeePay(me);
+
   // Resolved HERE, not in the client component, so `SUPER_ADMIN_EMAILS` is
   // never bundled into client JS. The list names the two accounts with the
   // highest privilege in the app; shipping it to the browser would hand any
@@ -112,6 +117,12 @@ export default async function EmployeesPage() {
   const dccCoordinatorEmails = await grantsFor("dcc.coordinator");
   const dccCoordinatorIds = all
     .filter((e) => dccCoordinatorEmails.has((e.email ?? "").trim().toLowerCase()))
+    .map((e) => e.id);
+
+  // Who holds the pay grant (migration 0271). Ids only, same reason as above.
+  const payManagerEmails = await grantsFor("employee_pay.manage");
+  const payManagerIds = all
+    .filter((e) => payManagerEmails.has((e.email ?? "").trim().toLowerCase()))
     .map((e) => e.id);
 
   return (
@@ -149,6 +160,7 @@ export default async function EmployeesPage() {
             departmentOptions={departmentOptions}
             designationOptions={masterOptions.designations}
             canManageAdmins={canManageAdmins}
+            canSetSalary={canSetSalary}
           />
         </>
       }
@@ -168,6 +180,7 @@ export default async function EmployeesPage() {
         masterAdminIds={masterAdminIds}
         letterIssuerIds={letterIssuerIds}
         dccCoordinatorIds={dccCoordinatorIds}
+        payManagerIds={payManagerIds}
         departmentOptions={departmentOptions}
         managerOptions={managerOptions}
       />

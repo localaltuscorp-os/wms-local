@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canManageEmployeePay, EMPLOYEE_PAY_REFUSAL } from "@/lib/employees/pay-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import {
   loadEmployeeMasterDetail,
@@ -45,10 +46,10 @@ import { parseEmployeeCode } from "@/lib/employees/employee-code";
  *
  * ── AUTHORIZATION ──────────────────────────────────────────────────────────
  * Every export begins with `requireAdmin()`, and the pay ones additionally
- * require super-admin — the same rule the Employees screen already applies to
- * salary. The page hides the Payroll section for a non-super-admin, but that is
- * presentation: these checks are the boundary (§21), and they run whether or
- * not a button was rendered.
+ * require the `employee_pay.manage` capability (a database grant — see
+ * lib/employees/pay-access.ts). The page hides the Payroll section from anyone
+ * without it, but that is presentation: these checks are the boundary (§21),
+ * and they run whether or not a button was rendered.
  */
 
 type Result<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
@@ -69,7 +70,7 @@ export async function fetchEmployeeDetail(
   // the component. A payload that carried the numbers and relied on the client
   // not to render them would put every employee's CTC in the browser of every
   // admin, one devtools tab away.
-  if (isSuperAdmin(me.email)) return detail;
+  if (await canManageEmployeePay(me)) return detail;
   return {
     ...detail,
     row: { ...detail.row, annualCtc: null, monthlyCtc: null, tdsMonthly: null, ptExempt: null },
@@ -78,7 +79,7 @@ export async function fetchEmployeeDetail(
   };
 }
 
-/** Banking and government ids follow pay: super-admins only. */
+/** Banking and government ids follow pay: `employee_pay.manage` holders only. */
 function stripBanking(f: EmployeeMasterDetail["onboarding"]): EmployeeMasterDetail["onboarding"] {
   const {
     bankAccountName: _a, bankAccountNo: _b, ifsCode: _c, micrCode: _d,
@@ -115,8 +116,8 @@ export async function saveCtcBreakup(input: {
   components: CtcComponentInput[];
 }): Promise<Result> {
   const me = await requireAdmin();
-  if (!isSuperAdmin(me.email)) {
-    return { ok: false, error: "Only a super-admin may change salary." };
+  if (!(await canManageEmployeePay(me))) {
+    return { ok: false, error: EMPLOYEE_PAY_REFUSAL };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };
@@ -181,8 +182,8 @@ export async function savePayrollScalars(input: {
   monthlyFee?: number | null;
 }): Promise<Result> {
   const me = await requireAdmin();
-  if (!isSuperAdmin(me.email)) {
-    return { ok: false, error: "Only a super-admin may change salary." };
+  if (!(await canManageEmployeePay(me))) {
+    return { ok: false, error: EMPLOYEE_PAY_REFUSAL };
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return { ok: false, error: limited.error };

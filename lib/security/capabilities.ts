@@ -226,7 +226,26 @@ export type SecurityCapability =
    * for a capability being stored as data — see migration 0226's CHECK and
    * migration 0248 that widens it.
    */
-  | "dcc.coordinator";
+  | "dcc.coordinator"
+  /**
+   * MAY VIEW AND EDIT EMPLOYEE PAY IN THE EMPLOYEE MASTER — CTC, its component
+   * split, monthly TDS, PT exemption, the hourly / fixed-fee rates, and the
+   * banking and government ids that follow pay — and may set a salary when
+   * inviting a new employee.
+   *
+   * Replaces the `isSuperAdmin` test those surfaces used. That test is an email
+   * allow-list in code, so changing who sees pay needed a deploy and put names in
+   * the repository. This is a row on the employee record, granted and revoked by
+   * a super-admin, with an audit trail.
+   *
+   * ── HELD BY NOBODY BY CODE ───────────────────────────────────────────────
+   * There is deliberately no entry in the GRANTS table below. A read failure
+   * therefore fails CLOSED (nobody sees pay) rather than falling back to anyone.
+   *
+   * Its guards are awaited (`canManageEmployeePay`), which is the precondition
+   * for a capability being stored as data — see migration 0271's CHECK.
+   */
+  | "employee_pay.manage";
 
 /**
  * WHO HOLDS WHAT. The single source of truth.

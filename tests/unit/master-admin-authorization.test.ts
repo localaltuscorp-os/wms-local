@@ -113,9 +113,10 @@ describe("only capabilities whose guards can wait for a read are stored as data"
    * rather than a one-line edit: the capability must be REFERENCED by guards,
    * and those guards must be asynchronous.
    */
-  it("is exactly these three, and each is here for a reason", () => {
+  it("is exactly these four, and each is here for a reason", () => {
     expect([...DB_BACKED_CAPABILITIES].sort()).toEqual([
       "dcc.coordinator",
+      "employee_pay.manage",
       "hr.letters.issue",
       "master_admin.manage",
     ]);
@@ -130,6 +131,7 @@ describe("only capabilities whose guards can wait for a read are stored as data"
       codeOf("lib/hr/letters/issue-access.ts"),
       codeOf("lib/permissions/resolve.ts"),
       codeOf("lib/dcc/access.ts"),
+      codeOf("lib/employees/pay-access.ts"),
       codeOf("app/(app)/control-panel/permissions/page.tsx"),
       codeOf("app/(app)/hr/letters/[key]/page.tsx"),
     ].join("\n");

@@ -76,6 +76,9 @@ export interface EditableEmployee {
   /** May see and maintain EVERY employee's WCC and MCC compliances. A row in
    *  `capability_grants`, resolved server-side. */
   canCoordinateDcc: boolean;
+  /** May view and edit employee pay and set a salary on invite. A row in
+   *  `capability_grants` (`employee_pay.manage`), resolved server-side. */
+  canManagePay: boolean;
   phone: string | null;
   whatsappPhone: string | null;
   /** WhatsApp consent — gates whether we may message them at all. */
@@ -204,6 +207,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
   const [isMasterAdmin, setIsMasterAdmin] = useState(one?.isMasterAdmin ?? false);
   const [canIssueLetters, setCanIssueLetters] = useState(one?.canIssueLetters ?? false);
   const [canCoordinateDcc, setCanCoordinateDcc] = useState(one?.canCoordinateDcc ?? false);
+  const [canManagePay, setCanManagePay] = useState(one?.canManagePay ?? false);
   const [waPhone, setWaPhone] = useState(one?.whatsappPhone ?? "");
   const [waOptIn, setWaOptIn] = useState<boolean | null>(
     bulk ? null : (one?.whatsappOptedIn ?? false),
@@ -353,6 +357,7 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
     if (isMasterAdmin !== e.isMasterAdmin) patch.isMasterAdmin = isMasterAdmin;
     if (canIssueLetters !== e.canIssueLetters) patch.canIssueLetters = canIssueLetters;
     if (canCoordinateDcc !== e.canCoordinateDcc) patch.canCoordinateDcc = canCoordinateDcc;
+    if (canManagePay !== e.canManagePay) patch.canManagePay = canManagePay;
     if ((managerId ?? null) !== (e.managerId ?? null)) patch.managerId = managerId ?? null;
     if (quota !== null && quota !== (e.dailyTaskQuota ?? 3)) patch.dailyTaskQuota = quota;
     const trimmedPhone = waPhone.trim();
@@ -684,6 +689,27 @@ export function EmployeeEditor(props: EmployeeEditorProps) {
                           className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
                         />
                         <span>DCC Coordinator</span>
+                      </label>
+                    ) : null}
+
+                    {/* ── MANAGE PAY ──────────────────────────────────────────
+                        Who may view and edit salary in the Employee Master and
+                        set one when inviting. Granting it is SUPER-ADMIN ONLY,
+                        so it is drawn under the same flag as Master admin
+                        below; `editEmployee` re-checks `isSuperAdmin` on the
+                        server and refuses anyone else regardless of this. */}
+                    {!bulk && one && canManageMasterAdmin ? (
+                      <label
+                        className="flex items-start gap-2.5 text-[14px] text-ink-soft"
+                        title="View and edit employee pay in the Employee Master, and set a salary when inviting an employee."
+                      >
+                        <input
+                          type="checkbox"
+                          checked={canManagePay}
+                          onChange={(ev) => setCanManagePay(ev.target.checked)}
+                          className="mt-0.5 size-4 accent-[var(--color-altus-red)]"
+                        />
+                        <span>Manage pay</span>
                       </label>
                     ) : null}
 

@@ -1,6 +1,7 @@
 import { Users } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/current";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canManageEmployeePay } from "@/lib/employees/pay-access";
 import { AdminSection } from "@/components/admin/ui/section-shell";
 import {
   loadEmployeeMasterRows,
@@ -44,11 +45,11 @@ export default async function EmployeeMasterPage() {
     getHierarchy({ includeInactive: true }),
   ]);
 
-  // Pay visibility follows the existing rule on the Employees screen: salary is
-  // a super-admin concern. Read here so the payload never carries CTC to a
-  // browser that is not allowed to see it — hiding it in CSS would ship the
-  // numbers anyway.
-  const canSeePay = isSuperAdmin(me.email);
+  // Pay visibility is the `employee_pay.manage` capability, a database grant on
+  // the employee record (lib/employees/pay-access.ts) — not admin status. Read
+  // here so the payload never carries CTC to a browser that is not allowed to
+  // see it — hiding it in CSS would ship the numbers anyway.
+  const canSeePay = await canManageEmployeePay(me);
   const visible = canSeePay
     ? rows
     : rows.map((r) => ({
@@ -64,7 +65,7 @@ export default async function EmployeeMasterPage() {
       title="Employee Master"
       subtitle="Employee records, payroll and reporting."
       icon={Users}
-      actions={<SalaryProfileImportDialog />}
+      actions={canSeePay ? <SalaryProfileImportDialog /> : undefined}
     >
       <EmployeeMasterWorkspaceTabs
         employeeMaster={

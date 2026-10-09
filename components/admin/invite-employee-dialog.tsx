@@ -21,12 +21,19 @@ interface InviteEmployeeDialogProps {
   designationOptions?: { id: string; name: string; employeeType: string }[];
   /** True only for super-admins (Hetesh / Manan) — gates the admin toggle. */
   canManageAdmins: boolean;
+  /**
+   * True only for a holder of `employee_pay.manage`. Draws the starting-salary
+   * field. UX only — `inviteEmployee` re-checks the capability and refuses a
+   * salary from anyone else.
+   */
+  canSetSalary?: boolean;
 }
 
 export function InviteEmployeeDialog({
   departmentOptions,
   designationOptions = [],
   canManageAdmins,
+  canSetSalary = false,
 }: InviteEmployeeDialogProps) {
   const [open, setOpen]       = useState(false);
   const [name, setName]       = useState("");
@@ -44,6 +51,8 @@ export function InviteEmployeeDialog({
   const [kindOverride, setKindOverride] = useState<string>(""); // "" = follow designation
   const [probationEnd, setProbationEnd] = useState("");
   const [internshipStart, setInternshipStart] = useState("");
+  /** Starting annual CTC in rupees, as typed. Empty = no salary set now. */
+  const [annualCtc, setAnnualCtc] = useState("");
   const [error, setError]     = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -62,6 +71,7 @@ export function InviteEmployeeDialog({
     setIsAdmin(false); setError(null);
     setDesignationId(null); setKindOverride("");
     setProbationEnd(""); setInternshipStart("");
+    setAnnualCtc("");
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -77,6 +87,14 @@ export function InviteEmployeeDialog({
       setError("Set the Internship Start Date for an intern.");
       return;
     }
+    let ctc: number | null = null;
+    if (canSetSalary && annualCtc.trim() !== "") {
+      ctc = Number(annualCtc);
+      if (!Number.isFinite(ctc) || ctc < 0) {
+        setError("Enter a valid annual CTC, or leave it blank.");
+        return;
+      }
+    }
     startTransition(async () => {
       const res = await inviteEmployee({
         name,
@@ -89,6 +107,7 @@ export function InviteEmployeeDialog({
         employeeType: kindOverride === "" ? null : (kindOverride as "employee" | "intern"),
         probationEnd: probationEnd || null,
         internshipStart: internshipStart || null,
+        annualCtc: ctc,
       });
       if (!res.ok) {
         setError(res.error ?? "Something went wrong");
@@ -122,138 +141,173 @@ export function InviteEmployeeDialog({
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-[90]" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
+        {/* Two columns from `md` up so the whole form is visible at once instead
+            of scrolling in a narrow column; a single column on a phone. The
+            max-height + overflow stay as a safety net for very short windows. */}
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-32px)] max-w-3xl rounded-xl bg-white border border-[#E2E8F0] p-6 shadow-lg max-h-[calc(100dvh-32px)] overflow-y-auto">
           <Dialog.Title className="font-serif text-xl text-[#0F172A] mb-1">
             Invite Employee
           </Dialog.Title>
           <Dialog.Description className="text-[15px] text-[#64748B] mb-4">
             They'll receive an email to set their password.
           </Dialog.Description>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <Field label="Full Name">
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
-              />
-            </Field>
-            <Field label="Work Email">
-              <input
-                required
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
-              />
-            </Field>
-            <Field label="Task Role">
-              <Select
-                value={role}
-                onValueChange={(v) => setRole(v as "doer" | "initiator" | "both")}
-                options={[
-                  { value: "doer", label: "Doer" },
-                  { value: "initiator", label: "Initiator" },
-                  { value: "both", label: "Both" },
-                ]}
-              />
-            </Field>
-            <Field label="Functions (optional)">
-              <DepartmentMultiSelect
-                options={departmentOptions}
-                selectedIds={deptIds}
-                primaryId={primaryId}
-                onChange={(ids, primary) => {
-                  setDeptIds(ids);
-                  setPrimaryId(primary);
-                }}
-              />
-            </Field>
-
-            {/* ── 0244 · EMPLOYEE TYPE ────────────────────────────────────────
-                The designation decides employee type, and employee type decides
-                both the internship rule and whether this person can earn
-                incentives. So the designation is asked for at CREATION rather
-                than left to a later edit — without it there is nothing to
-                inherit from and the date fields below have no answer. */}
-            {designationOptions.length > 0 && (
-              <>
-                <Field label="Designation">
-                  <Select
-                    value={designationId ?? ""}
-                    onValueChange={(v) => setDesignationId(v || null)}
-                    placeholder="—"
-                    options={designationOptions.map((d) => ({
-                      value: d.id,
-                      label: `${d.name}${d.employeeType === "intern" ? " (Intern)" : ""}`,
-                    }))}
+          <form onSubmit={onSubmit}>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+              {/* ── LEFT · WHO THEY ARE ─────────────────────────────────── */}
+              <div className="space-y-4">
+                <Field label="Full Name">
+                  <input
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
                   />
                 </Field>
-                <Field label="Employee Type">
+                <Field label="Work Email">
+                  <input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
+                  />
+                </Field>
+                <Field label="Task Role">
                   <Select
-                    value={kindOverride}
-                    onValueChange={setKindOverride}
+                    value={role}
+                    onValueChange={(v) => setRole(v as "doer" | "initiator" | "both")}
                     options={[
-                      {
-                        value: "",
-                        label: `Follow designation (${
-                          designationOptions.find((d) => d.id === designationId)?.employeeType === "intern"
-                            ? "Intern"
-                            : "Employee"
-                        })`,
-                      },
-                      { value: "employee", label: "Employee" },
-                      { value: "intern", label: "Intern" },
+                      { value: "doer", label: "Doer" },
+                      { value: "initiator", label: "Initiator" },
+                      { value: "both", label: "Both" },
                     ]}
                   />
-                  <p className="mt-1 text-[12.5px] text-[#64748B]">
-                    Interns do not earn incentives.
-                  </p>
                 </Field>
-              </>
-            )}
+                <Field label="Functions (optional)">
+                  <DepartmentMultiSelect
+                    options={departmentOptions}
+                    selectedIds={deptIds}
+                    primaryId={primaryId}
+                    onChange={(ids, primary) => {
+                      setDeptIds(ids);
+                      setPrimaryId(primary);
+                    }}
+                  />
+                </Field>
+              </div>
 
-            {/* An INTERN starts an internship instead of a probation, so exactly
-                one of the two dates is asked for — the rule the server enforces,
-                shown on the form that has to satisfy it. */}
-            {isInternHire ? (
-              <Field label="Internship Start Date">
-                <input
-                  type="date"
-                  value={internshipStart}
-                  onChange={(e) => setInternshipStart(e.target.value)}
-                  className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
-                />
-                <p className="mt-1 text-[12.5px] text-[#64748B]">
-                  The internship end is start + 6 months, calculated automatically.
-                </p>
-              </Field>
-            ) : (
-              <Field label="Probation End Date *">
-                <input
-                  type="date"
-                  value={probationEnd}
-                  onChange={(e) => setProbationEnd(e.target.value)}
-                  className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
-                />
-                <p className="mt-1 text-[12.5px] text-[#64748B]">
-                  Required — the employee record cannot be saved without it.
-                </p>
-              </Field>
-            )}
-            {canManageAdmins && (
-              <label className="flex items-center gap-2.5 text-[15px] text-[#334155]">
-                <input
-                  type="checkbox"
-                  checked={isAdmin}
-                  onChange={(e) => setIsAdmin(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                Admin (can manage employees + settings)
-              </label>
-            )}
-            {error && <div className="text-[14px] text-[#A80400]">{error}</div>}
-            <div className="flex justify-end gap-2 pt-2">
+              {/* ── RIGHT · THEIR POSITION AND PAY ─────────────────────── */}
+              <div className="space-y-4">
+                {/* ── 0244 · EMPLOYEE TYPE ──────────────────────────────────
+                    The designation decides employee type, and employee type
+                    decides both the internship rule and whether this person can
+                    earn incentives. So the designation is asked for at CREATION
+                    rather than left to a later edit — without it there is
+                    nothing to inherit from and the date fields below have no
+                    answer. */}
+                {designationOptions.length > 0 && (
+                  <>
+                    <Field label="Designation">
+                      <Select
+                        value={designationId ?? ""}
+                        onValueChange={(v) => setDesignationId(v || null)}
+                        placeholder="—"
+                        options={designationOptions.map((d) => ({
+                          value: d.id,
+                          label: `${d.name}${d.employeeType === "intern" ? " (Intern)" : ""}`,
+                        }))}
+                      />
+                    </Field>
+                    <Field label="Employee Type">
+                      <Select
+                        value={kindOverride}
+                        onValueChange={setKindOverride}
+                        options={[
+                          {
+                            value: "",
+                            label: `Follow designation (${
+                              designationOptions.find((d) => d.id === designationId)?.employeeType === "intern"
+                                ? "Intern"
+                                : "Employee"
+                            })`,
+                          },
+                          { value: "employee", label: "Employee" },
+                          { value: "intern", label: "Intern" },
+                        ]}
+                      />
+                      <p className="mt-1 text-[12.5px] text-[#64748B]">
+                        Interns do not earn incentives.
+                      </p>
+                    </Field>
+                  </>
+                )}
+
+                {/* An INTERN starts an internship instead of a probation, so
+                    exactly one of the two dates is asked for — the rule the
+                    server enforces, shown on the form that has to satisfy it. */}
+                {isInternHire ? (
+                  <Field label="Internship Start Date">
+                    <input
+                      type="date"
+                      value={internshipStart}
+                      onChange={(e) => setInternshipStart(e.target.value)}
+                      className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
+                    />
+                    <p className="mt-1 text-[12.5px] text-[#64748B]">
+                      The internship end is start + 6 months, calculated automatically.
+                    </p>
+                  </Field>
+                ) : (
+                  <Field label="Probation End Date *">
+                    <input
+                      type="date"
+                      value={probationEnd}
+                      onChange={(e) => setProbationEnd(e.target.value)}
+                      className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
+                    />
+                    <p className="mt-1 text-[12.5px] text-[#64748B]">
+                      Required — the employee record cannot be saved without it.
+                    </p>
+                  </Field>
+                )}
+
+                {/* STARTING SALARY. Drawn only for a holder of
+                    `employee_pay.manage`; the server refuses it from anyone
+                    else. Optional — pay can be set later in the Employee
+                    Master, where the component split is also edited. */}
+                {canSetSalary && (
+                  <Field label="Annual CTC (₹, optional)">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="any"
+                      value={annualCtc}
+                      onChange={(e) => setAnnualCtc(e.target.value)}
+                      className="w-full rounded-md border border-[#CBD5E1] px-3.5 py-2.5 text-[15px]"
+                    />
+                    <p className="mt-1 text-[12.5px] text-[#64748B]">
+                      Sets the salary profile now. Edit the breakup later in Employee Master.
+                    </p>
+                  </Field>
+                )}
+
+                {canManageAdmins && (
+                  <label className="flex items-center gap-2.5 text-[15px] text-[#334155]">
+                    <input
+                      type="checkbox"
+                      checked={isAdmin}
+                      onChange={(e) => setIsAdmin(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Admin (can manage employees + settings)
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {error && <div className="mt-4 text-[14px] text-[#A80400]">{error}</div>}
+            <div className="flex justify-end gap-2 pt-4">
               <Dialog.Close asChild>
                 <button type="button" className="brand-btn px-4 py-2.5 text-[14px] font-medium text-[#64748B]">
                   Cancel

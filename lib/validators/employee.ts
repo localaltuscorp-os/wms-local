@@ -80,6 +80,12 @@ export const InviteEmployeeSchema = z.object({
   probationEnd: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
   /** Interns: the start date. The END date is computed by the database. */
   internshipStart: z.union([ISO_DATE, z.literal(""), z.null()]).optional(),
+  /**
+   * Starting annual CTC in rupees, optional. Only a holder of
+   * `employee_pay.manage` may supply a positive value — `inviteEmployee` checks
+   * that before it creates anything. Absent / null / 0 = no salary set.
+   */
+  annualCtc: z.number().finite().min(0).max(1_000_000_000).nullable().optional(),
 });
 
 export type InviteEmployeeInput = z.infer<typeof InviteEmployeeSchema>;
@@ -149,6 +155,13 @@ export const EditEmployeeSchema = z
     // BulkEditEmployeesSchema, because that patch must not carry a privilege
     // change.
     canCoordinateDcc: z.boolean().optional(),
+    // MANAGE PAY — may view and edit employee pay in the Employee Master and set
+    // a salary when inviting. A row in `capability_grants` (migration 0271), so
+    // this too is a REQUEST to change that grant rather than a column to write.
+    // Unlike the two above it is SUPER-ADMIN ONLY to change: it unlocks salary
+    // data, so `editEmployee` refuses anybody else. Absent from
+    // BulkEditEmployeesSchema for the same reason `isAdmin` is.
+    canManagePay: z.boolean().optional(),
     // The number you CALL (0204). Deliberately LOOSER than `whatsappPhone`:
     // that one is fed to the WhatsApp API and must be E.164, whereas this is
     // only ever read by a human or handed to a `tel:` link. Rejecting a locally

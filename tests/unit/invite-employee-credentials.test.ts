@@ -134,4 +134,25 @@ describe("inviteEmployee (credentials flow)", () => {
     );
     expect(generatePasswordResetLink).not.toHaveBeenCalled();
   });
+
+  it("refuses a starting salary from an admin without employee_pay.manage, before creating anything", async () => {
+    // The mocked admin has no email, so it cannot hold the grant. Being an admin
+    // is not enough to set pay — and the refusal must come BEFORE the Firebase
+    // account exists, so there is nothing to roll back.
+    const { inviteEmployee } = await import("@/app/(admin)/admin/employees/actions");
+    const res = await inviteEmployee({
+      name: "Dev User",
+      email: "dev@altus.test",
+      role: "doer",
+      departmentIds: [],
+      primaryDepartmentId: null,
+      isAdmin: false,
+      probationEnd: "2026-12-01",
+      annualCtc: 600000,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/permission to view or change salary/i);
+    expect(createUser).not.toHaveBeenCalled();
+    expect(sendCredentialsEmail).not.toHaveBeenCalled();
+  });
 });
