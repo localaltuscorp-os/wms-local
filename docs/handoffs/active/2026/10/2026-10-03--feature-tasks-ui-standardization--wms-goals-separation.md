@@ -242,6 +242,11 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 - PR #22 initially failed its required TypeScript check because the Day Review unit-test helper permits an omitted `onViewUpcoming` callback while the component prop had been made mandatory. The callback is now optional at the component boundary; production callers still provide it, and React safely treats an omitted click callback as no action in isolated tests.
 - The replacement CI run reached the unit-test stage and found that `task-actions-create-edit.test.ts` mocked inserts and updates but not the `db.select` now used by Daily Commitments task synchronization. The mock now supplies an empty select result, correctly modelling a newly created task with no follow-up rows. A focused local Vitest run could not start because Vite hit Windows `spawn EPERM` while loading its config; rely on the replacement Linux CI run.
 
+## Daily Commitments reset-control removal (2026-10-09)
+
+- Removed all temporary **Reset Start My Day** controls from the Daily Commitments ribbon and Day Review planned/closed states. The associated client-only reset callback and state wiring are also removed. The normal Start My Day, Review My Day, checkout, and attendance punch flows are unchanged.
+- Verification: `vitest run tests/unit/day-review-row-actions.test.tsx tests/unit/attendance-plan-gate.test.ts tests/unit/daily-start-exemption.test.ts` passed: 3 files, 38 tests. `git diff --check` passed; a reference scan found no remaining reset-control text or props under the Daily Commitments planner.
+
 ### Rollback and deployment
 
 - Revert the application commit to undo UI and resilience changes. The attendance migration is additive; if it is applied, do not drop live columns as a casual rollback. Use the normal migration rollback decision process.

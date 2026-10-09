@@ -42,8 +42,6 @@ interface Props {
   onToCloseout: () => void;
   /** Leave the completed-day summary and prepare only upcoming commitments. */
   onViewUpcoming?: () => void;
-  onResetStart?: () => void;
-  resettingStart?: boolean;
   /** Back to the BOARD without un-starting the day — the plan stays committed,
    *  you just want to look at it / move things around. */
   onAdjust: () => void;
@@ -79,8 +77,6 @@ export function DayReview({
   items,
   onToCloseout,
   onViewUpcoming,
-  onResetStart,
-  resettingStart = false,
   onAdjust,
   onClosed,
   onToggleDone,
@@ -176,9 +172,6 @@ export function DayReview({
             >
               <ArrowLeft size={16} /> Change Plan
             </button>
-            <button type="button" onClick={onResetStart} disabled={resettingStart} className="inline-flex h-12 items-center gap-2 rounded-chip border border-amber-300 bg-amber-50 px-5 text-[14px] font-semibold text-amber-900 disabled:opacity-60 max-md:w-full">
-              {resettingStart ? <Loader2 className="animate-spin" size={16} /> : <Sunrise size={16} />} Reset Start My Day
-            </button>
             <button
               type="button"
               onClick={onToCloseout}
@@ -213,9 +206,6 @@ export function DayReview({
         </div>
         {isClosed ? (
           <div className="ml-auto flex items-center gap-2">
-            <button type="button" onClick={onResetStart} disabled={resettingStart} className="inline-flex h-9 items-center gap-2 rounded-chip border border-amber-300 bg-amber-50 px-3.5 text-[12.5px] font-semibold text-amber-900 disabled:opacity-60">
-              {resettingStart ? <Loader2 className="animate-spin" size={14} /> : <Sunrise size={14} />} Reset Start My Day
-            </button>
             <button
               type="button"
               onClick={onViewUpcoming}

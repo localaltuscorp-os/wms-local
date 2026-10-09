@@ -77,7 +77,6 @@ import {
   setPlanItemPending,
   setPlanItemTime,
   startMyDay,
-  reopenPlan,
   transferPlanItem,
   rememberUpcomingPlan,
 } from "@/app/(app)/goals/plan/actions";
@@ -179,7 +178,6 @@ const plannerCollisionDetection: CollisionDetection = (args) => {
 export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTasksOnly = false, unruledInitiatorLabel, belowPlanner }: Props) {
   const [phase, setPhase] = React.useState(payload.initialPhase);
   const [starting, setStarting] = React.useState(false);
-  const [resettingStart, setResettingStart] = React.useState(false);
   const [days, setDays] = React.useState<PlanDayColumn[]>(() =>
     wmsTasksOnly
       ? payload.days.map((day) => ({ ...day, items: day.items.filter((item) => item.origin === "standalone") }))
@@ -526,23 +524,6 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
       })
       .finally(() => setStarting(false));
   }, [met, starting]);
-
-  const onResetStart = React.useCallback(() => {
-    if (resettingStart) return;
-    setResettingStart(true);
-    void reopenPlan()
-      .then((result) => {
-        if (!result.ok) return fireToast({ message: result.error, type: "error" });
-        setAdjusting(false);
-        setPhase("plan");
-        refresh();
-        fireToast({ message: "Start My Day reset. You can test the flow again." });
-      })
-      .catch((error: unknown) =>
-        fireToast({ message: error instanceof Error ? error.message : "Unable to reset Start My Day.", type: "error" }),
-      )
-      .finally(() => setResettingStart(false));
-  }, [refresh, resettingStart]);
 
   /** Persist one day's visual order (fire-and-forget, toast on failure). */
   const persistOrder = React.useCallback(
@@ -1164,11 +1145,6 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
           <ClipboardCheck size={13} /> Review My Day
         </button>
       )}
-      {wmsTasksOnly && viewingClosedDayFuture ? (
-        <button type="button" onClick={onResetStart} disabled={resettingStart} className="inline-flex h-7 w-[142px] self-center items-center justify-center gap-1 whitespace-nowrap rounded-[11px] border border-amber-300 bg-amber-50 px-2 text-[13px] font-bold text-amber-900 disabled:opacity-60">
-          {resettingStart ? <Loader2 size={13} className="animate-spin" /> : <Sunrise size={13} />} Reset Start My Day
-        </button>
-      ) : null}
       {ribbonPersonSelect}
       {dashboardHref ? (
         <Link
@@ -1280,8 +1256,6 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
                 window.location.replace(pathname + "?" + qs.toString());
               });
           }}
-          onResetStart={onResetStart}
-          resettingStart={resettingStart}
           onAdjust={() => {
             // Changing a committed plan must not clear the start stamp: the
             // employee remains checked in and returns to Review My Day later.
