@@ -9,7 +9,17 @@ import { localAllWorkspaces } from "@/lib/auth/local-session";
 import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { matchesDepartment } from "@/lib/workspaces";
 
-type HrAccessEmployee = Pick<Employee, "id" | "email" | "isAdmin" | "department">;
+/**
+ * Session-derived viewers can lack an email even though persisted employee rows
+ * cannot. A missing email is safe here: `isSuperAdmin` rejects it and the
+ * remaining HR decision still uses the authenticated employee id/department.
+ */
+type HrAccessEmployee = Omit<
+  Pick<Employee, "id" | "email" | "isAdmin" | "department">,
+  "email"
+> & {
+  email: string | null;
+};
 
 /**
  * HR Support access — the role fork + the grievance wall live here.

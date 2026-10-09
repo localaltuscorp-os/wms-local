@@ -25,6 +25,9 @@ surplus hours must not carry into a later week.
   `lib/queries/attendance-summary.ts`
   - Price each policy half-day at 0.5 of one calendar-day salary for the
     daily/monthly-CTC salary path.
+- `lib/hr/access.ts`
+  - Accepts a null session email in the HR access helper without changing
+    authorization behavior; missing email remains non-super-admin.
 - `tests/unit/weekly-late-penalty.test.ts`
   - Covers the 4/5/6 late outcomes, 54-hour exemption, effective date,
     no-carry behavior, and salary deduction.
@@ -40,6 +43,8 @@ surplus hours must not carry into a later week.
   not penalised for unscheduled days.
 - Existing historical months before September 2026 retain their previous
   reconciliation behavior.
+- This changes attendance and payroll calculation code only; it does not
+  modify HR policy pages, policy CMS records, or employee data.
 - No database schema or data migration is required; the policy is calculated
   from existing attendance records whenever a month is read or generated.
 
@@ -48,17 +53,15 @@ surplus hours must not carry into a later week.
 - Passed: focused Vitest run — 3 files, 76 tests.
 - Passed: ESLint on all changed source files and the new test.
 - Passed: `git diff --check`.
-- Full TypeScript check reached existing unrelated errors after being rerun with
-  a 4 GB Node heap allowance:
-  - missing `nodemailer` types in `lib/email/transport.ts`
-  - nullable email type mismatch in `lib/salary/salary-people.ts`
+- The original CI blocker was the nullable email type mismatch in
+  `lib/salary/salary-people.ts`; the safe helper-input type fix is included in
+  this branch and must be verified by CI.
 
 ## Release notes
 
-- Preview branch commit `40833fb7` was pushed and previewed. Follow-up commits
-  correct the fourth-late threshold and move the policy cutover to September;
-  a replacement preview is required before production release.
-- Before release: review the policy wording with payroll/HR, commit only the
-  listed files, push this feature branch for a Vercel preview, and verify a
-  representative September payroll calculation before production approval.
+- The September-corrected preview was deployed from `f309ae1e` before the CI
+  type-safety follow-up. A new preview should be created after that follow-up
+  is pushed.
+- Before release: verify CI, inspect a representative September payroll
+  calculation, and confirm the feature branch contains only the listed files.
 - Rollback is a revert of the feature commit; no database rollback is needed.
