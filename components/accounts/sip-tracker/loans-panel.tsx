@@ -145,7 +145,7 @@ export function LoansPanel({ loans, periods, cells, entityOptions }: {
   const balCols = 1 + periods.length + 1; // loan + periods + latest
 
   return (
-    <div className="mt-10 flex flex-col gap-4">
+    <div id="loans-tracker" className="mt-10 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
           <h2 className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em" }}>Loans</h2>

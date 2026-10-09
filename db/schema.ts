@@ -7540,7 +7540,7 @@ export const moduleSubmissions = pgTable(
 
 /**
  * The financial-control record for one employee's attendance, incentive,
- * reimbursement, or salary item.  The source tables keep owning the submitted
+ * reimbursement, salary, or CTC item. The source tables keep owning the submitted
  * data; this table only records the super-admin decision and Accounts handoff.
  */
 export const compensationApprovals = pgTable(
@@ -7548,7 +7548,7 @@ export const compensationApprovals = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     kind: text("kind")
-      .$type<"attendance" | "incentive" | "reimbursement" | "salary">()
+      .$type<"attendance" | "incentive" | "reimbursement" | "salary" | "ctc">()
       .notNull(),
     subjectId: uuid("subject_id").notNull(),
     employeeId: uuid("employee_id")
@@ -9795,6 +9795,42 @@ export const onboardingSubmissions = pgTable(
   (t) => [uniqueIndex("onb_employee_uidx").on(t.employeeId)],
 );
 export type OnboardingSubmission = typeof onboardingSubmissions.$inferSelect;
+
+/** Audited Admin review of a submitted onboarding form. This never changes the
+ * source form or its provisioning workflow; it only records the review. */
+export const onboardingApprovals = pgTable(
+  "onboarding_approvals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    submissionId: uuid("submission_id")
+      .notNull()
+      .references(() => onboardingSubmissions.id, { onDelete: "cascade" }),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    status: text("status")
+      .$type<"pending" | "approved" | "rejected">()
+      .notNull()
+      .default("pending"),
+    decisionNote: text("decision_note"),
+    decidedById: uuid("decided_by_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("onboarding_approval_submission_uq").on(t.submissionId),
+    index("onboarding_approval_status_idx").on(t.status, t.createdAt),
+    index("onboarding_approval_employee_idx").on(t.employeeId),
+  ],
+);
+export type OnboardingApproval = typeof onboardingApprovals.$inferSelect;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Agreements (migration 0132) — full-lifecycle HR agreements: HR generates from a

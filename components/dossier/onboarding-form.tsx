@@ -5,19 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 import { Loader2, Send, Save, Paperclip, Eye, Check, ChevronLeft, Plus, Trash2, Link2 } from "lucide-react";
-import { Avatar } from "@/components/ui/avatar";
 import { fireToast } from "@/lib/toast";
 import {
   ONBOARDING_SECTIONS, ONB_FILE_KEYS, ONB_ALL_FIELDS, PERM_TO_CURR, ONB_WIDTH_PX, ONB_ACCEPT,
-  parseRepeaterRows, isRepeaterRowComplete, isOnbFieldRequired, isOnbFieldHidden, ONB_FIELD_BY_KEY, ONB_PROOF_AADHAAR, ONB_PROOF_ELECTRIC, ONB_PROOF_OTHER, type OnbField, type OnbSection,
+  parseRepeaterRows, isRepeaterRowComplete, isOnbFieldRequired, isOnbFieldHidden, isValidOnbDate, normaliseOnbDate, isValidOnbPhone, normaliseOnbPhone, ONB_FIELD_BY_KEY, ONB_PROOF_AADHAAR, ONB_PROOF_ELECTRIC, ONB_PROOF_OTHER, type OnbField, type OnbSection,
 } from "@/lib/dossier/onboarding-schema";
 import type { OnboardingView } from "@/lib/queries/onboarding";
 import { submitOnboarding, createOnboardingUploadUrl } from "@/app/(app)/dossier/onboarding/actions";
 import { submitOnboardingAsCandidate, createOnboardingUploadUrlAsCandidate } from "@/app/c/onboarding/actions";
 import { getSupabaseClient } from "@/lib/supabase/browser";
 import { useAutosave } from "@/components/hr/forms/use-autosave";
-import { SaveIndicator } from "@/components/hr/forms/save-indicator";
-import { SectionIndex } from "@/components/ui/section-index";
 
 const RED = "var(--color-altus-red)";
 const RED_DEEP = "var(--color-altus-red-deep)";
@@ -44,8 +41,7 @@ const addressRows = (p: "perm" | "curr"): OnbLayoutRow[] => [
 const ONB_LAYOUT: Record<string, OnbLayoutRow[]> = {
   personal: [
     { cols: 3, cells: ["firstName", "middleName", "lastName"] },
-    // Three equal columns: phone, selfie and the optional CV share the row.
-    { cols: 3, cells: ["phone", "selfie", "cv"] },
+    { cols: 4, cells: ["dateOfBirth", "phone", "selfie", "cv"] },
   ],
   permanent: addressRows("perm"),
   current: addressRows("curr"),
@@ -390,6 +386,14 @@ export function OnboardingForm({
           }
           continue;
         }
+        if (f.type === "date" && !isValidOnbDate(values[f.key] ?? "")) {
+          fireToast({ message: `Date of Birth must use DD-MMM-YYYY (for example, 05-Jan-1998).`, type: "error" });
+          return;
+        }
+        if (f.type === "tel" && !isValidOnbPhone(values[f.key] ?? "")) {
+          fireToast({ message: `“${f.label}” must contain exactly 10 digits.`, type: "error" });
+          return;
+        }
         // sameAsPermanent auto-fills the current-address fields - treat them as
         // present when the toggle is on.
         const autofilled = sameAsPerm && PERM_TO_CURR.some(([, c]) => c === f.key);
@@ -505,26 +509,27 @@ export function OnboardingForm({
 
   return (
     <div className="flex flex-col gap-4 pb-24">
-      {/* header */}
-      <div className="wg-rise flex flex-wrap items-center gap-4 rounded-[22px] bg-surface-card p-5" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 12px 40px -28px rgba(15,23,42,0.35)" }}>
-        {backHref && <Link href={backHref as Route} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface-soft text-ink-muted hover:text-ink-strong" aria-label="Back"><ChevronLeft size={18} strokeWidth={2.4} /></Link>}
-        <Avatar name={initial.employee.name} avatarUrl={initial.employee.avatarUrl} size={48} />
-        <div className="min-w-0 flex-1">
-          <div className="text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui", fontWeight: 900, fontSize: "clamp(18px,2vw,24px)", letterSpacing: "-0.02em" }}>Onboarding · {initial.employee.name}</div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-semibold text-ink-muted">
-            <span>{initial.status === "submitted" ? "Submitted - update any answer below." : initial.status === "draft" ? "Draft saved - finish and submit." : "Fields marked * are required. Type NA where it doesn't apply."}</span>
-            <SaveIndicator state={autosave.state} savedAt={autosave.savedAt} error={autosave.error} />
-          </div>
+      <header className="border-b border-hairline pb-3">
+        <div className="flex min-h-9 items-center gap-2.5">
+          {backHref && <Link href={backHref as Route} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-muted hover:bg-surface-soft hover:text-ink-strong" aria-label="Back"><ChevronLeft size={18} strokeWidth={2.4} /></Link>}
+          <h1 className="min-w-0 truncate text-[18px] font-black text-ink-strong">{initial.employee.name}</h1>
         </div>
-      </div>
-
-      {/* Small screens keep the pill strip: the two-pane index needs the width
-          of a desktop, and a stacked index would push every section down. */}
-      <div className="sticky top-2 z-10 flex flex-wrap gap-1 rounded-pill bg-surface-card/90 p-1.5 backdrop-blur lg:hidden" style={{ boxShadow: "inset 0 0 0 1px var(--color-hairline)" }}>
-        {ONBOARDING_SECTIONS.map((s, i) => (
-          <a key={s.key} href={`#sec-${s.key}`} className="rounded-pill px-2.5 py-1.5 text-[11.5px] font-bold text-ink-muted transition hover:bg-surface-soft hover:text-ink-strong"><span className="tabular-nums text-ink-subtle">{i + 1}</span> {s.title}</a>
-        ))}
-      </div>
+        <div className="mt-3">
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-subtle">Quick access</span>
+          <nav aria-label="Onboarding sections" className="mt-2 flex flex-wrap gap-1.5">
+            {ONBOARDING_SECTIONS.map((s, i) => (
+              <a
+                key={s.key}
+                href={`#sec-${s.key}`}
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-hairline bg-surface-soft px-2.5 py-1 text-[11.5px] font-bold text-ink-muted transition hover:border-[color:var(--color-altus-red)] hover:bg-red-50 hover:text-[color:var(--color-altus-red)]"
+              >
+                <span className="tabular-nums text-ink-subtle">{i + 1}</span>
+                {s.title}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </header>
 
       {/* ── INDEX + SECTIONS ─────────────────────────────────────────────
           The nine sections as a numbered index down the left, the same
@@ -532,19 +537,7 @@ export function OnboardingForm({
           marking whichever section is on screen. It replaces a wrapping strip
           of nine pills across the top that took two rows and never showed where
           you were. */}
-      {/* No items-start: the aside must STRETCH to the full height of the
-          sections column. A sticky element can only stick while its parent
-          still has room, and an aside sized to the index alone scrolled away
-          with the first screen - leaving an empty left column below it. */}
-      <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-5 max-lg:grid-cols-1">
-        <aside className="max-lg:hidden">
-          <SectionIndex
-            items={ONBOARDING_SECTIONS.map((sec) => ({ id: `sec-${sec.key}`, label: sec.title }))}
-            offset={16}
-            stickyTop={16}
-          />
-        </aside>
-        <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
       {ONBOARDING_SECTIONS.map((s, i) => (
         <section key={s.key} id={`sec-${s.key}`} className="wg-rise scroll-mt-20 rounded-[20px] bg-surface-card p-5 max-md:p-4" style={{ animationDelay: `${i * 25}ms`, boxShadow: "inset 0 0 0 1px var(--color-hairline), 0 8px 30px -24px rgba(15,23,42,0.3)" }}>
           <div className="mb-3.5 flex flex-wrap items-start gap-x-2.5 gap-y-2">
@@ -562,7 +555,6 @@ export function OnboardingForm({
           {renderSectionBody(s)}
         </section>
       ))}
-        </div>
       </div>
 
       {/* sticky action bar - left/right set to the content pane above */}
@@ -574,6 +566,22 @@ export function OnboardingForm({
       </div>
     </div>
   );
+}
+
+const DOB_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+function getDobParts(value: string) {
+  const normalised = normaliseOnbDate(value);
+  const match = normalised.match(/^(\d{2})-([A-Z][a-z]{2})-(\d{4})$/);
+  if (match) return { day: match[1], month: match[2], year: match[3] };
+
+  const [day = "", month = "", year = ""] = value.split("-");
+  return { day, month, year };
+}
+
+function daysInDobMonth(month: string, year: string) {
+  const monthIndex = DOB_MONTHS.indexOf(month as (typeof DOB_MONTHS)[number]);
+  return monthIndex < 0 || !year ? 31 : new Date(Number(year), monthIndex + 1, 0).getDate();
 }
 
 function Field({
@@ -614,6 +622,40 @@ function Field({
           {(field.options ?? []).map((opt) => (
             <ChoiceButton key={opt} label={opt} on={value === opt} onClick={() => onChange(value === opt ? "" : opt)} className={compact ? "w-[124px] shrink-0" : "flex-1"} />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "date") {
+    const dob = getDobParts(value);
+    const lastDay = daysInDobMonth(dob.month ?? "", dob.year ?? "");
+    const years = Array.from({ length: new Date().getFullYear() - 1919 }, (_, index) => String(new Date().getFullYear() - index));
+    const updateDob = (part: "day" | "month" | "year", nextValue: string) => {
+      const next = { ...dob, [part]: nextValue };
+      const maxDay = daysInDobMonth(next.month ?? "", next.year ?? "");
+      if (next.day && Number(next.day) > maxDay) next.day = "";
+      const rawDate = `${next.day}-${next.month}-${next.year}`;
+      onChange(next.day || next.month || next.year ? normaliseOnbDate(rawDate) : "");
+    };
+    const selectClass = "h-9 rounded-lg border border-hairline bg-surface-soft px-2 text-[12.5px] font-bold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)] disabled:cursor-not-allowed disabled:opacity-50";
+
+    return (
+      <div className={wrapClass} style={wrapStyle}>
+        {label}
+        <div className={`flex flex-wrap items-center gap-1.5${push}`}>
+          <select aria-label="Date of Birth day" value={dob.day} onChange={(e) => updateDob("day", e.target.value)} disabled={disabled} className={`${selectClass} w-[58px]`}>
+            <option value="" disabled>DD</option>
+            {Array.from({ length: lastDay }, (_, index) => String(index + 1).padStart(2, "0")).map((day) => <option key={day} value={day}>{day}</option>)}
+          </select>
+          <select aria-label="Date of Birth month" value={dob.month} onChange={(e) => updateDob("month", e.target.value)} disabled={disabled} className={`${selectClass} w-[76px]`}>
+            <option value="" disabled>MMM</option>
+            {DOB_MONTHS.map((month) => <option key={month} value={month}>{month}</option>)}
+          </select>
+          <select aria-label="Date of Birth year" value={dob.year} onChange={(e) => updateDob("year", e.target.value)} disabled={disabled} className={`${selectClass} w-[78px]`}>
+            <option value="" disabled>YYYY</option>
+            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
         </div>
       </div>
     );
@@ -666,12 +708,13 @@ function Field({
       {label}
       <input
         type={field.type === "tel" ? "tel" : "text"}
-        inputMode={field.type === "tel" ? "tel" : field.type === "number" ? "numeric" : undefined}
+        inputMode={field.type === "tel" ? "numeric" : field.type === "number" ? "numeric" : undefined}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(field.type === "tel" ? normaliseOnbPhone(e.target.value) : e.target.value)}
         disabled={disabled}
         placeholder={disabled ? "= permanent" : ""}
-        maxLength={2000}
+        maxLength={field.type === "tel" ? 10 : 2000}
+        pattern={field.type === "tel" ? "[0-9]{10}" : undefined}
         className={`rounded-lg border border-hairline bg-surface-soft px-2.5 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)] disabled:opacity-50${push}`}
       />
     </label>
@@ -835,7 +878,7 @@ function RepeaterField({
                     type={s.type === "tel" ? "tel" : "text"}
                     inputMode={s.type === "tel" ? "numeric" : undefined}
                     value={row[s.key] ?? ""}
-                    onChange={(e) => onCell(rowIdx, s.key, s.type === "tel" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value)}
+                    onChange={(e) => onCell(rowIdx, s.key, s.type === "tel" ? normaliseOnbPhone(e.target.value) : e.target.value)}
                     maxLength={s.type === "tel" ? 10 : 200}
                     pattern={s.type === "tel" ? "[0-9]{10}" : undefined}
                     className="rounded-lg border border-hairline bg-white px-2.5 py-2 text-[13.5px] font-semibold text-ink-strong outline-none focus:border-[color:var(--color-altus-red)]"

@@ -486,12 +486,23 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
     await pg.query(`insert into departments (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
   }
 
+  const designationIds = new Map<string, string>();
   for (const [id, name] of [
     [DESIG.manager, "Manager"],
     [DESIG.executive, "Executive"],
     [DESIG.lead, "Team Lead"],
   ] as const) {
     await pg.query(`insert into designations (id, name) values ($1,$2) on conflict do nothing`, [id, name]);
+    // Migration 0258 owns the designation master and may have already seeded
+    // this name with a generated UUID. Keep that canonical row instead of
+    // assuming the fixture UUID was inserted.
+    const designation = await pg.query<{ id: string }>(
+      `select id from designations where name = $1 limit 1`,
+      [name],
+    );
+    const designationId = designation.rows[0]?.id;
+    if (!designationId) throw new Error(`Dummy designation ${name} was not created.`);
+    designationIds.set(id, designationId);
   }
 
   for (const [id, name, email, role, admin, dept, desig] of EMPLOYEES) {
@@ -499,7 +510,7 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
       `insert into employees (id, name, email, role, is_admin, is_active, department_id, designation_id, joined_at)
        values ($1,$2,$3,$4::employee_role,$5,true,$6,$7, now() - interval '200 days')
        on conflict (id) do nothing`,
-      [id, name, email, role, admin, dept, desig],
+      [id, name, email, role, admin, dept, designationIds.get(desig) ?? desig],
     );
   }
   // THE DUMMY ADMIN IS HR STAFF — seeded, not hand-tweaked.
@@ -706,7 +717,7 @@ export async function seedDummyData(pg: PGlite): Promise<Record<string, number>>
         name,
         `${slug(name)}@example.invalid`,
         DEPT.ops,
-        managerNames.has(name) ? DESIG.manager : DESIG.executive,
+        designationIds.get(managerNames.has(name) ? DESIG.manager : DESIG.executive),
       ],
     );
   }

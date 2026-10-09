@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Archive, Loader2, Pencil, Plus, Search, Trash2, UserCheck } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { CONTACT_SERVICES } from "@/lib/hr/registers";
 import type { ContactRow, EmployeeContactRow } from "@/lib/hr/registers-server";
 import { saveContact, setContactActive, deleteContact } from "@/app/(app)/hr/address-book/actions";
@@ -110,10 +111,12 @@ export function AddressBook({
             { value: "inactive", label: "Inactive", count: inactiveCount },
           ]}
         />
+        <CollapsibleSearch scope="name, company, or number">
         <div className="relative w-[260px] max-w-full">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, number…" aria-label="Search the address book" className={`${INPUT} pl-9`} />
         </div>
+        </CollapsibleSearch>
         <NativeSelect value={service} onChange={(e) => setService(e.target.value)} aria-label="Filter by service" className={FILTER}>
           <option value="all">All services</option>
           <option value={EMPLOYEE_SERVICE}>Employees</option>

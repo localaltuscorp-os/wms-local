@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, Download, Printer, Loader2, PenLine, CheckCircle2, ArrowLeft, PencilLine } from "lucide-react";
+import { Download, Printer, Loader2, PenLine, CheckCircle2, ArrowLeft, PencilLine } from "lucide-react";
 import { PolicyDocument } from "@/components/hr/policies/policy-document";
-import { ENTITY_LIST, type EntityId } from "@/lib/hr/entities";
+import type { Entity, EntityId } from "@/lib/hr/entities";
 import type { PolicyDoc } from "@/lib/hr/policies/types";
 import { fireToast } from "@/lib/toast";
 import { formatDateHr } from "@/lib/format";
@@ -27,19 +27,21 @@ const RED_DEEP = "#A80400";
  */
 export function PolicyView({
   doc,
+  entity,
   signedAt,
   outdated = false,
   backHref,
   editHref,
 }: {
   doc: PolicyDoc;
+  /** Server-resolved from the current employee's paying-entity record. */
+  entity: EntityId | Entity;
   signedAt?: string | null;
   /** Signed, but only an OLDER version — a newer one has been published since. */
   outdated?: boolean;
   backHref?: string;
   editHref?: string;
 }) {
-  const [entity, setEntity] = useState<EntityId>(doc.entityDefault ?? "altus-corp");
   const [signing, setSigning] = useState(false);
   // A stale signature must NOT read as done — it prompts to sign the new version.
   const isSigned = Boolean(signedAt) && !outdated;
@@ -50,7 +52,7 @@ export function PolicyView({
       const r = await fetch("/api/hr/policies/acknowledge", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key: doc.key, entity }),
+        body: JSON.stringify({ key: doc.key }),
       });
       const res = (await r.json().catch(() => ({ ok: false }))) as
         | { ok: true; docId: string }
@@ -88,22 +90,6 @@ export function PolicyView({
 
       {/* ── Toolbar (does not print) ─────────────────────────────── */}
       <div className="apv-toolbar no-print">
-        <label className="apv-pick">
-          <Building2 size={15} strokeWidth={2.2} aria-hidden />
-          <span className="apv-pick-label">Issuing Entity</span>
-          <select
-            value={entity}
-            onChange={(e) => setEntity(e.target.value as EntityId)}
-            aria-label="Issuing entity"
-          >
-            {ENTITY_LIST.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <div className="apv-actions">
           <button type="button" className="apv-btn apv-btn-ghost" onClick={() => window.print()}>
             <Printer size={15} strokeWidth={2.2} /> Print
@@ -179,24 +165,6 @@ const VIEW_CSS = `
   border:1px solid var(--color-hairline, #e2e8f0);
   border-radius:16px;
 }
-.apv-pick{display:flex;flex-direction:column;gap:4px;position:relative;padding-left:22px;}
-.apv-pick svg{position:absolute;left:0;top:26px;color:${RED_DEEP};}
-.apv-pick-label{
-  font-family:var(--font-display, system-ui, sans-serif);
-  font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--color-ink-muted, #64748b);
-}
-.apv-pick select{
-  appearance:none;-webkit-appearance:none;
-  min-width:220px;max-width:320px;
-  padding:8px 30px 8px 12px;
-  font-size:14px;font-weight:600;color:var(--color-ink-strong, #0f172a);
-  background:#fff;border:1px solid var(--color-hairline-strong, #cbd5e1);border-radius:10px;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4'><path d='M6 9l6 6 6-6'/></svg>");
-  background-repeat:no-repeat;background-position:right 8px center;
-  cursor:pointer;
-}
-.apv-pick select:focus{outline:none;border-color:${RED};box-shadow:0 0 0 3px rgba(225,6,0,.14);}
 .apv-actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
 .apv-btn{
   display:inline-flex;align-items:center;gap:7px;
@@ -228,7 +196,6 @@ const VIEW_CSS = `
 @media (max-width:720px){
   .apv-page-actions{align-items:stretch;flex-direction:column;}
   .apv-page-actions .apv-btn{justify-content:center;}
-  .apv-pick select{min-width:160px;}
   .apv-actions{width:100%;margin-left:0;}
 }
 @media print{

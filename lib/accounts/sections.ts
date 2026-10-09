@@ -172,6 +172,20 @@ export const ACCOUNTS_SECTIONS: AccountsSection[] = [
     status: "link",
     href: "/training/induction",
   },
+  {
+    slug: "mis",
+    order: 18,
+    title: "MIS",
+    blurb: "A single MIS workspace for balance, cash, investments, loans, CA records, and financial reporting trackers.",
+    status: "built",
+  },
+  {
+    slug: "payments",
+    order: 19,
+    title: "Payments",
+    blurb: "One place for reimbursements, incentives, salary, overtime, and company expense payments.",
+    status: "built",
+  },
 ];
 
 export function getAccountsSection(slug: string): AccountsSection | undefined {

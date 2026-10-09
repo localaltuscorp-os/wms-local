@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Eye, EyeOff, FileText, Image as ImageIcon, Loader2, Paperclip, Plus, Search, Trash2 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { formatDateHr } from "@/lib/format";
 import { getSupabaseClient } from "@/lib/supabase/browser";
 import { ASSET_TYPES, assetPrefix } from "@/lib/hr/registers";
@@ -177,10 +178,12 @@ export function AssetRegister({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <CollapsibleSearch scope="asset code, make, serial, or person">
         <div className="relative w-[260px] max-w-full">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search code, make, serial, person…" aria-label="Search assets" className={`${INPUT} pl-9`} />
         </div>
+        </CollapsibleSearch>
         <NativeSelect value={type} onChange={(e) => setType(e.target.value)} aria-label="Filter by asset" className={FILTER}>
           <option value="all">All assets</option>
           {ASSET_TYPES.map((t) => (
