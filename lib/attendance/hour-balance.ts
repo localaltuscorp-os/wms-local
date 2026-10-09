@@ -87,7 +87,7 @@ export interface HalfDayCharge {
   date: string;
   /** 1-based index among this missed-target week's half-days. */
   ordinal: number;
-  /** False: a half-day in a missed-target week is salary-impacting immediately. */
+  /** The first three late half-days in a missed-target week are protected. */
   waived: boolean;
 }
 
@@ -106,7 +106,7 @@ export interface MonthReconciliation {
   halfDayCharges: HalfDayCharge[];
   /** Count charged at 50% of a day's salary in missed-target weeks. */
   chargeableHalfDays: number;
-  /** Retained for report compatibility; half-days have no standalone grace allowance. */
+  /** Late half-days protected by the first-three-per-week grace. */
   warnedHalfDays: number;
   /** Half-days removed because their week met its target — these do NOT use a grace slot. */
   waiverAbsorbedHalfDays: number;
@@ -333,12 +333,15 @@ export function reconcileMonth(
   }
 
   // ── Half-day salary policy ────────────────────────────────────────────────
-  // A half-day in a week that meets its own target is absorbed completely. If
-  // that week's target is missed, EVERY half-day costs half a day's salary. The
-  // three-warning allowance belongs only to late arrivals, never to half-days.
+  // A half-day in a week that meets its own target is absorbed completely. In a
+  // missed-target week, the first three LATE half-days are protected; the
+  // fourth and later late half-days cost half a day's salary. Other half-days
+  // remain chargeable immediately because they did not arise from the late
+  // arrival allowance.
   const halfDayCharges: HalfDayCharge[] = [];
   let waiverAbsorbed = 0;
-  const countedHalfDaysByWeek = new Map<string, number>();
+  const halfDaysByWeek = new Map<string, number>();
+  const lateHalfDaysByWeek = new Map<string, number>();
 
   for (const d of inMonth) {
     if (d.code !== "H/D") continue;
@@ -346,12 +349,16 @@ export function reconcileMonth(
       waiverAbsorbed += 1;
       continue;
     }
-    const ordinal = (countedHalfDaysByWeek.get(d.weekKey) ?? 0) + 1;
-    countedHalfDaysByWeek.set(d.weekKey, ordinal);
+    const ordinal = (halfDaysByWeek.get(d.weekKey) ?? 0) + 1;
+    halfDaysByWeek.set(d.weekKey, ordinal);
+    const lateOrdinal = d.late
+      ? (lateHalfDaysByWeek.get(d.weekKey) ?? 0) + 1
+      : 0;
+    if (d.late) lateHalfDaysByWeek.set(d.weekKey, lateOrdinal);
     halfDayCharges.push({
       date: d.date,
       ordinal,
-      waived: false,
+      waived: d.late && lateOrdinal <= LATE_PUNCH_GRACE_PER_WEEK,
     });
   }
 

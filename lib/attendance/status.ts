@@ -162,26 +162,21 @@ export function computeDayCode(
     return { code: "A", dayValue: 0, late, leftEarly, lateWaived: false, workedMinutes: worked };
   }
 
-  // The employee-specific `lateAfter` cutoff starts the late-mark window. A
-  // check-in more than one hour after it is a half-day even if staying late
-  // makes the raw duration look like a full day.
-  if (lateBeyondHalfDayWindow) {
-    return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
-  }
-
-  // Leaving before this employee's configured early cutoff is a half-day even
-  // if an early check-in made the raw duration look like a full day. The policy
-  // uses each employee's resolved schedule, never a hard-coded company time.
-  if (leftEarly) {
-    return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
-  }
-
-  // A late arrival that still completes the scheduled duration stays a full
-  // day. The weekly late-arrival policy decides whether repeated late marks
-  // later produce a salary penalty.
+  // Completing the employee's full-day target always earns a Full Day. Clock
+  // marks remain visible for punctuality reporting, but an early start or a
+  // late finish must not turn nine completed hours into a half-day.
   if (worked >= sched.fullDayMinutes) {
     return { code: "P", dayValue: 1, late, leftEarly, lateWaived: late, workedMinutes: worked };
   }
+
+  // Below the full-day target, a check-in more than one hour after the
+  // employee's configured late cutoff, or a checkout before their configured
+  // end time, is a half-day. For example, a 10:30-11:30 late window followed
+  // by a 19:30 checkout is short of a nine-hour day and remains H/D.
+  if (lateBeyondHalfDayWindow || leftEarly) {
+    return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
+  }
+
   return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
 }
 
