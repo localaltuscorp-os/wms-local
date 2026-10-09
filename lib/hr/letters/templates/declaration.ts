@@ -20,16 +20,9 @@
  * evidence that a specific policy version was acknowledged - only that the
  * person put their name to the set as it stood on the day they signed.
  *
- * ── THE POLICY LIST IS DERIVED, NEVER TYPED ──────────────────────────────
- * The policies below come from `readyPolicies()` in lib/hr/policies/registry,
- * the same pure selector the server-only `requiredPolicyKeys()` now delegates
- * to. Typing the six names here would mean a seventh policy could be made
- * compulsory while this letter still swore there were six.
- *
- * KNOWN LIMIT: the Policy CMS (lib/hr/policies/load-db.ts) can override a
- * policy's title at runtime, and this module is pure + client-safe so it cannot
- * read the database. The letter therefore prints the REGISTRY titles. A CMS
- * retitle needs the letter re-issued to match.
+ * ── THE POLICY LIST IS FIXED TO THE APPROVED PDF ─────────────────────────
+ * This acknowledgement must keep the supplied legal wording and list even if
+ * the live Policy CMS is updated later.
  *
  * Authored with the span/block builders - PURE + CLIENT-SAFE, load-neutral.
  *
@@ -40,7 +33,6 @@
 
 import { type LetterTemplate, t, f, para, heading, bullets, spacer, signature, term } from "../types";
 import { personSignOff } from "../sign-off";
-import { readyPolicies } from "@/lib/hr/policies/registry";
 
 /**
  * THE WORDING'S VERSION.
@@ -85,7 +77,7 @@ const template: LetterTemplate = {
     para(
       t("I, "),
       f("employeeName", "Employee Name", { placeholder: "Full name" }),
-      t(", hereby confirm that I have fully read, understood, completed, and reviewed all the documents, letters, and policies provided to me by {firm} in connection with my employment, training, onboarding, and responsibilities."),
+      t(", hereby confirm that I have fully read, understood, completed, and reviewed all the documents, letters, and policies provided to me by Altus Corp in connection with my employment, training, onboarding, and responsibilities."),
     ),
 
     spacer("md"),
@@ -96,11 +88,17 @@ const template: LetterTemplate = {
     bullets(...JOINING_DOCUMENTS.map((d) => [t(d)])),
 
     heading("Policies Acknowledged", 2),
-    para(t("I further confirm that I have read, understood, and agree to comply with all the following {firm} policies:")),
-    // The policy names are DERIVED from the registry, never typed - see this
-    // file's header. "Company Asset Document" is a document, not a
-    // registered policy, so it is appended as one extra fixed item.
-    bullets(...readyPolicies().map((p) => [t(p.title)]), [t("Company Asset Document")]),
+    para(t("I further confirm that I have read, understood, and agree to comply with all the following Altus Corp policies:")),
+    // Fixed to the approved PDF; see this file's header.
+    bullets(
+      [t("Attendance Policy")],
+      [t("Incentive Clash Policy")],
+      [t("Anti-Harassment & Non-Discrimination Policy")],
+      [t("Prevention of Sexual Harassment (POSH) Policy")],
+      [t("Employee Separation / Exit Policy")],
+      [t("Pre-Employment Training & Evaluation Policy")],
+      [t("Company Asset Document")],
+    ),
 
     heading("Employee Declaration", 2),
     para(t("I hereby declare and acknowledge that:")),
@@ -118,7 +116,7 @@ const template: LetterTemplate = {
     heading("Final Acknowledgment", 2),
     para(
       t(
-        "By signing below, I confirm that I have voluntarily read, understood, completed, and accepted the above documents and policies and agree to abide by them throughout my association with {firm}. I understand that this acknowledgment forms part of my employment records.",
+        "By signing below, I confirm that I have voluntarily read, understood, completed, and accepted the above documents and policies and agree to abide by them throughout my association with Altus Corp. I understand that this acknowledgment forms part of my employment records.",
       ),
     ),
 

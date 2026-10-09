@@ -46,6 +46,7 @@ import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const ws = workspaceForPath(pathname);
+  const isHr = pathname.startsWith("/hr");
 
   /* WHERE AM I. The bar's left side was empty once global search became an
      icon, and "empty" is a waste of the one strip that is on every screen in
@@ -67,11 +68,13 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
      lookup and knows the sub-module, so asking it first gives the bar the
      specific name and lets the band go. */
   const hrTitle = React.useMemo(() => {
-    if (!pathname.startsWith("/hr")) return null;
+    if (!isHr) return null;
     const at = locateHrRoute(pathname);
     return at.subModule?.title ?? at.module?.title ?? null;
-  }, [pathname]);
-  const title = hrTitle ?? navTitleFor(pathname) ?? moduleLabel ?? "Altus";
+  }, [isHr, pathname]);
+  // Keep the HR label exactly as it was in its rail title, now that it is
+  // aligned with every other module in this shared content bar.
+  const title = hrTitle ? `HR · ${hrTitle}` : navTitleFor(pathname) ?? moduleLabel ?? "Altus";
 
   // A page may name ITSELF, more precisely than its route can be read - one
   // candidate, a named letter, a named policy. HrTitleBar portals such a title
@@ -102,10 +105,19 @@ export function AppTopBar({ bell }: { bell?: React.ReactNode }) {
           mark and the other was 17px of grey-black UI text. */}
       {/* A page's OWN title, portaled in. `empty:hidden` so the div takes no
           space on the pages that set none. */}
-      <div ref={slots?.setTitle} className="flex min-w-0 flex-1 items-center empty:hidden" />
+      <div
+        ref={slots?.setTitle}
+        className={
+          isHr
+            ? "mr-auto flex min-w-0 items-center justify-start text-left empty:hidden"
+            : "flex min-w-0 flex-1 items-center justify-start text-left empty:hidden"
+        }
+      />
       {/* The route-derived name - the default, shown only while no page has
           claimed the slot above. */}
-      {!slots?.hasPageTitle && <h1 className="topbar-heading min-w-0 flex-1 truncate">{title}</h1>}
+      {!slots?.hasPageTitle && (
+        <h1 className="topbar-heading min-w-0 flex-1 truncate">{title}</h1>
+      )}
 
       {/* A page's OWN controls (a print button, an edit link), immediately left
           of the global cluster. These used to ride in a per-page TITLE BAND - a

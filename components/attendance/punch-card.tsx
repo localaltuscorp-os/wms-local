@@ -56,6 +56,8 @@ export function PunchCard({
   todayLabel,
   inLabel,
   outLabel,
+  nextKind,
+  completedPairs,
   tz,
   geofenceEnabled,
   officeLat,
@@ -66,6 +68,8 @@ export function PunchCard({
   todayLabel: string;
   inLabel: string | null;
   outLabel: string | null;
+  nextKind: "in" | "out";
+  completedPairs: number;
   tz: string;
   /** True when the admin has set office coordinates (location is required). */
   geofenceEnabled: boolean;
@@ -241,15 +245,13 @@ export function PunchCard({
   }
 
   // Presence state → the disc mode + the headline under it.
-  const checkedIn = inLabel !== null;
-  const checkedOut = outLabel !== null;
-  const mode: DiscMode = checkedIn && checkedOut ? "done" : checkedIn ? "out" : "in";
+  const mode: DiscMode = completedPairs >= 3 && nextKind === "in" ? "done" : nextKind === "out" ? "out" : "in";
   const status =
     mode === "done"
-      ? { label: "Day Complete", sub: `In ${inLabel} · Out ${outLabel}`, dot: "#94a3b8" }
+      ? { label: "3 Sessions Complete", sub: `Last check-out ${outLabel ?? "recorded"}`, dot: "#94a3b8" }
       : mode === "out"
         ? { label: `Checked in · since ${inLabel}`, sub: "Tap the dial when you're heading out", dot: "var(--color-green)" }
-        : { label: "Ready to check in", sub: "One tap when you reach the office", dot: GREEN };
+        : { label: completedPairs > 0 ? `Session ${completedPairs + 1} ready` : "Ready to check in", sub: completedPairs > 0 ? "Start your next work session when you return" : "One tap when you reach the office", dot: GREEN };
 
   const discDisabled = pending || mode === "done" || !locationReady;
 

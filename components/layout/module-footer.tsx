@@ -1,12 +1,14 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import {
   ADMIN_PANEL_ENTRY,
   MODULE_ORDER,
   MODULE_THEME,
-  moduleShortcutHint,
   moduleShortcutLabel,
 } from "@/lib/module-theme";
 import {
@@ -17,66 +19,10 @@ import {
 } from "@/lib/workspaces";
 
 /**
- * SITE-WIDE MODULE FOOTER — every room, one row, on every page.
- *
- * A second way into the ten modules that does not depend on getting back to the
- * hub first. The left rail only ever shows the room you are already inside, so
- * moving between modules meant Hub → card → module; this makes it one click from
- * wherever you are.
- *
- * SOURCE OF TRUTH is `MODULE_ORDER` + `MODULE_THEME` — the same pair the hub
- * grid renders, so a room added there appears here automatically and the label,
- * icon and destination can never disagree between the two surfaces. (Note the
- * destinations are NOT uniform: most rooms enter through `/ws/<id>`, which sets
- * the workspace cookie and forwards to that room's landing, while Billing links
- * straight to `/billing`. Taking `href` from the theme is what keeps that right.)
- *
- * ACCESS: every module is LISTED — a room you cannot enter is still worth
- * knowing exists — but one you cannot access renders as plain text rather than a
- * link, because `(app)/layout.tsx` would bounce the click to /hub and a link
- * that silently sends you somewhere else reads as a bug. This mirrors the hub's
- * locked cards. It is presentation only: the real boundary is the layout gate
- * plus each room's own checks.
- *
-
- * ONE EXCEPTION, and the dock renders `listedModules` rather than MODULE_ORDER
- * to honour it: the Control Panel must not be seen at all by somebody without
- * the permission — a greyed label is still a menu entry for a room that hands
- * out access. `listedModules` omits it for them and appends it for everybody
- * else. See CONDITIONAL_MODULES in lib/module-theme.ts.
- *
- *
-* PINNED TO THE BOTTOM OF THE VIEWPORT, on every page, at any scroll position.
- * It rests as a slim strip carrying a grabber; hovering (or tapping) that
- * grabber reveals the glass dock, which then stays until the X is pressed.
- *
- * Pinning was twice reverted before, for two real reasons, and both are answered
- * here rather than re-accepted:
- *
- *   1. IT RODE OVER CONTENT. A bar pinned across the foot of the viewport hides
- *      the bottom 52px of whatever is behind it — on a long table, a row. The
- *      strip still reserves its own height at the END of the page (pt-6 plus the
- *      52px band), so the last thing a page renders always clears it; scrolled
- *      to the bottom, the dock sits in its natural place and covers nothing.
- *   2. IT SWALLOWED CLICKS. The whole strip was the hover target, so a 52px band
- *      across the page ate every click aimed at what was underneath. Now only
- *      the grabber is live: the band is pointer-events-none and the small
- *      centred target re-enables itself, so the rest of the strip is not there
- *      as far as the mouse is concerned.
- *
- * `sticky` rather than `fixed` on purpose. Fixed is positioned against the
- * VIEWPORT, which would strand the dock behind the left rail and stop it
- * tracking the rail collapsing or widening. Sticky keeps it in flow — so
- * `mx-auto` still centres it in the CONTENT column, for free.
-
-
- *
- * A client component — the reveal is stateful. The `access` object is still
- * passed in rather than resolved here so the layout's single `accessFor(me)`
- * call covers both the route gate and this footer, instead of querying twice a
- * page.
+ * Site-wide module switcher. It is named ModuleFooter for backwards-compatible
+ * imports, but is rendered at the very top of ChromeShell as a compact handle.
+ * Hovering or focusing the centre chevron opens the complete modules bar.
  */
-
 export interface ModuleFooterProps {
   access: WorkspaceAccessInput;
   modules: readonly WorkspaceId[];
@@ -85,120 +31,85 @@ export interface ModuleFooterProps {
 export function ModuleFooter({ access, modules }: ModuleFooterProps) {
   const pathname = usePathname();
   const activeWs = workspaceForPath(pathname ?? "/");
+  const [expanded, setExpanded] = React.useState(false);
+  const closeTimer = React.useRef<number | null>(null);
 
-  // A HIDDEN DOCK AT THE END OF THE PAGE, revealed by hovering its own strip.
-  //
-  // It is not a hover menu: once revealed it STAYS revealed, and only the X puts
-  // it away. Tying visibility to continued hover would mean holding the cursor
-  // inside a 46px strip while reading the labels, which is exactly the fiddly
-  // behaviour this replaces.
+  const openNav = React.useCallback(() => {
+    if (closeTimer.current) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setExpanded(true);
+  }, []);
+
+  const closeNav = React.useCallback(() => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    // The short delay makes moving from the small centre handle into the row
+    // feel reliable instead of closing the menu under the cursor.
+    closeTimer.current = window.setTimeout(() => {
+      setExpanded(false);
+      closeTimer.current = null;
+    }, 160);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+  }, []);
+
   return (
     <div
-      // THE REVEAL STRIP — the end of the page, and the dock's own hover target.
-      //
-      // `sticky bottom-0` pins the strip to the foot of the viewport at any
-      // scroll position, while leaving it IN FLOW — which is what keeps
-      // `mx-auto` centring it in the CONTENT column instead of the viewport, so
-      // it tracks the rail collapsing, widening or disappearing for free. The
-      // rail is 74px collapsed and 212/228/288px expanded depending on the
-      // module, so no constant offset could ever have been right, and that is
-      // exactly what `fixed` would have forced.
-      //
-      // `mt-auto` still applies: on a page shorter than the viewport there is
-      // nothing to stick to, and it drops to the bottom of the column instead.
-      //
-      // POINTER-EVENTS-NONE IS LOAD-BEARING. A pinned 52px band across the foot
-      // of every page would otherwise intercept every click meant for the
-      // content behind it. The band is transparent to the mouse; only the
-      // grabber below re-enables itself, and the dock does so when revealed.
-      className="module-footer sticky bottom-0 z-40 mt-auto w-full border-t pt-0 print:hidden"
-      style={{
-        color: "var(--aura-ink, #0a0f22)",
-        background: "linear-gradient(180deg, #fdfdff, #f3f5fc)",
-        borderColor: "rgba(22,32,68,0.1)",
-        boxShadow: "0 -1px 0 rgba(255,255,255,0.95) inset, 0 -8px 24px -18px rgba(22,32,68,0.28)",
+      className="module-footer module-top-nav print:hidden"
+      data-expanded={expanded ? "true" : "false"}
+      onMouseEnter={openNav}
+      onMouseLeave={closeNav}
+      onFocusCapture={openNav}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeNav();
       }}
     >
-      {/* Fixed-height band: the dock is absolutely positioned inside it, so the
-          space is reserved whether or not the dock is shown and revealing it
-          shifts nothing. Being the last thing on the page, that band is also the
-          page's own bottom clearance — scrolled to the end, the strip settles
-          into it and covers nothing. While stuck mid-scroll it does overlay the
-          bottom 52px, which is the price of being reachable without scrolling;
-          the band is click-through so it costs the pointer nothing. */}
-      <div className="relative flex min-h-[52px] w-full items-center">
-        {/* Resting affordance AND the dock's only hover target — a grabber, so
-            a strip that is otherwise invisible and click-through is still
-            discoverable. It fades out as the dock fades in.
-
-            `onClick` as well as `onMouseEnter` because on touch `mouseenter`
-            never fires. Moving away does NOT hide it again — only the X does;
-            requiring sustained hover would mean holding the cursor inside a
-            52px band while reading ten labels.
-
-            It is `pointer-events-auto` inside a `pointer-events-none` parent:
-            the ONE live spot on an otherwise transparent strip. Its hit area is
-            deliberately wider than the 36px it draws, or it would be a pixel
-            hunt. */}
-      <nav
-        aria-label="All modules"
-        // Hidden state is inert as well as invisible: `inert` drops it out of the
-        // tab order and the accessibility tree, so a keyboard user never lands on
-        // ten invisible links. Revealing it restores both. It sits on the nav,
-        // not the wrapper — an inert wrapper would swallow its own hover.
-        // `max-w` + `overflow-x-auto` keep it from ever exceeding its column: on
-        // a narrow screen the strip scrolls sideways inside its own glass rather
-        // than pushing the page wider.
-        className="flex w-full items-center gap-x-0.5 overflow-x-auto px-6 py-2 max-md:px-4"
-        style={{
-          // A short lift rather than the old slide-off-screen: in flow there is
-          // no viewport edge to hide behind, and a long travel would read as the
-          // bar arriving from somewhere else on the page.
-          // Belt and braces with `inert`: an invisible dock must not eat a click
-          // aimed at whatever sits behind it.
-          scrollbarWidth: "none",
-        }}
+      <div className="module-top-nav-hover-zone" aria-hidden="true" />
+      <button
+        type="button"
+        className="module-top-nav-handle"
+        aria-label="Show all modules navigation"
+        aria-expanded={expanded}
+        aria-controls="module-top-nav-links"
+        title="Show all modules"
+        onMouseEnter={openNav}
+        onClick={openNav}
       >
+        <ChevronDown size={9} strokeWidth={2.5} />
+      </button>
+      <nav
+        id="module-top-nav-links"
+        aria-label="All modules"
+        aria-hidden={!expanded}
+        className="module-top-nav-links"
+      >
+        <Link href="/hub" aria-label="Altus Hub" className="module-top-nav-logo">
+          <Image src="/logo.png" alt="" width={26} height={26} priority className="h-6 w-6 object-contain" />
+        </Link>
         {modules.map((id) => {
-          const m = MODULE_THEME[id];
-          // INDEXED OFF MODULE_ORDER, never off the rendered list. A conditional
-          // module (the Control Panel) is appended to `listedModules` and owns no
-          // letter, so the two lists are the same length only by coincidence —
-          // and a letter looked up by render position would move the moment one
-          // appeared or disappeared. `indexOf` returns -1 for a module with no
-          // place in the order, which resolves to no badge, which is correct.
-          const i = MODULE_ORDER.indexOf(id);
+          const moduleConfig = MODULE_THEME[id];
+          const index = MODULE_ORDER.indexOf(id);
           const allowed = canAccessWorkspace(id, access);
-          const Icon = m.Icon;
-          const shortcut = moduleShortcutHint(i);
-          // The badge is the compact "⌥Q"; the hover says it in words.
-          const shortcutLabel = moduleShortcutLabel(i);
+          const Icon = moduleConfig.Icon;
+          const shortcutLabel = moduleShortcutLabel(index);
           const active = activeWs === id;
 
           const inner = (
             <>
-              {/* The same letter the hub badges show, so the shortcut is
-                  learnable from whichever surface you happen to be looking at.
-                  Dimmer than the label — a hint, not a heading — and aria-hidden
-                  so the row does not read as "Alt Q W M S Alt W Goals".
-                  The ⌥ prefix is not decoration: the letter alone does not
-                  navigate (it would collide with typing), so a bare "Q" here
-                  would be advertising a shortcut that does nothing. The glyph
-                  is spelled out as "Alt+Q" in this entry's hover title. */}
-              {shortcut && <span aria-hidden className="opacity-55">{shortcut}</span>}
-              <Icon size={15} strokeWidth={2.3} aria-hidden />
-              <span className="whitespace-nowrap">{m.label}</span>
+              <Icon size={14} strokeWidth={2.3} aria-hidden />
+              <span className="whitespace-nowrap">{moduleConfig.label}</span>
             </>
           );
 
-          // Locked: no link, no hover affordance, and said out loud for screen
-          // readers rather than left as an unexplained dead label.
           if (!allowed) {
             return (
               <span
                 key={id}
-                title={`${m.label} — you don't have access to this module`}
-                className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold"
+                title={`${moduleConfig.label} — you don't have access to this module`}
+                className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-semibold"
                 style={{ color: "rgba(15,23,42,0.30)" }}
               >
                 {inner}
@@ -210,21 +121,15 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
           return (
             <Link
               key={id}
-              href={m.href}
-              title={shortcutLabel ? `${m.label} — ${shortcutLabel}` : m.label}
+              href={moduleConfig.href}
+              title={shortcutLabel ? `${moduleConfig.label} — ${shortcutLabel}` : moduleConfig.label}
               aria-current={active ? "page" : undefined}
-              // Resting state is a dark neutral so ten labels do not glare on the
-              // light glass; the module's own accent appears on hover/focus, and
-              // stays on for the room you are already in.
-              className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+              className="group inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
               style={{
-                ["--mod-accent" as string]: m.accent,
-                // ACTIVE is a tint plus the accent on the text — deliberately not
-                // a filled pill, which at this size reads as a selected tab in a
-                // toolbar rather than a hint of where you are.
-                color: active ? m.accent : "rgba(15,23,42,0.62)",
+                ["--mod-accent" as string]: moduleConfig.accent,
+                color: active ? moduleConfig.accent : "rgba(15,23,42,0.62)",
                 ...(active
-                  ? { background: `color-mix(in srgb, ${m.accent} 10%, transparent)` }
+                  ? { background: `color-mix(in srgb, ${moduleConfig.accent} 10%, transparent)` }
                   : null),
               }}
             >
@@ -233,36 +138,21 @@ export function ModuleFooter({ access, modules }: ModuleFooterProps) {
           );
         })}
 
-        {/* THE ADMIN PANEL — the standalone entry, admins only.
-            Last in the row and after the modules, because it is not one of them:
-            `/admin` belongs to no workspace, so it is never `active` here and
-            never tints the dock. Same href, same guard, same panel as the
-            user-menu link — see ADMIN_PANEL_ENTRY in lib/module-theme.ts.
-            "⌥A" rather than a bare "A": inside a room the letter alone is
-            typing, exactly as for every other entry on this dock. */}
         {access.isAdmin && (
           <Link
             href={ADMIN_PANEL_ENTRY.href}
             title={`${ADMIN_PANEL_ENTRY.label} — Alt+${ADMIN_PANEL_ENTRY.shortcut}`}
-            className="group inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
+            className="group inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] font-semibold outline-none transition-colors hover:!bg-[color-mix(in_srgb,var(--mod-accent)_12%,transparent)] hover:!text-[var(--mod-accent)] focus-visible:ring-2 focus-visible:ring-[var(--mod-accent)]/45"
             style={{
               ["--mod-accent" as string]: ADMIN_PANEL_ENTRY.accent,
               color: "rgba(15,23,42,0.62)",
             }}
           >
-            <span aria-hidden className="opacity-55">{`⌥${ADMIN_PANEL_ENTRY.shortcut}`}</span>
-            <ADMIN_PANEL_ENTRY.Icon size={15} strokeWidth={2.3} aria-hidden />
+            <ADMIN_PANEL_ENTRY.Icon size={14} strokeWidth={2.3} aria-hidden />
             <span className="whitespace-nowrap">{ADMIN_PANEL_ENTRY.label}</span>
           </Link>
         )}
-
-        {/* Dismiss. Separated by a hairline so it reads as a control on the dock
-            rather than an eleventh module. The dock can always be summoned again
-            by hovering the strip, so this hides rather than disables anything.
-            `stopPropagation` because the wrapper's own onClick re-reveals —
-            without it the X would hide and instantly show again. */}
       </nav>
-      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   attendanceLogs,
@@ -22,6 +22,7 @@ import { getOrgSettings } from "@/lib/queries/org-settings";
 import { withRetry } from "@/lib/db/with-timeout";
 import { insertPunchRow, resolvePunchGeofence } from "@/lib/attendance/record-punch";
 import { evaluateOfficeIp } from "@/lib/attendance/office-ip";
+import { mayPunchAttendanceAnywhere } from "@/lib/auth/security-roles";
 
 import { isManagerWithReports, isMondayIST, managerMondayGoalState } from "@/lib/manager-gates";
 import {
@@ -134,6 +135,7 @@ export async function punchAttendance(input: {
     timeoutMs: [6000, 10000, 14000],
     label: "punch-org-settings",
   });
+  const mayPunchAnywhere = await mayPunchAttendanceAnywhere(me);
 
   // ── DESIGNATED-DEVICE GATE (WEB punch) ───────────────────────────────
   // Now the SAME check the whole WMS runs — `lib/security/device-access.ts` —
@@ -162,7 +164,7 @@ export async function punchAttendance(input: {
   // precise location). When no coordinates are set the punch is accepted from
   // anywhere and location is still recorded. Shared verbatim with the mobile
   // punch via resolvePunchGeofence so the rule never diverges.
-  const geo = resolvePunchGeofence(settings, location);
+  const geo = resolvePunchGeofence(settings, location, mayPunchAnywhere);
   if (!geo.ok) return { ok: false, error: geo.error };
 
   // ── Office-network gate (WEB punch only) — closes the browser bypass ──
@@ -173,7 +175,9 @@ export async function punchAttendance(input: {
   // out). The device-bound mobile app punch is intentionally NOT gated here
   // (staff may be on mobile data at the office; it carries the stronger
   // device + mock + integrity anti-proxy instead).
-  const officeIp = await evaluateOfficeIp(settings.officeIpAllowlist);
+  const officeIp = mayPunchAnywhere
+    ? { configured: false, allowed: true, ip: null }
+    : await evaluateOfficeIp(settings.officeIpAllowlist);
   if (officeIp.configured && !officeIp.allowed) {
     return {
       ok: false,
@@ -485,6 +489,7 @@ async function currentPunch(
         eq(attendanceLogs.kind, kind),
       ),
     )
+    .orderBy(desc(attendanceLogs.loggedAt))
     .limit(1);
   return row ?? null;
 }
@@ -583,9 +588,19 @@ async function upsertPunchCore(
   if (!auth.ok) return auth;
 
   try {
-    await db
-      .insert(attendanceLogs)
-      .values({
+    if (before) {
+      await db
+        .update(attendanceLogs)
+        .set({
+          loggedAt,
+          source: "admin",
+          reason,
+          recordedById: meId,
+          verifyMethod: "none",
+        })
+        .where(eq(attendanceLogs.id, before.id));
+    } else {
+      await db.insert(attendanceLogs).values({
         employeeId,
         logDate,
         kind,
@@ -594,21 +609,8 @@ async function upsertPunchCore(
         reason,
         recordedById: meId,
         verifyMethod: "none",
-      })
-      .onConflictDoUpdate({
-        target: [
-          attendanceLogs.employeeId,
-          attendanceLogs.logDate,
-          attendanceLogs.kind,
-        ],
-        set: {
-          loggedAt,
-          source: "admin",
-          reason,
-          recordedById: meId,
-          verifyMethod: "none",
-        },
       });
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };
@@ -698,6 +700,7 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
   if (!editable.ok) return editable;
 
   const before = await currentPunch(employeeId, logDate, kind);
+  if (!before) return { ok: false, error: "There's no matching punch to clear." };
   const auth = await authorizeAttendanceMutation({
     actor: me,
     targetEmployeeId: employeeId,
@@ -709,15 +712,7 @@ export async function superAdminSetPunch(input: unknown): Promise<ActionResult> 
 
   const tz = (await targetTz(employeeId)) ?? "Asia/Kolkata";
   try {
-    await db
-      .delete(attendanceLogs)
-      .where(
-        and(
-          eq(attendanceLogs.employeeId, employeeId),
-          eq(attendanceLogs.logDate, logDate),
-          eq(attendanceLogs.kind, kind),
-        ),
-      );
+    await db.delete(attendanceLogs).where(eq(attendanceLogs.id, before.id));
   } catch (err) {
     return { ok: false, error: `DB: ${err instanceof Error ? err.message : String(err)}` };
   }
@@ -932,6 +927,7 @@ export async function adminDeletePunch(
   if (!editable.ok) return editable;
 
   const before = await currentPunch(employeeId, logDate, kind);
+  if (!before) return { ok: false, error: "There's no matching punch to delete." };
   const auth = await authorizeAttendanceMutation({
     actor: me,
     targetEmployeeId: employeeId,
@@ -943,15 +939,7 @@ export async function adminDeletePunch(
 
   const tz = (await targetTz(employeeId)) ?? "Asia/Kolkata";
   try {
-    await db
-      .delete(attendanceLogs)
-      .where(
-        and(
-          eq(attendanceLogs.employeeId, employeeId),
-          eq(attendanceLogs.logDate, logDate),
-          eq(attendanceLogs.kind, kind),
-        ),
-      );
+    await db.delete(attendanceLogs).where(eq(attendanceLogs.id, before.id));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };

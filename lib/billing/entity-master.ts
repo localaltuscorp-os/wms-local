@@ -253,8 +253,20 @@ export const CreateBillingEntitySchema = z.object({
    FILES
    ════════════════════════════════════════════════════════════════════════════ */
 
-/** The three roles a stored file can play, matching the DB check constraint. */
-export const ENTITY_FILE_KINDS = ["logo", "signature", "document"] as const;
+/** Stored file roles, matching the DB check constraint. */
+export const ENTITY_FILE_KINDS = [
+  "logo",
+  "signature",
+  "document",
+  "cancelled_cheque",
+  "gst_certificate",
+  "pan_card",
+  "aadhar_card",
+  "msme_certificate",
+  "tin_certificate",
+  "signing_entity_photo",
+  "signing_entity_signature",
+] as const;
 export type EntityFileKind = (typeof ENTITY_FILE_KINDS)[number];
 
 export function isEntityFileKind(v: unknown): v is EntityFileKind {
@@ -265,11 +277,23 @@ export const ENTITY_FILE_KIND_LABELS: Record<EntityFileKind, string> = {
   logo: "Entity Logo",
   signature: "Proprietor Signature",
   document: "Billing Document",
+  cancelled_cheque: "Cancelled Cheque Copy",
+  gst_certificate: "GST Certificate",
+  pan_card: "PAN Card Copy",
+  aadhar_card: "Aadhar Card Copy",
+  msme_certificate: "MSME Certificate",
+  tin_certificate: "TIN Certificate",
+  signing_entity_photo: "Signing Entity Photo",
+  signing_entity_signature: "Signing Entity Signature",
 };
 
-/** Exactly one logo and one signature per entity; documents are unlimited. */
+/** Exactly one file per named field; generic documents remain unlimited. */
 export function isSingletonFileKind(kind: EntityFileKind): boolean {
-  return kind === "logo" || kind === "signature";
+  return kind !== "document";
+}
+
+export function isImageFileKind(kind: EntityFileKind): boolean {
+  return kind === "logo" || kind === "signature" || kind === "signing_entity_photo" || kind === "signing_entity_signature";
 }
 
 /**
@@ -292,7 +316,7 @@ export const IMAGE_MIME_TYPES = [
 ] as const;
 
 export function imageKindError(kind: EntityFileKind, mimeType: string | null): string | null {
-  if (kind === "document") return null;
+  if (!isImageFileKind(kind)) return null;
   const ok = mimeType != null && (IMAGE_MIME_TYPES as readonly string[]).includes(mimeType);
   return ok
     ? null
