@@ -136,14 +136,14 @@ export function usesIndependentWeeklyHours(month: string): boolean {
 
 /**
  * Three late marks are a warning. In a short 54-hour week the fourth creates
- * two half-day deductions; every later mark creates one more.
+ * one half-day deduction; every later mark creates one more.
  */
 export function latePenaltyHalfDaysForWeek(
   lateMarks: number,
   requirementMet: boolean,
 ): number {
   if (requirementMet || lateMarks < 4) return 0;
-  return lateMarks - 2;
+  return lateMarks - 3;
 }
 
 /** yyyy-mm-dd → yyyy-mm. */

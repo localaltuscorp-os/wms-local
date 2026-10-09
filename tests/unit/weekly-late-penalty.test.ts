@@ -36,7 +36,7 @@ function sixDayWeek(
 }
 
 describe("October 2026 weekly late-mark policy", () => {
-  it("charges two half-days for four late marks below 54 hours, then one more for each late", () => {
+  it("charges one half-day for four late marks below 54 hours, then one more for each late", () => {
     const four = reconcileMonth(sixDayWeek("2026-10-05", 530, 4), {
       month: "2026-10",
       ...FULL_TIME_OPTIONS,
@@ -51,9 +51,9 @@ describe("October 2026 weekly late-mark policy", () => {
     });
 
     expect(four.weeks[0]?.actualMinutes).toBe(53 * 60);
-    expect(four.latePenaltyHalfDays).toBe(2);
-    expect(five.latePenaltyHalfDays).toBe(3);
-    expect(six.latePenaltyHalfDays).toBe(4);
+    expect(four.latePenaltyHalfDays).toBe(1);
+    expect(five.latePenaltyHalfDays).toBe(2);
+    expect(six.latePenaltyHalfDays).toBe(3);
   });
 
   it("does not apply a late-mark deduction once the 54-hour weekly target is met", () => {

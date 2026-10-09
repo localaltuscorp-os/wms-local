@@ -2,13 +2,13 @@
 
 - **Date:** 2026-10-09
 - **Work item:** `feature/weekly-late-penalty`
-- **Status:** Implemented locally; not committed, pushed, merged, or deployed.
+- **Status:** Preview branch updated; production is not merged or deployed.
 
 ## Objective
 
 Apply the approved attendance rule from October 2026: a full-time employee who
 does not meet the applicable weekly hours target receives no late penalty for
-up to three late marks; the fourth late mark creates two half-day deductions,
+up to three late marks; the fourth late mark creates one half-day deduction,
 and each later late mark creates one additional half-day deduction. Weekly
 surplus hours must not carry into a later week.
 
@@ -52,7 +52,8 @@ surplus hours must not carry into a later week.
 
 ## Release notes
 
-- No commit or push has been made yet.
+- Preview branch commit `40833fb7` was pushed and previewed. The final rule
+  correction described above still requires its own test, commit, and preview.
 - Before release: review the policy wording with payroll/HR, commit only the
   listed files, push this feature branch for a Vercel preview, and verify a
   representative October payroll calculation before production approval.
