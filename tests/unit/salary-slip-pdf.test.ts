@@ -170,6 +170,8 @@ const MONTH: MySalaryMonth = {
   present: 22,
   absent: 4,
   halfDay: 0,
+  holidayDays: 1,
+  weeklyOffDays: 4,
   finalWorkingDays: 26,
   daysInMonth: 30,
   remarks: null,
