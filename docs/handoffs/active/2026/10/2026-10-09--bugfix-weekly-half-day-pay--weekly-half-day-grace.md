@@ -2,7 +2,8 @@
 
 - Date: 2026-10-09
 - Work item: `bugfix/weekly-half-day-pay`
-- Status: implemented locally; not committed, pushed, reviewed, or deployed
+- Status: committed and pushed for review; preview is ready; production merge is
+  blocked by an unrelated failed Vercel status check
 
 ## Objective
 
@@ -64,13 +65,26 @@ None.
 - Passed full TypeScript validation with a temporary 4 GB Node heap after
   installing the lockfile-pinned dependencies in this isolated worktree:
   `pnpm typecheck`.
+- GitHub Actions CI passed on pull request #17: dependency installation,
+  type-check, and the full test suite. Visual tests were skipped by CI because
+  the repository has no complete secret-backed visual-test environment.
+- Vercel preview is ready at
+  `https://altus-aegky0cli-altus-corp1.vercel.app`.
+
+## Release evidence
+
+- Feature commit: `29e1dd84694a18693cd4fa761c189b2aa541b589`
+- Pull request: `https://github.com/Altus-corp/Altus-OS/pull/17`
+- Base at review time: `e0977f6787cc861a2d4b10dd4c0b3de8e34e5997`
 
 ## Remaining release steps
 
-1. Review the change and confirm that the weekly target rule is the approved
-   payroll policy.
-2. Commit, push this feature branch, obtain a preview/review, then approve any
-   production promotion separately.
+1. Correct or remove the stale GitHub `Vercel` status integration that points
+   to the separate `feature-salary-monthly-ctc-column` Vercel project. It was
+   already failing before this branch's GitHub Actions job began, while the
+   actual `altus-os` preview above is ready.
+2. Once the release checks are clean, merge pull request #17 into
+   `Altus-corp/Altus-OS:main` and monitor the production deployment.
 
 ## Rollback
 
