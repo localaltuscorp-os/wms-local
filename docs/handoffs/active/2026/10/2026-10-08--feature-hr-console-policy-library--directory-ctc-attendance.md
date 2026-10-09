@@ -153,6 +153,15 @@ they were not applied to a shared or production database during this work.
   named the Accounts, approvals, directory, policy, or onboarding paths added
   in this work. Update those visual contracts in a dedicated follow-up before
   treating the visual suite as a merge gate.
+- Before push, the branch merged the current remote feature head without
+  conflicts (merge commit `84874459`), bringing in the reviewed billing,
+  incentive-upload, and security-role work already present on that branch.
+  The first post-merge parallel unit run had two activity tests time out and
+  one incentive performance assertion exceed its budget under local worker
+  contention. Both affected files pass when run serially in isolation. A full
+  serial re-run produced no diagnostics but exceeded the local ten-minute
+  command window, so rely on the required clean-worker GitHub `test` check for
+  the authoritative merged-head result.
 
 - `node_modules\\.bin\\tsc.cmd --noEmit` — passed.
 - `node_modules\\.bin\\vitest.cmd run` — passed: 402 files, 5,335 tests;
@@ -181,5 +190,7 @@ they were not applied to a shared or production database during this work.
 ## Commit handoff
 
 Feature implementation commit for development review: `23eaffaa`
-(`feat(hr): extend accounts and approval workflows`). Local build directories,
-dummy storage, test artifacts, and the screenshot are intentionally excluded.
+(`feat(hr): extend accounts and approval workflows`), followed by
+`24ef6e81` (handoff update) and merge commit `84874459`. Local build
+directories, dummy storage, test artifacts, and the screenshot are
+intentionally excluded.
