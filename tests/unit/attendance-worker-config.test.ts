@@ -293,13 +293,13 @@ describe("§4–§6 — the signed weekly carry, the spec's own ladder", () => {
   });
 });
 
-describe("Test 6 — monthly half-day grace: 3 waived, the rest charged", () => {
-  // Five short weeks, each with exactly one half-day, none reaching the waiver.
+describe("Test 6 — missed-target half-days are charged immediately", () => {
+  // One short week with five half-days and no weekly-target waiver.
   const days = [
     ...weekDays("2025-08-04", [330, 330, 330, 330, 330, 330]),
     ...weekDays("2025-08-11", [330, 330, 330, 330, 330, 330]),
   ];
-  // Force exactly 5 half-days in the month, the rest absent.
+  // Force exactly 5 half-days in that week, the rest absent.
   const shaped = days.map((d, i) => ({
     ...d,
     code: i < 5 ? "H/D" : "A",
@@ -308,17 +308,17 @@ describe("Test 6 — monthly half-day grace: 3 waived, the rest charged", () => 
 
   const res = reconcileMonth(shaped, { month: "2025-08", ...FT_OPTS });
 
-  it("charges exactly 2 of the 5", () => {
+  it("charges all 5 half-days", () => {
     expect(res.halfDayCharges).toHaveLength(5);
-    expect(res.warnedHalfDays).toBe(3);
-    expect(res.chargeableHalfDays).toBe(2);
+    expect(res.warnedHalfDays).toBe(0);
+    expect(res.chargeableHalfDays).toBe(5);
   });
 
-  it("the first three are warnings, the 4th and 5th bite", () => {
+  it("does not grant a half-day warning allowance", () => {
     expect(res.halfDayCharges.map((c) => c.waived)).toEqual([
-      true,
-      true,
-      true,
+      false,
+      false,
+      false,
       false,
       false,
     ]);
@@ -342,7 +342,7 @@ describe("§6/§7 — a waived week's half-day does not spend a grace slot", () 
     expect(res.weeks[0]!.deviationsWaived).toBe(true);
   });
 
-  it("its half-day is absorbed, not counted against the 3 monthly slots", () => {
+  it("its half-day is absorbed because the week met its target", () => {
     expect(res.waiverAbsorbedHalfDays).toBe(1);
     expect(res.halfDayCharges.every((c) => c.date >= "2025-08-11")).toBe(true);
   });
@@ -470,7 +470,7 @@ describe("other worker types are left alone", () => {
 });
 
 describe("Regression: paired hybrid punches retain their worked duration", () => {
-  it("grades 13:20 to 19:55 as Present even with a legacy-wide schedule window", () => {
+  it("keeps the worked duration but grades an arrival over an hour late as Half Day", () => {
     const cfg = resolveEffectiveConfig(
       {
         workerType: "hybrid",
@@ -489,7 +489,7 @@ describe("Regression: paired hybrid punches retain their worked duration", () =>
     );
 
     expect(result.workedMinutes).toBe(395);
-    expect(result.code).toBe("P");
+    expect(result.code).toBe("H/D");
   });
 });
 

@@ -239,14 +239,14 @@ describe("§3 — the monthly target is dynamic, never a fixed 216", () => {
   });
 });
 
-describe("§15 — the monthly half-day grace still bites from the 4th", () => {
+describe("§15 — each supplied half-day penalty costs half a scheduled day", () => {
   const base = {
     monthlySalary: 40000, monthlyTargetHours: 216, payableHoursRaw: 216,
     dailyTargetHours: 9,
     ptExempt: true, tdsMonthly: 0, advances: 0, pendingBalanceIn: 0,
   };
 
-  it("no charge when the month's half-days are all within the grace", () => {
+  it("no charge when no half-day penalty is supplied", () => {
     const s = computeScheduleHourlySalary({ ...base, chargeableHalfDays: 0 });
     expect(s.gross).toBe(40000);
   });

@@ -19,7 +19,7 @@ import type { EmployeeAttendanceAnalytics } from "@/lib/attendance/analytics/emp
 import { EmployeeAvatar } from "@/components/ui/employee-avatar";
 import { AttendanceKpiStrip } from "@/components/attendance/attendance-kpi-strip";
 import { SelfView } from "@/components/attendance/self-view";
-import { MONTHLY_HALF_DAY_GRACE } from "@/lib/attendance/hour-balance";
+import { LATE_PUNCH_GRACE_PER_WEEK } from "@/lib/attendance/hour-balance";
 import { TodayPanel } from "@/components/attendance/today-panel";
 import { MonthCalendar } from "@/components/attendance/month-calendar";
 import { LeaveBalanceCard } from "@/components/attendance/leave/leave-balance-card";
@@ -82,7 +82,7 @@ export function EmployeeAttendanceDashboard({
       <SelfView
         data={data.periods}
         weeklyTargetMinutes={data.weeklyTargetMinutes}
-        monthlyHalfDayGrace={MONTHLY_HALF_DAY_GRACE}
+        latePunchGrace={LATE_PUNCH_GRACE_PER_WEEK}
       />
 
       {/* Leave + comp-off context */}

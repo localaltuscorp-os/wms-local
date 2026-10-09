@@ -183,7 +183,7 @@ describe("payrollMonthFor reproduces the sequence it replaced", () => {
     expect(finished.payroll.elapsedGradedDays).toBe(31);
   });
 
-  it("restores salary value for the first three monthly half-day grace cases", () => {
+  it("does not restore salary value for half-days in missed-target weeks", () => {
     const days = month({
       "2026-08-04": { code: "H/D", dayValue: 0.5, workedMinutes: 5 * 60 },
       "2026-08-11": { code: "H/D", dayValue: 0.5, workedMinutes: 5 * 60 },
@@ -197,9 +197,9 @@ describe("payrollMonthFor reproduces the sequence it replaced", () => {
       refTodayISO: "2026-08-31",
     });
 
-    expect(got.recon.warnedHalfDays).toBe(3);
-    expect(got.recon.chargeableHalfDays).toBe(1);
-    expect(got.payroll.payableDayValue).toBe(30.5);
+    expect(got.recon.warnedHalfDays).toBe(0);
+    expect(got.recon.chargeableHalfDays).toBe(4);
+    expect(got.payroll.payableDayValue).toBe(29);
   });
 
   it("restores salary value for a half-day absorbed by the weekly-hours waiver", () => {

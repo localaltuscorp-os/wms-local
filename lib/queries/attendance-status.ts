@@ -762,7 +762,7 @@ export interface DashboardRow {
  * The type and the sequence that builds it now live in
  * lib/attendance/payroll-month.ts, so the three surfaces that derived it
  * independently (this dashboard, the Attendance KPI's "salary lost", the
- * half-day grace) read one implementation. Re-exported here because this is
+ * half-day waiver) read one implementation. Re-exported here because this is
  * where every caller already imports it from.
  */
 export type { EmployeePayrollMonth };

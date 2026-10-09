@@ -12,7 +12,7 @@
 //   lib/queries/attendance-status.ts  getMonthDashboard's per-employee payroll
 //                                     block (the one the salary engine reads)
 //   lib/queries/attendance-summary.ts salaryLostForMonth  (the Attendance KPI)
-//   lib/queries/attendance-summary.ts graceForMonth       (half-day grace)
+//   lib/queries/attendance-summary.ts graceForMonth       (target-met half-day waiver)
 //
 // Three copies of an ordering that MATTERS: `payableHoursForMonth` takes the
 // reconciliation as an input, the reconciliation takes the employee's resolved
@@ -235,7 +235,9 @@ export function payrollMonthFor(
       // `joined` is already bounded to elapsed, gradeable days, so this is the
       // month SO FAR — the same set every other figure above was derived from.
       // The grader records every H/D as 0.5. Reconciliation decides which of
-      // those halves are actually forgiven, so restore only those halves here.
+      // those halves are actually forgiven: only half-days in a week that meets
+      // its target. In a missed-target week, every half-day remains a half-pay
+      // day. Restore only the forgiven halves here.
       // Manual/admin waive-offs remain a separate salary-breakup adjustment;
       // including them here as well would credit the same waiver twice.
       payableDayValue: rawPayableDayValue + forgivenHalfDayValue,

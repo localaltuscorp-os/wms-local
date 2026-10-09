@@ -69,7 +69,6 @@
 
 import {
   isPaidCreditedDay,
-  MONTHLY_HALF_DAY_GRACE,
   UNPAID_LEAVE_CODE,
   type MonthReconciliation,
   type PayableHoursResult,
@@ -388,6 +387,10 @@ export interface LedgerDay {
   adjustment: number | null;
   /** Why the day differs from a normal one, in the pay model's own terms. */
   adjustmentReason: string | null;
+  /** Salary protected for a half-day because its week met the weekly target. */
+  waivedAmount?: number | null;
+  /** The employee-readable reason for the protected salary. */
+  waiverReason?: string | null;
   /** Minutes of this day that were payable at the hourly rate. */
   payableMinutes: number;
   late: boolean;
@@ -545,7 +548,7 @@ export interface DayLedger {
     /** Hours beyond everything the month required. */
     netSurplusMinutes: number;
     chargeableHalfDays: number;
-    /** Half-days the 3-per-month grace forgave. */
+    /** Retained for report compatibility; half-days have no standalone grace allowance. */
     warnedHalfDays: number;
     /** Half-days the weekly-hours waiver absorbed (these spend no grace slot). */
     waiverAbsorbedHalfDays: number;
@@ -658,8 +661,9 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
 
   // ── The two per-date charges the engine makes ──────────────────────────────
   // Read from the engine's own record, keyed by the date IT recorded, so the
-  // report can never charge a day the payslip did not. A chargeable half-day is
-  // the 4th onward in the month; the first three are warned only.
+  // report can never charge a day the payslip did not. Every half-day in a
+  // missed-target week is chargeable; only a week that meets its target waives
+  // its half-days.
   // `recon.halfDayCharges` carries the date and the ordinal, which is the whole
   // reason a per-day attribution of this charge is possible at all.
   //
@@ -786,6 +790,14 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
     let adjustment: number | null = null;
     let standardEarning: number | null = null;
     let adjustmentReason: string | null = null;
+    const waivedAmount =
+      dailyRate != null && !future && forgivenHalfDays.has(d.logDate)
+        ? round2(dailyRate / 2)
+        : null;
+    const waiverReason =
+      waivedAmount != null
+        ? "Half-day pay protected because this week's attendance target was met."
+        : null;
 
     if (pay.mode === "hours_schedule") {
       // ── THE RETIRED MODEL'S CHARGES, UNCHANGED ────────────────────────
@@ -800,9 +812,8 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
       if (ordinal != null) {
         charge -= (chargeRate * dailyTarget) / 60 / 2;
         adjustmentReason =
-          `Half-day #${ordinal} this month. The first ${MONTHLY_HALF_DAY_GRACE} each month are ` +
-          `warned only; from the ${MONTHLY_HALF_DAY_GRACE + 1}th, half a scheduled day is charged ` +
-          `at your hourly rate.`;
+          `Half-day #${ordinal} this week. Because the weekly target was missed, ` +
+          `half a scheduled day is charged at your hourly rate.`;
       }
       if (chargesUnpaidLeave && d.code === UNPAID_LEAVE_CODE) {
         charge -= (chargeRate * dailyTarget) / 60;
@@ -852,6 +863,8 @@ export function buildDayLedger(input: DayLedgerInput): DayLedger {
       standardEarning,
       adjustment,
       adjustmentReason,
+      waivedAmount,
+      waiverReason,
       payableMinutes,
       late: d.late,
       leftEarly: d.leftEarly,

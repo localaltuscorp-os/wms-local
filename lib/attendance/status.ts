@@ -46,6 +46,13 @@ export interface DayCodeResult {
 }
 
 /**
+ * After an employee's configured late cutoff, they have one hour in which the
+ * day remains a late-mark day. Later arrivals are half-days. The cutoff itself
+ * remains employee-specific; this is only the policy window after it.
+ */
+export const LATE_MARK_WINDOW_MINUTES = 60;
+
+/**
  * Pure day-code rules engine. Given a check-in/check-out pair, the resolved
  * schedule, the day context, and a reference "now" (HH:mm) used to compute
  * worked minutes when the person hasn't checked out yet, return the day code.
@@ -115,6 +122,8 @@ export function computeDayCode(
 
   const worked = Math.max(0, (outAt ? toMin(outAt) : toMin(refNow)) - toMin(inAt));
   const late = toMin(inAt) > toMin(sched.lateAfter);
+  const lateBeyondHalfDayWindow =
+    toMin(inAt) > toMin(sched.lateAfter) + LATE_MARK_WINDOW_MINUTES;
   // Early = left strictly BEFORE the early-before time (7:30 pm). At exactly the
   // cutoff it is NOT early (Sir: "7:30 ke pehle logout = early").
   const leftEarly = outAt != null && toMin(outAt) < toMin(sched.earlyBefore);
@@ -146,18 +155,34 @@ export function computeDayCode(
   //   ≥ halfDayMinutes → Half Day (H/D)
   //   below            → Absent   (A)  ← present but under the floor
   //
-  // A late arrival / early exit that STILL lands a full day is forgiven
-  // (lateWaived) — the hours were made up, so the mark should not also bite.
-  if (worked >= sched.fullDayMinutes) {
-    const lateWaived = late || leftEarly;
-    return { code: "P", dayValue: 1, late, leftEarly, lateWaived, workedMinutes: worked };
+  // Someone below the half-day minimum is still absent, even if they also left
+  // before the cutoff. A half-day requires at least the employee's configured
+  // half-day minimum.
+  if (worked < sched.halfDayMinutes) {
+    return { code: "A", dayValue: 0, late, leftEarly, lateWaived: false, workedMinutes: worked };
   }
-  if (worked >= sched.halfDayMinutes) {
+
+  // The employee-specific `lateAfter` cutoff starts the late-mark window. A
+  // check-in more than one hour after it is a half-day even if staying late
+  // makes the raw duration look like a full day.
+  if (lateBeyondHalfDayWindow) {
     return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
   }
-  // Under the half-day floor. The person punched in, so the marks stay visible
-  // and auditable (spec §5) even though the day itself credits nothing.
-  return { code: "A", dayValue: 0, late, leftEarly, lateWaived: false, workedMinutes: worked };
+
+  // Leaving before this employee's configured early cutoff is a half-day even
+  // if an early check-in made the raw duration look like a full day. The policy
+  // uses each employee's resolved schedule, never a hard-coded company time.
+  if (leftEarly) {
+    return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
+  }
+
+  // A late arrival that still completes the scheduled duration stays a full
+  // day. The weekly late-arrival policy decides whether repeated late marks
+  // later produce a salary penalty.
+  if (worked >= sched.fullDayMinutes) {
+    return { code: "P", dayValue: 1, late, leftEarly, lateWaived: late, workedMinutes: worked };
+  }
+  return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
 }
 
 /**
