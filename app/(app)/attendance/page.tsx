@@ -89,9 +89,16 @@ function splitDateLabel(date: string): { dow: string; dm: string } {
 
 /** Worked milliseconds for a day (needs both punches, out after in). */
 function workedMs(d: DayPunches): number | null {
-  if (!d.in || !d.out) return null;
-  const ms = d.out.at.getTime() - d.in.at.getTime();
-  return ms > 0 ? ms : null;
+  let open: Date | null = null;
+  let total = 0;
+  for (const punch of d.punches) {
+    if (punch.kind === "in") open = punch.at;
+    else if (open && punch.at > open) {
+      total += punch.at.getTime() - open.getTime();
+      open = null;
+    }
+  }
+  return total > 0 ? total : null;
 }
 
 /** 27_120_000 → "7h 32m" */
@@ -224,19 +231,22 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   }));
 
   const todayRow = myDays.find((d) => d.date === today);
+  const todayPunches = todayRow?.punches ?? [];
+  const lastTodayPunch = todayPunches.at(-1) ?? null;
+  const lastTodayIn = [...todayPunches].reverse().find((punch) => punch.kind === "in") ?? null;
+  const lastTodayOut = [...todayPunches].reverse().find((punch) => punch.kind === "out") ?? null;
+  const todayStarts = todayPunches.filter((punch) => punch.kind === "in").length;
+  const todayEnds = todayPunches.filter((punch) => punch.kind === "out").length;
+  const completedPairs = Math.min(todayStarts, todayEnds);
+  const latestKnownPunch = myDays.flatMap((day) => day.punches).sort((left, right) => right.at.getTime() - left.at.getTime())[0] ?? null;
+  const nextPunchKind: "in" | "out" = (lastTodayPunch ?? latestKnownPunch)?.kind === "in" ? "out" : "in";
   const firstName = me.name.split(" ")[0] ?? me.name;
 
   // Most recent punch across the loaded window → "Last punch" line in the hero.
   let lastPunchLabel: string | null = null;
   for (const d of myDays) {
-    const latest =
-      d.out && d.in
-        ? (d.out.at > d.in.at ? { p: d.out, kind: "out" as const } : { p: d.in, kind: "in" as const })
-        : d.out
-          ? { p: d.out, kind: "out" as const }
-          : d.in
-            ? { p: d.in, kind: "in" as const }
-            : null;
+    const punch = d.punches.at(-1) ?? null;
+    const latest = punch ? { p: punch, kind: punch.kind } : null;
     if (latest) {
       const when = d.date === today ? "today" : labelForDate(d.date);
       lastPunchLabel = `${latest.kind === "in" ? "Check-in" : "Check-out"} · ${when} at ${formatTimeInTz(latest.p.at, tz)}`;
@@ -290,8 +300,10 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const punchCard = (
     <PunchCard
       todayLabel={labelForDate(today)}
-      inLabel={todayRow?.in ? formatTimeInTz(todayRow.in.at, tz) : null}
-      outLabel={todayRow?.out ? formatTimeInTz(todayRow.out.at, tz) : null}
+      inLabel={lastTodayIn ? formatTimeInTz(lastTodayIn.at, tz) : null}
+      outLabel={lastTodayOut ? formatTimeInTz(lastTodayOut.at, tz) : null}
+      nextKind={nextPunchKind}
+      completedPairs={completedPairs}
       tz={tz}
       geofenceEnabled={geofenceEnabled}
       officeLat={settings.officeLat}

@@ -1,13 +1,18 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, ChevronDown, ChevronRight, ExternalLink, Loader2, Paperclip, Pencil, ShieldCheck, X } from "lucide-react";
+import { Fragment, type DragEvent as ReactDragEvent, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import { ArrowDown, ArrowUp, ChevronsUpDown, ChevronDown, ChevronRight, ClipboardList, ExternalLink, GripVertical, Loader2, Paperclip, Pencil, ShieldCheck, X } from "lucide-react";
 import type { ApprovalKind, ApprovalRow, ApprovalStatus, AttendancePerformanceDay } from "@/lib/compensation/workflow";
 import { decideApproval } from "@/app/(admin)/admin/approvals/actions";
 import { listClaimAttachments, type ClaimAttachmentView } from "@/app/(app)/reimbursements/attachment-actions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CtcBreakupTab } from "@/components/admin/approvals/ctc-breakup-tab";
+import type { CtcApprovalRow } from "@/lib/hr/ctc/approval-list";
 
-const TABS: readonly ApprovalKind[] = ["attendance", "incentive", "reimbursement", "salary"];
+type ApprovalTab = ApprovalKind | "ctc";
+const TABS: readonly ApprovalTab[] = ["attendance", "incentive", "reimbursement", "salary", "ctc"];
 const STATUSES: readonly ("all" | ApprovalStatus)[] = ["pending", "approved", "rejected", "paid", "all"];
 
 const money = (amount: number) => `Rs. ${amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -40,6 +45,13 @@ function displayDate(date: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 }
 
+function displayPeriod(period: string | null): string {
+  if (!period) return "-";
+  const isoDate = /^\d{4}-\d{2}$/.test(period) ? `${period}-01` : period.slice(0, 10);
+  if (Number.isNaN(Date.parse(`${isoDate}T12:00:00Z`))) return period;
+  return displayDate(isoDate).replaceAll(" ", "-");
+}
+
 function displayDay(date: string): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 }
@@ -59,6 +71,11 @@ type AttendanceWeek = { start: string; days: AttendancePerformanceDay[] };
 type ApprovalSortKey = "employee" | "request" | "period" | "amount" | "decision" | "note";
 type ApprovalSort = { key: ApprovalSortKey; direction: "asc" | "desc" } | null;
 type DecisionDialogState = { row: ApprovalRow; status: "approved" | "rejected"; edit: boolean };
+type ApprovalColumn = "employee" | "request" | "period" | "amount" | "decision" | "note" | "attachments" | "action" | "details";
+
+const APPROVAL_COLUMN_ORDER: readonly ApprovalColumn[] = [
+  "employee", "request", "period", "amount", "decision", "note", "attachments", "action", "details",
+];
 
 const textCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 const approvalCheckboxClass = (selected: boolean) => selected
@@ -85,13 +102,45 @@ function attendanceWeeks(days: AttendancePerformanceDay[]): AttendanceWeek[] {
     .sort((left, right) => left.start.localeCompare(right.start));
 }
 
-export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode }: { rows: ApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean }) {
-  const [kind, setKind] = useState<ApprovalKind>("attendance");
+function columnsFor(kind: ApprovalKind, order: readonly ApprovalColumn[]): ApprovalColumn[] {
+  return order.filter((column) => {
+    if (column === "request") return kind !== "attendance";
+    if (column === "attachments") return kind === "reimbursement";
+    if (column === "details") return kind === "attendance";
+    return true;
+  });
+}
+
+function labelForColumn(column: ApprovalColumn, kind: ApprovalKind): string {
+  switch (column) {
+    case "employee": return "Employee";
+    case "request": return "Request";
+    case "period": return "Period";
+    case "amount": return kind === "attendance" ? "Worked days" : "Amount";
+    case "decision": return "Decision";
+    case "note": return "Note";
+    case "attachments": return "Attachments";
+    case "action": return "Action";
+    case "details": return "Attendance details";
+  }
+}
+
+function sortKeyForColumn(column: ApprovalColumn): ApprovalSortKey | null {
+  return column === "employee" || column === "request" || column === "period" || column === "amount" || column === "decision" || column === "note"
+    ? column
+    : null;
+}
+
+export function ApprovalWorkbench({ rows, ctcRows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode, preview = false }: { rows: ApprovalRow[]; ctcRows: CtcApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean; preview?: boolean }) {
+  const [kind, setKind] = useState<ApprovalTab>("attendance");
+  const approvalKind: ApprovalKind = kind === "ctc" ? "attendance" : kind;
   // The local test workspace starts on every status so Edit controls are
   // immediately visible for each approval tab. The real queue remains
   // focused on pending items by default.
   const [filter, setFilter] = useState<(typeof STATUSES)[number]>(testingMode ? "all" : "pending");
   const [sort, setSort] = useState<ApprovalSort>(null);
+  const [columnOrder, setColumnOrder] = useState<ApprovalColumn[]>(() => [...APPROVAL_COLUMN_ORDER]);
+  const [draggedColumn, setDraggedColumn] = useState<ApprovalColumn | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [openAttendanceId, setOpenAttendanceId] = useState<string | null>(null);
   const [openWeekIds, setOpenWeekIds] = useState<string[]>([]);
@@ -103,9 +152,11 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
   const [decisionNote, setDecisionNote] = useState("");
   const [decisionAmount, setDecisionAmount] = useState("");
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [previewRows, setPreviewRows] = useState(rows);
   const [pending, start] = useTransition();
+  const sourceRows = preview ? previewRows : rows;
   const visible = useMemo(() => {
-    const filtered = rows.filter((row) => row.kind === kind && (filter === "all" || row.status === filter));
+    const filtered = sourceRows.filter((row) => row.kind === approvalKind && (filter === "all" || row.status === filter));
     if (!sort) return filtered;
 
     return filtered.slice().sort((left, right) => {
@@ -126,12 +177,39 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
         : textCollator.compare(String(leftValue), String(rightValue));
       return sort.direction === "asc" ? comparison : -comparison;
     });
-  }, [rows, kind, filter, sort]);
+  }, [sourceRows, approvalKind, filter, sort]);
 
   function toggleSort(key: ApprovalSortKey) {
     setSort((current) => current?.key === key
       ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
       : { key, direction: key === "amount" ? "desc" : "asc" });
+  }
+
+  function startColumnDrag(event: ReactDragEvent<HTMLTableCellElement>, column: ApprovalColumn) {
+    setDraggedColumn(column);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", column);
+  }
+
+  function dropColumn(event: ReactDragEvent<HTMLTableCellElement>, target: ApprovalColumn) {
+    event.preventDefault();
+    const source = draggedColumn ?? event.dataTransfer.getData("text/plain") as ApprovalColumn;
+    // Employee is the table's pinned reference column. Keep it first so it
+    // remains readable while the other columns are rearranged and scrolled.
+    if (!source || source === "employee" || target === "employee" || source === target || !APPROVAL_COLUMN_ORDER.includes(source)) {
+      setDraggedColumn(null);
+      return;
+    }
+    setColumnOrder((current) => {
+      const from = current.indexOf(source);
+      const to = current.indexOf(target);
+      if (from < 0 || to < 0) return current;
+      const next = [...current];
+      next.splice(from, 1);
+      next.splice(to, 0, source);
+      return next;
+    });
+    setDraggedColumn(null);
   }
 
   const selectedVisibleCount = visible.filter((row) => selectedIds.has(row.subjectId)).length;
@@ -148,7 +226,8 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     && workflowReady
     && allowEdit
     && (selectedRow.status === "approved" || selectedRow.status === "rejected");
-  const columnCount = kind === "reimbursement" ? 9 : 8;
+  const columns = useMemo(() => columnsFor(approvalKind, columnOrder), [approvalKind, columnOrder]);
+  const columnCount = columns.length + 1;
 
   function toggleRowSelection(id: string, selected: boolean) {
     setSelectedIds((current) => {
@@ -168,7 +247,7 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     });
   }
 
-  function selectKind(nextKind: ApprovalKind) {
+  function selectKind(nextKind: ApprovalTab) {
     setKind(nextKind);
     if (nextKind === "attendance" && sort?.key === "request") setSort(null);
   }
@@ -226,6 +305,13 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     }
 
     setDecisionError(null);
+    if (preview) {
+      setPreviewRows((current) => current.map((candidate) => candidate.subjectId === row.subjectId
+        ? { ...candidate, status, note: note || null, amount: candidate.kind === "attendance" ? candidate.amount : amount }
+        : candidate));
+      setDecisionDialog(null);
+      return;
+    }
     start(async () => {
       const result = await decideApproval({
         kind: row.kind,
@@ -245,26 +331,69 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
     });
   }
 
+  function renderCell(row: ApprovalRow, column: ApprovalColumn) {
+    switch (column) {
+      case "employee":
+        return <td className={`sticky left-12 z-20 min-w-[240px] whitespace-nowrap px-4 py-3 font-semibold text-slate-900 shadow-[8px_0_10px_-12px_rgba(15,23,42,0.45)] ${selectedIds.has(row.subjectId) ? "bg-red-50" : "bg-white"}`} title={row.employeeName}>{row.employeeName}</td>;
+      case "request":
+        return <td className="max-w-64 px-4 py-3 text-slate-700"><span className="block truncate" title={row.label}>{row.label}</span></td>;
+      case "period":
+        return <td className="px-4 py-3 whitespace-nowrap text-slate-600">{displayPeriod(row.periodMonth)}</td>;
+      case "amount":
+        return <td className="px-4 py-3 whitespace-nowrap text-right font-medium text-slate-800">{row.kind === "attendance" ? workedDaysFor(row).toFixed(2) : money(row.amount)}</td>;
+      case "decision":
+        return <td className="px-4 py-3 whitespace-nowrap"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ring-1 ${statusTone(row.status)}`}>{row.status}</span></td>;
+      case "note":
+        return <NoteCell note={row.note} />;
+      case "attachments":
+        return <ReimbursementAttachmentCell row={row} onOpen={() => void openAttachments(row)} />;
+      case "action":
+        return <td className="whitespace-nowrap px-4 py-3 text-left">
+          {workflowReady && canDecide && (row.kind !== "incentive" || canDecideIncentive) && row.status === "pending" && <><button type="button" disabled={pending} onClick={() => openDecisionDialog(row, "approved")} className="mr-2 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-50">Yes</button><button type="button" disabled={pending} onClick={() => openDecisionDialog(row, "rejected")} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-700 disabled:opacity-50">No</button></>}
+          {workflowReady && canDecide && row.kind === "incentive" && !canDecideIncentive && row.status === "pending" && <span className="text-xs font-semibold text-slate-500">Incentive reviewer only</span>}
+          {row.status === "paid" && <span className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700"><ShieldCheck size={14} /> Paid</span>}
+          {row.status !== "pending" && row.status !== "paid" && <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"><ShieldCheck size={14} /> Final</span>}
+        </td>;
+      case "details":
+        return <td className="whitespace-nowrap px-4 py-3 text-right"><button type="button" onClick={() => toggleAttendance(row)} aria-expanded={openAttendanceId === row.subjectId} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:text-red-700">{openAttendanceId === row.subjectId ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Weeks</button></td>;
+    }
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+    <Tooltip.Provider delayDuration={150}>
+    <section className="space-y-3">
+      {preview && <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900">Preview data is active because the local approvals backend is unavailable. You can approve, reject, and edit these records in this session without changing live data.</div>}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Approval sections">
           {TABS.map((tab) => (
-            <button key={tab} type="button" role="tab" aria-selected={kind === tab} onClick={() => selectKind(tab)} className={`rounded-lg border px-3 py-2 text-sm font-bold transition-colors ${kind === tab ? "border-red-200 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-700 hover:border-red-100 hover:bg-red-50/50"}`}>
-              {labelFor(tab)}
+            <button key={tab} type="button" role="tab" aria-selected={kind === tab} onClick={() => selectKind(tab)} className={`rounded-lg border px-3 py-2 text-sm font-bold transition-colors ${kind === tab ? "border-red-200 bg-red-50 text-red-700" : "border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50"}`}>
+              {tab === "ctc" ? "CTC Breakup" : labelFor(tab)}
             </button>
           ))}
         </div>
-        <label className="shrink-0 text-sm font-semibold text-slate-700">
-          <span className="sr-only">Approval status</span>
-          <select value={filter} onChange={(event) => setFilter(event.target.value as (typeof STATUSES)[number])} className="h-9 min-w-32 rounded-lg border border-slate-300 bg-white px-3 text-sm">
-            {STATUSES.map((status) => <option key={status} value={status}>{status === "all" ? "All statuses" : status.charAt(0).toUpperCase() + status.slice(1)}</option>)}
-          </select>
-        </label>
+        <div className="flex shrink-0 items-center gap-2">
+          {kind === "ctc" ? <Link href="/hr/ctc" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"><ClipboardList size={15} strokeWidth={2.4} aria-hidden /> CTC workspace</Link> : <>
+          {kind === "attendance" && (
+            <Link
+              href="/attendance/dashboard"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
+            >
+              <ClipboardList size={15} strokeWidth={2.4} aria-hidden />
+              Att Report
+            </Link>
+          )}
+          <label className="text-sm font-semibold text-slate-700">
+            <span className="sr-only">Approval status</span>
+            <select value={filter} onChange={(event) => setFilter(event.target.value as (typeof STATUSES)[number])} className="h-9 min-w-32 rounded-lg border border-slate-300 bg-transparent px-3 text-sm">
+              {STATUSES.map((status) => <option key={status} value={status}>{status === "all" ? "All statuses" : status.charAt(0).toUpperCase() + status.slice(1)}</option>)}
+            </select>
+          </label>
+          </>}
+        </div>
       </div>
 
-      {!workflowReady && <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900"><ShieldCheck size={16} aria-hidden /> Setup required: approval actions are unavailable until the compensation approval database migration is installed.</div>}
-      {selectedVisibleCount > 0 && <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-sm" aria-live="polite" role="region" aria-label="Actions for selected approvals">
+      {kind === "ctc" ? <CtcBreakupTab rows={ctcRows} /> : <>
+      {selectedVisibleCount > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm shadow-[0_8px_20px_-18px_rgba(15,23,42,0.4)]" aria-live="polite" role="region" aria-label="Actions for selected approvals">
         <span className="mr-1 font-semibold text-slate-700">{selectedVisibleCount} approval{selectedVisibleCount === 1 ? "" : "s"} selected</span>
         <button type="button" disabled={!canUseSelectedEdit || pending} onClick={() => selectedRow && openDecisionDialog(selectedRow, selectedRow.status === "approved" ? "approved" : "rejected", true)} title={canUseSelectedEdit ? "Edit the selected approval" : "Select one approved or rejected unpaid approval to edit"} className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:border-red-200 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45"><Pencil size={14} aria-hidden /> Edit</button>
         <span className="inline-flex rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">Actions</span>
@@ -272,52 +401,48 @@ export function ApprovalWorkbench({ rows, canDecide, canDecideIncentive, workflo
         <button type="button" disabled={!canUseSelectedDecision || pending} onClick={() => selectedRow && openDecisionDialog(selectedRow, "rejected")} title={canUseSelectedDecision ? "Reject the selected pending approval" : "Select one pending approval to reject"} className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45">No</button>
       </div>}
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {!workflowReady && <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900"><ShieldCheck size={16} aria-hidden /> Setup required: approval actions are unavailable until the compensation approval database migration is installed.</div>}
+      <div className="no-scrollbar overflow-x-auto">
+        <table className="min-w-[1180px] w-full text-left text-sm">
           <thead className="bg-slate-50/70 text-xs font-bold uppercase tracking-wide text-slate-600">
             <tr>
-              <th scope="col" className="w-12 px-4 py-3 text-left">
+              <th scope="col" className="sticky left-0 z-40 w-12 bg-slate-50 px-4 py-3 text-left">
                 <Checkbox checked={allVisibleSelected} indeterminate={someVisibleSelected} onChange={toggleAllVisible} ariaLabel="Select all visible approvals" className={approvalCheckboxClass(allVisibleSelected || someVisibleSelected)} />
               </th>
-              <SortableApprovalHeader label="Employee" sortKey="employee" sort={sort} onSort={toggleSort} />
-              {kind !== "attendance" && <SortableApprovalHeader label="Request" sortKey="request" sort={sort} onSort={toggleSort} />}
-              <SortableApprovalHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} />
-              <SortableApprovalHeader label={kind === "attendance" ? "Worked days" : "Amount"} sortKey="amount" sort={sort} onSort={toggleSort} />
-              <SortableApprovalHeader label="Decision" sortKey="decision" sort={sort} onSort={toggleSort} />
-              <SortableApprovalHeader label="Note" sortKey="note" sort={sort} onSort={toggleSort} />
-              {kind === "reimbursement" && <th scope="col" className="px-4 py-3 text-left font-bold">Attachments</th>}
-              <th className="px-4 py-3 text-left font-bold">Action</th>
-              {kind === "attendance" && <th scope="col" aria-label="Attendance details" className="w-28 px-4 py-3" />}
+              {columns.map((column) => (
+                <DraggableApprovalHeader
+                  key={column}
+                  column={column}
+                  kind={approvalKind}
+                  sort={sort}
+                  dragging={draggedColumn === column}
+                  onSort={toggleSort}
+                  onDragStart={startColumnDrag}
+                  onDragEnd={() => setDraggedColumn(null)}
+                  onDrop={dropColumn}
+                />
+              ))}
             </tr>
           </thead>
           <tbody>
             {visible.map((row) => <Fragment key={row.subjectId}>
-              <tr className={`border-t border-slate-100 align-top ${selectedIds.has(row.subjectId) ? "bg-red-50/40" : ""}`}>
-                <td className="px-4 py-3"><Checkbox checked={selectedIds.has(row.subjectId)} onChange={(selected) => toggleRowSelection(row.subjectId, selected)} ariaLabel={`Select ${row.employeeName} approval`} className={approvalCheckboxClass(selectedIds.has(row.subjectId))} /></td>
-                <td className="px-4 py-3 font-semibold text-slate-900">{row.employeeName}</td>
-                {row.kind !== "attendance" && <td className="px-4 py-3 text-slate-700">{row.label}</td>}
-                <td className="px-4 py-3 whitespace-nowrap text-slate-600">{row.periodMonth ?? "-"}</td>
-                <td className="px-4 py-3 text-right font-medium text-slate-800">{row.kind === "attendance" ? workedDaysFor(row).toFixed(2) : money(row.amount)}</td>
-                <td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ring-1 ${statusTone(row.status)}`}>{row.status}</span></td>
-                <td className="max-w-64 px-4 py-3 text-slate-600">{row.note ?? "-"}</td>
-                {row.kind === "reimbursement" && <ReimbursementAttachmentCell row={row} onOpen={() => void openAttachments(row)} />}
-                <td className="whitespace-nowrap px-4 py-3 text-right">
-                  {workflowReady && canDecide && (row.kind !== "incentive" || canDecideIncentive) && row.status === "pending" && <><button type="button" disabled={pending} onClick={() => openDecisionDialog(row, "approved")} className="mr-2 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-50">Yes</button><button type="button" disabled={pending} onClick={() => openDecisionDialog(row, "rejected")} className="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-700 disabled:opacity-50">No</button></>}
-                  {workflowReady && canDecide && row.kind === "incentive" && !canDecideIncentive && row.status === "pending" && <span className="text-xs font-semibold text-slate-500">Incentive reviewer only</span>}
-                  {row.status === "paid" && <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"><ShieldCheck size={14} /> Paid · Locked</span>}
-                  {row.status !== "pending" && row.status !== "paid" && <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"><ShieldCheck size={14} /> Final</span>}
-                </td>
-                {row.kind === "attendance" && <td className="w-28 whitespace-nowrap px-4 py-3 text-right"><button type="button" onClick={() => toggleAttendance(row)} aria-expanded={openAttendanceId === row.subjectId} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:text-red-700">{openAttendanceId === row.subjectId ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Weeks</button></td>}
+              <tr className={`border-t border-slate-100 ${selectedIds.has(row.subjectId) ? "bg-red-50/40" : ""}`}>
+                <td className={`sticky left-0 z-30 w-12 px-4 py-3 ${selectedIds.has(row.subjectId) ? "bg-red-50" : "bg-white"}`}><Checkbox checked={selectedIds.has(row.subjectId)} onChange={(selected) => toggleRowSelection(row.subjectId, selected)} ariaLabel={`Select ${row.employeeName} approval`} className={approvalCheckboxClass(selectedIds.has(row.subjectId))} /></td>
+                {columns.map((column) => <Fragment key={column}>{renderCell(row, column)}</Fragment>)}
               </tr>
               {row.kind === "attendance" && openAttendanceId === row.subjectId && <tr className="border-t border-slate-100 bg-slate-50/60"><td colSpan={columnCount} className="p-0"><AttendanceWeeksTable row={row} openWeekIds={openWeekIds} onToggleWeek={toggleWeek} /></td></tr>}
             </Fragment>)}
-            {visible.length === 0 && <tr><td colSpan={columnCount} className="px-4 py-12 text-center text-slate-500">No {filter === "all" ? "" : `${filter} `}{labelFor(kind).toLowerCase()} items.</td></tr>}
+            {visible.length === 0 && <tr><td colSpan={columnCount} className="px-4 py-12 text-center text-slate-500">No {filter === "all" ? "" : `${filter} `}{labelFor(approvalKind).toLowerCase()} items.</td></tr>}
           </tbody>
         </table>
       </div>
+      </div>
+      </>}
       {attachmentRow && <ReimbursementAttachmentsDialog row={attachmentRow} files={attachmentFiles} error={attachmentError} loading={attachmentsLoading} onClose={() => setAttachmentRow(null)} />}
       {decisionDialog && <ApprovalDecisionDialog state={decisionDialog} note={decisionNote} amount={decisionAmount} error={decisionError} pending={pending} onNoteChange={setDecisionNote} onAmountChange={setDecisionAmount} onClose={closeDecisionDialog} onSubmit={submitDecision} />}
     </section>
+    </Tooltip.Provider>
   );
 }
 
@@ -368,7 +493,7 @@ function ReimbursementAttachmentCell({ row, onOpen }: { row: ApprovalRow; onOpen
   const hasReceiptLink = !!row.receiptUrl;
   if (!hasDocuments && !hasReceiptLink) return <td className="px-4 py-3 text-slate-400">-</td>;
 
-  return <td className="whitespace-nowrap px-4 py-3"><div className="flex flex-wrap items-center gap-2">
+  return <td className="whitespace-nowrap px-4 py-3"><div className="flex items-center gap-2">
     {hasDocuments && <button type="button" onClick={onOpen} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:border-red-200 hover:text-red-700"><Paperclip size={14} aria-hidden /> {documentCount} {documentCount === 1 ? "document" : "documents"}</button>}
     {hasReceiptLink && <a href={row.receiptUrl!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-red-700"><ExternalLink size={14} aria-hidden /> Receipt link</a>}
   </div></td>;
@@ -388,18 +513,76 @@ function ReimbursementAttachmentsDialog({ row, files, error, loading, onClose }:
   </div>;
 }
 
-function SortableApprovalHeader({ label, sortKey, sort, onSort }: { label: string; sortKey: ApprovalSortKey; sort: ApprovalSort; onSort: (key: ApprovalSortKey) => void }) {
-  const active = sort?.key === sortKey;
-  const Icon = !active ? ChevronsUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
-  const direction = active ? sort.direction : null;
+function DraggableApprovalHeader({
+  column,
+  kind,
+  sort,
+  dragging,
+  onSort,
+  onDragStart,
+  onDragEnd,
+  onDrop,
+}: {
+  column: ApprovalColumn;
+  kind: ApprovalKind;
+  sort: ApprovalSort;
+  dragging: boolean;
+  onSort: (key: ApprovalSortKey) => void;
+  onDragStart: (event: ReactDragEvent<HTMLTableCellElement>, column: ApprovalColumn) => void;
+  onDragEnd: () => void;
+  onDrop: (event: ReactDragEvent<HTMLTableCellElement>, column: ApprovalColumn) => void;
+}) {
+  const label = labelForColumn(column, kind);
+  const sortKey = sortKeyForColumn(column);
+  const active = sortKey ? sort?.key === sortKey : false;
+  const Icon = !active ? ChevronsUpDown : sort?.direction === "asc" ? ArrowUp : ArrowDown;
+  const direction = active ? sort?.direction : null;
+  const pinned = column === "employee";
 
   return (
-    <th className="px-4 py-3 text-left" aria-sort={direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none"}>
-      <button type="button" onClick={() => onSort(sortKey)} title={`Sort by ${label}`} className={`group/sort inline-flex items-center gap-1.5 whitespace-nowrap font-bold uppercase transition-colors ${active ? "text-slate-900" : "text-slate-600 hover:text-slate-800"}`}>
-        {label}
-        <Icon size={13} strokeWidth={2.5} aria-hidden className={active ? "text-red-700" : "opacity-45 transition-opacity group-hover/sort:opacity-100"} />
-      </button>
+    <th
+      scope="col"
+      draggable={!pinned}
+      onDragStart={pinned ? undefined : (event) => onDragStart(event, column)}
+      onDragOver={pinned ? undefined : (event) => event.preventDefault()}
+      onDrop={pinned ? undefined : (event) => onDrop(event, column)}
+      onDragEnd={onDragEnd}
+      aria-sort={direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none"}
+      className={`${pinned ? "sticky left-12 z-40 min-w-[240px] cursor-default bg-slate-50 shadow-[8px_0_10px_-12px_rgba(15,23,42,0.45)]" : "cursor-grab active:cursor-grabbing"} select-none whitespace-nowrap px-4 py-3 text-left ${dragging ? "bg-red-50 text-red-700" : ""}`}
+      title={pinned ? "Employee column is pinned while scrolling" : `Drag ${label} to reorder columns`}
+    >
+      <div className="inline-flex items-center gap-1.5">
+        {!pinned && <GripVertical size={14} strokeWidth={2.1} aria-hidden className="opacity-35" />}
+        {sortKey ? (
+          <button type="button" onClick={() => onSort(sortKey)} title={`Sort by ${label}`} className={`group/sort inline-flex items-center gap-1.5 font-bold uppercase transition-colors ${active ? "text-slate-900" : "text-slate-600 hover:text-slate-800"}`}>
+            {label}
+            <Icon size={13} strokeWidth={2.5} aria-hidden className={active ? "text-red-700" : "opacity-45 transition-opacity group-hover/sort:opacity-100"} />
+          </button>
+        ) : <span className="font-bold uppercase text-slate-600">{label}</span>}
+      </div>
     </th>
+  );
+}
+
+function NoteCell({ note }: { note: string | null }) {
+  if (!note) return <td className="w-[240px] max-w-[240px] px-4 py-3 text-slate-400">-</td>;
+
+  return (
+    <td className="w-[240px] max-w-[240px] px-4 py-3 text-slate-600">
+      <Tooltip.Root delayDuration={150}>
+        <Tooltip.Trigger asChild>
+          <button type="button" className="block w-full cursor-help truncate text-left outline-none focus-visible:ring-2 focus-visible:ring-red-300" aria-label={`Full note: ${note}`}>
+            {note}
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content side="top" align="start" sideOffset={8} className="z-[90] max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium normal-case text-slate-700 shadow-lg">
+            {note}
+            <Tooltip.Arrow className="fill-white" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </td>
   );
 }
 

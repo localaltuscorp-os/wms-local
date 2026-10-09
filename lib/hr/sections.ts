@@ -3,7 +3,14 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { documents, employeeDocuments, employees } from "@/db/schema";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
-import { decodeOtherPolicyCategory, policyCategoryMeta, type PolicyCategory } from "@/lib/hr/policy-types";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import { dummyObjectUrl } from "@/lib/storage/dummy-url";
+import {
+  decodeOtherPolicyCategory,
+  decodePolicyOriginalFileName,
+  policyCategoryMeta,
+  type PolicyCategory,
+} from "@/lib/hr/policy-types";
 import { LETTER_DOCTYPE_PREFIX, letterTypeMeta, type LetterType } from "@/lib/hr/letter-types";
 
 /**
@@ -36,6 +43,12 @@ function categoryFromPath(path: string): PolicyCategory {
 async function signPaths(paths: string[]): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
   if (paths.length === 0) return out;
+  if (DUMMY_MODE) {
+    for (const path of paths) {
+      out.set(path, dummyObjectUrl(DOCUMENTS_BUCKET, path));
+    }
+    return out;
+  }
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin.storage.from(DOCUMENTS_BUCKET).createSignedUrls(paths, 60 * 60);
@@ -82,16 +95,17 @@ export async function listPolicies(): Promise<PolicyRow[]> {
   const signed = await signPaths(rows.map((r) => r.storagePath));
   return rows.map((r) => {
     const category = categoryFromPath(r.storagePath);
+    const original = decodePolicyOriginalFileName(r.description);
     const custom = category === "other"
-      ? decodeOtherPolicyCategory(r.description)
-      : { categoryName: null, description: r.description };
+      ? decodeOtherPolicyCategory(original.description)
+      : { categoryName: null, description: original.description };
     return {
       id: r.id,
       title: r.title,
       description: custom.description,
       category,
       customCategory: custom.categoryName,
-      fileName: r.storagePath.split("/").pop() ?? r.title,
+      fileName: original.fileName ?? r.storagePath.split("/").pop() ?? r.title,
       mimeType: r.mimeType,
       sizeBytes: r.sizeBytes,
       storagePath: r.storagePath,

@@ -8,6 +8,7 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { DelegationBanner } from "@/components/auth/delegation-banner";
 import { ActivityTracker } from "@/components/logs/activity-tracker";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 // Never cache the admin shell — it is per-user (name/email/avatar) and must be
 // resolved fresh on every request so one user's render can never be served to
@@ -24,13 +25,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const path = (await headers()).get("x-pathname") ?? "";
   const hierarchyPath = path === "/admin/hierarchy" || path.startsWith("/admin/hierarchy/");
   const hierarchyViewer = hierarchyPath && me.accountType === "employee" && me.isActive && me.employmentStatus === "active";
-  if (!me.isAdmin && !rosterManager && !hierarchyViewer) {
+  if (!DUMMY_MODE && !me.isAdmin && !rosterManager && !hierarchyViewer) {
     redirect("/hub");
   }
   // Non-admins may view only Reporting Hierarchy (active employee accounts),
   // plus Subjects/Clients for roster managers. Every other Admin address is
   // rejected here; page-level guards remain in place as well.
-  const rosterOnly = !me.isAdmin;
+  const rosterOnly = !DUMMY_MODE && !me.isAdmin;
   if (rosterOnly) {
     if (hierarchyViewer) {
       // Signed-in employees may view only the active reporting hierarchy here.

@@ -40,6 +40,13 @@ export async function mayUnlockAccounts(employee: Pick<Employee, "id" | "email">
   return hasSecurityRole(employee, "account_unlock");
 }
 
+/** May this employee bypass the office geofence and IP gates when punching? */
+export async function mayPunchAttendanceAnywhere(
+  employee: Pick<Employee, "id" | "email">,
+): Promise<boolean> {
+  return hasSecurityRole(employee, "attendance_punch_anywhere");
+}
+
 /**
  * May this person GIVE the role to somebody else?
  *

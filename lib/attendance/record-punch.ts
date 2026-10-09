@@ -1,3 +1,4 @@
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { attendanceLogs } from "@/db/schema";
 import { localDateString } from "@/lib/format";
@@ -7,6 +8,31 @@ import type { getOrgSettings } from "@/lib/queries/org-settings";
 
 type OrgSettings = Awaited<ReturnType<typeof getOrgSettings>>;
 type PunchLocation = { lat: number; lng: number; accuracyM: number };
+
+/** An employee can start at most three check-in/check-out sessions per day. */
+export const MAX_DAILY_PUNCH_PAIRS = 3;
+
+async function validateNextPunch(employeeId: string, logDate: string, kind: "in" | "out"): Promise<string | null> {
+  const [todayRows, lastRows] = await Promise.all([
+    db
+      .select({ kind: attendanceLogs.kind })
+      .from(attendanceLogs)
+      .where(and(eq(attendanceLogs.employeeId, employeeId), eq(attendanceLogs.logDate, logDate))),
+    db
+      .select({ kind: attendanceLogs.kind })
+      .from(attendanceLogs)
+      .where(eq(attendanceLogs.employeeId, employeeId))
+      .orderBy(desc(attendanceLogs.loggedAt))
+      .limit(1),
+  ]);
+  const last = lastRows[0] ?? null;
+  if (kind === "out") return last?.kind === "in" ? null : "Check in before recording a check-out.";
+  if (last?.kind === "in") return "Check out before starting another work session.";
+  const starts = todayRows.filter((row) => row.kind === "in").length;
+  return starts >= MAX_DAILY_PUNCH_PAIRS
+    ? `You have completed the maximum of ${MAX_DAILY_PUNCH_PAIRS} check-in/check-out pairs for today.`
+    : null;
+}
 
 /**
  * Gate 1 — the office geofence, shared verbatim by the web Server Action and
@@ -18,7 +44,14 @@ type PunchLocation = { lat: number; lng: number; accuracyM: number };
 export function resolvePunchGeofence(
   settings: OrgSettings,
   location: PunchLocation | undefined,
+  bypass = false,
 ): { ok: true; distanceM: number | null } | { ok: false; error: string } {
+  if (bypass) {
+    const distanceM = location && settings.officeLat != null && settings.officeLng != null
+      ? distanceMeters(location.lat, location.lng, settings.officeLat, settings.officeLng)
+      : null;
+    return { ok: true, distanceM };
+  }
   const fenced = settings.officeLat != null && settings.officeLng != null;
   if (!fenced) {
     return { ok: true, distanceM: null };
@@ -79,6 +112,8 @@ export async function insertPunchRow(
   const tz = actor.timezone || "Asia/Kolkata";
   const today = localDateString(tz);
   const { kind, note, location, distanceM } = fields;
+  const sequenceError = await validateNextPunch(actor.id, today, kind);
+  if (sequenceError) return { ok: false, error: sequenceError };
 
   const values = {
     employeeId: actor.id,
@@ -97,9 +132,6 @@ export async function insertPunchRow(
     mockLocation: verification.mockLocation ?? null,
     anomalyFlags: verification.anomalyFlags && verification.anomalyFlags.length > 0 ? verification.anomalyFlags : null,
   };
-  const dupError =
-    kind === "in" ? "You already checked in today." : "You already checked out today.";
-
   // The punch write is the single most daily-critical mutation in the app, so it
   // gets the same stale-connection self-heal the read paths have. Against the
   // Supabase txn pooler a warm instance can be handed a bounced connection: the
@@ -123,7 +155,7 @@ export async function insertPunchRow(
         // First attempt → a genuine second punch for this kind today. A LATER
         // attempt → our own earlier (timed-out/hung) insert actually committed,
         // so the punch DID succeed even though its response never came back.
-        return attempt === 0 ? { ok: false, error: dupError } : { ok: true, date: today };
+        return { ok: false, error: "Attendance is being upgraded for multiple daily sessions. Please try again after the migration is applied." };
       }
       lastErr = err;
       // Only a stale-connection HANG is worth retrying; a real error (constraint,

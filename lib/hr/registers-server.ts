@@ -28,6 +28,8 @@ export interface ContactRow {
   id: string;
   companyName: string | null;
   personName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   cellNo: string | null;
   alternateNo: string | null;
   email: string | null;
@@ -36,6 +38,25 @@ export interface ContactRow {
   contact2Name: string | null;
   contact2CellNo: string | null;
   contact2Email: string | null;
+  category?: string | null;
+  utility?: string | null;
+  amcOnCall?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  addressLine3?: string | null;
+  addressLine4?: string | null;
+  pincode?: string | null;
+  gstNo?: string | null;
+  panNo?: string | null;
+  gstName?: string | null;
+  bankDetails?: Record<string, string>;
+  contact1Name?: string | null;
+  contact1CellNo?: string | null;
+  contact1Email?: string | null;
+  attachments?: Record<string, unknown>;
+  rateNegotiated?: string | null;
+  paymentTerms?: string | null;
+  registrationSubmittedAt?: Date | null;
   notes: string | null;
   isActive: boolean;
 }
@@ -43,11 +64,17 @@ export interface ContactRow {
 export interface EmployeeContactRow {
   id: string;
   name: string;
+  firstName: string;
+  lastName: string;
   designation: string | null;
   /** Personal cell — from their onboarding form first, then their profile. */
   cell: string | null;
   /** Personal email first, then the login email. */
   email: string | null;
+  contact1Name: string | null;
+  contact1Cell: string | null;
+  contact2Name: string | null;
+  contact2Cell: string | null;
   isActive: boolean;
 }
 
@@ -56,6 +83,8 @@ export async function listContacts(): Promise<ContactRow[]> {
     id: hrContacts.id,
     companyName: hrContacts.companyName,
     personName: hrContacts.personName,
+    firstName: hrContacts.firstName,
+    lastName: hrContacts.lastName,
     cellNo: hrContacts.cellNo,
     alternateNo: hrContacts.alternateNo,
     email: hrContacts.email,
@@ -73,6 +102,25 @@ export async function listContacts(): Promise<ContactRow[]> {
         contact2Name: hrContacts.contact2Name,
         contact2CellNo: hrContacts.contact2CellNo,
         contact2Email: hrContacts.contact2Email,
+        category: hrContacts.category,
+        utility: hrContacts.utility,
+        amcOnCall: hrContacts.amcOnCall,
+        addressLine1: hrContacts.addressLine1,
+        addressLine2: hrContacts.addressLine2,
+        addressLine3: hrContacts.addressLine3,
+        addressLine4: hrContacts.addressLine4,
+        pincode: hrContacts.pincode,
+        gstNo: hrContacts.gstNo,
+        panNo: hrContacts.panNo,
+        gstName: hrContacts.gstName,
+        bankDetails: hrContacts.bankDetails,
+        contact1Name: hrContacts.contact1Name,
+        contact1CellNo: hrContacts.contact1CellNo,
+        contact1Email: hrContacts.contact1Email,
+        attachments: hrContacts.attachments,
+        rateNegotiated: hrContacts.rateNegotiated,
+        paymentTerms: hrContacts.paymentTerms,
+        registrationSubmittedAt: hrContacts.registrationSubmittedAt,
       })
       .from(hrContacts)
       .orderBy(asc(hrContacts.service), asc(hrContacts.personName)) as ExtendedContact[];
@@ -91,6 +139,27 @@ export async function listContacts(): Promise<ContactRow[]> {
       contact2Name: null,
       contact2CellNo: null,
       contact2Email: null,
+      firstName: null,
+      lastName: null,
+      category: null,
+      utility: null,
+      amcOnCall: null,
+      addressLine1: null,
+      addressLine2: null,
+      addressLine3: null,
+      addressLine4: null,
+      pincode: null,
+      gstNo: null,
+      panNo: null,
+      gstName: null,
+      bankDetails: {},
+      contact1Name: null,
+      contact1CellNo: null,
+      contact1Email: null,
+      attachments: {},
+      rateNegotiated: null,
+      paymentTerms: null,
+      registrationSubmittedAt: null,
     }));
   }
   return rows.map((row) => ({
@@ -133,12 +202,27 @@ export async function listEmployeeContacts(): Promise<EmployeeContactRow[]> {
   return rows.map((r) => {
     const fields = (r.fields as Record<string, string> | null) ?? {};
     const formPhone = String(fields.phone ?? "").trim();
+    const contacts = Array.isArray(fields.emergencyContacts) ? fields.emergencyContacts : [];
+    const emergency = contacts.flatMap((item): Array<{ name: string | null; cell: string | null }> => {
+      if (!item || typeof item !== "object") return [];
+      const value = item as Record<string, unknown>;
+      const name = typeof value.name === "string" ? value.name.trim() || null : null;
+      const cell = typeof value.mobile === "string" ? value.mobile.trim() || null : typeof value.phone === "string" ? value.phone.trim() || null : null;
+      return name || cell ? [{ name, cell }] : [];
+    });
+    const [firstName = "", ...last] = r.name.trim().split(/\s+/);
     return {
       id: r.id,
       name: r.name,
+      firstName,
+      lastName: last.join(" "),
       designation: r.designation ?? null,
       cell: formPhone || r.phone || r.whatsappPhone || null,
       email: r.personalEmail || r.email || null,
+      contact1Name: emergency[0]?.name ?? null,
+      contact1Cell: emergency[0]?.cell ?? null,
+      contact2Name: emergency[1]?.name ?? null,
+      contact2Cell: emergency[1]?.cell ?? null,
       isActive: r.isActive && r.employmentStatus === "active",
     };
   });

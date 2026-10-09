@@ -22,6 +22,7 @@ type HrConsoleContextValue = {
    *  A page only passes its own `title` when it is more specific than the nav
    *  label — a named letter, a named policy, one candidate. */
   routeTitle: string | null;
+
 };
 
 const HrConsoleContext = React.createContext<HrConsoleContextValue | null>(null);
