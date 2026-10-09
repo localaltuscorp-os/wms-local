@@ -41,13 +41,13 @@ function targetHoursLabel(min: number): string {
 export function SelfView({
   data,
   weeklyTargetMinutes,
-  monthlyHalfDayGrace,
+  latePunchGrace,
 }: {
   data: SelfAttendanceSummary;
   /** THIS employee's weekly requirement. Part-timers must never be shown 54h. */
   weeklyTargetMinutes: number;
-  /** Half-days forgiven per calendar month before salary is touched. */
-  monthlyHalfDayGrace: number;
+  /** Late arrivals forgiven in a missed-target week before salary is touched. */
+  latePunchGrace: number;
 }) {
   return (
     <section
@@ -100,8 +100,9 @@ export function SelfView({
         <span className="tabular-nums font-bold text-ink-strong">
           {" "}{targetHoursLabel(weeklyTargetMinutes)} h
         </span>{" "}
-        in a Mon–Sat week and every late / early / half-day that week is waived (the week reads as full days). Surplus hours carry to later weeks in the same month. After that, your first
-        <span className="tabular-nums font-bold text-ink-strong"> {monthlyHalfDayGrace}</span> half-days each month are warnings only; from the next one each costs
+        in a Mon–Sat week and any half-days that week are waived. If the target is missed, every half-day costs
+        <span className="tabular-nums font-bold text-ink-strong"> ½ day</span>. Late arrivals are warnings for the first
+        <span className="tabular-nums font-bold text-ink-strong"> {latePunchGrace}</span> times that week; from the next late arrival, each costs
         <span className="tabular-nums font-bold text-ink-strong"> ½ day</span>. Salary reduced = deducted days × your per-day rate.
       </p>
     </section>

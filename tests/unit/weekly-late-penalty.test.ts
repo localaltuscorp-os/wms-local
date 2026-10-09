@@ -13,6 +13,12 @@ const FULL_TIME_OPTIONS = {
   workingDaysPerWeek: 6,
 };
 
+const PART_TIME_OPTIONS = {
+  weeklyTargetMinutes: 30 * 60,
+  waiverThresholdMinutes: 30 * 60,
+  workingDaysPerWeek: 6,
+};
+
 function sixDayWeek(
   monday: string,
   minutesPerDay: number,
@@ -64,6 +70,27 @@ describe("September 2026 weekly late-mark policy", () => {
 
     expect(result.weeks[0]?.actualMinutes).toBe(54 * 60);
     expect(result.weeks[0]?.lateMarks).toBe(6);
+    expect(result.latePenaltyHalfDays).toBe(0);
+  });
+
+  it("uses a part-timer's own weekly target for the late-punch rule", () => {
+    const result = reconcileMonth(sixDayWeek("2026-09-07", 290, 4), {
+      month: "2026-09",
+      ...PART_TIME_OPTIONS,
+    });
+
+    expect(result.weeks[0]?.actualMinutes).toBe(29 * 60);
+    expect(result.latePenaltyHalfDays).toBe(1);
+  });
+
+  it("does not double-charge a late day already graded half day", () => {
+    const days = sixDayWeek("2026-09-07", 530, 4).map((d, index) =>
+      index === 3 ? { ...d, code: "H/D", dayValue: 0.5 } : d,
+    );
+    const result = reconcileMonth(days, { month: "2026-09", ...FULL_TIME_OPTIONS });
+
+    expect(result.weeks[0]?.lateMarks).toBe(4);
+    expect(result.chargeableHalfDays).toBe(1);
     expect(result.latePenaltyHalfDays).toBe(0);
   });
 

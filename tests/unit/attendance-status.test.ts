@@ -28,6 +28,11 @@ describe("computeDayCode", () => {
     const r = computeDayCode({inAt:"10:30", outAt:"19:00"}, sched, work, "20:00");
     expect(r.leftEarly).toBe(true); expect(r.code).toBe("H/D"); expect(r.dayValue).toBe(0.5);
   });
+  it("leaving before the employee's configured cutoff is half day even after enough raw hours", () => {
+    // The employee started early, but still left before their own 19:20 cutoff.
+    const r = computeDayCode({inAt:"09:00", outAt:"19:00"}, sched, work, "20:00");
+    expect(r.leftEarly).toBe(true); expect(r.code).toBe("H/D"); expect(r.dayValue).toBe(0.5);
+  });
   it("under the half-day floor => ABSENT, not half day", () => {
     // 11:00 -> 14:00 = 3h, below the 5h floor. Present-but-under-floor now
     // grades A (spec §3). The marks are still recorded for audit (§5).

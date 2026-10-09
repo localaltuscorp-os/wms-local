@@ -73,9 +73,9 @@ export interface SelfPeriod extends AttendanceSummary {
   /** Days worked on a holiday or weekly off (code "HP"), already paid double. */
   extraDaysWorked: number;
   /**
-   * Half-days that cost nothing: the 3-per-month allowance plus any the
-   * weekly-hours waiver absorbed. MONTH-SCOPED by nature — the allowance resets
-   * monthly — so the week view reports its containing month's figure.
+   * Half-days that cost nothing because their week met its target. This remains
+   * month-scoped only because the attendance summary is displayed for a
+   * calendar month.
    */
   graceDays: number;
   /** Days an admin explicitly waived off (salary_breakup.waive_off_days). */
@@ -431,18 +431,13 @@ export async function getSelfAttendanceSummary(
   const remote = (remoteRows ?? []) as RemoteDay[];
 
   /**
-   * GRACE for one month, via the SAME reconciliation the salary engine runs.
-   * Both forgiveness routes count: the 3-per-month allowance (`warnedHalfDays`)
-   * and half-days the weekly-hours waiver absorbed — which deliberately do not
-   * consume a grace slot, so adding them is the only way the employee sees every
-   * half-day that cost them nothing.
+   * Forgiven half-days for the month, via the SAME reconciliation the salary
+   * engine runs. Only half-days absorbed because their week met its target are
+   * forgiven; late-punch grace is a separate policy.
    */
   const graceForMonth = (rows: DayRow[], monthKey: string): number => {
     // ELAPSED days only — deliberately narrower than the payroll view above.
-    // Grace is a statement about the month SO FAR ("you have 2 of your 3 left"),
-    // and counting a half-day the calendar has not reached yet would spend a
-    // slot nobody has used. The filtering is the caller's, which is exactly why
-    // `payrollMonthFor` takes the day list rather than choosing it.
+    // Only elapsed days are relevant: a future half-day cannot yet be waived.
     const elapsed = rows.filter(
       (d) => monthKeyOf(d.logDate) === monthKey && d.logDate <= todayIso,
     );
@@ -452,7 +447,7 @@ export async function getSelfAttendanceSummary(
       refTodayISO: todayIso,
     });
     if (!graded.length) return 0;
-    return r.warnedHalfDays + r.waiverAbsorbedHalfDays;
+    return r.waiverAbsorbedHalfDays;
   };
 
   // CONDONED — days an admin explicitly waived off. Read from salary_breakup,
