@@ -20,6 +20,7 @@ import type {
 } from "@/lib/queries/billing-entities";
 import {
   ENTITY_FILE_KIND_LABELS,
+  isImageFileKind,
   type EntityFileKind,
 } from "@/lib/billing/entity-master";
 /**
@@ -678,6 +679,16 @@ function FilesSection({
   const logo = files.find((f) => f.kind === "logo") ?? null;
   const signature = files.find((f) => f.kind === "signature") ?? null;
   const documents = files.filter((f) => f.kind === "document");
+  const requiredFiles: EntityFileKind[] = [
+    "cancelled_cheque",
+    "gst_certificate",
+    "pan_card",
+    "aadhar_card",
+    "msme_certificate",
+    "tin_certificate",
+    "signing_entity_photo",
+    "signing_entity_signature",
+  ];
 
   return (
     <Stack>
@@ -698,6 +709,20 @@ function FilesSection({
           onChanged={onChanged}
           hint="PNG, JPEG or WebP. A transparent PNG sits best on paper."
         />
+      </Panes>
+
+      <Panes>
+        {requiredFiles.map((kind) => (
+          <SingleFilePane
+            key={kind}
+            entityId={entityId}
+            kind={kind}
+            file={files.find((f) => f.kind === kind) ?? null}
+            canManage={canManage}
+            onChanged={onChanged}
+            hint="Upload PDF, PNG, JPEG or WebP."
+          />
+        ))}
       </Panes>
 
       <section className="glass px-5 py-4">
@@ -781,7 +806,7 @@ function SingleFilePane({
     <Pane title={ENTITY_FILE_KIND_LABELS[kind]}>
       {file ? (
         <div className="flex flex-col gap-3">
-          {file.url ? (
+          {file.url && isImageFileKind(kind) ? (
             <a href={file.url} target="_blank" rel="noreferrer" className="block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -790,6 +815,10 @@ function SingleFilePane({
                 className="max-h-[120px] w-auto rounded-[10px] bg-white/70 p-2"
                 style={{ objectFit: "contain" }}
               />
+            </a>
+          ) : file.url ? (
+            <a href={file.url} target="_blank" rel="noreferrer" className="strong hover:underline">
+              Open {file.fileName}
             </a>
           ) : (
             <Empty>Stored, but the preview could not be loaded.</Empty>
@@ -870,7 +899,7 @@ function FilePicker({
         ref={ref}
         type="file"
         hidden
-        accept={kind === "document" ? undefined : "image/png,image/jpeg,image/webp"}
+        accept={isImageFileKind(kind) ? "image/png,image/jpeg,image/webp" : undefined}
         onChange={pick}
       />
       <button

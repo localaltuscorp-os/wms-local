@@ -75,16 +75,17 @@ async function run(request: Request): Promise<NextResponse> {
     .from(attendanceLogs)
     .where(eq(attendanceLogs.logDate, today));
 
-  const inAt = new Map<string, Date>();
-  const hasOut = new Set<string>();
+  const latest = new Map<string, { kind: "in" | "out"; loggedAt: Date }>();
   for (const r of rows) {
-    if (r.kind === "in") inAt.set(r.employeeId, r.loggedAt);
-    else hasOut.add(r.employeeId);
+    const prior = latest.get(r.employeeId);
+    if (!prior || r.loggedAt > prior.loggedAt) latest.set(r.employeeId, r);
   }
 
   // CHECKED IN, NO CHECK-OUT. Nothing else is a candidate: a day with a real
   // clock-out is left entirely alone, and a day with no clock-in is not a day.
-  const missing = [...inAt.entries()].filter(([id]) => !hasOut.has(id));
+  const missing = [...latest.entries()]
+    .filter(([, punch]) => punch.kind === "in")
+    .map(([employeeId, punch]) => [employeeId, punch.loggedAt] as const);
 
   let closed = 0;
   const failed: string[] = [];
@@ -108,9 +109,6 @@ async function run(request: Request): Promise<NextResponse> {
           recordedById: AUTO_PUNCH_OUT_STAMP.recordedById,
           verifyMethod: "none",
           note: AUTO_PUNCH_OUT_NOTE,
-        })
-        .onConflictDoNothing({
-          target: [attendanceLogs.employeeId, attendanceLogs.logDate, attendanceLogs.kind],
         })
         .returning({ id: attendanceLogs.id });
 

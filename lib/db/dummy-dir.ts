@@ -1,4 +1,20 @@
-import { join } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+function localPath(value: string | undefined, fallbackName: string): string {
+  const fallback = join(process.cwd(), fallbackName);
+  if (!value) return fallback;
+
+  // PGlite accepts a filesystem path, not a relative file: URL. Normalising
+  // here avoids a cryptic `File URL path must be absolute` crash before the
+  // dummy user can be loaded in the app layout.
+  const path = value.startsWith("file:")
+    ? fileURLToPath(new URL(value, pathToFileURL(`${resolve(process.cwd())}${sep}`)))
+    : value;
+  return isAbsolute(path)
+    ? path
+    : resolve(/* turbopackIgnore: true */ process.cwd(), path);
+}
 
 /**
  * Where DUMMY MODE keeps its throwaway Postgres.
@@ -12,7 +28,7 @@ import { join } from "node:path";
  * separate dummy databases. Relative to the process cwd, which for both `pnpm
  * dev` and the setup script is the `task-management/` package root.
  */
-export const DUMMY_DB_DIR = process.env.DUMMY_DB_DIR ?? join(process.cwd(), ".pglite");
+export const DUMMY_DB_DIR = localPath(process.env.DUMMY_DB_DIR, ".pglite");
 
 /**
  * Where DUMMY MODE keeps uploaded FILES.
@@ -29,7 +45,7 @@ export const DUMMY_DB_DIR = process.env.DUMMY_DB_DIR ?? join(process.cwd(), ".pg
  * both backends. Throwaway, like the PGlite directory beside it.
  */
 export const DUMMY_STORAGE_DIR =
-  process.env.DUMMY_STORAGE_DIR ?? join(process.cwd(), ".dummy-storage");
+  localPath(process.env.DUMMY_STORAGE_DIR, ".dummy-storage");
 
 /**
  * Whether the app should talk to the dummy database instead of the real one.

@@ -28,7 +28,7 @@ afterEach(cleanup);
 
 describe("PoliciesWorkspace firm-policy cards", () => {
   it("badges a signed policy and offers its archived copy", () => {
-    render(<PoliciesWorkspace groups={[]} isAdmin={false} signable={SIGNABLE} />);
+    render(<PoliciesWorkspace groups={[]} canManage={false} signable={SIGNABLE} />);
     expect(screen.getByText(/Signed ·/)).toBeTruthy();
     const dl = screen
       .getAllByRole("link")
@@ -40,18 +40,18 @@ describe("PoliciesWorkspace firm-policy cards", () => {
   });
 
   it("counts only current signatures, and asks for a re-sign on an old one", () => {
-    render(<PoliciesWorkspace groups={[]} isAdmin={false} signable={SIGNABLE} />);
+    render(<PoliciesWorkspace groups={[]} canManage={false} signable={SIGNABLE} />);
     // 3 policies, one signed and current → "1/3 signed".
     expect(screen.getByText("1/3 signed")).toBeTruthy();
     expect(screen.getByText(/New version · sign again/)).toBeTruthy();
   });
 
   it("shows Download all only when something has been signed", () => {
-    const { container } = render(<PoliciesWorkspace groups={[]} isAdmin={false} signable={SIGNABLE} />);
+    const { container } = render(<PoliciesWorkspace groups={[]} canManage={false} signable={SIGNABLE} />);
     expect(container.querySelector('a[href="/api/hr/policies/download-all"]')).toBeTruthy();
     cleanup();
     const none = SIGNABLE.map((c) => ({ ...c, signedAt: null, outdated: false }));
-    const { container: c2 } = render(<PoliciesWorkspace groups={[]} isAdmin={false} signable={none} />);
+    const { container: c2 } = render(<PoliciesWorkspace groups={[]} canManage={false} signable={none} />);
     expect(c2.querySelector('a[href="/api/hr/policies/download-all"]')).toBeNull();
   });
 });

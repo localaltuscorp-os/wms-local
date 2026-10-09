@@ -5,7 +5,7 @@ import { attendanceLogs, employees, type OrgSettings } from "@/db/schema";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { type AttendanceSchedule } from "@/lib/attendance/schedule";
 import { computeDayCode, type DayCodeResult } from "@/lib/attendance/status";
-import { isSystemAutoPunchOut } from "@/lib/attendance/auto-punch-out";
+import { foldPunchSessions } from "@/lib/attendance/punch-pairs";
 import { payableDaysByHours, weekKeyOf } from "@/lib/attendance/hours-rule";
 import {
   payrollMonthFor,
@@ -150,6 +150,12 @@ function eachDay(start: string, end: string): string[] {
   return out;
 }
 
+function shiftCalendarDay(ymd: string, days: number): string {
+  const date = new Date(`${ymd}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 /** First and last calendar day (YYYY-MM-DD) of a year/month (month is 1-12). */
 function monthBounds(year: number, month: number): { first: string; last: string } {
   const mm = String(month).padStart(2, "0");
@@ -267,6 +273,8 @@ export function employeeScheduleForWeekday(
 interface FoldedDay {
   inAt: string | null;
   outAt: string | null;
+  workedMinutes: number;
+  openInAt: string | null;
   /**
    * The out-punch was written by the compulsory-punch-out cron, not the person.
    *
@@ -297,28 +305,17 @@ type PunchRow = {
  * this file used to carry its own copy, with a comment asking future editors to
  * keep the two in step by hand.
  */
-const isAutoPunchOut = isSystemAutoPunchOut;
-
 /** Fold an employee's raw punches into per-day in/out clocks. `logDate` is the
  * canonical business day; `loggedAt` supplies the clock time in the employee timezone. */
 function foldPunches(rows: PunchRow[], tz: string): Map<string, FoldedDay> {
-  const byDay = new Map<string, FoldedDay>();
-  for (const r of rows) {
-    const day = r.logDate;
-    let slot = byDay.get(day);
-    if (!slot) {
-      slot = { inAt: null, outAt: null, autoClosed: false };
-      byDay.set(day, slot);
-    }
-    const t = timeInTz(r.loggedAt, tz);
-    if (r.kind === "in") {
-      slot.inAt = t;
-    } else {
-      slot.outAt = t;
-      slot.autoClosed = isAutoPunchOut(r);
-    }
-  }
-  return byDay;
+  const sessions = foldPunchSessions(rows, tz);
+  return new Map([...sessions.entries()].map(([date, day]) => [date, {
+    inAt: day.firstInAt,
+    outAt: day.lastOutAt,
+    workedMinutes: day.workedMinutes,
+    openInAt: day.openInAt,
+    autoClosed: day.autoClosed,
+  }]));
 }
 
 function emptySummary(): MonthSummary {
@@ -507,7 +504,7 @@ function gradeMonth(
 
   for (const ymd of eachDay(first, last)) {
     const wd = weekdayOfDate(ymd);
-    const folded = byDay.get(ymd) ?? { inAt: null, outAt: null, autoClosed: false };
+    const folded = byDay.get(ymd) ?? { inAt: null, outAt: null, workedMinutes: 0, openInAt: null, autoClosed: false };
 
     // Before the employee joined — not a gradeable day.
     if (ymd < joinDay) {
@@ -573,7 +570,7 @@ function gradeMonth(
         // already off, and a real punch on an off day would otherwise grade
         // HP — holiday pay at 2× — for simply turning up.
         attendanceGraded
-          ? { inAt: folded.inAt, outAt: folded.outAt }
+          ? { inAt: folded.inAt, outAt: folded.outAt, workedMinutes: folded.workedMinutes, openInAt: folded.openInAt }
           : { inAt: null, outAt: null },
         daySched,
         {
@@ -699,7 +696,9 @@ export async function getEmployeeMonthStatus(
     .where(
       and(
         eq(attendanceLogs.employeeId, employeeId),
-        between(attendanceLogs.logDate, first, last),
+        // Include one day either side so a session that starts before/ends after
+        // this month can still allocate its midnight-split minutes correctly.
+        between(attendanceLogs.logDate, shiftCalendarDay(first, -1), shiftCalendarDay(last, 1)),
       ),
     );
 
@@ -831,7 +830,7 @@ export async function getMonthDashboard(
         recordedById: attendanceLogs.recordedById,
       })
       .from(attendanceLogs)
-      .where(between(attendanceLogs.logDate, first, last)),
+      .where(between(attendanceLogs.logDate, shiftCalendarDay(first, -1), shiftCalendarDay(last, 1))),
     listHolidayDateSet(year),
   ]);
 

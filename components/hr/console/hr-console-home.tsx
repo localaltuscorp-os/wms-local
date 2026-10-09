@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useHrConsolePreviewedModule } from "./hr-console-context";
 import { HrModuleGhost } from "./hr-module-ghost";
+import { HrTitleBar } from "./hr-title-bar";
 
 // Loaded on demand — keeps the (sizeable) policy content out of the /hr bundle.
 // Opened from Pre-Joining → "Policy Signatures" via /hr?policies=1.
@@ -47,6 +48,7 @@ export function HrConsoleHome() {
   // is still routed. One component so the two states can't drift apart.
   return (
     <>
+      <HrTitleBar />
       <HrModuleGhost module={previewed} />
       <AllPoliciesPopup open={policiesOpen} onClose={() => setPoliciesOpen(false)} />
     </>

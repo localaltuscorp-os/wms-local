@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { getCurrentEmployee, guardNotCandidate } from "@/lib/auth/current";
-import { loadMySalaryMonths } from "@/lib/salary/my-salary";
+import { currentMonthKey, loadMySalaryMonths } from "@/lib/salary/my-salary";
 import { loadSalaryViewAccess, resolveSalaryTarget } from "@/lib/salary/salary-people";
 import { MySalaryView } from "@/components/salary/my-salary-view";
 import { SalaryPersonPicker } from "@/components/salary/salary-person-picker";
@@ -44,13 +44,15 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
   // The open month is computed live from the payroll engine; closed months come
   // from their stored run; anything older falls back to the legacy breakup rows.
   // See lib/salary/my-salary.ts for why the page no longer reads one table.
-  // `ledgerMonths: "first"` attaches the Daily Salary Report to the month the
-  // page opens on, and only that one. The rest arrive through
+  // The Daily Salary Report is attached to the active month the page opens on,
+  // and only that one. The rest arrive through
   // `fetchMonthLedger` when the employee picks them — a month of day rows is
   // ~30KB serialised, and inlining a whole history would be most of a
   // megabyte for months nobody has asked to see.
-  const months = await loadMySalaryMonths(targetId, targetWorkerType, new Date(), {
-    ledgerMonths: "first",
+  const now = new Date();
+  const activeMonth = currentMonthKey(now);
+  const months = await loadMySalaryMonths(targetId, targetWorkerType, now, {
+    ledgerMonths: [activeMonth],
   });
 
   const viewingOther = targetId !== me.id;
@@ -81,7 +83,12 @@ export default async function MySalaryPage({ searchParams }: PageProps) {
           }
         />
 
-        <MySalaryView months={months} employeeId={targetId} />
+        <MySalaryView
+          key={`${targetId}:${activeMonth}`}
+          months={months}
+          employeeId={targetId}
+          initialMonth={activeMonth}
+        />
       </main>
     </>
   );

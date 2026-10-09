@@ -11,6 +11,7 @@ export const SECURITY_ROLES = [
   "attendance_manage",
   "attendance_audit_view",
   "attendance_settings_manage",
+  "attendance_punch_anywhere",
   "remote_work_approve",
   "client_location_edit",
   "delegated_access_manage",
@@ -36,6 +37,16 @@ export const SECURITY_ROLES = [
 
 export type SecurityRole = (typeof SECURITY_ROLES)[number];
 export type SecurityRoleCategory = "Security" | "Attendance" | "Work" | "Finance" | "HR" | "Operations";
+
+/** Stable module order for the Super Admin role panel. */
+export const SECURITY_ROLE_CATEGORIES: readonly SecurityRoleCategory[] = [
+  "Security",
+  "Attendance",
+  "Work",
+  "Finance",
+  "HR",
+  "Operations",
+];
 
 export interface SecurityRoleDef {
   key: SecurityRole;
@@ -74,6 +85,7 @@ export const SECURITY_ROLE_DEFS: Record<SecurityRole, SecurityRoleDef> = {
   attendance_manage: role("attendance_manage", "Attendance Manager", "Edit other employees' attendance and override locks.", "Attendance"),
   attendance_audit_view: role("attendance_audit_view", "Attendance Audit Viewer", "Read the attendance change history.", "Attendance"),
   attendance_settings_manage: role("attendance_settings_manage", "Attendance Settings Administrator", "Manage device, office IP and attendance settings.", "Attendance"),
+  attendance_punch_anywhere: role("attendance_punch_anywhere", "Punch From Anywhere", "Punch attendance from any location or network while keeping login, device and anti-spoof security active.", "Attendance", true),
   remote_work_approve: role("remote_work_approve", "Remote Work Approver", "Approve or reject remote-work requests.", "Attendance"),
   client_location_edit: role("client_location_edit", "Client Location Editor", "Add and maintain trusted client locations.", "Attendance"),
   delegated_access_manage: role("delegated_access_manage", "Delegated Access Administrator", "Grant temporary access to any employee account.", "Security"),
