@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { dbErrorAdvice } from "@/lib/db/error";
 import { scopedAccessGrants, scopedAccessRecipients, scopedAccessScopes } from "@/db/schema";
 import type { ScopedAccessChoice } from "./scoped-overlay-effective";
 export { applyScopedAccess } from "./scoped-overlay-effective";
@@ -36,7 +37,7 @@ export const activeScopedAccess = cache(async (employeeId: string): Promise<read
   } catch (error) {
     // Compatibility window: code may deploy before additive migration. Existing
     // authorization remains authoritative until this table exists.
-    console.error("scoped temporary access: could not load overlay", error);
+    console.warn("scoped temporary access: overlay unavailable; ignoring it:", dbErrorAdvice(error));
     return null;
   }
 });

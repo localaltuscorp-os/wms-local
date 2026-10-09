@@ -79,6 +79,17 @@ export async function RegisterPage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
+      <div
+        className="sticky sticky-below-topbar z-40 h-[51px] border-b border-hairline"
+        style={{
+          background: "radial-gradient(560px 90px at 6% 0%, color-mix(in srgb, var(--color-altus-red) 4%, transparent), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.86), rgba(250,251,252,0.80))",
+          backdropFilter: "blur(20px) saturate(150%)",
+          WebkitBackdropFilter: "blur(20px) saturate(150%)",
+          boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
+        }}
+      >
+        <div id="project-register-create-ribbon" className="mx-auto flex h-full max-w-[1600px] items-center gap-2 px-8 max-lg:px-6 max-md:px-4" />
+      </div>
       <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 pt-8 max-lg:px-6 max-md:px-4">
         <PlanRegister
           level={level}

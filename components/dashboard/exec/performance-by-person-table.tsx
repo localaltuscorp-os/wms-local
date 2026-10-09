@@ -420,23 +420,25 @@ export function PerformanceByPersonTable({
               currently SHOWING, so "select all" means the filtered set the
               reader is looking at rather than the whole roster. */}
           <SectionDispatch report={buildReport} />
+          {rows.length > 0 && (
+            <button
+              type="button"
+              data-sec="transpose"
+              style={{ order: 3 }}
+              onClick={() => setIsTransposed((v) => !v)}
+              aria-pressed={isTransposed}
+              aria-label={isTransposed ? "Return to people as rows" : "Transpose metrics as rows"}
+              title={isTransposed ? "Back to people as rows" : "Transpose: metrics as rows"}
+              className={`${SECTION_CONTROL} h-9 w-9 justify-center px-0 ${isTransposed ? "bg-slate-100 text-altus-red" : ""}`}
+            >
+              <ArrowLeftRight size={19} strokeWidth={2.6} aria-hidden />
+            </button>
+          )}
           <SectionSearchBox
             query={query}
             onQuery={setQuery}
             placeholder="Search person..."
           />
-          {rows.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsTransposed((v) => !v)}
-              aria-pressed={isTransposed}
-              title={isTransposed ? "Back to people as rows" : "Transpose: metrics as rows"}
-              className={`${SECTION_CONTROL} ${isTransposed ? "text-altus-red" : ""}`}
-            >
-              <ArrowLeftRight className="size-3.5" strokeWidth={2.6} aria-hidden />
-              Transpose
-            </button>
-          )}
         </>
       }
     >

@@ -176,7 +176,7 @@ export function StatusCellPopover({
                         rather than a specific thing they picked. */}
                     <Link
                       href={href}
-                      className="flex items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-slate-50"
+                      className="flex items-start gap-2 rounded-lg p-2.5 transition-colors hover:bg-gray-50/80"
                     >
                       {/* Two lines, not one: these are full task descriptions
                           and a single-line truncate turned most of them into a

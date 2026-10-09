@@ -5,6 +5,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Clock, Copy, GripVertical, Loader2, Pencil, X } from "lucide-react";
 import { motion } from "motion/react";
+import { createPortal } from "react-dom";
 import { PRIORITY_LABELS } from "@/db/enums";
 import { hhmmToMin, minToHhmm } from "@/lib/goals/plan-time";
 import type { PlanItem } from "./types";
@@ -40,6 +41,9 @@ interface Props {
   onTransfer: (id: string, off: number) => void;
   /** Set (or clear) WHEN in the day this work happens. */
   onSetTime: (item: PlanItem, time: { startMin: number | null; durationMin: number | null }) => void;
+  /** Daily Commitments' planning-only mode: move work by drag and drop, with
+   * only an × action that parks work in Unfinished. */
+  dragOnly?: boolean;
   /** Which planner day this card sits on — its own day is dropped from the
    *  move menu, and the two shortcut buttons target the next two days. */
   dayOffset: number;
@@ -74,6 +78,7 @@ export function PlanItemCard({
   onRename,
   onTransfer,
   onSetTime,
+  dragOnly = false,
   dayOffset,
   dayYmd,
   unruledInitiatorLabel,
@@ -110,6 +115,7 @@ export function PlanItemCard({
   // Copy is pressed, so opening it and changing your mind costs nothing —
   // duplicating used to fire on the first click with no way back.
   const [copyOpen, setCopyOpen] = React.useState(false);
+  const [moveOrRemoveOpen, setMoveOrRemoveOpen] = React.useState(false);
 
   // The live drag placeholder — a dashed ghost the column opens up around.
   if (item.ghost) {
@@ -133,6 +139,7 @@ export function PlanItemCard({
 
   const showPriority = item.priority != null && item.priority !== "not_imp_not_urgent";
   const late = item.overdueDays != null && item.overdueDays > 0 ? item.overdueDays : null;
+  const canEditSelfCreatedCommitment = dragOnly && item.kind === "adhoc" && !item.done && !!onRename;
 
   return (
     <li
@@ -159,6 +166,7 @@ export function PlanItemCard({
           <button
             type="button"
             aria-label={`Move or reorder ${item.title}`}
+            title="Drag to another day"
             className="shrink-0 cursor-grab touch-none rounded text-ink-muted/40 hover:text-ink-muted focus-visible:outline-2"
             style={{ outlineColor: GOALS_ACCENT }}
             {...attributes}
@@ -170,18 +178,20 @@ export function PlanItemCard({
           <div className="min-w-0 flex-1">
               {/* The hover panel hangs off the TASK TEXT alone — wrapping the
                   whole card fired it over the action row and the time fields. */}
-              <PlanItemHoverCard item={item} disabled={isDragging}>
+              <PlanItemHoverCard item={item} disabled={isDragging} preferredSide={dragOnly ? "bottom" : "left"}>
               <div
                 role="button"
                 tabIndex={0}
-                onClick={() => setDetail(true)}
+                onClick={() => {
+                  if (!dragOnly) setDetail(true);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setDetail(true);
+                    if (!dragOnly) setDetail(true);
                   }
                 }}
-                aria-label={onRename && !item.done ? `Open and edit ${item.title}` : `Open full details for ${item.title}`}
+                aria-label={dragOnly ? item.title : onRename && !item.done ? `Open and edit ${item.title}` : `Open full details for ${item.title}`}
                 /* ONE LINE (Sir). The clamp used to run to three, which set the
                    card's height by its longest title and left every short one
                    sitting in empty space — the single biggest reason so few
@@ -190,7 +200,7 @@ export function PlanItemCard({
                    in the detail dialog. */
                 className={
                   "truncate text-[13px] leading-[17px] " +
-                  (onRename && !item.done ? "cursor-pointer " : "") +
+                  (!dragOnly && onRename && !item.done ? "cursor-pointer " : "") +
                   (item.done ? "font-medium text-ink-muted line-through" : "font-semibold text-ink-strong")
                 }
               >
@@ -209,7 +219,7 @@ export function PlanItemCard({
                   and the detail dialog still offers an explicit end time for
                   when you want to set the finish rather than the duration.
                   Blank start = "Anytime". */}
-              {!item.done ? (
+              {!dragOnly && !item.done ? (
                 <span className="inline-flex items-center gap-1">
                   <Clock size={10} className="shrink-0" aria-hidden />
                   <input
@@ -293,20 +303,36 @@ export function PlanItemCard({
               A pencil beside the ✕, opening the same dialog. Shown on the same
               terms as the remove button rather than always-on: two permanent
               icons on every row is what the hover treatment was avoiding. */}
-          {onRename && !item.done ? (
+          {(!dragOnly || canEditSelfCreatedCommitment) && onRename && !item.done ? (
             <button
               type="button"
               onClick={() => setDetail(true)}
               aria-label={`Edit ${item.title}`}
               title="Edit — change the wording or the time"
-              className="shrink-0 inline-flex size-5 items-center justify-center rounded-full text-ink-muted/50 opacity-0 transition-opacity hover:bg-surface-soft hover:text-ink-strong focus-visible:opacity-100 focus-visible:outline-2 group-hover:opacity-100"
+              className={
+                "shrink-0 inline-flex size-5 items-center justify-center rounded-full text-ink-muted/50 transition-opacity hover:bg-surface-soft hover:text-ink-strong focus-visible:outline-2 " +
+                (dragOnly ? "" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100")
+              }
               style={{ outlineColor: GOALS_ACCENT }}
             >
               <Pencil size={12} />
             </button>
           ) : null}
 
-          <button
+          {dragOnly ? (
+            <button
+              type="button"
+              onClick={() => setMoveOrRemoveOpen(true)}
+              disabled={busy}
+              aria-label={`Choose what to do with ${item.title}`}
+              title="Move to Unfinished or remove"
+              className="shrink-0 inline-flex size-5 items-center justify-center rounded-full text-ink-muted/60 transition-colors hover:bg-surface-soft hover:text-[color:var(--color-altus-red)] focus-visible:outline-2 disabled:opacity-50"
+              style={{ outlineColor: GOALS_ACCENT }}
+            >
+              <X size={13} />
+            </button>
+          ) : (
+            <button
             type="button"
             onClick={() => onRemove(item)}
             /* The label names the DESTINATION, and the three destinations are
@@ -325,7 +351,8 @@ export function PlanItemCard({
             style={{ outlineColor: GOALS_ACCENT }}
           >
             <X size={13} />
-          </button>
+            </button>
+          )}
         </div>
 
         {/* THE TWO STATUS AXES, on the card (Manan, 2026-09-15: "add in daily
@@ -343,7 +370,7 @@ export function PlanItemCard({
             locked for the second one; a manager looking at your board gets the
             dropdown. `statusActor` mirrors `dailyStatusActor` on the server,
             which re-derives it before any write. */}
-        {item.ownerId ? (
+        {!dragOnly && item.ownerId ? (
           <div className="mt-1 flex items-center gap-1">
             <DoerStatusSelect
               status={item.status ?? null}
@@ -373,7 +400,7 @@ export function PlanItemCard({
 
             It COLLAPSES to nothing at rest: opacity-0 alone still reserved the
             row height, which left a blank strip under every card. */}
-        <div className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-150 focus-within:grid-rows-[1fr] group-hover:grid-rows-[1fr] max-md:grid-rows-[1fr]">
+        {!dragOnly ? <div className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-150 focus-within:grid-rows-[1fr] group-hover:grid-rows-[1fr] max-md:grid-rows-[1fr]">
           <div className="overflow-hidden">
         {/* ONE LINE AT EVERY WIDTH (Sir). Not by wrapping, which cost a line,
             and not by truncating, which cost the word — the chips SCALE to the
@@ -432,12 +459,12 @@ export function PlanItemCard({
             ) : null}
         </div>
           </div>
-        </div>
+        </div> : null}
       </motion.div>
       {/* The shared "Duplicate to <date>" dialog — see duplicate-date-dialog.tsx.
           It used to be written out inline here, which is why the review row's
           copy button had no picker at all. */}
-      {copyOpen ? (
+      {!dragOnly && copyOpen ? (
         <DuplicateDateDialog
           item={item}
           defaultYmd={dayYmd}
@@ -448,17 +475,95 @@ export function PlanItemCard({
           }}
         />
       ) : null}
-      {detail ? (
+      {(!dragOnly || canEditSelfCreatedCommitment) && detail ? (
         <PlanItemDetailModal
           item={item}
-          me={me}
           onClose={() => setDetail(false)}
           onRename={onRename}
           onSetTime={onSetTime}
-          unruledInitiatorLabel={unruledInitiatorLabel}
+        />
+      ) : null}
+      {dragOnly && moveOrRemoveOpen ? (
+        <MoveOrRemoveDialog
+          item={item}
+          onCancel={() => setMoveOrRemoveOpen(false)}
+          onMoveToUnfinished={() => {
+            setMoveOrRemoveOpen(false);
+            onPending(item);
+          }}
+          onRemove={() => {
+            setMoveOrRemoveOpen(false);
+            onRemove(item);
+          }}
         />
       ) : null}
     </li>
+  );
+}
+
+function MoveOrRemoveDialog({
+  item,
+  onCancel,
+  onMoveToUnfinished,
+  onRemove,
+}: {
+  item: PlanItem;
+  onCancel: () => void;
+  onMoveToUnfinished: () => void;
+  onRemove: () => void;
+}) {
+  const removesCommitment = !item.taskId && item.origin !== "goal_related" && item.kind !== "weekly";
+  const removeLabel = removesCommitment ? "Delete commitment" : "Remove from this day";
+  const removeDescription = removesCommitment
+    ? "This standalone commitment will be deleted."
+    : "This task remains available in its original work list.";
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(15,23,42,0.42)] p-4 backdrop-blur-[2px]"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="move-or-remove-title"
+        onClick={(event) => event.stopPropagation()}
+        className="w-[320px] max-w-[92vw] rounded-2xl border border-hairline-strong bg-surface-card p-4 shadow-[0_40px_100px_rgba(15,23,42,0.35)]"
+      >
+        <h2 id="move-or-remove-title" className="text-[15px] font-bold text-ink-strong">
+          Move this commitment?
+        </h2>
+        <p className="mt-1 truncate text-[12px] font-semibold text-ink-muted" title={item.title}>
+          {item.title}
+        </p>
+        <div className="mt-4 grid gap-2">
+          <button
+            type="button"
+            onClick={onMoveToUnfinished}
+            className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[12px] font-bold text-amber-900 transition-colors hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-altus-red"
+          >
+            Move to Unfinished
+            <span className="mt-0.5 block text-[11px] font-medium text-amber-800/80">Keep it available to plan again later.</span>
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-lg border border-hairline px-3 py-2 text-left text-[12px] font-bold text-ink-strong transition-colors hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-altus-red"
+          >
+            {removeLabel}
+            <span className="mt-0.5 block text-[11px] font-medium text-ink-muted">{removeDescription}</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="mt-3 w-full rounded-lg px-3 py-1.5 text-[12px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

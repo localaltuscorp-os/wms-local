@@ -40,11 +40,10 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
-/* The 32px BUTTON is deliberately unchanged while the glyphs inside it went
-   16px → 20px: the hit area and the row height stay exactly as they were, so
-   nothing in the aligned section header shifts — only the marks get bigger. */
+/* The 36px BUTTON matches the dashboard search control while the glyphs inside
+   it stay at 20px, so every icon control shares one clear hit target. */
 const ICON_BTN =
-  "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  "grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border border-gray-200 bg-white shadow-2xs transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50";
 
 /** POST the payload and hand the browser the resulting file. */
 async function downloadPdf(report: SectionReport): Promise<void> {
@@ -169,7 +168,7 @@ export function SectionDispatch({ report }: { report: () => SectionReport }) {
     <Popover.Root open={open} onOpenChange={setOpen}>
       {/* `data-sec` — the WhatsApp/email pair sits immediately left of the
           fold in every section's toolbar (see .section-actions). */}
-      <span data-sec="dispatch" className="flex shrink-0 items-center gap-0.5">
+      <span data-sec="dispatch" className="flex shrink-0 items-center gap-2.5">
         <Popover.Anchor asChild>
           <button
             type="button"

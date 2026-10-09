@@ -149,7 +149,7 @@ type RankedPerson = RankedPunctualityPerson;
  * whose OS is dark while the card under it stayed white with dark ink.
  */
 const ROW_HOVER =
-  "cursor-pointer rounded-xl transition-colors hover:bg-slate-50 hover:border-slate-300";
+  "cursor-pointer rounded-none transition-colors hover:bg-gray-50/80 hover:border-slate-300";
 
 export function BottomPerformersSection({
   people,
@@ -318,7 +318,7 @@ export function BottomPerformersSection({
                   /* Reachable two ways: three or fewer people slipping at all,
                      or a search that matched only the featured three. Saying so
                      beats an empty half-grid, which reads as a failed render. */
-                  <p className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 p-6 text-center text-[12.5px] font-semibold text-slate-500">
+                  <p className="flex h-full items-center justify-center rounded-none border border-dashed border-slate-200 p-6 text-center text-[12.5px] font-semibold text-slate-500">
                     No one outside the first three
                     {localQuery.trim() || sectionQuery ? " matches this search." : "."}
                   </p>

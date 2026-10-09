@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq, sql } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { dailyChecklist, dailyPlanDay, weeklyGoals, goals, tasks } from "@/db/schema";
@@ -492,12 +493,11 @@ export async function addUnfinishedToPlan(
 }
 
 /**
- * Transfer a commitment already on the plan to a FUTURE day (tomorrow /
- * day-after) — "push it forward" from the plan or the close-out review. Same
- * move-not-copy mechanic as {@link addUnfinishedToPlan}: it re-dates the one
- * row, stamps `movedFromDate`, and (if the target day already holds the same
- * goal/task) deletes the redundant row instead. `toOffset` is 1 (tomorrow) or 2
- * (day after); 0 is rejected — you can't transfer to today.
+ * Transfer a commitment already on the plan to another planner day. The target
+ * may be Today, Tomorrow, or another visible day, so users can pull work back
+ * as well as push it forward. This is a move-not-copy operation: it re-dates
+ * the one row, stamps `movedFromDate`, and (if the target already holds the
+ * same goal/task) deletes the redundant row instead.
  */
 export async function transferPlanItem(
   itemId: string,
@@ -763,6 +763,24 @@ export async function closeMyDay(): Promise<ActionResult> {
   } catch (err: unknown) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * Records the user's choice to skip the closed-day summary and plan upcoming
+ * work. A server-set cookie invalidates Next's client router cache, unlike a
+ * browser-only cookie, so later sidebar visits cannot reuse the stale summary.
+ */
+export async function rememberUpcomingPlan(dayYmd: string): Promise<ActionResult> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayYmd)) {
+    return { ok: false, error: "Invalid day." };
+  }
+  (await cookies()).set("daily-commitments-plan-upcoming", dayYmd, {
+    path: "/",
+    sameSite: "lax",
+    maxAge: 86_400,
+    httpOnly: true,
+  });
+  return { ok: true };
 }
 
 /**

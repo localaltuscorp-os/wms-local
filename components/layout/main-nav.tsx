@@ -186,7 +186,10 @@ interface NavItem {
  * Tabbed items get their `?tab=` appended here and NOWHERE else, so the two
  * places that render pills cannot drift into linking at different things.
  */
-function navHref(item: NavItem): Route {
+function navHref(item: NavItem, dailyCommitmentsHref: Route | null = null): Route {
+  if (item.href === "/my-day" && !item.tab && dailyCommitmentsHref) {
+    return dailyCommitmentsHref;
+  }
   return (item.tab ? `${item.href}?tab=${item.tab}` : item.href) as Route;
 }
 
@@ -388,11 +391,8 @@ const IMPORTANT_LINKS_ITEM: NavItem = {
 const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
   wms: {
     top: [
-      // "WMS Dashboard", not "Dashboard": every room's rail has a Dashboard, so
-      // the bare word says nothing about which one you're looking at. (Restored
+      { href: "/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
       // — 2670d47 shipped this and 0ea9152 reverted it by syncing this file
-      // from a stale copy.)
-      { href: "/dashboard" as Route, label: "WMS Dashboard", Icon: LayoutDashboard, exact: true },
       // "Daily Commitments" (renamed from "Plan My Day", Sir 2026-08-20). It lives
       // here rather than in Goals because workspaceForPath owns `/goals*` for
       // the Goals room, so a `/goals/plan` href would flip the sidebar to that
@@ -734,7 +734,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // plan?" without a click. The five level items below it slice the same
       // rows by level once you know which branch you want.
       { href: "/project-plan/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
-      { href: "/project-plan/views" as Route, label: "Project Views", Icon: FolderTree, exact: true },
+      { href: "/project-plan/views" as Route, label: "Hierarchy View", Icon: FolderTree, exact: true },
       { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
       { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
       { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
@@ -954,6 +954,27 @@ export function MainNav({
   hiddenNodeKeys,
 }: Props) {
   const pathname = usePathname();
+  // Keep SSR and the first browser render identical. We can only read browser
+  // session storage after hydration; changing the Daily Commitments link in
+  // this effect avoids a server/client href mismatch.
+  const [dailyCommitmentsHref, setDailyCommitmentsHref] = useState<Route | null>(null);
+  useEffect(() => {
+    try {
+      const dateParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(new Date());
+      const part = (type: string) => dateParts.find((entry) => entry.type === type)?.value;
+      const today = [part("year"), part("month"), part("day")].join("-");
+      if (window.sessionStorage.getItem("daily-commitments:plan-upcoming:" + today) === "1") {
+        setDailyCommitmentsHref("/my-day?d=1" as Route);
+      }
+    } catch {
+      // Storage can be disabled; the server-set cookie remains the fallback.
+    }
+  }, []);
   const [filteredTaskCount, setFilteredTaskCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1092,7 +1113,7 @@ export function MainNav({
     return (
       <MainNavPill
         key={navKey(item)}
-        href={navHref(item)}
+        href={navHref(item, dailyCommitmentsHref)}
         label={item.label}
         Icon={item.Icon}
         active={isActive(item)}
@@ -1156,7 +1177,7 @@ export function MainNav({
     .map((g) => ({
       label: g.label,
       items: visible(g.items).map((it) => ({
-        href: navHref(it),
+        href: navHref(it, dailyCommitmentsHref),
         label: it.label,
         Icon: it.Icon,
         active: isActive(it),
@@ -1199,7 +1220,7 @@ export function MainNav({
             label={item.label}
             Icon={item.Icon}
             items={visible(item.children).map((it) => ({
-              href: navHref(it),
+              href: navHref(it, dailyCommitmentsHref),
               label: it.label,
               Icon: it.Icon,
               active: isActive(it),

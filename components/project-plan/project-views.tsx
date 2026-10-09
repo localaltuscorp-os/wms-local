@@ -368,9 +368,6 @@ export function ProjectViews({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-black tracking-tight text-ink-strong">Project Dashboard</h1>
-          <p className="mt-0.5 text-[13px] font-medium text-ink-muted">
-            The whole plan as one tree — open a row to see what sits under it.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -482,16 +479,12 @@ export function ProjectViews({
 
       {mode === "tree" && (
         <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">Project Views</h1>
-          <p className="mt-0.5 text-[13px] font-medium text-ink-muted">
-            The whole plan as one tree — open a row to see what sits under it.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="relative flex items-center">
+      <nav
+        aria-label="Project Views controls"
+        className="sticky sticky-below-topbar z-30 -mx-8 mb-5 border-y border-hairline bg-white/95 px-8 py-3 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4"
+      >
+      <div className="flex flex-wrap items-center justify-end gap-2">
+          <label className="hidden">
             <Search
               size={14}
               strokeWidth={2.4}
@@ -542,8 +535,21 @@ export function ProjectViews({
             <ChevronsDownUp size={13} strokeWidth={2.4} aria-hidden />
             Collapse
           </button>
+          <CollapsibleSearch scope="project rows" className="size-9">
+            <label className="relative flex items-center">
+              <Search size={14} strokeWidth={2.4} aria-hidden className="pointer-events-none absolute left-2.5 text-ink-subtle" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find a row…"
+                aria-label="Search the plan"
+                className="w-[200px] rounded-xl border border-hairline-strong bg-white py-2 pl-8 pr-7 text-[13px] font-semibold text-ink-strong outline-none placeholder:font-medium placeholder:text-ink-subtle focus-visible:ring-2 focus-visible:ring-altus-red/30"
+              />
+              {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 text-ink-subtle hover:text-ink-strong"><X size={13} strokeWidth={2.6} /></button> : null}
+            </label>
+          </CollapsibleSearch>
         </div>
-      </div>
+      </nav>
 
       {projects.length === 0 ? (
         <EmptyState
@@ -571,7 +577,7 @@ export function ProjectViews({
         <div
           id="project-tree"
           ref={treeScrollRef}
-          className="overflow-auto rounded-xl border border-hairline-strong bg-white"
+          className="no-scrollbar overflow-auto rounded-xl border border-hairline-strong bg-white"
           style={{ maxHeight: "calc(100vh - 220px)", minHeight: 220 }}
         >
           {/* `w-max min-w-full`: as wide as the columns need, never narrower

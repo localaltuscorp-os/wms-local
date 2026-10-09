@@ -386,8 +386,18 @@ export function AuraTopBar({
         <BulkAddQuickAction />
         <NewTaskQuickAction />
         <FocusModeToggle />
-        {bell}
-        {userMenu}
+        <div className="relative shrink-0">
+          {bell}
+          <div
+            id="daily-commitments-topbar-add"
+            className="absolute left-1/2 top-[calc(100%+14px)] z-[61] flex size-9 -translate-x-1/2 items-center justify-center"
+          />
+        </div>
+        {/* Daily Commitments mounts its local search below the profile control. */}
+        <div className="relative shrink-0">
+          {userMenu}
+          <div id="daily-commitments-profile-search" className="absolute left-1/2 top-full z-[61] -translate-x-1/2 pt-[14px]" />
+        </div>
       </div>
     </header>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { Route } from "next";
@@ -31,7 +32,7 @@ import {
 import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { effectivePlanStatus, isSelfRaisedNode } from "@/lib/project-plan/status";
 import { approverDisplay } from "@/lib/status/approver-status";
-import { PlanStatusKpiStrip, type PlanStatusPerspective } from "./plan-status-kpi-strip";
+import { PlanStatusKpiStrip } from "./plan-status-kpi-strip";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
@@ -142,13 +143,13 @@ export function PlanRegister({
   const [projectIds, setProjectIds] = React.useState<string[]>([]);
   const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
   const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
-  const [statusPerspective, setStatusPerspective] = React.useState<PlanStatusPerspective>("doer");
   const [sortKey, setSortKey] = React.useState<SortKey>("plan");
   const [asc, setAsc] = React.useState(true);
   /** Which level the create dialog is opening on, or null when it is closed. */
   const [creating, setCreating] = React.useState<PlanKind | null>(null);
   /** …and which level the BULK upload is open on. */
   const [bulkKind, setBulkKind] = React.useState<PlanKind | null>(null);
+  const [createRibbonTarget, setCreateRibbonTarget] = React.useState<HTMLElement | null>(null);
   /**
    * Ticked rows, by node id.
    *
@@ -162,6 +163,12 @@ export function PlanRegister({
   /** Which bulk action is in flight — drives the spinner on the bar. */
   const [busy, setBusy] = React.useState<string | null>(null);
   const [, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    // The ribbon belongs to the route shell while its actions belong to this
+    // client register, so attach them only after the browser has mounted.
+    setCreateRibbonTarget(document.getElementById("project-register-create-ribbon"));
+  }, []);
 
   /**
    * WHERE YOU ARE, remembered — the register's half of the same memory the
@@ -579,7 +586,7 @@ export function PlanRegister({
     <div className="flex flex-col gap-4">
       {/* ── Title + level switch ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        {level !== "projects" ? <div>
           <h1 className="text-[19px] font-black tracking-tight text-ink-strong">
             {levelLabel}s
           </h1>
@@ -590,7 +597,7 @@ export function PlanRegister({
                   .map((k) => KIND_LABEL[k].toLowerCase())
                   .join(" › ")} it belongs to.`}
           </p>
-        </div>
+        </div> : <span />}
         {/* The hierarchy view of this same level is one click away — the
             register replaces the tree on this route, it does not remove it. */}
         <Link
@@ -602,16 +609,18 @@ export function PlanRegister({
         </Link>
       </div>
 
+      {createRibbonTarget
+        ? createPortal(
+            <NewItemButtons onPick={setCreating} onBulkUpload={setBulkKind} bulkKind={kind ?? "project"} />,
+            createRibbonTarget,
+          )
+        : null}
+
       <PlanStatusKpiStrip
-        perspective={statusPerspective}
-        onPerspectiveChange={setStatusPerspective}
         counts={statusCounts}
         total={scopedRows.length}
-        activeStatus={(statusPerspective === "doer" ? doerStatus : initiatorStatus)[0] ?? null}
-        onStatusChange={(status) => {
-          if (statusPerspective === "doer") setDoerStatus(status ? [status] : []);
-          else setInitiatorStatus(status ? [status] : []);
-        }}
+        activeStatus={doerStatus[0] ?? null}
+        onStatusChange={(status) => setDoerStatus(status ? [status] : [])}
       />
 
       {/* ── Search + project filter ──────────────────────────────────────── */}
@@ -654,8 +663,6 @@ export function PlanRegister({
 
         {/* The create boxes and Bulk Upload — shared with the hierarchy board,
             so both surfaces offer the same levels under the same rule. */}
-        <NewItemButtons onPick={setCreating} onBulkUpload={setBulkKind} bulkKind={kind ?? "project"} />
-
         <span className="ml-auto text-[12.5px] font-semibold text-ink-muted">
           {rows.length} {rows.length === 1 ? levelLabel.toLowerCase() : `${levelLabel.toLowerCase()}s`}
         </span>

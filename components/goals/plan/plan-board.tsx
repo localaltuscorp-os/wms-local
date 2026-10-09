@@ -9,10 +9,12 @@ import {
   useSensor,
   useSensors,
   useDroppable,
+  pointerWithin,
   closestCorners,
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import {
@@ -33,7 +35,6 @@ import {
   Sunrise,
   Plus,
 } from "lucide-react";
-import { PRIORITY_LABELS, TASK_PRIORITIES } from "@/db/enums";
 import { fireToast } from "@/lib/toast";
 import { autoPunch } from "@/components/attendance/auto-punch";
 import { blockLabel } from "@/lib/goals/plan-time";
@@ -47,19 +48,9 @@ import { SourceCard } from "./source-card";
 import { DayColumn, DAY_DROP } from "./day-column";
 import { PlanQuickDock } from "./plan-quick-dock";
 import { DayReview } from "./day-review";
-import { SourceTag } from "./source-tag";
+import { SourceTag, fmtYmd } from "./source-tag";
 import { HoverTip } from "@/components/ui/hover-tip";
-import {
-  DEFAULT_WMS_FILTER,
-  OVERDUE_LABEL,
-  OVERDUE_OPTIONS,
-  applyWmsFilter,
-  isFilterActive,
-  sortByAttention,
-  type OverdueFilter,
-  type PriorityFilter,
-  type WmsFilter,
-} from "./wms-filters";
+import { sortByAttention } from "./wms-filters";
 import {
   GHOST_ID,
   PLAN_DEFAULT_SPAN,
@@ -87,6 +78,7 @@ import {
   setPlanItemTime,
   startMyDay,
   transferPlanItem,
+  rememberUpcomingPlan,
 } from "@/app/(app)/goals/plan/actions";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -146,6 +138,8 @@ interface Props {
   wmsTasksOnly?: boolean;
   /** Display-only label for an unruled task approval on this surface. */
   unruledInitiatorLabel?: string;
+  /** Optional content below the planner; hidden while the review screen owns it. */
+  belowPlanner?: React.ReactNode;
 }
 
 const GOALS_ACCENT = "#E10600";
@@ -154,11 +148,21 @@ const GOALS_GRADIENT = `linear-gradient(135deg, ${GOALS_ACCENT}, ${GOALS_ACCENT_
 
 /** Drop-target id prefix for the day tabs — `daytab:<offset>`. */
 const DAY_TAB_DROP = "daytab:";
+/** Dropping a planned commitment here parks it in the Unfinished tray. */
+const UNFINISHED_DROP = "unfinished:drop";
 
 /** The span the board opens on — one shared definition, see types.ts. */
 const DEFAULT_SPAN = PLAN_DEFAULT_SPAN;
 
 const nonGhost = (items: PlanItem[]) => items.filter((i) => i.id !== GHOST_ID);
+
+// The date ribbon uses compact buttons above the planner. Prefer the target
+// directly under the pointer so a drop on "Tomorrow" cannot be claimed by a
+// nearby day column; keyboard dragging still falls back to closest corners.
+const plannerCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCorners(args);
+};
 
 /**
  * PLAN MY DAY — a 3-day kanban with the work you can pull into it on the right.
@@ -171,7 +175,7 @@ const nonGhost = (items: PlanItem[]) => items.filter((i) => i.id !== GHOST_ID);
  * the four decisions (Done / → tomorrow / → day after / Pending). There is no
  * percentage anywhere: a commitment was delivered or it wasn't.
  */
-export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTasksOnly = false, unruledInitiatorLabel }: Props) {
+export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTasksOnly = false, unruledInitiatorLabel, belowPlanner }: Props) {
   const [phase, setPhase] = React.useState(payload.initialPhase);
   const [starting, setStarting] = React.useState(false);
   const [days, setDays] = React.useState<PlanDayColumn[]>(() =>
@@ -195,6 +199,46 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   // The pull rail folds away like the app sidebar does, giving the three day
   // columns the whole width when you're only reading the plan (Sir).
   const [railOpen, setRailOpen] = React.useState(true);
+  const splitRef = React.useRef<HTMLDivElement | null>(null);
+  // Daily Commitments opens as the balanced two-box view. A fixed pixel width
+  // is applied only after the user manually drags the splitter.
+  const [wmsRailWidth, setWmsRailWidth] = React.useState<number | null>(null);
+  const [wmsRailExpanded, setWmsRailExpanded] = React.useState(false);
+  const [dailyCommitmentsExpanded, setDailyCommitmentsExpanded] = React.useState(false);
+  const [wmsSplitEnabled, setWmsSplitEnabled] = React.useState(false);
+  React.useEffect(() => {
+    if (!wmsTasksOnly) return;
+    const media = window.matchMedia("(min-width: 1024px)");
+    const sync = () => {
+      setWmsSplitEnabled(media.matches);
+      if (!media.matches) setWmsRailExpanded(false);
+    };
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, [wmsTasksOnly]);
+  const resizeWmsRail = React.useCallback((clientX: number) => {
+    const rect = splitRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const minimumRail = 280;
+    const minimumPlanner = 260;
+    const rawWidth = clientX - rect.left;
+    const fullWidthThreshold = Math.max(minimumRail, rect.width - minimumPlanner);
+    if (rawWidth <= minimumRail) {
+      setDailyCommitmentsExpanded(true);
+      setWmsRailExpanded(false);
+      return;
+    }
+    const requested = Math.max(minimumRail, rawWidth);
+    if (requested >= fullWidthThreshold) {
+      setWmsRailExpanded(true);
+      setDailyCommitmentsExpanded(false);
+      return;
+    }
+    setWmsRailExpanded(false);
+    setDailyCommitmentsExpanded(false);
+    setWmsRailWidth(Math.min(requested, fullWidthThreshold));
+  }, []);
   // "Change Plan" from the day-started screen: show the BOARD again while the
   // day keeps running, so the header offers Review My Day rather than Start.
   const [adjusting, setAdjusting] = React.useState(false);
@@ -203,10 +247,12 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   // round-trip and no spinner.
   const [query, setQuery] = React.useState("");
   const [ribbonSearchTarget, setRibbonSearchTarget] = React.useState<HTMLElement | null>(null);
+  const [profileSearchTarget, setProfileSearchTarget] = React.useState<HTMLElement | null>(null);
+  const [topBarAddTarget, setTopBarAddTarget] = React.useState<HTMLElement | null>(null);
   const [ribbonDaysTarget, setRibbonDaysTarget] = React.useState<HTMLElement | null>(null);
   const [ribbonRailToggleTarget, setRibbonRailToggleTarget] = React.useState<HTMLElement | null>(null);
   React.useEffect(() => {
-    if (!dashboardHref) return;
+    if (!dashboardHref && !wmsTasksOnly) return;
     // These hosts are rendered by the server-owned page shell, so they only
     // exist after mount. Keeping this in an effect also avoids an SSR/client
     // mismatch in the planner bar before its portal can be attached.
@@ -219,7 +265,21 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
       setRibbonDaysTarget(null);
       setRibbonRailToggleTarget(null);
     };
-  }, [dashboardHref]);
+  }, [dashboardHref, wmsTasksOnly]);
+  React.useEffect(() => {
+    if (!wmsTasksOnly) return;
+    // The WMS To-Do planner is the one Daily Commitments view whose local
+    // search belongs below the global profile avatar rather than in its own
+    // toolbar. The host is always present in the shared top bar; it stays empty
+    // on every other page.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfileSearchTarget(document.getElementById("daily-commitments-profile-search"));
+    setTopBarAddTarget(document.getElementById("daily-commitments-topbar-add"));
+    return () => {
+      setProfileSearchTarget(null);
+      setTopBarAddTarget(null);
+    };
+  }, [wmsTasksOnly]);
   // How each day column is ordered. ALWAYS opens on Oldest → Newest, and is
   // deliberately NOT persisted to the URL or storage: the default is the
   // product rule, so a stale "newest" must never be what greets you tomorrow.
@@ -271,6 +331,9 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   }
 
   const { windowStart, maxWindowStart, minWindowStart, windowDays, todayYmd, minItems, hierarchy } = payload;
+  // This is derived from the URL-backed day offset, not local component state,
+  // so routing to Tomorrow cannot remount the closed-day summary.
+  const viewingClosedDayFuture = phase === "closed" && windowStart > 0;
   const firstDay = days[0];
 
   /* ── search ──────────────────────────────────────────────────────────── */
@@ -304,6 +367,11 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
    */
   const focusAddCommitment = React.useCallback(() => {
     const offset = days[0]?.offset ?? 0;
+    const trigger = document.getElementById(`plan-add-trigger-${offset}`);
+    if (trigger) {
+      trigger.click();
+      return;
+    }
     const el = document.getElementById(`plan-add-${offset}`) as HTMLInputElement | null;
     if (!el) return;
     el.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -330,17 +398,33 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   /* ── navigation ──────────────────────────────────────────────────────── */
 
   const goToWindow = React.useCallback(
-    (start: number, empId: string = target.employeeId, days: number = payload.windowDays) => {
+    (
+      start: number,
+      empId: string = target.employeeId,
+      days: number = payload.windowDays,
+      replaceHistory = false,
+    ) => {
       const qs = new URLSearchParams();
       // `!== 0`, not `> 0` — the window can start in the PAST now.
       if (start !== 0) qs.set("d", String(start));
       if (days !== DEFAULT_SPAN) qs.set("v", String(days));
       if (empId && target.roster.length > 1) qs.set("emp", empId);
       const q = qs.toString();
-      router.push((q ? `${pathname}?${q}` : pathname) as Route);
+      const href = (q ? `${pathname}?${q}` : pathname) as Route;
+      if (replaceHistory) router.replace(href);
+      else router.push(href);
     },
     [router, pathname, target.employeeId, target.roster.length, payload.windowDays],
   );
+
+  // Keep the choice to plan future work for this browser tab and calendar day.
+  // A sidebar return can reuse a prefetched page; this runs before it paints.
+  React.useLayoutEffect(() => {
+    if (!wmsTasksOnly || phase !== "closed" || windowStart !== 0) return;
+    const preferenceKey = "daily-commitments:plan-upcoming:" + todayYmd;
+    if (window.sessionStorage.getItem(preferenceKey) !== "1") return;
+    goToWindow(Math.max(1, minWindowStart), target.employeeId, payload.windowDays, true);
+  }, [goToWindow, minWindowStart, payload.windowDays, phase, target.employeeId, todayYmd, windowStart, wmsTasksOnly]);
 
   /* ── day mutations ───────────────────────────────────────────────────── */
 
@@ -429,6 +513,15 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
         }
         else fireToast({ message: r.error, type: "error" });
       })
+      .catch((error: unknown) => {
+        // Server actions can reject before returning their normal ActionResult
+        // (for example, when the session expires). Keep that from becoming an
+        // unhandled browser error and give the planner a usable response.
+        fireToast({
+          message: error instanceof Error ? error.message : "Unable to start your day. Please try again.",
+          type: "error",
+        });
+      })
       .finally(() => setStarting(false));
   }, [met, starting]);
 
@@ -489,14 +582,27 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
       );
       if (DEDUPE_KINDS.includes(kind)) markSource(kind, sourceId, true);
 
-      const res =
-        kind === "weekly"
-          ? await addWeeklyGoalToPlan(sourceId, toOffset, target.employeeId)
-          : kind === "task"
-            ? await addTaskToPlan(sourceId, toOffset, target.employeeId)
-            : kind === "unfinished"
-              ? await addUnfinishedToPlan(sourceId, toOffset)
-              : await addCascadeGoalToPlan(sourceId, toOffset, target.employeeId);
+      let res: Awaited<ReturnType<typeof addTaskToPlan>>;
+      try {
+        res =
+          kind === "weekly"
+            ? await addWeeklyGoalToPlan(sourceId, toOffset, target.employeeId)
+            : kind === "task"
+              ? await addTaskToPlan(sourceId, toOffset, target.employeeId)
+              : kind === "unfinished"
+                ? await addUnfinishedToPlan(sourceId, toOffset)
+                : await addCascadeGoalToPlan(sourceId, toOffset, target.employeeId);
+      } catch (error: unknown) {
+        // Server actions can reject before returning ActionResult. Restore the
+        // rail/card state so a WMS “+” never appears to do nothing.
+        setDayItems(toOffset, (items) => items.filter((i) => i.id !== tempId));
+        if (DEDUPE_KINDS.includes(kind)) markSource(kind, sourceId, false);
+        fireToast({
+          message: error instanceof Error ? error.message : "Unable to add this task. Please try again.",
+          type: "error",
+        });
+        return;
+      }
 
       if (!res.ok) {
         setDayItems(toOffset, (items) => items.filter((i) => i.id !== tempId));
@@ -604,30 +710,36 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   /** PENDING — not done, not moved: it stays on its day and joins Unfinished. */
   const onPending = React.useCallback((item: PlanItem) => {
     if (item.id.startsWith("temp:")) return;
+    const original = wmsTasksOnly ? findItem(item.id) : null;
     setDays((prev) =>
-      prev.map((d) => ({
-        ...d,
-        items: d.items.map((i) => (i.id === item.id ? { ...i, pending: true, done: false } : i)),
-      })),
+      prev.map((d) =>
+        wmsTasksOnly
+          ? { ...d, items: d.items.filter((i) => i.id !== item.id) }
+          : { ...d, items: d.items.map((i) => (i.id === item.id ? { ...i, pending: true, done: false } : i)) },
+      ),
     );
     setBusyId(item.id);
     void setPlanItemPending(item.id)
       .then((r) => {
         if (!r.ok) {
           setDays((prev) =>
-            prev.map((d) => ({
-              ...d,
-              items: d.items.map((i) => (i.id === item.id ? { ...i, pending: false } : i)),
-            })),
+            prev.map((d) => {
+              if (wmsTasksOnly && original?.day.offset === d.offset) {
+                return { ...d, items: [...d.items, { ...original.item, pending: false, done: false }] };
+              }
+              return wmsTasksOnly
+                ? d
+                : { ...d, items: d.items.map((i) => (i.id === item.id ? { ...i, pending: false } : i)) };
+            }),
           );
           fireToast({ message: r.error, type: "error" });
         } else {
-          fireToast({ message: "Kept as pending - it's in Unfinished." });
+          fireToast({ message: wmsTasksOnly ? "Moved to Unfinished." : "Kept as pending - it's in Unfinished." });
           refresh();
         }
       })
       .finally(() => setBusyId(null));
-  }, [router]);
+  }, [router, findItem, wmsTasksOnly]);
 
   /**
    * WHEN a commitment happens. Optimistic, and it re-labels the card in the same
@@ -889,6 +1001,10 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
 
     // A PLANNED card: another day → re-date it; same day → reorder.
     const found = findItem(String(a.id));
+    if (overId === UNFINISHED_DROP) {
+      if (found && !found.item.pending) onPending(found.item);
+      return;
+    }
     if (!found || toOffset == null) return;
     if (toOffset !== found.day.offset) {
       onTransfer(String(a.id), toOffset);
@@ -917,9 +1033,26 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   // close-out shows the review list. The board is for arranging a day, not for
   // sitting behind the screen that says you've committed to it.
   const started = phase !== "plan";
-  // The day strip stays up on the active screen (you can still look ahead), but
-  // steps aside during close-out, which is strictly about today.
-  const reviewing = phase === "closeout" || phase === "closed";
+  // The active confirmation and the close-out both own the page. Selecting
+  // Change Plan is the one path back to the editable planning board.
+  const onReviewScreen = started && !(phase === "active" && adjusting) && !(phase === "closed" && viewingClosedDayFuture);
+  // Close-out is strictly about Today, so its lifecycle button remains hidden.
+  const reviewing = phase === "closeout" || (phase === "closed" && !viewingClosedDayFuture);
+  const topBarAdd =
+    wmsTasksOnly && !reviewing && topBarAddTarget
+      ? createPortal(
+          <button
+            type="button"
+            onClick={focusAddCommitment}
+            title="Add a commitment to the selected day"
+            aria-label="Add a commitment to the selected day"
+            className="inline-flex size-9 items-center justify-center rounded-full border border-hairline bg-white/70 text-altus-red transition hover:border-altus-red hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-altus-red"
+          >
+            <Plus size={18} strokeWidth={2.5} aria-hidden />
+          </button>,
+          topBarAddTarget,
+        )
+      : null;
   const header = (
     <PlannerBar
       target={target}
@@ -941,7 +1074,8 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
       onAddCommitment={focusAddCommitment}
       onCloseout={() => setPhase("closeout")}
       dashboardHref={dashboardHref}
-      searchPortalTarget={ribbonSearchTarget}
+      searchPortalTarget={wmsTasksOnly ? profileSearchTarget : ribbonSearchTarget}
+      hideAddAction={wmsTasksOnly}
       actionsInRibbon={Boolean(ribbonDaysTarget)}
     />
   );
@@ -949,7 +1083,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
   // The day strip sits INSIDE the DndContext on purpose: every tab is a drop
   // target, so a card can be dragged straight onto a day the kanban isn't
   // currently showing. It steps aside during the review, which is today-only.
-  const ribbonPersonSelect = ribbonDaysTarget && target.roster.length > 1 ? (
+  const ribbonPersonSelect = target.roster.length > 1 ? (
     <CompactSelect
       value={target.employeeId}
       onChange={(employeeId) => goToWindow(windowStart, employeeId)}
@@ -962,7 +1096,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
 
   const ribbonActions = ribbonDaysTarget ? (
     <>
-      {!reviewing ? (
+      {!reviewing && !wmsTasksOnly ? (
         <button
           type="button"
           onClick={focusAddCommitment}
@@ -986,7 +1120,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
           onClick={onStartDay}
           disabled={!met || starting}
           title={met ? "Start my day" : `Plan at least ${minItems} items on Today to start`}
-          className="inline-flex h-7 w-[122px] self-center items-center justify-center gap-1 rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors disabled:opacity-40 focus-visible:outline-2"
+          className="inline-flex h-7 w-[122px] self-center items-center justify-center gap-1 whitespace-nowrap rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors disabled:opacity-40 focus-visible:outline-2"
           style={{
             borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
             color: GOALS_ACCENT_DEEP,
@@ -1000,7 +1134,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
         <button
           type="button"
           onClick={() => setPhase("closeout")}
-          className="inline-flex h-7 w-[122px] self-center items-center justify-center gap-1 rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors focus-visible:outline-2"
+          className="inline-flex h-7 w-[122px] self-center items-center justify-center gap-1 whitespace-nowrap rounded-[11px] border px-2 text-[13px] font-bold shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors focus-visible:outline-2"
           style={{
             borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
             color: GOALS_ACCENT_DEEP,
@@ -1011,6 +1145,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
           <ClipboardCheck size={13} /> Review My Day
         </button>
       )}
+      {ribbonPersonSelect}
       {dashboardHref ? (
         <Link
           href={dashboardHref}
@@ -1030,22 +1165,31 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
 
   const daySwitcher = (
     <DaySwitcher
-      tabs={payload.tabs}
+      tabs={viewingClosedDayFuture ? payload.tabs.filter((tab) => tab.offset > 0) : payload.tabs}
       windowStart={windowStart}
       windowOffsets={days.map((d) => d.offset)}
       maxWindowStart={maxWindowStart}
-      minWindowStart={minWindowStart}
+      minWindowStart={viewingClosedDayFuture ? Math.max(1, minWindowStart) : minWindowStart}
       windowDays={windowDays}
       // The review is TODAY-only, so a "how many columns" control has nothing
       // to act on there (Sir) — it would change a board that isn't on screen.
-      showSpan={!reviewing}
+      showSpan={!reviewing && !wmsTasksOnly}
       sort={sort}
       onSort={setSort}
+      hideSort={wmsTasksOnly}
       railOpen={railOpen}
       onToggleRail={() => setRailOpen((v) => !v)}
-      onPick={(off) => goToWindow(Math.min(off, maxWindowStart))}
+      onPick={(off) => {
+        const nextOffset = Math.min(Math.max(viewingClosedDayFuture ? 1 : minWindowStart, off), maxWindowStart);
+        // A future-day visit can arrive through a URL refresh, which restores
+        // the persisted active phase. Returning to Today must resume review,
+        // not replay the day-planned confirmation.
+        if (phase === "active" && windowStart !== 0 && nextOffset === 0) setPhase("closeout");
+        goToWindow(nextOffset);
+      }}
+      // The ribbon uses the compact control sizes.
       compact={Boolean(ribbonDaysTarget)}
-      ribbonLeading={ribbonPersonSelect}
+      ribbonLeading={null}
       ribbonActions={ribbonActions}
       // Switching span re-clamps the start, so going 3 → 7 near the far end
       // can't leave the board beginning past the last planner day.
@@ -1054,8 +1198,13 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
       onSpan={(d) => goToWindow(Math.min(windowStart, Math.max(0, 28 - d)), target.employeeId, d)}
     />
   );
-  const dayStrip = ribbonDaysTarget ? createPortal(daySwitcher, ribbonDaysTarget) : daySwitcher;
-  const railRestoreButton = ribbonRailToggleTarget && !railOpen
+  const reviewRibbon = <div className="flex items-center gap-1">{ribbonActions}</div>;
+  // Keep the active confirmation compact only for Today. Future dates must
+  // retain the strip so a navigation reload cannot strand the person back on
+  // the confirmation screen.
+  const dayStripContent = phase === "active" && onReviewScreen && windowStart === 0 ? reviewRibbon : daySwitcher;
+  const dayStrip = ribbonDaysTarget ? createPortal(dayStripContent, ribbonDaysTarget) : dayStripContent;
+  const railRestoreButton = ribbonRailToggleTarget && !railOpen && !wmsTasksOnly
     ? createPortal(
         <button
           type="button"
@@ -1072,24 +1221,48 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
 
   // A started day shows its own screen — UNLESS you asked to adjust the plan,
   // in which case the board comes back with the day still running.
-  const onReviewScreen = started && !(phase === "active" && adjusting);
-
   const reviewScreen =
-    phase === "plan" ? null : (
+    phase === "plan" || !onReviewScreen ? null : windowStart !== 0 ? (
+      <ReviewDayReadOnly items={firstDay?.items ?? []} />
+    ) : (
     <DayReview
           phase={phase}
           items={days.find((d) => d.offset === 0)?.items ?? []}
           // The day being reviewed — the duplicate picker opens on it, the same
           // way the planner card's picker opens on the day its card sits in.
           dayYmd={days.find((d) => d.offset === 0)?.ymd ?? ""}
-          onBackToPlan={() => {
-            setAdjusting(false);
-            setPhase("plan");
-          }}
           onToCloseout={() => setPhase("closeout")}
-          onAdjust={() => setAdjusting(true)}
+          onViewUpcoming={() => {
+            window.sessionStorage.setItem("daily-commitments:plan-upcoming:" + todayYmd, "1");
+            // Set the browser cookie immediately too. The server action below
+            // invalidates Next's route cache; this is the fallback if its
+            // request is interrupted while the user is leaving the page.
+            document.cookie =
+              "daily-commitments-plan-upcoming=" +
+              encodeURIComponent(todayYmd) +
+              "; Path=/; Max-Age=86400; SameSite=Lax";
+            // The server action writes the cookie and invalidates any prefetched
+            // Daily Commitments response before we navigate. Browser storage stays as a
+            // same-tab fallback if the action cannot be reached.
+            void rememberUpcomingPlan(todayYmd)
+              .catch(() => undefined)
+              .finally(() => {
+                const qs = new URLSearchParams();
+                qs.set("d", String(Math.max(1, minWindowStart)));
+                if (payload.windowDays !== DEFAULT_SPAN) qs.set("v", String(payload.windowDays));
+                if (target.roster.length > 1) qs.set("emp", target.employeeId);
+                // This deliberately reloads the document, so it cannot reuse
+                // a prefetched closed-day response from the in-app router.
+                window.location.replace(pathname + "?" + qs.toString());
+              });
+          }}
+          onAdjust={() => {
+            // Changing a committed plan must not clear the start stamp: the
+            // employee remains checked in and returns to Review My Day later.
+            setPhase("active");
+            setAdjusting(true);
+          }}
           onClosed={() => setPhase("closed")}
-          onReopened={() => setPhase("plan")}
           onToggleDone={onToggleDone}
           onPending={onPending}
           onTransfer={onTransfer}
@@ -1098,7 +1271,6 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
           // UNFINISHED rather than sending it to the Recycle Bin. Same handler
           // the Pending button uses; the board's own × (onRemove) is unchanged.
           onRemove={onPending}
-      onAddCommitment={(title, time) => void onAddCommitment(0, title, time)}
       busyId={busyId}
     />
     );
@@ -1120,32 +1292,54 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
     <DndContext
       id={dndId}
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={plannerCollisionDetection}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
     >
+      {topBarAdd}
       {header}
       {dayStrip}
       {railRestoreButton}
       {onReviewScreen ? (
         reviewScreen
       ) : (
-        // The kanban is the page. The pull panels sit in a narrow right rail so
-        // the three days get the width they need (rule 16).
+        // Daily Commitments keeps the WMS To-Do rail at the left, matching the
+        // operational layout. Goals canvas consumers retain the established
+        // planner-left / source-right arrangement.
           <div
+            ref={splitRef}
             className={
               "grid gap-4 max-lg:grid-cols-1 " +
-            (railOpen ? "grid-cols-[minmax(0,1fr)_340px]" : "grid-cols-1")
-          }
-        >
+            (railOpen
+              ? wmsTasksOnly
+                ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+                : "grid-cols-[minmax(0,1fr)_340px]"
+              : "grid-cols-1")
+            }
+            style={
+              railOpen && wmsTasksOnly && wmsSplitEnabled
+                ? {
+                    gridTemplateColumns:
+                      wmsRailExpanded || dailyCommitmentsExpanded
+                        ? "minmax(0, 1fr)"
+                        : wmsRailWidth === null
+                          ? "minmax(0, 0.9fr) minmax(0, 1.1fr)"
+                          : `${wmsRailWidth}px minmax(0, 1fr)`,
+                  }
+                : undefined
+            }
+          >
           {/* One column per chosen day. Up to 3 they share the width evenly; at
               4 and 7 each column keeps a 210px floor and the row SCROLLS sideways
               (Sir), so a wide view stays readable instead of shrinking every card
               to a sliver. */}
           <div
-            className="group relative grid min-w-0 gap-3 max-md:grid-cols-1"
+            className={
+              "group relative grid min-w-0 gap-3 max-md:grid-cols-1 " +
+              (wmsTasksOnly ? `order-2 max-lg:order-1${wmsSplitEnabled && wmsRailExpanded ? " hidden" : ""}` : "")
+            }
             style={{
               gridTemplateColumns:
                 shownDays.length > 3
@@ -1154,6 +1348,13 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
               overflowX: shownDays.length > 3 ? "auto" : undefined,
             }}
           >
+            {wmsTasksOnly && wmsSplitEnabled && dailyCommitmentsExpanded ? (
+              <WmsRailResizeHandle
+                onCollapse={() => setDailyCommitmentsExpanded(false)}
+                onResize={resizeWmsRail}
+                side="left"
+              />
+            ) : null}
             {shownDays.map((d) => (
               <DayColumn
                 key={d.ymd}
@@ -1168,6 +1369,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
                 onRename={onRename}
                 onTransfer={onTransfer}
                 onSetTime={onSetTime}
+                dragOnly={wmsTasksOnly}
                 searching={searching}
                 onAddCommitment={onAddCommitment}
                 unruledInitiatorLabel={unruledInitiatorLabel}
@@ -1176,8 +1378,15 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
           </div>
 
           {railOpen ? (
-            <div className="group relative min-w-0">
-              <PullRailCollapseHandle onCollapse={() => setRailOpen(false)} />
+            <div className={"group relative min-w-0 " + (wmsTasksOnly ? `order-1 max-lg:order-2${wmsSplitEnabled && dailyCommitmentsExpanded ? " hidden" : ""}` : "")}>
+              {wmsTasksOnly ? (
+                <WmsRailResizeHandle
+                  onCollapse={() => setRailOpen(false)}
+                  onResize={resizeWmsRail}
+                />
+              ) : (
+                <PullRailCollapseHandle onCollapse={() => setRailOpen(false)} />
+              )}
               <SourceRail
                 sources={src}
                 today={todayYmd}
@@ -1189,6 +1398,7 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
                 matches={matches}
                 searching={searching}
                 hideGoals={wmsTasksOnly}
+                hideCollapse={wmsTasksOnly}
               />
             </div>
           ) : null}
@@ -1200,6 +1410,10 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
           Start My Day keeps its attendance automation and a commitment typed
           down here is the same row the column composer files. It follows the
           board's FIRST VISIBLE day, which is the day those buttons are about. */}
+      {!onReviewScreen && belowPlanner ? (
+        <React.Fragment key="below-planner">{belowPlanner}</React.Fragment>
+      ) : null}
+
       {quickDock && firstDay && !onReviewScreen ? (
         <PlanQuickDock
           dayLabel={`${firstDay.word} ${firstDay.date}`}
@@ -1232,6 +1446,39 @@ export function PlanBoard({ target, me, payload, dashboardHref, quickDock, wmsTa
 /* The one control bar: who · which days · the day's lifecycle             */
 /* ----------------------------------------------------------------------- */
 
+/**
+ * While closing out Today, the date ribbon can still be used to inspect work
+ * scheduled for another day. Those dates are deliberately read-only: only
+ * today's commitments can be reviewed, finished, or changed from this flow.
+ */
+function ReviewDayReadOnly({ items }: { items: PlanItem[] }) {
+  return (
+    <section className="w-full wg-rise">
+      <ul className="flex flex-col gap-2">
+        {items.map((item) => (
+          <li
+            key={item.id}
+            className="rounded-none border border-hairline bg-surface-card px-4 py-3"
+          >
+            <p className="text-[14px] font-semibold leading-[1.4] text-ink-strong" style={{ overflowWrap: "anywhere" }}>
+              {item.title}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <SourceTag kind={item.kind} />
+              {item.timeLabel ? (
+                <span className="text-[11.5px] font-semibold tabular-nums text-ink-muted">{item.timeLabel}</span>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {items.length === 0 ? (
+        <p className="py-12 text-center text-[13px] font-medium text-ink-muted">Nothing planned for this day.</p>
+      ) : null}
+    </section>
+  );
+}
+
 function PlannerBar({
   target,
   hierarchy,
@@ -1250,6 +1497,7 @@ function PlannerBar({
   onCloseout,
   dashboardHref,
   searchPortalTarget,
+  hideAddAction = false,
   actionsInRibbon = false,
 }: {
   target: PlanTargetProp;
@@ -1276,6 +1524,8 @@ function PlannerBar({
   /** Daily Goals → Dashboard. Absent on every surface but Daily Goals. */
   dashboardHref?: Route;
   searchPortalTarget?: HTMLElement | null;
+  /** Daily Commitments creates work from its in-column composer only. */
+  hideAddAction?: boolean;
   actionsInRibbon?: boolean;
 }) {
   const reportsTo = [hierarchy.manager, hierarchy.managerManager].filter(Boolean) as string[];
@@ -1306,6 +1556,10 @@ function PlannerBar({
         searchPortalTarget,
       )
     : null;
+  // On Daily Commitments the full day strip lives in the ribbon. The local
+  // search still portals below the profile avatar, so do not leave an empty
+  // planner-toolbar row in the page content.
+  if (actionsInRibbon && hideAddAction) return <>{ribbonSearch}</>;
   return (
     <div className="mb-2 flex flex-nowrap items-center gap-x-3">
       {ribbonSearch}
@@ -1401,7 +1655,7 @@ function PlannerBar({
           drops the cursor straight into the day column's own composer, which is
           where the commitment actually lands. Pressing C still does the same,
           and the key is named on the button so it can be discovered. */}
-      {!actionsInRibbon && !reviewing ? (
+      {!hideAddAction && !actionsInRibbon && !reviewing ? (
         <button
           type="button"
           onClick={onAddCommitment}
@@ -1507,7 +1761,7 @@ function DayTab({
       role="tab"
       aria-selected={lead}
       onClick={() => onPick(t.offset)}
-      className={`flex shrink-0 flex-col items-center justify-center rounded-lg leading-tight transition-colors ${compact ? "h-7 min-w-[51px] px-1 py-0" : "min-w-[62px] px-2.5 py-1"} ${
+      className={`flex shrink-0 flex-col items-center justify-center rounded-lg leading-tight transition-colors ${compact ? "h-7 min-w-[60px] px-1.5 py-0" : "min-w-[62px] px-2.5 py-1"} ${
         lead ? "text-white" : "text-ink-soft hover:bg-surface-soft hover:text-ink-strong"
       }`}
       style={
@@ -1554,11 +1808,13 @@ function DaySwitcher({
   showSpan,
   sort,
   onSort,
+  hideSort = false,
   railOpen,
   onPick,
   onSpan,
   onToggleRail,
   compact = false,
+  showPullWhenCompact = false,
   ribbonLeading,
   ribbonActions,
 }: {
@@ -1574,6 +1830,8 @@ function DaySwitcher({
   /** How each day column is ordered — see lib/goals/plan-sort.ts. */
   sort: PlanSort;
   onSort: (s: PlanSort) => void;
+  /** Daily Commitments preserves its drag order and does not expose a view sort. */
+  hideSort?: boolean;
   /** The pull rail's state — "Pull Work" only shows while it is folded away. */
   railOpen: boolean;
   onPick: (off: number) => void;
@@ -1581,6 +1839,8 @@ function DaySwitcher({
   onToggleRail: () => void;
   /** Use smaller controls when the switcher is hosted in the narrow page ribbon. */
   compact?: boolean;
+  /** Daily Commitments retains the rail toggle in its compact ribbon. */
+  showPullWhenCompact?: boolean;
   /** Content that belongs immediately before the day-count control in the page ribbon. */
   ribbonLeading?: React.ReactNode;
   /** Planner actions that belong beside Pull Work when this strip is in the page ribbon. */
@@ -1609,6 +1869,8 @@ function DaySwitcher({
         label="Previous day"
         disabled={!canPrev}
         onClick={() => page(-1)}
+        dropTargetId="daynav:previous"
+        onDragHover={() => page(-1)}
         icon={<ChevronLeft size={15} />}
         compact={compact}
       />
@@ -1636,6 +1898,8 @@ function DaySwitcher({
         label="Next day"
         disabled={!canNext}
         onClick={() => page(1)}
+        dropTargetId="daynav:next"
+        onDragHover={() => page(1)}
         icon={<ChevronRight size={15} />}
         compact={compact}
       />
@@ -1669,7 +1933,7 @@ function DaySwitcher({
           neither changes the plan, both change what of it you are looking at.
           It is a VIEW over each column (lib/goals/plan-sort.ts) — drag-to-reorder
           still writes the real order underneath, and is what breaks ties here. */}
-      {!compact ? (
+      {!compact && !hideSort ? (
         <select
           value={sort}
           onChange={(e) => onSort(e.target.value as PlanSort)}
@@ -1702,20 +1966,20 @@ function DaySwitcher({
           so the same button you reached for is the one that puts it away.
           Pressed state is shown, not just implied — the button stays lit while
           the rail is open so you can see which way the switch is thrown. */}
-      {!compact ? (
+      {!compact || showPullWhenCompact ? (
         <button
           type="button"
           onClick={onToggleRail}
           aria-expanded={railOpen}
           title={railOpen ? "Hide the work panel" : "Show work panel"}
           className={
-            "inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 text-[15px] font-bold transition-colors " +
+            `${compact ? "h-7 w-[112px] self-center gap-1 rounded-[11px] px-2 text-[13px] shadow-[0_1px_2px_rgba(15,23,42,0.05)]" : "min-w-0 flex-1 gap-1.5 rounded-xl px-3 text-[15px]"} inline-flex items-center justify-center border font-bold transition-colors ` +
             (railOpen
               ? "border-hairline-strong bg-surface-soft text-ink-strong"
               : "border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong")
           }
         >
-          <PanelRightOpen size={16} /> Pull Work
+          <PanelRightOpen size={compact ? 14 : 16} /> Pull Work
         </button>
       ) : null}
       {ribbonActions}
@@ -1729,23 +1993,45 @@ function StripNavButton({
   label,
   disabled,
   onClick,
+  dropTargetId,
+  onDragHover,
   icon,
   compact = false,
 }: {
   label: string;
   disabled: boolean;
   onClick: () => void;
+  /** Hovering a dragged commitment on an arrow pages one day, revealing the
+   * destination column before it is dropped. */
+  dropTargetId?: string;
+  onDragHover?: () => void;
   icon: React.ReactNode;
   compact?: boolean;
 }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: dropTargetId ?? `daynav:${label}`,
+    disabled: !dropTargetId || disabled,
+  });
+  const wasOver = React.useRef(false);
+  React.useEffect(() => {
+    if (!isOver) {
+      wasOver.current = false;
+      return;
+    }
+    if (wasOver.current) return;
+    wasOver.current = true;
+    onDragHover?.();
+  }, [isOver, onDragHover]);
+
   return (
     <button
+      ref={setNodeRef}
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`${compact ? "size-7 self-center rounded-[11px] border-hairline-strong shadow-[0_1px_2px_rgba(15,23,42,0.05)]" : "size-8 rounded-xl border-hairline"} inline-flex shrink-0 items-center justify-center border bg-surface-card text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong disabled:opacity-30 disabled:hover:border-hairline`}
+      className={`${compact ? "size-7 self-center rounded-[11px] border-hairline-strong shadow-[0_1px_2px_rgba(15,23,42,0.05)]" : "size-8 rounded-xl border-hairline"} inline-flex shrink-0 items-center justify-center border bg-surface-card text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong disabled:opacity-30 disabled:hover:border-hairline ${isOver ? "border-altus-red bg-altus-red/10 text-altus-red" : ""}`}
     >
       {icon}
     </button>
@@ -1757,7 +2043,13 @@ function StripNavButton({
  * should take that space back; a click is the keyboard/mouse shortcut for the
  * same collapse action. The rail itself remains available through Pull Work.
  */
-function PullRailCollapseHandle({ onCollapse }: { onCollapse: () => void }) {
+function PullRailCollapseHandle({
+  onCollapse,
+  railOnLeft = false,
+}: {
+  onCollapse: () => void;
+  railOnLeft?: boolean;
+}) {
   const startX = React.useRef<number | null>(null);
   const didDrag = React.useRef(false);
 
@@ -1765,7 +2057,7 @@ function PullRailCollapseHandle({ onCollapse }: { onCollapse: () => void }) {
     <button
       type="button"
       aria-label="Hide Pull Work"
-      title="Drag right or click to hide Pull Work"
+      title={`Drag ${railOnLeft ? "left" : "right"} or click to hide Pull Work`}
       onClick={() => {
         if (!didDrag.current) onCollapse();
         didDrag.current = false;
@@ -1777,21 +2069,80 @@ function PullRailCollapseHandle({ onCollapse }: { onCollapse: () => void }) {
       }}
       onPointerUp={(event) => {
         const deltaX = startX.current === null ? 0 : event.clientX - startX.current;
-        const movedRight = deltaX >= 24;
+        const movedTowardPlanner = railOnLeft ? deltaX <= -24 : deltaX >= 24;
         didDrag.current = Math.abs(deltaX) >= 4;
         startX.current = null;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
-        if (movedRight) onCollapse();
+        if (movedTowardPlanner) onCollapse();
       }}
       onPointerCancel={() => {
         startX.current = null;
       }}
-      className="absolute -left-7 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border border-hairline-strong bg-surface-card text-ink-soft opacity-0 shadow-[0_4px_14px_rgba(15,23,42,0.12)] transition-all group-hover:opacity-100 hover:border-altus-red hover:text-altus-red focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-altus-red"
+      className={
+        "absolute top-1/2 z-20 inline-flex size-7 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border border-hairline-strong bg-surface-card text-ink-soft opacity-0 shadow-[0_4px_14px_rgba(15,23,42,0.12)] transition-all group-hover:opacity-100 hover:border-altus-red hover:text-altus-red focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-altus-red " +
+        (railOnLeft ? "-right-7" : "-left-7")
+      }
       style={{ touchAction: "none" }}
     >
-      <ChevronLeft size={16} aria-hidden />
+      {railOnLeft ? <ChevronRight size={16} aria-hidden /> : <ChevronLeft size={16} aria-hidden />}
+    </button>
+  );
+}
+
+/**
+ * Daily Commitments uses a true splitter: widening the WMS panel to the right
+ * temporarily gives it the whole row; dragging back left restores the planner.
+ */
+function WmsRailResizeHandle({
+  onCollapse,
+  onResize,
+  side = "right",
+}: {
+  onCollapse: () => void;
+  onResize: (clientX: number) => void;
+  side?: "left" | "right";
+}) {
+  const startX = React.useRef<number | null>(null);
+  const didDrag = React.useRef(false);
+
+  return (
+    <button
+      type="button"
+      aria-label={side === "right" ? "Resize WMS To-Do panel" : "Resize Daily Commitments panel"}
+      title={side === "right" ? "Drag right to expand WMS To-Do; drag left to show Daily Commitments" : "Drag right to show WMS To-Do again"}
+      onClick={() => {
+        if (!didDrag.current) onCollapse();
+        didDrag.current = false;
+      }}
+      onPointerDown={(event) => {
+        startX.current = event.clientX;
+        didDrag.current = false;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (startX.current === null) return;
+        didDrag.current = true;
+        onResize(event.clientX);
+      }}
+      onPointerUp={(event) => {
+        if (startX.current !== null) onResize(event.clientX);
+        startX.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      }}
+      onPointerCancel={() => {
+        startX.current = null;
+      }}
+      className={
+        "absolute top-1/2 z-20 inline-flex size-7 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full border border-hairline-strong bg-surface-card text-ink-soft opacity-0 shadow-[0_4px_14px_rgba(15,23,42,0.12)] transition-all group-hover:opacity-100 hover:border-altus-red hover:text-altus-red focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-altus-red max-lg:hidden " +
+        (side === "right" ? "-right-7" : "-left-7")
+      }
+      style={{ touchAction: "none" }}
+    >
+      {side === "right" ? <ChevronRight size={16} aria-hidden /> : <ChevronLeft size={16} aria-hidden />}
     </button>
   );
 }
@@ -1823,7 +2174,6 @@ const GOAL_LEVELS = [
 ] as const;
 
 type GoalLevel = (typeof GOAL_LEVELS)[number]["key"];
-
 function SourceRail({
   sources,
   today,
@@ -1835,6 +2185,7 @@ function SourceRail({
   matches,
   searching,
   hideGoals = false,
+  hideCollapse = false,
 }: {
   sources: PlanSources;
   today: string;
@@ -1850,9 +2201,14 @@ function SourceRail({
   matches: (...text: (string | null | undefined)[]) => boolean;
   searching: boolean;
   hideGoals?: boolean;
+  /** Daily Commitments uses the resize divider instead of a separate close icon. */
+  hideCollapse?: boolean;
 }) {
   const [tab, setTab] = React.useState<RailTab>("task");
-  const [filter, setFilter] = React.useState<WmsFilter>(DEFAULT_WMS_FILTER);
+  const { setNodeRef: setUnfinishedDropRef, isOver: isOverUnfinished } = useDroppable({
+    id: UNFINISHED_DROP,
+    disabled: tab !== "unfinished",
+  });
   // Weekly by default — the nearest horizon, and the one a day is actually
   // planned against.
   const [goalLevel, setGoalLevel] = React.useState<GoalLevel>("weekly");
@@ -1866,11 +2222,7 @@ function SourceRail({
   const shownGoals = sources[goalLevel];
   /** Per-level counts, so a level with nothing in it says so before you click. */
   const goalCount = (key: GoalLevel) => sources[key].filter((i) => !i.added).length;
-  const wmsItems = React.useMemo(
-    () => sortByAttention(applyWmsFilter(sources.task, filter, today), today),
-    [sources.task, filter, today],
-  );
-  const filtering = isFilterActive(filter);
+  const wmsItems = React.useMemo(() => sortByAttention(sources.task, today), [sources.task, today]);
 
   const tabs: { key: RailTab; label: string; icon: React.ReactNode; count: number }[] = [
     { key: "task", label: "WMS To-Do", icon: <ListTodo size={13} />, count: sources.task.length },
@@ -1886,19 +2238,21 @@ function SourceRail({
   const base = tab === "task" ? wmsItems : tab === "goal" ? shownGoals : sources.unfinished;
   // A rail card matches on its title OR its full description — the card only
   // shows three lines, so the words you remember may be further down.
-  const shown = searching ? base.filter((i) => matches(i.title, i.description)) : base;
+  const shown = searching ? base.filter((i) => matches(i.title, i.description, i.subject, i.client)) : base;
   const empty = searching
     ? "No tasks found"
     : tab === "task"
-      ? filtering
-        ? "No tasks match these filters."
-        : "Nothing open in WMS."
+      ? "Nothing due in this selection."
       : tab === "goal"
         ? `No ${goalLevel} goals to pull in.`
         : "Nothing left unfinished.";
 
   return (
-    <aside className="flex min-w-0 flex-col rounded-2xl border border-hairline bg-surface-card p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] max-lg:mt-1">
+    <aside
+      ref={setUnfinishedDropRef}
+      className="flex min-w-0 flex-col rounded-none border border-hairline bg-surface-card p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors max-lg:mt-1"
+      style={isOverUnfinished ? { borderColor: GOALS_ACCENT, background: `color-mix(in srgb, ${GOALS_ACCENT} 5%, var(--color-surface-card))` } : undefined}
+    >
       <div className="mb-2 flex items-center gap-1">
         <div className="flex min-w-0 flex-1 items-center gap-1 rounded-xl bg-surface-soft/70 p-1">
         {tabs.map((t) => {
@@ -1919,16 +2273,18 @@ function SourceRail({
           );
         })}
         </div>
-        <button
-          type="button"
-          onClick={onCollapse}
-          aria-expanded
-          title="Hide this panel"
-          aria-label="Hide the pull panel"
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-hairline text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong"
-        >
-          <PanelRightClose size={14} />
-        </button>
+        {!hideCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-expanded
+            title="Hide this panel"
+            aria-label="Hide the pull panel"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-hairline text-ink-muted transition-colors hover:border-hairline-strong hover:text-ink-strong"
+          >
+            <PanelRightClose size={14} />
+          </button>
+        ) : null}
       </div>
 
       {/* THE CASCADE LEVELS, and only on the Goals column (Sir) — click Monthly
@@ -1966,59 +2322,25 @@ function SourceRail({
         </div>
       ) : null}
 
-      {/* TWO FILTERS, and only on the WMS column: OVERDUE | PRIORITY (rule 2). */}
-      {tab === "task" ? (
-        <div className="mb-2 grid grid-cols-2 gap-1.5 rounded-xl bg-surface-soft/60 p-2">
-          <label className="min-w-0">
-            <span className="mb-0.5 block text-[9.5px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-              Overdue
-            </span>
-            <select
-              value={filter.overdue}
-              onChange={(e) => setFilter((f) => ({ ...f, overdue: e.target.value as OverdueFilter }))}
-              className={SELECT_CLASS}
-              style={{ outlineColor: GOALS_ACCENT }}
-            >
-              {OVERDUE_OPTIONS.map((o) => (
-                <option key={o} value={o}>
-                  {OVERDUE_LABEL[o]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="min-w-0">
-            <span className="mb-0.5 block text-[9.5px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-              Priority
-            </span>
-            <select
-              value={filter.priority}
-              onChange={(e) => setFilter((f) => ({ ...f, priority: e.target.value as PriorityFilter }))}
-              className={SELECT_CLASS}
-              style={{ outlineColor: GOALS_ACCENT }}
-            >
-              <option value="all">All</option>
-              {TASK_PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {PRIORITY_LABELS[p]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {filtering ? (
-            <button
-              type="button"
-              onClick={() => setFilter(DEFAULT_WMS_FILTER)}
-              className="col-span-2 text-left text-[11px] font-bold focus-visible:outline-2"
-              style={{ color: GOALS_ACCENT_DEEP, outlineColor: GOALS_ACCENT }}
-            >
-              Clear filters
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       <div className="slim-scroll flex max-h-[calc(100vh-260px)] min-h-[180px] flex-col gap-1.5 overflow-y-auto pr-0.5 max-lg:max-h-[420px]">
-        {shown.length === 0 ? (
+        {tab === "task" ? (
+          <WmsDueTaskTable
+            items={shown}
+            today={today}
+            onAdd={onAdd}
+            onAddOn={onAddOn}
+            onAbandon={onAbandon}
+            addDayLabel={addDayLabel}
+            header={
+              <>
+                <div className="flex items-center justify-between gap-2 border-b border-hairline px-2.5 py-2">
+                  <span className="text-[12px] font-bold text-ink-strong">Your Due Tasks</span>
+                  <span className="text-[11px] font-bold tabular-nums text-ink-muted">{sources.task.length}</span>
+                </div>
+              </>
+            }
+          />
+        ) : shown.length === 0 ? (
           <p className="rounded-xl border border-hairline-strong px-3 py-6 text-center text-[12px] text-ink-muted/75">
             {empty}
           </p>
@@ -2032,6 +2354,7 @@ function SourceRail({
               onAddOn={onAddOn}
               onAbandon={item.taskId ? onAbandon : undefined}
               addDayLabel={addDayLabel}
+              hoverBelow={hideGoals}
             />
           ))
         )}
@@ -2040,5 +2363,56 @@ function SourceRail({
   );
 }
 
-const SELECT_CLASS =
-  "h-7 w-full min-w-0 rounded-lg border border-hairline bg-surface-card px-1 text-[11px] font-semibold text-ink-soft focus-visible:outline-2";
+function WmsDueTaskTable({
+  items,
+  today,
+  onAdd,
+  onAddOn,
+  onAbandon,
+  addDayLabel,
+  header,
+}: {
+  items: SourceItem[];
+  today: string;
+  onAdd: (item: SourceItem) => void;
+  onAddOn: (item: SourceItem, offset: number) => void;
+  onAbandon: (item: SourceItem) => void;
+  addDayLabel: string;
+  header: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-none border border-hairline">
+      {header}
+      <div className="grid grid-cols-[minmax(56px,.5fr)_minmax(76px,.7fr)_minmax(0,1.3fr)] border-b border-hairline bg-surface-soft/70 text-[9.5px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+        <span className="px-2.5 py-2">Overdue date</span>
+        <span className="border-l border-hairline px-2.5 py-2">Subject</span>
+        <span className="border-l border-hairline px-2.5 py-2">Task</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="px-2.5 py-6 text-center text-[12px] text-ink-muted/75">Nothing due in this selection.</div>
+      ) : items.map((item) => (
+        <div key={`${item.kind}:${item.id}`} className="grid grid-cols-[minmax(56px,.5fr)_minmax(76px,.7fr)_minmax(0,1.3fr)] border-b border-hairline last:border-b-0">
+          <div className="min-w-0 px-2.5 py-2 text-[11px] font-semibold leading-snug tabular-nums text-ink-soft">
+            {item.dueYmd ? fmtYmd(item.dueYmd) : "—"}
+          </div>
+          <div className="min-w-0 border-l border-hairline px-2.5 py-2 text-[11px] font-semibold leading-snug text-ink-soft">
+            <span className="line-clamp-3">{item.subject?.trim() || item.client?.trim() || "—"}</span>
+          </div>
+          <div className="min-w-0 border-l border-hairline p-1.5">
+            <SourceCard
+              item={item}
+              today={today}
+              onAdd={onAdd}
+              onAddOn={onAddOn}
+              onAbandon={item.taskId ? onAbandon : undefined}
+              addDayLabel={addDayLabel}
+              addButtonPosition="leading"
+              singleLineTitle
+              hoverBelow
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

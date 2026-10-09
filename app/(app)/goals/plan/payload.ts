@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, asc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { logDbError } from "@/lib/db/error";
 import { dailyChecklist, dailyPlanDay, employees, tasks, weeklyGoals } from "@/db/schema";
 import { getPeriodGoals } from "@/lib/goals/queries";
 import { MIN_ATTENDANCE_ITEMS } from "@/lib/daily-checklist/constants";
@@ -165,8 +166,13 @@ function dayLabels(ymd: string, offset: number): { word: string; date: string; w
  * what a tab says and where a dropped card actually lands.
  */
 function buildTabs(now: Date, from: number): PlanDayTab[] {
-  return Array.from({ length: PLAN_STRIP_DAYS }, (_, i) => {
-    const offset = Math.max(PLAN_MIN_DAY_OFFSET, Math.min(from + i, PLAN_MAX_DAY_OFFSET));
+  const first = Math.max(PLAN_MIN_DAY_OFFSET, Math.min(from, PLAN_MAX_DAY_OFFSET));
+  // Near the end of the planning horizon, clamping every requested tab to the
+  // final offset created duplicate React keys (for example, several `27`s).
+  // Shorten the strip instead: every rendered tab must name one unique day.
+  const count = Math.min(PLAN_STRIP_DAYS, PLAN_MAX_DAY_OFFSET - first + 1);
+  return Array.from({ length: count }, (_, i) => {
+    const offset = first + i;
     const ymd = ymdForOffset(offset, now);
     const [, m, d] = ymd.split("-");
     const { word, weekday } = dayLabels(ymd, offset);
@@ -220,14 +226,10 @@ function plannedTitle(r: {
   title: string;
   client: string | null;
   taskId: string | null;
+  taskTitle: string | null;
   taskDescription: string | null;
 }): string {
-  const title = r.title?.trim() ?? "";
-  const client = r.client?.trim() ?? "";
-  if (r.taskId && client && title === client) {
-    const desc = r.taskDescription?.trim();
-    if (desc) return desc;
-  }
+  if (r.taskId) return displayTitle(r.taskTitle, r.taskDescription, r.client);
   return r.title;
 }
 
@@ -451,6 +453,7 @@ async function planRowsForDays(employeeId: string, ymds: string[]) {
       priority: tasks.priority,
       taskDueAt: tasks.dueAt,
       taskRevisedTargetDate: tasks.revisedTargetDate,
+      taskTitle: tasks.title,
       // Only for repairing rows saved before the title bug was fixed — see
       // `plannedTitle`. Never shown as the card's own text.
       taskDescription: tasks.description,
@@ -525,10 +528,10 @@ async function loadDailyAxes(ids: string[]): Promise<Map<string, DailyAxes>> {
  * Commitments the user explicitly marked PENDING at review time. They stay on
  * the day they were planned (that is the honest record of what was committed)
  * and ALSO surface in Unfinished so they can be re-planned — see rule 6.
- * `getOverdueItems` only looks at strictly-earlier days, so today's pending rows
- * need this second read.
+ * `getOverdueItems` only looks at strictly-earlier days, so this second read
+ * includes pending commitments from every scheduled day.
  */
-async function pendingTodayItems(employeeId: string, ymd: string): Promise<OverdueItem[]> {
+async function pendingItems(employeeId: string): Promise<OverdueItem[]> {
   const rows = await db
     .select({
       id: dailyChecklist.id,
@@ -547,7 +550,6 @@ async function pendingTodayItems(employeeId: string, ymd: string): Promise<Overd
     .where(
       and(
         eq(dailyChecklist.employeeId, employeeId),
-        eq(dailyChecklist.planDate, ymd),
         eq(dailyChecklist.done, false),
         isNotNull(dailyChecklist.closedAt),
         isNull(dailyChecklist.abandonedAt),
@@ -569,9 +571,11 @@ export async function getPlanDayPayload(
   windowStart: number = 0,
   hierarchy: PlanHierarchy = { manager: null, managerManager: null },
   windowDays: number = PLAN_WINDOW_DAYS,
-  options: { includeGoals?: boolean } = {},
+  options: { includeGoals?: boolean; hidePendingFromDays?: boolean; overdueTasksOnlyInSource?: boolean } = {},
 ): Promise<PlanDayPayload> {
   const includeGoals = options.includeGoals ?? true;
+  const hidePendingFromDays = options.hidePendingFromDays ?? false;
+  const overdueTasksOnlyInSource = options.overdueTasksOnlyInSource ?? false;
   const days_ = clampWindowDays(windowDays);
   const start = clampWindowStart(windowStart, days_);
   const today = todayYmd(now);
@@ -608,13 +612,29 @@ export async function getPlanDayPayload(
       includeGoals ? getPeriodGoals(employeeId, "year", yearKey(now)) : Promise.resolve([]),
       // WMS To-Do source. The column filters by OVERDUE BUCKET itself, so it
       // needs the whole open set to filter over — a horizon here would make
-      // "All" quietly mean "the next N days". Anything already filed on a
-      // planner day is excluded server-side (one item, one day).
-      listOpenTasksForChecklist(employeeId, now, { limit: 200, excludePlannedAnyDay: true }),
+      // "All" quietly mean "the next N days". The Daily Commitments variant
+      // keeps task-backed rows available here so an overdue task cannot vanish
+      // from WMS To-Do merely because it has an older plan record.
+      listOpenTasksForChecklist(employeeId, now, {
+        limit: 200,
+        excludePlannedAnyDay: true,
+        includePlanned: overdueTasksOnlyInSource,
+      }),
       // TODAY's date, never a viewed day: "unfinished" means genuinely BEFORE
       // today, whichever day you happen to be planning.
-      getOverdueItems(employeeId, today),
-      pendingTodayItems(employeeId, today),
+      // The Unfinished tray is supplementary to the current plan. A stale
+      // pooled connection or an older database missing recycle-bin columns
+      // must not prevent someone from opening and working their day; return an
+      // empty tray for this request and retain the actionable driver cause in
+      // the server log. The next request retries both reads normally.
+      getOverdueItems(employeeId, today).catch((err: unknown) => {
+        logDbError("goals/plan unfinished-items", err);
+        return [] as OverdueItem[];
+      }),
+      pendingItems(employeeId).catch((err: unknown) => {
+        logDbError("goals/plan pending-today-items", err);
+        return [] as OverdueItem[];
+      }),
       isManagerWithReports(employeeId),
       db
         .select({ start: employees.workingHoursStart, end: employees.workingHoursEnd })
@@ -635,7 +655,13 @@ export async function getPlanDayPayload(
 
   // Cascade provenance (0141, guarded) — without it a GOAL pulled onto a day
   // is indistinguishable from a typed commitment and would wear the wrong tag.
-  const visibleRows = includeGoals ? rows : rows.filter((row) => row.origin !== "goal_related");
+  const visibleRows = rows.filter(
+    (row) =>
+      (includeGoals || row.origin !== "goal_related") &&
+      // Daily Commitments treats "Move to Unfinished" as leaving the day.
+      // Other planner screens retain the historical pending row.
+      (!hidePendingFromDays || row.done || row.closedAt == null),
+  );
   const cascadeLevels = includeGoals ? await cascadeGoalLevels(visibleRows.map((r) => r.id)) : new Map<string, PlanKind>();
 
   // ONE round-trip for the whole window, not one per day column.
@@ -710,7 +736,10 @@ export async function getPlanDayPayload(
     monthly: monthG.filter((g) => g.adopted).map((g) => goalToSource(g, "monthly")),
     quarterly: quarterG.filter((g) => g.adopted).map((g) => goalToSource(g, "quarterly")),
     yearly: yearG.filter((g) => g.adopted).map((g) => goalToSource(g, "yearly")),
-    task: openTasks.map<SourceItem>((t) => {
+    // Daily Commitments files a dated task onto the matching day automatically.
+    // Its WMS To-Do rail is therefore an exception tray for overdue work only;
+    // the full planner still retains its normal pull list.
+    task: openTasks.filter((t) => !overdueTasksOnlyInSource || t.overdue).map<SourceItem>((t) => {
       const overdue = t.dueAt != null && t.dueAt < today;
       return {
         // `id` IS the tasks.id — adding this card calls addTaskToPlan(id), which
@@ -728,6 +757,8 @@ export async function getPlanDayPayload(
         dueYmd: t.dueAt,
         taskId: t.id,
         description: t.description,
+        client: t.client,
+        subject: t.subject,
         overdueDays: overdue && t.dueAt ? ymdDiffDays(t.dueAt, today) : null,
         timeLabel: taskBlockLabel(t),
       };

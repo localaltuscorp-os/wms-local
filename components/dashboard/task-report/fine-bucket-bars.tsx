@@ -149,14 +149,14 @@ export function FineBucketBars({
           const row = href ? (
             <Link
               href={href as Route}
-              className="flex flex-1 items-center gap-3 rounded-lg px-2 -mx-2 py-2 transition-colors hover:bg-slate-50"
+              className="flex flex-1 items-center gap-3 rounded-lg px-2 -mx-2 py-2 transition-colors hover:bg-gray-50/80"
             >
               {rowInner}
             </Link>
           ) : (
             <div
               className={`flex flex-1 items-center gap-3 rounded-lg px-2 -mx-2 py-2 ${
-                b.count > 0 ? "transition-colors hover:bg-slate-50" : ""
+                b.count > 0 ? "transition-colors hover:bg-gray-50/80" : ""
               }`}
             >
               {rowInner}

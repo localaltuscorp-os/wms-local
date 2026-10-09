@@ -16,7 +16,8 @@ import { StatusBadge, StatusListbox } from "@/components/status/status-listbox";
 interface Props {
   taskId: string;
   status: TaskStatus;
-  updatedAt: Date;
+  /** Server Component boundaries serialize Date values to ISO strings. */
+  updatedAt: Date | string;
   labels: Record<TaskStatus, string>;
   tones: Record<TaskStatus, StatusColorToken>;
   /** No longer changes the option list — everyone now picks from the same six
@@ -26,6 +27,10 @@ interface Props {
   /** When false, the cell renders a STATIC status badge (no dropdown) — the
    *  current user isn't allowed to change this task's status. */
   editable: boolean;
+}
+
+function statusLockToken(updatedAt: Props["updatedAt"]): string {
+  return updatedAt instanceof Date ? updatedAt.toISOString() : updatedAt;
 }
 
 /**
@@ -62,8 +67,8 @@ export function InlineStatusCell({
   // refresh to re-prop it (Operation Butter P1). Re-syncs whenever the row's
   // server `updatedAt` changes (e.g. a realtime reconcile or someone else's
   // edit).
-  const [lockAt, setLockAt] = React.useState(updatedAt.toISOString());
-  React.useEffect(() => setLockAt(updatedAt.toISOString()), [updatedAt]);
+  const [lockAt, setLockAt] = React.useState(() => statusLockToken(updatedAt));
+  React.useEffect(() => setLockAt(statusLockToken(updatedAt)), [updatedAt]);
 
   // ONE list for everybody — the six doer statuses. Admins used to get
   // ADMIN_TASK_STATUSES here, which mixed the worker's progress states in with

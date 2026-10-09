@@ -9,8 +9,6 @@ import { istYmd } from "@/lib/weekly-goals/week";
 import type { PlanItem, SourceItem } from "./types";
 import { SourceTag, fmtYmd } from "./source-tag";
 import { overdueLabel } from "./wms-filters";
-import { DoerStatusSelect, InitiatorStatusSelect } from "@/components/status/status-select";
-import { setPlanItemDoerStatus, setPlanItemInitiatorStatus } from "@/app/(app)/goals/plan/actions";
 
 /**
  * The shared "full item" surface for the planner — one field set rendered two
@@ -340,11 +338,13 @@ export function ItemDetailBody({ item, today }: { item: SourceItem; today: strin
 export function HoverPanel({
   content,
   disabled,
+  preferredSide = "left",
   children,
 }: {
   content: React.ReactNode;
   /** Suppress while dragging or mid-edit — a panel that follows a dragged card is noise. */
   disabled?: boolean;
+  preferredSide?: "left" | "right" | "bottom";
   children: React.ReactNode;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
@@ -364,19 +364,26 @@ export function HoverPanel({
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const width = Math.min(460, Math.max(300, Math.round(vw * 0.28)));
-      // Prefer the LEFT of the card; flip right if it would overflow.
-      let left = r.left - width - 12;
-      if (left < 12) left = Math.min(r.right + 12, vw - width - 12);
+      // Source cards open to the left. Daily Commitments cards open below the
+      // task row, with the panel kept inside the viewport horizontally.
+      let left = preferredSide === "right" ? r.right + 12 : preferredSide === "bottom" ? r.left : r.left - width - 12;
+      if (preferredSide === "right" || preferredSide === "bottom") {
+        left = Math.max(12, Math.min(left, vw - width - 12));
+      } else if (left < 12 || left + width > vw - 12) {
+        left = Math.min(r.right + 12, vw - width - 12);
+      }
       // A LONG TASK MUST BE READABLE IN FULL (Sir). The panel lines up with the
       // card, but never starts so far down the screen that there's no room left
       // — then it takes every remaining pixel. No measuring pass needed, and a
       // genuinely enormous description still scrolls (the panel accepts the
       // mouse now, so scrolling actually works).
-      const top = Math.max(12, Math.min(r.top, Math.round(vh * 0.22)));
+      const top = preferredSide === "bottom"
+        ? Math.max(12, Math.min(r.bottom + 12, vh - 120))
+        : Math.max(12, Math.min(r.top, Math.round(vh * 0.22)));
       const maxHeight = vh - top - 16;
       setPos({ top, left, width, maxHeight });
     }, 500);
-  }, [disabled]);
+  }, [disabled, preferredSide]);
 
   // Closing is delayed a beat so the pointer can cross the gap from the card
   // onto the panel to scroll it, instead of the panel vanishing en route.
@@ -429,13 +436,15 @@ export function HoverPanel({
 export function ItemHoverCard({
   item,
   today,
+  preferredSide,
   children,
 }: {
   item: SourceItem;
   today: string;
+  preferredSide?: "left" | "right" | "bottom";
   children: React.ReactNode;
 }) {
-  return <HoverPanel content={<ItemDetailBody item={item} today={today} />}>{children}</HoverPanel>;
+  return <HoverPanel content={<ItemDetailBody item={item} today={today} />} preferredSide={preferredSide}>{children}</HoverPanel>;
 }
 
 /**
@@ -511,14 +520,16 @@ export function PlanItemDetailBody({ item }: { item: PlanItem }) {
 export function PlanItemHoverCard({
   item,
   disabled,
+  preferredSide,
   children,
 }: {
   item: PlanItem;
   disabled?: boolean;
+  preferredSide?: "left" | "right" | "bottom";
   children: React.ReactNode;
 }) {
   return (
-    <HoverPanel content={<PlanItemDetailBody item={item} />} disabled={disabled}>
+    <HoverPanel content={<PlanItemDetailBody item={item} />} disabled={disabled} preferredSide={preferredSide}>
       {children}
     </HoverPanel>
   );
@@ -617,21 +628,14 @@ export function ItemDetailModal({
  */
 export function PlanItemDetailModal({
   item,
-  me,
   onClose,
   onRename,
   onSetTime,
-  unruledInitiatorLabel,
 }: {
   item: PlanItem;
-  /** The viewer — what the two status controls test against. OPTIONAL, because
-   *  a caller that does not know who is looking gets read-only chips, which is
-   *  the safe way to be wrong. The server actions re-check regardless. */
-  me?: { id: string; isAdmin: boolean };
   onClose: () => void;
   onRename?: (id: string, title: string) => void;
   onSetTime?: (item: PlanItem, time: { startMin: number | null; durationMin: number | null }) => void;
-  unruledInitiatorLabel?: string;
 }) {
   const [title, setTitle] = React.useState(item.title);
   const [at, setAt] = React.useState(item.startMin != null ? minToHhmm(item.startMin) : "");
@@ -658,22 +662,6 @@ export function PlanItemDetailModal({
   };
 
   const late = item.overdueDays != null && item.overdueDays > 0 ? item.overdueDays : null;
-
-  /**
-   * WHO THE VIEWER IS relative to this commitment — the mirror of
-   * `dailyStatusActor` on the server, which re-derives it before any write.
-   *
-   * A daily row's DOER is whoever's plan it is on; its INITIATOR is anyone else
-   * allowed to be looking at that plan (an admin, or the manager the planner
-   * already lets through). You are never your own initiator.
-   */
-  const statusActor = {
-    id: me?.id ?? "",
-    isAdmin: me?.isAdmin ?? false,
-    isInitiator: !!me && !!item.ownerId && item.ownerId !== me.id,
-    isDoer: !!me && !!item.ownerId && item.ownerId === me.id,
-    isSupervisor: false,
-  };
 
   if (typeof document === "undefined") return null;
   return createPortal(
@@ -809,38 +797,6 @@ export function PlanItemDetailModal({
             </Field>
           </div>
 
-          {/* ── THE TWO STATUS AXES ─────────────────────────────────────────
-              Added 2026-09-15 ("in goals section there is a weekly goals and
-              daily goals please add doer and initiator status there also").
-
-              They sit BELOW the Plan line, not instead of it: `done` is the
-              planner's own yes/no that the day's rituals are counted on, and
-              these two are the report and the ruling the rest of the app reads.
-              Three different questions, three lines. */}
-          <div className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3">
-            <Field label="Doer Status">
-              <DoerStatusSelect
-                status={item.status ?? null}
-                actor={statusActor}
-                onCommit={async (next) => {
-                  const res = await setPlanItemDoerStatus(item.id, next);
-                  return res.ok ? { ok: true } : { ok: false, error: res.error };
-                }}
-              />
-            </Field>
-            <Field label="Initiator Status">
-              <InitiatorStatusSelect
-                approvalStatus={item.approvalStatus ?? null}
-                archived={item.isPutAway ?? false}
-                actor={statusActor}
-                unruledLabel={unruledInitiatorLabel}
-                onCommit={async (next) => {
-                  const res = await setPlanItemInitiatorStatus(item.id, next);
-                  return res.ok ? { ok: true } : { ok: false, error: res.error };
-                }}
-              />
-            </Field>
-          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-hairline px-5 py-3">

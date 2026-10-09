@@ -416,15 +416,10 @@ export function DashboardSectionNav({
               // full radius reads as a lozenge rather than a tab.
               className={`inline-flex h-7 shrink-0 items-center rounded-lg px-2.5 text-xs ${
                 isActive
-                  ? "font-semibold text-white shadow-sm transition-all duration-200"
+                  ? "bg-surface-soft font-semibold text-ink-strong shadow-sm transition-all duration-200"
                   : "font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
               }`}
-              // THE BRAND RED, not Tailwind's `red-600` (#DC2626). This app's
-              // primary red is #E10600 and it already has a token — the CTA
-              // buttons, the accent rail and every `text-altus-red` hover read
-              // from it. A second near-identical red hardcoded here is the
-              // drift that ends with nobody knowing which one is correct.
-              style={isActive ? { background: "var(--color-altus-red)" } : undefined}
+              // The selected tab uses the same neutral gray state as the app chrome.
             >
               {s.label}
             </button>

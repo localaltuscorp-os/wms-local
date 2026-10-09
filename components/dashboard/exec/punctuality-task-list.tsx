@@ -318,7 +318,7 @@ export function PunctualityTaskList({
                   return (
                   <tr
                     key={t.id}
-                    className="border-t border-gray-100 transition-colors hover:bg-gray-50"
+                    className="border-t border-gray-100 transition-colors hover:bg-gray-50/80"
                   >
                     {/* `title` on the <td> as well as the link: the hover target
                         is then the whole cell, including the empty space to the
