@@ -253,7 +253,7 @@ export async function assembleMonthInputs(
         chargeableHalfDays: pr.chargeableHalfDays,
         latePenaltyHalfDays: pr.latePenaltyHalfDays,
         unpaidLeaveDays: pr.unpaidLeaveDays,
-        // Before October 2026 this is netted across the month. From October,
+        // Before September 2026 this is netted across the month. From September,
         // `payableHoursForMonth` settles every week separately: long-week hours
         // never cover a later short week.
         netSurplusHours: pr.netSurplusMinutes / 60,

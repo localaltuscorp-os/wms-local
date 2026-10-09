@@ -11,10 +11,10 @@
 //
 //     Daily Attendance   ≠   Weekly Hour Reconciliation
 //
-// BEFORE OCTOBER 2026, THE CARRY IS SIGNED — BOTH directions travel week to
+// BEFORE SEPTEMBER 2026, THE CARRY IS SIGNED — BOTH directions travel week to
 // week inside the month. A 58h week leaves +4h that LOWERS next week's
 // effective target to 50h; a 50h week leaves −4h that RAISES it to 58h.
-// From October 2026 each week is independent: no surplus or deficit crosses
+// From September 2026 each week is independent: no surplus or deficit crosses
 // into the next week. The effective target is floored at zero so it can never
 // become negative.
 //
@@ -95,8 +95,8 @@ export interface MonthReconciliation {
   month: string;
   weeks: WeekReconciliation[];
   /**
-   * Signed monthly difference, never carried out of the month. Before October
-   * 2026 it is the final running carry; from October it is informational only
+   * Signed monthly difference, never carried out of the month. Before September
+   * 2026 it is the final running carry; from September it is informational only
    * because each week is settled independently.
    */
   monthlyHourBalanceMinutes: number;
@@ -120,14 +120,14 @@ export const MONTHLY_HALF_DAY_GRACE = 3;
 /** Each chargeable half-day costs half of that day's salary. */
 export const HALF_DAY_SALARY_FRACTION = 0.5;
 
-/** October 2026: late-mark penalties and weekly hour caps became independent. */
-export const WEEKLY_LATE_POLICY_FROM = "2026-10";
+/** September 2026: late-mark penalties and weekly hour caps became independent. */
+export const WEEKLY_LATE_POLICY_FROM = "2026-09";
 
 /** The late-mark policy is for the standard six-day, 54-hour full-time week. */
 export const FULL_TIME_WEEKLY_TARGET_MINUTES = 54 * 60;
 
 /**
- * From October 2026 a long week cannot reduce the next week's target.
+ * From September 2026 a long week cannot reduce the next week's target.
  * Salary therefore caps ordinary payable hours week by week, not month by month.
  */
 export function usesIndependentWeeklyHours(month: string): boolean {
@@ -273,7 +273,7 @@ export function reconcileMonth(
       (weeklyTargetMinutes * expectedDays) / Math.max(1, workingDaysPerWeek),
     );
 
-    // Before October 2026 both directions carried inside the month. From that
+    // Before September 2026 both directions carried inside the month. From that
     // month onward each week stands alone: a long week cannot offset a later
     // short week, and it cannot become a lower target for that next week.
     const carryIn = independentWeeks ? 0 : balance;
@@ -386,8 +386,8 @@ export function halfDayDeductionDays(m: MonthReconciliation): number {
                               those days never grade as ordinary attendance)
         ↓ target hours
      actual worked hours
-        ↓ before October 2026: month-level netting, so one week could repay
-          another; from October 2026: each week is capped at its own target,
+        ↓ before September 2026: month-level netting, so one week could repay
+          another; from September 2026: each week is capped at its own target,
           so surplus hours never carry forward to cover a later short week
         ↓ credited days (paid leave / comp-off / holiday-working) paid at target
      final payable hours
@@ -476,8 +476,8 @@ export function payableHoursForMonth(
   recon: MonthReconciliation,
   dailyTargetMinutes: number,
 ): PayableHoursResult {
-  // Until September 2026, ordinary time was balanced over the month. From
-  // October 2026 each week is independently capped: a 58h week pays at most
+  // Until August 2026, ordinary time was balanced over the month. From
+  // September 2026 each week is independently capped: a 58h week pays at most
   // its own 54h target and cannot make a later 50h week whole.
   const ordinaryPayable = usesIndependentWeeklyHours(recon.month)
     ? recon.weeks.reduce((sum, week) => sum + Math.min(week.actualMinutes, week.weeklyTargetMinutes), 0)

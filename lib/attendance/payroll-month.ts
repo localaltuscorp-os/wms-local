@@ -102,8 +102,8 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    */
   unpaidLeaveDays: number;
   /**
-   * Signed hours difference for the month. Before October 2026 it is the
-   * within-month carry; from October it is informational because weeks are
+   * Signed hours difference for the month. Before September 2026 it is the
+   * within-month carry; from September it is informational because weeks are
    * settled independently and never carry into one another.
    */
   monthlyHourBalanceMinutes: number;

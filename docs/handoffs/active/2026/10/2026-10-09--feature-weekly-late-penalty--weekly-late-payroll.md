@@ -6,7 +6,7 @@
 
 ## Objective
 
-Apply the approved attendance rule from October 2026: a full-time employee who
+Apply the approved attendance rule from September 2026: a full-time employee who
 does not meet the applicable weekly hours target receives no late penalty for
 up to three late marks; the fourth late mark creates one half-day deduction,
 and each later late mark creates one additional half-day deduction. Weekly
@@ -15,10 +15,10 @@ surplus hours must not carry into a later week.
 ## Implementation
 
 - `lib/attendance/hour-balance.ts`
-  - Adds the October 2026 effective-date constant and the 54-hour full-time
+  - Adds the September 2026 effective-date constant and the 54-hour full-time
     late-mark calculation.
-  - Stops intra-month carryover between weeks from October 2026.
-  - Caps ordinary payable hours per week from October 2026.
+  - Stops intra-month carryover between weeks from September 2026.
+  - Caps ordinary payable hours per week from September 2026.
 - `lib/attendance/payroll-month.ts`
   - Carries the calculated late-penalty half-days into payroll data.
 - `lib/salary/compute.ts`, `lib/salary/generate.ts`, and
@@ -31,11 +31,14 @@ surplus hours must not carry into a later week.
 
 ## Scope and behaviour
 
+- The policy is effective from September 2026. Four late marks below the
+  applicable weekly target deduct one half-day; each additional late mark
+  deducts one further half-day.
 - The new late-mark penalty is limited to the standard 54-hour full-time
   schedule. Existing non-54-hour worker configurations remain unchanged.
 - Holiday and partial weeks use their reduced schedule target, so employees are
   not penalised for unscheduled days.
-- Existing historical months before October 2026 retain their previous
+- Existing historical months before September 2026 retain their previous
   reconciliation behavior.
 - No database schema or data migration is required; the policy is calculated
   from existing attendance records whenever a month is read or generated.
@@ -52,9 +55,10 @@ surplus hours must not carry into a later week.
 
 ## Release notes
 
-- Preview branch commit `40833fb7` was pushed and previewed. The final rule
-  correction described above still requires its own test, commit, and preview.
+- Preview branch commit `40833fb7` was pushed and previewed. Follow-up commits
+  correct the fourth-late threshold and move the policy cutover to September;
+  a replacement preview is required before production release.
 - Before release: review the policy wording with payroll/HR, commit only the
   listed files, push this feature branch for a Vercel preview, and verify a
-  representative October payroll calculation before production approval.
+  representative September payroll calculation before production approval.
 - Rollback is a revert of the feature commit; no database rollback is needed.

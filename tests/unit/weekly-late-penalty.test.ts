@@ -35,18 +35,18 @@ function sixDayWeek(
   });
 }
 
-describe("October 2026 weekly late-mark policy", () => {
+describe("September 2026 weekly late-mark policy", () => {
   it("charges one half-day for four late marks below 54 hours, then one more for each late", () => {
-    const four = reconcileMonth(sixDayWeek("2026-10-05", 530, 4), {
-      month: "2026-10",
+    const four = reconcileMonth(sixDayWeek("2026-09-07", 530, 4), {
+      month: "2026-09",
       ...FULL_TIME_OPTIONS,
     });
-    const five = reconcileMonth(sixDayWeek("2026-10-05", 530, 5), {
-      month: "2026-10",
+    const five = reconcileMonth(sixDayWeek("2026-09-07", 530, 5), {
+      month: "2026-09",
       ...FULL_TIME_OPTIONS,
     });
-    const six = reconcileMonth(sixDayWeek("2026-10-05", 530, 6), {
-      month: "2026-10",
+    const six = reconcileMonth(sixDayWeek("2026-09-07", 530, 6), {
+      month: "2026-09",
       ...FULL_TIME_OPTIONS,
     });
 
@@ -57,8 +57,8 @@ describe("October 2026 weekly late-mark policy", () => {
   });
 
   it("does not apply a late-mark deduction once the 54-hour weekly target is met", () => {
-    const result = reconcileMonth(sixDayWeek("2026-10-05", 540, 6), {
-      month: "2026-10",
+    const result = reconcileMonth(sixDayWeek("2026-09-07", 540, 6), {
+      month: "2026-09",
       ...FULL_TIME_OPTIONS,
     });
 
@@ -67,9 +67,9 @@ describe("October 2026 weekly late-mark policy", () => {
     expect(result.latePenaltyHalfDays).toBe(0);
   });
 
-  it("does not retroactively apply the policy to September", () => {
-    const result = reconcileMonth(sixDayWeek("2026-09-07", 530, 6), {
-      month: "2026-09",
+  it("does not retroactively apply the policy to August", () => {
+    const result = reconcileMonth(sixDayWeek("2026-08-03", 530, 6), {
+      month: "2026-08",
       ...FULL_TIME_OPTIONS,
     });
 
@@ -77,23 +77,9 @@ describe("October 2026 weekly late-mark policy", () => {
   });
 
   it("does not let a long week pay for a later short week", () => {
-    const octoberDays = [
-      ...sixDayWeek("2026-10-05", 580), // 58h
-      ...sixDayWeek("2026-10-12", 500), // 50h
-    ];
-    const october = reconcileMonth(octoberDays, {
-      month: "2026-10",
-      ...FULL_TIME_OPTIONS,
-    });
-    const octoberPayable = payableHoursForMonth(octoberDays, october, 540);
-
-    expect(october.weeks[1]?.carryInMinutes).toBe(0);
-    expect(october.weeks[1]?.effectiveTargetMinutes).toBe(54 * 60);
-    expect(octoberPayable.payableHours).toBe(104);
-
     const septemberDays = [
-      ...sixDayWeek("2026-09-07", 580),
-      ...sixDayWeek("2026-09-14", 500),
+      ...sixDayWeek("2026-09-07", 580), // 58h
+      ...sixDayWeek("2026-09-14", 500), // 50h
     ];
     const september = reconcileMonth(septemberDays, {
       month: "2026-09",
@@ -101,8 +87,22 @@ describe("October 2026 weekly late-mark policy", () => {
     });
     const septemberPayable = payableHoursForMonth(septemberDays, september, 540);
 
-    expect(september.weeks[1]?.carryInMinutes).toBe(4 * 60);
-    expect(septemberPayable.payableHours).toBe(108);
+    expect(september.weeks[1]?.carryInMinutes).toBe(0);
+    expect(september.weeks[1]?.effectiveTargetMinutes).toBe(54 * 60);
+    expect(septemberPayable.payableHours).toBe(104);
+
+    const augustDays = [
+      ...sixDayWeek("2026-08-03", 580),
+      ...sixDayWeek("2026-08-10", 500),
+    ];
+    const august = reconcileMonth(augustDays, {
+      month: "2026-08",
+      ...FULL_TIME_OPTIONS,
+    });
+    const augustPayable = payableHoursForMonth(augustDays, august, 540);
+
+    expect(august.weeks[1]?.carryInMinutes).toBe(4 * 60);
+    expect(augustPayable.payableHours).toBe(108);
   });
 
   it("prices each policy half-day as half of one day's salary", () => {
