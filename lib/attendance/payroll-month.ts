@@ -90,8 +90,10 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    *  excluded) — the self-view's requiredElapsedHours. Overtime is worked beyond
    *  this, so My Salary and the Attendance page report one overtime figure. */
   requiredElapsedMinutes: number;
-  /** Half-days charged at 50% — the 4th onward; the first three are waived. */
+  /** Actual half-days charged at 50% under the half-day attendance policy. */
   chargeableHalfDays: number;
+  /** Additional half-day deductions from late marks in short full-time weeks. */
+  latePenaltyHalfDays: number;
   /**
    * Days of approved UNPAID leave. Carried alongside the hours rather than
    * folded into them: an LWP day leaves the TARGET (so no hour deficit is
@@ -99,7 +101,11 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    * engine — see `payableHoursForMonth` and `computeScheduleHourlySalary`.
    */
   unpaidLeaveDays: number;
-  /** Surplus/deficit carried inside this calendar month only. */
+  /**
+   * Signed hours difference for the month. Before September 2026 it is the
+   * within-month carry; from September it is informational because weeks are
+   * settled independently and never carry into one another.
+   */
   monthlyHourBalanceMinutes: number;
   /**
    * Σ day-values over the ELAPSED days of the month — the full-timer's pay
@@ -223,6 +229,7 @@ export function payrollMonthFor(
       dailyTargetMinutes: cfg.dailyTargetMinutes,
       requiredElapsedMinutes,
       chargeableHalfDays: recon.chargeableHalfDays,
+      latePenaltyHalfDays: recon.latePenaltyHalfDays,
       unpaidLeaveDays: hours.unpaidLeaveDays,
       monthlyHourBalanceMinutes: recon.monthlyHourBalanceMinutes,
       // `joined` is already bounded to elapsed, gradeable days, so this is the

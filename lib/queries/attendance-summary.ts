@@ -406,6 +406,7 @@ export async function getSelfAttendanceSummary(
       daysInMonth: dim,
       workingHoursPerDay: cfg.dailyTargetMinutes / 60,
       payableDayValue: payroll.payableDayValue,
+      latePenaltyHalfDays: payroll.latePenaltyHalfDays,
       // PT / TDS / advances change only the net, never the base — pass none.
       ptExempt: true,
       tdsMonthly: 0,

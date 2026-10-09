@@ -97,6 +97,8 @@ export interface FixedFeeSalaryInput {
 }
 
 const PT_AMOUNT = 200;
+/** Every policy half-day deduction removes one half of a paid calendar day. */
+const HALF_DAY_DEDUCTION_DAYS = 0.5;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** Single salary-rate root for all current payroll paths. */
@@ -322,6 +324,8 @@ export interface DailySalaryInput {
    * far"; for a closed month it is the whole month.
    */
   payableDayValue: number;
+  /** Additional half-day penalties from the weekly late-mark policy. */
+  latePenaltyHalfDays?: number;
   ptExempt: boolean;
   tdsMonthly: number;
   advances: number;
@@ -339,7 +343,9 @@ export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
     workingHoursPerDay: i.workingHoursPerDay ?? 0,
   });
   const payableDays = Math.max(0, i.payableDayValue);
-  const gross = round2(rate.perDayExact * payableDays);
+  const lateDeductionDays = Math.max(0, i.latePenaltyHalfDays ?? 0) * HALF_DAY_DEDUCTION_DAYS;
+  const effectiveDays = Math.max(0, payableDays - lateDeductionDays);
+  const gross = round2(rate.perDayExact * effectiveDays);
   const pt = i.ptExempt ? 0 : PT_AMOUNT;
   const net = round2(gross - pt - i.tdsMonthly - i.advances + i.pendingBalanceIn);
 
@@ -347,11 +353,8 @@ export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
     monthlyCtc: rate.monthlySalary,
     perDay: rate.perDay,
     payableDays,
-    // Late marks no longer cut pay (the day code already reflects a short day),
-    // so there is no late deduction to report and `effectiveDays` is simply the
-    // payable count. Kept on the shape because the payslip renders both.
-    lateDeductionDays: 0,
-    effectiveDays: payableDays,
+    lateDeductionDays,
+    effectiveDays,
     gross,
     pt,
     tds: i.tdsMonthly,
