@@ -180,6 +180,6 @@ they were not applied to a shared or production database during this work.
 
 ## Commit handoff
 
-The pending commit should include only the source, migration, test, and this
-handoff file. Local build directories, dummy storage, and the screenshot are
-intentionally excluded.
+Feature implementation commit for development review: `23eaffaa`
+(`feat(hr): extend accounts and approval workflows`). Local build directories,
+dummy storage, test artifacts, and the screenshot are intentionally excluded.
