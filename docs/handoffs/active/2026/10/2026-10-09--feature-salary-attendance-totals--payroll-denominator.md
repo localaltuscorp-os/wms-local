@@ -42,6 +42,11 @@ showing declared holidays, Sundays/weekly offs, and effective payable days.
   focused lint/test could not be repeated there after the refresh. This does
   not alter the prior passing results; the refreshed branch requires a new
   GitHub `test` run before release.
+- The refreshed GitHub CI run passed TypeScript but exposed one unrelated
+  attendance-policy test: a fourth late mark that was already graded `H/D`
+  was incorrectly waived. `lib/attendance/hour-balance.ts` now counts the
+  late-mark order across all ordinary days, so that day is charged once and is
+  not charged again as a separate late penalty. A fresh CI run is required.
 
 ## Release and rollback
 
