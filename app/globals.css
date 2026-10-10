@@ -38,6 +38,9 @@
   --color-surface-card:    #ffffff;
   --color-surface-soft:    #f8f6f4;
   --color-surface-track:   #efecea;
+  /* Shared interactive-row hover: the cool, very light gray used by the
+     manager workload table. Keep it separate from warm surface-soft. */
+  --color-dashboard-row-hover: #fafafa;
 
   /* ink ramp */
   --color-ink-strong:      #0f172a;
@@ -1411,7 +1414,7 @@ html {
 /* ────────────────────────────────────────────────────────────────────────
    DASHBOARD SECTION TOOLBAR — one order for every section.
 
-   Left to right:  tools · search · WhatsApp+email · minimise/maximise
+   Left to right: tools · WhatsApp+email · transpose · minimise/maximise · search
 
    "Tools" is everything a section supplies itself — a date-range picker,
    Expand all, Transpose, a sort control — and it is the DEFAULT, so a section
@@ -1424,9 +1427,10 @@ html {
    span rather than display:contents.
    ──────────────────────────────────────────────────────────────────────── */
 .section-actions > *                 { order: 1; }  /* the section's own tools */
-.section-actions > [data-sec="search"]   { order: 2; }
-.section-actions > [data-sec="dispatch"] { order: 3; }
-.section-actions > [data-sec="fold"]     { order: 4; }
+.section-actions > [data-sec="dispatch"] { order: 2; }
+.section-actions > [data-sec="transpose"] { order: 3; }
+.section-actions > [data-sec="fold"]      { order: 4; }
+.section-actions > [data-sec="search"]    { order: 5; }
 
 /* Pill-card filter trigger — icon badge + value/sublabel + chevron. */
 /* Compressed so the whole ribbon (date · filters · view toggle · switcher ·
@@ -1826,7 +1830,7 @@ html {
   --vp-cyan-tint:   rgba(225, 6, 0, 0.08);
   /* Neutral row-hover wash. Deliberately NOT --vp-cyan-tint: that one is red,
      and red on this surface already means overdue / not-approved / critical. */
-  --task-row-hover-tint: rgba(15, 23, 42, 0.045);
+  --task-row-hover-tint: var(--color-dashboard-row-hover);
 }
 
 /* The strip's substrate band. Light warm-white gradient with a soft
@@ -2062,14 +2066,14 @@ html {
     transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .leader-row:hover {
-  background: var(--color-surface-card);
+  background: var(--color-dashboard-row-hover);
   border-color: var(--color-hairline-strong);
   transform: translateX(3px);
 }
 
-/* Status by Doer/Initiator table — click-anywhere rows. Hover paints a
-   cyan left rail + tints the row + the chevron slides right to
-   telegraph the navigation target. */
+/* Status by Doer/Initiator table — click-anywhere rows. Hover uses the
+   same neutral gray as the dashboard action buttons, while the left rail
+   and chevron still telegraph the navigation target. */
 .status-row {
   transition:
     background-color 180ms ease-out,
@@ -2077,15 +2081,21 @@ html {
   position: relative;
 }
 .status-row:hover {
-  background: var(--vp-cyan-tint);
+  background: var(--color-dashboard-row-hover);
   box-shadow: inset 3px 0 0 rgb(var(--vp-cyan));
+}
+.status-row:hover > td.sticky {
+  background: var(--color-dashboard-row-hover);
 }
 .status-row:focus-visible {
   outline: none;
-  background: var(--vp-cyan-tint);
+  background: var(--color-dashboard-row-hover);
   box-shadow:
     inset 3px 0 0 rgb(var(--vp-cyan)),
     inset 0 0 0 2px rgb(var(--vp-cyan) / 0.4);
+}
+.status-row:focus-visible > td.sticky {
+  background: var(--color-dashboard-row-hover);
 }
 .status-row-chevron > svg {
   transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -2108,11 +2118,11 @@ html {
     box-shadow 140ms ease-out;
 }
 .aging-lane:hover {
-  background-color: var(--color-surface-soft);
+  background-color: var(--color-dashboard-row-hover);
 }
 .aging-lane:focus-visible {
   outline: none;
-  background-color: var(--color-surface-soft);
+  background-color: var(--color-dashboard-row-hover);
   box-shadow: inset 0 0 0 2px rgb(var(--vp-cyan) / 0.55);
 }
 .aging-lane-chevron > svg {
@@ -2193,7 +2203,7 @@ html {
   background: transparent;
 }
 .aging-popover-row:hover {
-  background: var(--color-surface-soft);
+  background: var(--color-dashboard-row-hover);
 }
 
 /* Tasks table row — cyan hover rail (matches Status by Doer). */
@@ -2201,9 +2211,9 @@ html {
    token whose value is Altus red at 8% (see the --vp-cyan block), so every
    hovered row used to wash red — which competed with the red that actually
    means something here (overdue accents, Not Approved pills, the Critical
-   badge). Slate at 4.5% reads as "you are on this row" without claiming
-   urgency; the red is spent on the left accent instead, where it anchors the
-   eye without tinting the content.
+   badge). The shared light-gray row state reads as "you are on this row"
+   without claiming urgency; the red is spent on the left accent instead,
+   where it anchors the eye without tinting the content.
 
    The left accent itself is a `border-l-4` on the row (see task-table.tsx), NOT
    a box-shadow: the row already carries an INLINE box-shadow for overdue/today
@@ -3477,6 +3487,22 @@ table {
 .table-scroll.table-scroll-bold::-webkit-scrollbar:horizontal,
 .kanban-scroll::-webkit-scrollbar:horizontal {
   display: none;
+  height: 0;
+}
+
+/* WMS dashboard horizontal table rails are intentionally invisible, matching
+   the footer's clean edge. Scrolling is unchanged (wheel, touch, shift-wheel,
+   keyboard, and programmatic scrollLeft still work). Unlike `table-scroll`,
+   this targets only horizontal wrappers, so vertically scrolling task drawers
+   keep their scrollbar as an orientation cue. Firefox has no horizontal-only
+   scrollbar selector, so its `scrollbar-width` fallback is scoped here too. */
+[data-wms-dashboard] :is(.overflow-x-auto, .overflow-x-scroll, .kanban-scroll) {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+[data-wms-dashboard] :is(.overflow-x-auto, .overflow-x-scroll, .kanban-scroll)::-webkit-scrollbar {
+  display: none;
+  width: 0;
   height: 0;
 }
 

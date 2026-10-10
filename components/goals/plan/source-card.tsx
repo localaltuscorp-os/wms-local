@@ -69,6 +69,11 @@ interface Props {
   onAbandon?: (item: SourceItem) => void;
   /** "Today" | "18 Aug" — where the `+` button files it. */
   addDayLabel?: string;
+  addButtonPosition?: "top-right" | "leading";
+  /** Keep dense table task titles to one line; details remain available on hover. */
+  singleLineTitle?: boolean;
+  /** Daily Commitments source details open beneath the hovered row. */
+  hoverBelow?: boolean;
 }
 
 /**
@@ -85,7 +90,7 @@ interface Props {
  * `weekly_goals.id` / `goals.id` / prior `daily_checklist.id`, and adding it
  * calls the matching server action, which stores that id on the plan row.
  */
-export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel = "Today" }: Props) {
+export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel = "Today", addButtonPosition = "top-right", singleLineTitle = false, hoverBelow = false }: Props) {
   const [detail, setDetail] = React.useState(false);
   const [pickDay, setPickDay] = React.useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -101,9 +106,13 @@ export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel
   // "Priority where relevant" — Normal is the default every task carries, so
   // printing it on every row is noise. Only a raised priority earns the line.
   const showPriority = item.priority != null && item.priority !== "not_imp_not_urgent";
+  const addButtonClass =
+    addButtonPosition === "leading"
+      ? "absolute left-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full text-white shadow-sm transition-transform hover:scale-110 focus-visible:outline-2"
+      : "absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full text-white shadow-sm transition-transform hover:scale-110 focus-visible:outline-2";
 
   return (
-    <ItemHoverCard item={item} today={today}>
+    <ItemHoverCard item={item} today={today} preferredSide={hoverBelow ? "bottom" : undefined}>
       <motion.div
         ref={setNodeRef}
         initial={{ opacity: 0, y: 4 }}
@@ -128,7 +137,7 @@ export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel
                 type="button"
                 title="Add to a day"
                 aria-label={`Add ${item.title} to a day`}
-                className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full text-white shadow-sm transition-transform hover:scale-110 focus-visible:outline-2"
+                className={addButtonClass}
                 style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
               >
                 <Plus size={14} strokeWidth={3.2} />
@@ -165,17 +174,18 @@ export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel
             onClick={() => onAdd(item)}
             title={`Add to ${addDayLabel}`}
             aria-label={`Add ${item.title} to ${addDayLabel}`}
-            className="absolute right-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full text-white shadow-sm transition-transform hover:scale-110 focus-visible:outline-2"
+            className={addButtonClass}
             style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
           >
             <Plus size={14} strokeWidth={3.2} />
           </button>
         )}
 
-        <div className="flex items-start gap-1.5 pr-8">
+        <div className={`flex items-start gap-1.5 ${addButtonPosition === "leading" ? "pl-8" : "pr-8"}`}>
           <button
             type="button"
             aria-label={item.added ? "Already planned" : `Drag ${item.title} onto a day`}
+            title={item.added ? "Already planned" : "Drag to Daily Commitments"}
             className="mt-0.5 shrink-0 cursor-grab touch-none rounded text-ink-muted/40 hover:text-ink-muted focus-visible:outline-2 disabled:cursor-default disabled:opacity-25"
             style={{ outlineColor: GOALS_ACCENT }}
             disabled={item.added}
@@ -203,13 +213,17 @@ export function SourceCard({ item, today, onAdd, onAddOn, onAbandon, addDayLabel
             {/* THE TASK ITSELF — three lines minimum before anything is hidden,
                 and what's hidden is on the hover panel, never lost. */}
             <div
-              className="text-[13px] font-semibold leading-[17px] text-ink-strong"
+              className={`text-[13px] font-semibold leading-[17px] text-ink-strong${singleLineTitle ? " truncate" : ""}`}
               style={{
-                display: "-webkit-box",
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-                overflowWrap: "anywhere",
+                ...(singleLineTitle
+                  ? {}
+                  : {
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      overflowWrap: "anywhere",
+                    }),
               }}
             >
               {item.title}

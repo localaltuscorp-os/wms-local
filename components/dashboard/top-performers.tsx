@@ -72,7 +72,7 @@ const podiumFor = (rank: number) =>
  * section-chrome.tsx.
  */
 const ROW_HOVER =
-  "cursor-pointer rounded-xl transition-colors hover:bg-slate-50 hover:border-slate-300";
+  "cursor-pointer rounded-none transition-colors hover:bg-gray-50/80 hover:border-slate-300";
 
 /**
  * Metric formatters that survive a STALE PAYLOAD.
@@ -246,7 +246,7 @@ export function TopPerformersSection({
                   /* Reachable two ways: a roster of three or fewer, or a
                      search that matched only podium names. Saying so beats an
                      empty half-grid that reads as a failed render. */
-                  <p className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 p-6 text-center text-[12.5px] font-semibold text-slate-500">
+                  <p className="flex h-full items-center justify-center rounded-none border border-dashed border-slate-200 p-6 text-center text-[12.5px] font-semibold text-slate-500">
                     No one outside the top three
                     {sectionQuery ? " matches this search." : " yet."}
                   </p>

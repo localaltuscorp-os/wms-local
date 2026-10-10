@@ -127,34 +127,33 @@ function DoneCard({
   const barScale = Math.max(...dist.buckets.map((b) => b.count), 1);
   return (
     <GlassCard>
-      {/* Caption left, figures right, on one line. The caption names the basis
-          the bars are measured against; the figures are that basis's headline.
-          `flex-wrap` rather than a fixed row: on a narrow card the badge drops
-          under the caption instead of squeezing it to an ellipsis. */}
+      {/* Caption left, figures right, held on one compact line. The caption
+          names the basis the bars are measured against; the figures are that
+          basis's headline. */}
       {/* `-mt-1` lifts the row so the caption sits level with the badge's
-          optical centre rather than its box: the badge is px-4 py-2 and the
+          optical centre rather than its box: the compact badge is px-3 py-1.5 and the
           caption is a single line, so aligning the two boxes leaves the words
           reading low against it. */}
-      <div className="-mt-1 mb-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs font-extrabold uppercase tracking-wider text-slate-800 md:text-sm">
+      <div className="-mt-1 mb-3 flex flex-nowrap items-center justify-between gap-3 whitespace-nowrap">
+        <p className="shrink-0 text-xs font-extrabold uppercase tracking-wider text-slate-800 md:text-sm">
           {label}
         </p>
-        <div className="ml-auto flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 shadow-sm">
-          <span className="text-base font-black tabular-nums text-emerald-600 md:text-lg">
-            {rate}% <span className="text-sm font-bold text-emerald-700/80">on time</span>
+        <div className="ml-auto flex shrink-0 items-center gap-2 rounded-none border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-sm">
+          <span className="text-sm font-black tabular-nums text-emerald-600 md:text-base">
+            {rate}% <span className="text-xs font-bold text-emerald-700/80">on time</span>
           </span>
           <span aria-hidden className="font-bold text-slate-300">
             •
           </span>
-          <span className="text-base font-black tabular-nums text-slate-900 md:text-lg">
+          <span className="text-sm font-black tabular-nums text-slate-900 md:text-base">
             {dist.onTime}{" "}
-            <span className="text-sm font-bold text-slate-500">On / Before</span>
+            <span className="text-xs font-bold text-slate-500">On / Before</span>
           </span>
           <span aria-hidden className="font-bold text-slate-300">
             •
           </span>
-          <span className="text-base font-black tabular-nums text-red-600 md:text-lg">
-            {dist.late} <span className="text-sm font-bold text-red-700/80">Late</span>
+          <span className="text-sm font-black tabular-nums text-red-600 md:text-base">
+            {dist.late} <span className="text-xs font-bold text-red-700/80">Late</span>
           </span>
         </div>
       </div>

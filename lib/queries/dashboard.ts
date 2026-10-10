@@ -1,7 +1,7 @@
 import { and, or, gte, lt, inArray, getTableColumns, sql } from "drizzle-orm";
 import { listHolidayRowsBetween } from "@/lib/queries/holidays";
 import { db, employees, tasks, taskEvents } from "@/lib/db";
-import type { Task } from "@/lib/db";
+import type { Employee, Task } from "@/lib/db";
 import type {
   DashboardData,
   DashboardFilters,
@@ -117,6 +117,7 @@ const {
   description: _description,
   notes: _notes,
   searchText: _searchText,
+  tags: _tags,
   ...TASK_COLS_BASE
 } = getTableColumns(tasks);
 
@@ -126,6 +127,19 @@ const {
 // `revised_target_date`. A fresh projection per call keeps each query's
 // sql fragment its own (drizzle chunks aren't meant to be shared).
 const taskCols = () => ({ ...TASK_COLS_BASE, dueAt: effectiveDueAtSql(), originalDueAt: tasks.dueAt });
+
+// The dashboard never reads a full employee profile. Projecting only the roster
+// fields it needs also keeps PostgreSQL-array profile columns (for example tags
+// and working days) out of the local PGlite result mapper.
+const dashboardEmployeeCols = {
+  id: employees.id,
+  name: employees.name,
+  department: employees.department,
+  managerId: employees.managerId,
+  email: employees.email,
+  isActive: employees.isActive,
+  accountType: employees.accountType,
+};
 
 /**
  * Cached dashboard aggregate. The three task scans + transforms are
@@ -253,9 +267,9 @@ export async function loadDashboardDataUncached(
     ...peopleConditions,
   ];
 
-  const [allEmployees, periodTasksRaw, wideTasksRaw, departmentMap, rankingTasksRaw] =
+  const [allEmployeeRows, periodTasksRaw, wideTasksRaw, departmentMap, rankingTasksRaw] =
     await Promise.all([
-      db.select().from(employees),
+      db.select(dashboardEmployeeCols).from(employees),
       db.select(taskCols()).from(tasks).where(and(...conditions)),
       db.select(taskCols()).from(tasks).where(and(...trendConditions)),
       getEmployeeDepartmentMap(),
@@ -265,6 +279,9 @@ export async function loadDashboardDataUncached(
         ? db.select(taskCols()).from(tasks).where(and(...baseConditions))
         : Promise.resolve(null),
     ]);
+  // The dashboard transforms intentionally accept the canonical Employee type,
+  // but their current field access is limited to dashboardEmployeeCols above.
+  const allEmployees = allEmployeeRows as unknown as Employee[];
   // Cast back to Task[] for the transform signatures — the dropped
   // description/notes fields are simply absent and never accessed.
   //

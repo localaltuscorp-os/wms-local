@@ -699,13 +699,14 @@ export function StatusTable({
                 how the section is SHAPED rather than what it contains. */}
             <button
               type="button"
+              data-sec="transpose"
               onClick={() => setIsTransposed((v) => !v)}
               aria-pressed={isTransposed}
+              aria-label={isTransposed ? "Return to people as rows" : "Transpose statuses as rows"}
               title={isTransposed ? "Back to people as rows" : "Transpose: statuses as rows"}
-              className={`${SECTION_CONTROL} ${isTransposed ? "text-altus-red" : ""}`}
+              className={`${SECTION_CONTROL} h-9 w-9 justify-center px-0 ${isTransposed ? "bg-slate-100 text-altus-red" : ""}`}
             >
-              <ArrowLeftRight className="size-3.5" strokeWidth={2.6} />
-              Transpose
+              <ArrowLeftRight size={19} strokeWidth={2.6} aria-hidden />
             </button>
             <CollapseToggle
               expanded={open}
@@ -791,10 +792,10 @@ export function StatusTable({
               spent, and twelve columns genuinely do not fit a laptop viewport.
               The Employee cell stays frozen with `sticky left-0`, so names
               remain readable while the status columns scroll under them. */}
-          {/* The scroll box carries its own hairline + radius, so the table
+          {/* The scroll box carries its own hairline, so the table
               reads as a framed object inside the card's p-6 rather than as
               loose rows that happen to slide sideways. */}
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <div className="overflow-x-auto rounded-none border border-slate-200">
           {/* min-w carries the twelve columns: one name column plus eleven
               statuses and Total. Below this the numeric columns collapse into
               each other, so the floor is what forces the scrollbar instead of

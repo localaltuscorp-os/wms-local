@@ -178,7 +178,7 @@ function CategoryRows({
                 <td className="border-l border-gray-100" />
                 <td className="px-2 py-1 text-center">
                   <WorkloadCountCell
-                    tone="red"
+                    tone="neutral"
                     value={value}
                     target={target}
                     denominator={quota != null ? "target" : "share"}
@@ -216,7 +216,7 @@ function MemberRow({
 }) {
   return (
     <>
-      <tr className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/70">
+      <tr className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/80">
         <td className="px-3 py-1.5">
           <span className="flex items-center gap-2">
             <button
@@ -263,7 +263,7 @@ function MemberRow({
             <React.Fragment key={f.key}>
               <td className="border-l border-gray-100 px-2 py-1.5 text-center">
                 <WorkloadCountCell
-                  tone="red"
+                  tone="neutral"
                   value={split.self}
                   target={selfTarget}
                   creatorId={member.employeeId}
@@ -274,7 +274,7 @@ function MemberRow({
               </td>
               <td className="px-2 py-1.5 text-center">
                 <WorkloadCountCell
-                  tone="red"
+                  tone="neutral"
                   value={out}
                   target={outTarget}
                   creatorId={member.employeeId}
@@ -290,7 +290,7 @@ function MemberRow({
                     which is why this cell had none at all. `totalTarget` is a
                     single coherent number instead. */}
                 <WorkloadCountCell
-                  tone="red"
+                  tone="neutral"
                   value={split.total}
                   target={totalTarget(targets, f.key)}
                   creatorId={member.employeeId}
@@ -306,13 +306,13 @@ function MemberRow({
         <td className="border-l border-gray-100 px-2 py-1.5 text-center">
           {/* Standalone count, matched to the numerator scale beside it —
               size and weight in classes because an inline fontSize cannot
-              carry a `md:` step and would override one. Brand red, with the
-              rest of this board's figures. */}
+              carry a `md:` step and would override one. Neutral slate matches
+              the adjacent Breakdown control. */}
           <span
             className="text-base font-black tabular-nums md:text-lg"
             style={{
               fontFamily: "var(--font-display), system-ui, sans-serif",
-              color: "var(--color-altus-red)",
+              color: "#475569",
             }}
           >
             {member.createdTotal}
@@ -507,7 +507,7 @@ function ManagerRow({
           return (
             <td key={f.key} className="px-2 py-2.5 text-center">
               <WorkloadCountCell
-                tone="red"
+                tone="neutral"
                 value={actual}
                 target={target}
                 creatorId={row.managerId}
@@ -527,7 +527,7 @@ function ManagerRow({
             className="text-base font-black tabular-nums md:text-lg"
             style={{
               fontFamily: "var(--font-display), system-ui, sans-serif",
-              color: "var(--color-altus-red)",
+              color: "#475569",
             }}
           >
             {row.members.reduce((s, m) => s + m.createdTotal, 0)}
@@ -621,7 +621,7 @@ function TransposedActivityTable({
     "sticky left-0 z-10 bg-white px-3 py-2.5 text-[12.5px] font-bold text-ink-strong";
 
   return (
-    <div className="table-scroll max-h-[600px] overflow-auto">
+    <div className="table-scroll no-scrollbar max-h-[600px] overflow-auto">
       <table className="min-w-full border-collapse">
         <thead className="sticky top-0 z-30" style={{ background: "#f9fafb" }}>
           <tr>
@@ -650,7 +650,7 @@ function TransposedActivityTable({
                 return (
                   <td key={r.managerId} className="whitespace-nowrap px-2 py-2.5 text-center">
                     <WorkloadCountCell
-                      tone="red"
+                      tone="neutral"
                       value={actual}
                       target={target}
                       creatorId={r.managerId}
@@ -673,7 +673,7 @@ function TransposedActivityTable({
               <td
                 key={r.managerId}
                 className="px-2 py-2.5 text-center text-base font-black tabular-nums md:text-lg"
-                style={{ color: "var(--color-altus-red)" }}
+                style={{ color: "#475569" }}
               >
                 {r.members.reduce((s, m) => s + m.createdTotal, 0)}
               </td>
@@ -997,13 +997,14 @@ export function ManagerActivityTable({
       {rows.length > 0 && (
         <button
           type="button"
+          data-sec="transpose"
           onClick={() => setIsTransposed((v) => !v)}
           aria-pressed={isTransposed}
+          aria-label={isTransposed ? "Return to managers as rows" : "Transpose categories as rows"}
           title={isTransposed ? "Back to managers as rows" : "Transpose: categories as rows"}
-          className={`${SECTION_CONTROL} ${isTransposed ? "text-altus-red" : ""}`}
+          className={`${SECTION_CONTROL} h-9 w-9 justify-center px-0 ${isTransposed ? "bg-slate-100 text-altus-red" : ""}`}
         >
-          <ArrowLeftRight className="size-3.5" strokeWidth={2.6} aria-hidden />
-          Transpose
+          <ArrowLeftRight size={19} strokeWidth={2.6} aria-hidden />
         </button>
       )}
       <CollapseToggle
@@ -1066,7 +1067,7 @@ export function ManagerActivityTable({
                viewport it DOES exceed its card; the border and radius give the
                grid a visible boundary inside the card instead of letting rows
                reach the card's own edge. */
-            <div className="table-scroll max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
+            <div className="table-scroll no-scrollbar max-h-[600px] overflow-auto rounded-xl border border-slate-200/70">
               <table className="min-w-full border-collapse">
                 <thead className="sticky top-0 z-10" style={{ background: "#f9fafb" }}>
                   <tr>

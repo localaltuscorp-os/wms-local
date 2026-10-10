@@ -20,6 +20,15 @@ import { formatDate } from "@/lib/format";
 const VISIBLE_LIMIT = 2;
 
 /**
+ * The task schema stores these fields as text, but the dashboard is also fed
+ * historical rows. Keep a malformed legacy value from taking down the entire
+ * mobile home screen; an invalid value simply falls through to the next label.
+ */
+function trimmedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
  * Client island for the mobile "Today" task list. Renders the user's overdue +
  * due-today cards, but shows only the first {@link VISIBLE_LIMIT} by default
  * with a "View all" toggle — so a big backlog doesn't bury the Attendance CTA.
@@ -153,8 +162,11 @@ function TodayCard({
   statusTones: Record<TaskStatus, StatusColorToken>;
 }) {
   const title =
-    task.title?.trim() || task.description?.trim() || task.subject?.trim() || "Untitled task";
-  const meta = [task.client?.trim(), task.subject?.trim()].filter(Boolean).join(" · ");
+    trimmedText(task.title) ||
+    trimmedText(task.description) ||
+    trimmedText(task.subject) ||
+    "Untitled task";
+  const meta = [trimmedText(task.client), trimmedText(task.subject)].filter(Boolean).join(" · ");
   const tone = statusTones[task.status] ?? "slate";
   const dueLabel = task.overdue
     ? task.dueAt

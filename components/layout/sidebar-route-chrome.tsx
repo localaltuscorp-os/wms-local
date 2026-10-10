@@ -48,7 +48,7 @@ export function SidebarNewTask({ children }: { children: React.ReactNode }): Rea
   // only way to start a task from a collapsed rail was to know the N shortcut.
   // It now shrinks to a centred 40px + tile the same way the nav pills shrink
   // to their glyphs; the collapsed rules live beside theirs.
-  return <div className="mt-3 flex flex-col sidebar-new-task">{children}</div>;
+  return <div className="mt-2 flex flex-col sidebar-new-task">{children}</div>;
 }
 
 /** Personal | Professional space toggle — Goals room, ADMINS only. */

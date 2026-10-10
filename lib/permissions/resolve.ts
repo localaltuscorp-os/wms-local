@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { dbErrorAdvice } from "@/lib/db/error";
 import { modulePermissions, type Employee } from "@/db/schema";
 import { getCurrentEmployee, forbiddenError } from "@/lib/auth/current";
 import { isMasterAdmin } from "@/lib/security/capability-grants";
@@ -78,9 +79,9 @@ const loadOverrides = cache(async (employeeId: string): Promise<OverrideMap> => 
     }
     return map;
   } catch (err) {
-    console.error(
-      "permissions: could not load module overrides; falling back to the application's own authorization",
-      err,
+    console.warn(
+      "permissions: module overrides unavailable; falling back to the application's own authorization:",
+      dbErrorAdvice(err),
     );
     return new Map();
   }

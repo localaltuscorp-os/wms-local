@@ -73,50 +73,10 @@ export function NewTaskRailButton() {
                     dismissHint();
                     window.dispatchEvent(new Event(NEW_TASK_OPEN_EVENT));
                   }}
-                  className="group relative inline-flex w-full items-center justify-center gap-2 rounded-2xl font-semibold text-altus-red outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 px-4 py-2.5 max-md:gap-0 max-md:size-10 max-md:p-0 max-md:justify-center"
-                  style={{
-                    fontSize: 14,
-                    letterSpacing: "0.005em",
-                    background: "color-mix(in srgb, var(--color-altus-red) 7%, var(--color-surface-card))",
-                    border: "1px solid var(--color-altus-red)",
-                    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
-                    transition:
-                      "transform 180ms ease, box-shadow 220ms ease, filter 180ms ease",
-                    animation:
-                      "newTaskIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both",
-                    willChange: "transform",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "scale(1.02)";
-                    e.currentTarget.style.boxShadow =
-                      "0 6px 16px rgba(15, 23, 42, 0.08)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "";
-                    e.currentTarget.style.boxShadow =
-                      "0 1px 2px rgba(15, 23, 42, 0.06)";
-                  }}
+                  className="group nav-pill relative w-full justify-start outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 max-md:size-10 max-md:justify-center max-md:gap-0 max-md:p-0"
                 >
-                  <Plus size={15} strokeWidth={2.6} />
+                  <Plus size={16} strokeWidth={2.2} />
                   <span className="max-md:sr-only">New Task</span>
-                  <kbd
-                    aria-hidden
-                    className="ml-1 inline-flex items-center justify-center font-mono max-md:hidden"
-                    style={{
-                      minWidth: 18,
-                      height: 18,
-                      padding: "0 5px",
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      borderRadius: 5,
-                      color: "var(--color-altus-red)",
-                      background: "color-mix(in srgb, var(--color-altus-red) 18%, transparent)",
-                      boxShadow: "none",
-                      letterSpacing: 0,
-                    }}
-                  >
-                    N
-                  </kbd>
                 </button>
             </Tooltip.Trigger>
             <Tooltip.Portal>

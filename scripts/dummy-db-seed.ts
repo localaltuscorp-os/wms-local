@@ -68,6 +68,15 @@ function day(offset: number): string {
   return d.toISOString();
 }
 
+/** Offset from today to the named day in the current Monday-Sunday week.
+ * These fixtures deliberately remain in the current week so every Due Tasks
+ * weekday selector has something honest to display after a dummy reset. */
+function currentWeekOffset(weekdayIndex: number): number {
+  const today = new Date();
+  const mondayBasedDay = (today.getDay() + 6) % 7;
+  return weekdayIndex - mondayBasedDay;
+}
+
 const EMPLOYEES: [id: string, name: string, email: string, role: string, admin: boolean, dept: string, desig: string][] = [
   [EMP.me, DUMMY_USER.name, DUMMY_USER.email, "both", true, DEPT.tech, DESIG.manager],
   [EMP.asha, "Asha Kulkarni", "asha@example.invalid", "both", true, DEPT.ops, DESIG.manager],
@@ -118,6 +127,17 @@ const TASKS: [string, string, string, string, string, number, string, string, bo
   ["Audit the scrap disposal register", EMP.long, EMP.imran, "done", "not_imp_not_urgent", -9, "Ganges Steel Rolling & Fabrication Works", "Audit", false],
   ["Archive the closed 2025 billing disputes", EMP.asha, EMP.me, "done", "not_imp_not_urgent", -20, "Deccan Foods", "Billing", true],
   ["Retire the old muster register format", EMP.asha, EMP.me, "cancelled", "not_imp_not_urgent", -25, "Aurora Textiles", "Compliance", true],
+  // Daily Commitments' WMS To-Do fixture: one open task for every current-week
+  // day plus a visibly overdue row. All names and work are invented.
+  ["Confirm Monday dispatch roster", EMP.me, EMP.asha, "not_started", "imp_not_urgent", currentWeekOffset(0), "Demo Logistics", "Dispatch", false],
+  ["Review Tuesday billing batch", EMP.me, EMP.asha, "not_started", "imp_not_urgent", currentWeekOffset(1), "Demo Finance", "Billing", false],
+  ["Prepare Wednesday quality update", EMP.me, EMP.imran, "initiated", "imp_urgent", currentWeekOffset(2), "Demo Manufacturing", "Quality", false],
+  ["Send Thursday compliance evidence", EMP.me, EMP.imran, "follow_up", "not_imp_urgent", currentWeekOffset(3), "Demo Compliance", "Compliance", false],
+  ["Close Friday operations review", EMP.me, EMP.asha, "not_started", "imp_urgent", currentWeekOffset(4), "Demo Operations", "Operations", false],
+  ["Validate Saturday inventory count", EMP.me, EMP.asha, "need_info", "not_imp_not_urgent", currentWeekOffset(5), "Demo Warehouse", "Inventory", false],
+  ["Publish Sunday handover notes", EMP.me, EMP.imran, "not_started", "not_imp_not_urgent", currentWeekOffset(6), "Demo Support", "Handover", false],
+  ["Resolve overdue sample exception", EMP.me, EMP.asha, "follow_up", "imp_urgent", -7, "Demo Operations", "Exception", false],
+  ["Daily Commitments overdue drag test", EMP.me, EMP.asha, "not_started", "imp_urgent", -3, "Demo Planning", "Daily Commitments", false],
 ];
 
 /** A project tree. [id, name, kind, parentId, sortOrder, owner, targetOffsetDays, progress, status] */

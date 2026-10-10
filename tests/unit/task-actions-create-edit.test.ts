@@ -15,9 +15,10 @@ vi.mock("@/lib/queries/status-display", () => ({
   getStatusDisplayMap: vi.fn(async () => ({})),
 }));
 
-const { insertCall, queryCall, updateCall, valuesCalls } = vi.hoisted(() => ({
+const { insertCall, queryCall, selectCall, updateCall, valuesCalls } = vi.hoisted(() => ({
   insertCall: vi.fn(),
   queryCall: vi.fn(),
+  selectCall: vi.fn(),
   updateCall: vi.fn(),
   valuesCalls: [] as unknown[],
 }));
@@ -40,6 +41,9 @@ vi.mock("@/lib/db", () => {
   }));
   const set = vi.fn(() => ({ where }));
   updateCall.mockImplementation(() => ({ set }));
+  selectCall.mockImplementation(() => ({
+    from: vi.fn(() => ({ where: vi.fn(() => Promise.resolve([])) })),
+  }));
 
   // `db.transaction(cb)` invokes the callback with a tx object that has
   // the same select/insert/update surface as `db`. Tests don't care about
@@ -47,12 +51,14 @@ vi.mock("@/lib/db", () => {
   const txDb = {
     insert: insertCall,
     update: updateCall,
+    select: selectCall,
     query: { tasks: { findFirst: queryCall } },
   };
   return {
     db: {
       insert: insertCall,
       update: updateCall,
+      select: selectCall,
       query: {
         tasks: {
           findFirst: queryCall,
@@ -93,6 +99,7 @@ const VALID_UUID = "11111111-1111-1111-1111-111111111111";
 beforeEach(() => {
   insertCall.mockClear();
   queryCall.mockClear();
+  selectCall.mockClear();
   updateCall.mockClear();
   valuesCalls.length = 0;
 });

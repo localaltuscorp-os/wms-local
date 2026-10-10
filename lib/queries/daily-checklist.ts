@@ -473,7 +473,13 @@ function importanceRank(p: TaskPriority): number {
 export async function listOpenTasksForChecklist(
   employeeId: string,
   now: Date = new Date(),
-  opts: { horizonDays?: number; limit?: number; excludePlannedAnyDay?: boolean } = {},
+  opts: {
+    horizonDays?: number;
+    limit?: number;
+    excludePlannedAnyDay?: boolean;
+    /** Keep task-backed rows available when a caller needs an overdue source tray. */
+    includePlanned?: boolean;
+  } = {},
 ): Promise<OpenTaskOption[]> {
   const ymd = todayYmd(now);
   // Sir's To-Do rule: on the planner, only surface OVERDUE + due-within-N-days
@@ -515,11 +521,14 @@ export async function listOpenTasksForChecklist(
         horizonCutoff
           ? sql`${effectiveDueAtSql()} < ${horizonCutoff.toISOString()}::timestamptz`
           : sql`true`,
-        // A task already filed on a planner day is OFF the pull list. With
+        // A task already filed on a planner day is OFF the pull list, unless a
+        // caller explicitly needs the open task in an overdue source tray. With
         // `excludePlannedAnyDay` (the Plan My Day board) that means ANY day, not
         // just today: one item lives on exactly one day, so a task you filed on
         // Thursday must not still look pullable on the Tomorrow column.
-        opts.excludePlannedAnyDay
+        opts.includePlanned
+          ? sql`true`
+          : opts.excludePlannedAnyDay
           ? sql`not exists (
               select 1 from ${dailyChecklist} dc
               where dc.task_id = ${tasks.id}

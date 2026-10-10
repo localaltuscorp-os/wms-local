@@ -1,5 +1,5 @@
-import { notFound } from "next/navigation";
-import type { Route } from "next";
+import { notFound, redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { DashboardHeader } from "@/components/layout/header";
 import { PageShell } from "@/components/layout/page-shell";
 import { requireGoalsAccess } from "@/lib/goals/access";
@@ -8,10 +8,15 @@ import { goalsSpace } from "@/lib/goals/space";
 import { loadPersonalWD } from "@/app/(app)/goals/personal-wd-data";
 import { PersonalWDBoard } from "@/components/goals/board/personal-wd-board";
 import { PlanBoard } from "@/components/goals/plan/plan-board";
+import { DailyCommitmentsGoalsView, type DailyCommitmentsGoal } from "@/components/my-day/daily-commitments-goals-view";
+import { listGoalsForPlanner } from "@/lib/queries/daily-checklist";
+import { getPeriodGoals } from "@/lib/goals/queries";
+import { monthKey } from "@/lib/goals/types";
 import {
   getPlanDayPayload,
   clampWindowStart,
   clampWindowDays,
+  PLAN_WINDOW_DAYS,
 } from "@/app/(app)/goals/plan/payload";
 import { resolvePlanTarget } from "@/lib/goals/plan-target";
 
@@ -105,14 +110,46 @@ export default async function MyDayPage({
     );
   }
 
-  const payload = await getPlanDayPayload(
-    target.employeeId,
-    new Date(),
-    windowStart,
-    { owner: target.name, manager: target.manager, managerManager: target.managerManager },
-    windowDays,
-    { includeGoals: false },
-  );
+  const now = new Date();
+  const [payload, weeklyGoals, monthlyGoals] = await Promise.all([
+    getPlanDayPayload(
+      target.employeeId,
+      now,
+      windowStart,
+      { owner: target.name, manager: target.manager, managerManager: target.managerManager },
+      windowDays,
+      { includeGoals: false, hidePendingFromDays: true, overdueTasksOnlyInSource: true },
+    ),
+    listGoalsForPlanner(target.employeeId, now).catch(() => []),
+    getPeriodGoals(target.employeeId, "month", monthKey(now)).catch(() => []),
+  ]);
+
+  // Once a closed-day user chooses "Plan upcoming days", honour that choice
+  // before this server-rendered page is sent. This prevents the Day closed
+  // screen from briefly flashing while the client redirects to Tomorrow.
+  const upcomingPlanDay = (await cookies()).get("daily-commitments-plan-upcoming")?.value;
+  if (windowStart === 0 && payload.initialPhase === "closed" && upcomingPlanDay === payload.todayYmd) {
+    const qs = new URLSearchParams();
+    qs.set("d", "1");
+    if (windowDays !== PLAN_WINDOW_DAYS) qs.set("v", String(windowDays));
+    if (target.roster.length > 1) qs.set("emp", target.employeeId);
+    redirect(`/my-day?${qs.toString()}`);
+  }
+
+  const goalsView: { weekly: DailyCommitmentsGoal[]; monthly: DailyCommitmentsGoal[] } = {
+    weekly: weeklyGoals.map((goal) => ({
+      id: goal.id,
+      title: goal.targetDone?.trim() || goal.subject?.trim() || goal.client?.trim() || "Untitled weekly goal",
+      detail: [goal.client, goal.subject].filter(Boolean).join(" · ") || null,
+      progress: goal.pctDone,
+    })),
+    monthly: monthlyGoals.map((goal) => ({
+      id: goal.id,
+      title: goal.title,
+      detail: goal.notes?.trim() || goal.area?.trim() || null,
+      progress: goal.pctDone,
+    })),
+  };
 
   return (
     <>
@@ -135,19 +172,15 @@ export default async function MyDayPage({
             board takes the href as an opt-in prop, so the same component
             embedded in the Goals canvas day drawer renders no such button —
             the dashboard belongs to Daily Goals and to nothing else. */}
-        {/* `quickDock` is opt-in for the same reason the dashboard href is: it
-            pins a fixed bar to the VIEWPORT, which only makes sense on a page.
-            The Goals canvas day drawer mounts the same board without it. */}
         <PlanBoard
           target={target}
           // WHO IS LOOKING — the two status controls in a card's detail view need
           // it to tell "my own day" from "a downline member's day I am ruling on".
           me={{ id: me.id, isAdmin }}
           payload={payload}
-          dashboardHref={"/my-day/dashboard" as Route}
-          quickDock
           wmsTasksOnly
           unruledInitiatorLabel="Not Applicable"
+          belowPlanner={<DailyCommitmentsGoalsView weekly={goalsView.weekly} monthly={goalsView.monthly} />}
         />
       </PageShell>
     </>

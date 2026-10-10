@@ -70,13 +70,13 @@ async function managerChain(
 }
 
 /**
- * Whether the planner is open to every employee. On by default; set
- * GOALS_PLAN_ANY_EMPLOYEE to "0", "off" or "false" to restore the old
- * hierarchy-scoped behaviour.
+ * Legacy open planning is an explicit opt-in. The reporting hierarchy is the
+ * default; set GOALS_PLAN_ANY_EMPLOYEE to "1", "on" or "true" only when
+ * intentionally allowing all active employees.
  */
 export function plannerOpenToAll(): boolean {
   const raw = (process.env.GOALS_PLAN_ANY_EMPLOYEE ?? "").trim().toLowerCase();
-  return !(raw === "0" || raw === "off" || raw === "false");
+  return raw === "1" || raw === "on" || raw === "true";
 }
 
 export async function resolvePlanTarget(

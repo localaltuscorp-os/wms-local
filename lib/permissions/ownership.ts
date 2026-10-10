@@ -3,6 +3,7 @@ import { cache } from "react";
 import { inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { moduleOwnershipAssignments, moduleOwnershipPolicies } from "@/db/schema";
+import { dbErrorAdvice } from "@/lib/db/error";
 import { nodeChain } from "./catalog";
 import {
   configuredPermission,
@@ -46,7 +47,10 @@ const loadChainOwnership = cache(async (nodeKey: string): Promise<{
   } catch (error) {
     // Ownership widens module access. A failed read must therefore fail closed:
     // existing authorization continues unchanged and no ownership is invented.
-    console.error("[module-ownership] could not load assignments", error);
+    // Ownership is an optional narrowing layer. Keep the existing permission
+    // path in place when its schema/read is unavailable, without producing a
+    // development error overlay for every module in the navigation.
+    console.warn("[module-ownership] assignments unavailable; ignoring ownership configuration:", dbErrorAdvice(error));
     return { assignments: [], policies: [] };
   }
 });

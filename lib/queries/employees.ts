@@ -51,6 +51,21 @@ export interface EmployeeOption {
   name: string;
 }
 
+/** The dashboard filter and avatar map only need these scalar fields. */
+export interface DashboardEmployeeOption {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+export async function listDashboardEmployeeOptions(): Promise<DashboardEmployeeOption[]> {
+  return db
+    .select({ id: employees.id, name: employees.name, avatarUrl: employees.avatarUrl })
+    .from(employees)
+    .where(and(eq(employees.isActive, true), isStaffAccount))
+    .orderBy(asc(employees.name));
+}
+
 /**
  * Slim {id,name} projection for pickers — filter-bar, assign-doer,
  * reassign-doer, etc. The full row from `listEmployees` carries 20+

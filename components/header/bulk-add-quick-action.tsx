@@ -66,14 +66,15 @@ export function BulkAddQuickAction({ className = "" }: { className?: string }) {
       <Dialog.Trigger asChild>
         <button
           type="button"
+          aria-pressed={open}
           aria-label="Bulk add tasks"
           title="Bulk Add — upload tasks from an Excel or CSV file"
           // The bell's exact square, so the cluster reads as one row of chrome
           // controls with a single red action in it.
           className={
             "relative inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg " +
-            "border border-hairline-strong bg-surface-card text-ink-soft transition-colors " +
-            "hover:bg-surface-soft hover:text-ink-strong " +
+            "border border-hairline-strong bg-surface-soft text-ink-strong transition-colors " +
+            "hover:bg-surface-card hover:text-ink-strong " +
             className
           }
         >

@@ -2,7 +2,7 @@
 
 import { getDownlineIds } from "@/lib/weekly-goals/hierarchy";
 import { z } from "zod";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath, updateTag } from "next/cache";
 import { afterResponse } from "@/lib/after";
 import { emit, emitMany } from "@/lib/events/emit";
@@ -47,13 +47,15 @@ import {
   SetRevisedTargetDateSchema,
   type SetRevisedTargetDateInput,
 } from "@/lib/validators/task";
-import { taskEvents, clients, subjects, employees } from "@/db/schema";
+import { taskEvents, clients, subjects, employees, dailyChecklist } from "@/db/schema";
 import { canAddTaskRoster } from "@/lib/auth/roster-permission";
 import { TASK_ROSTER_REFUSAL } from "@/lib/security/capabilities";
 import { CreateClientSchema } from "@/lib/validators/client";
 import { CreateSubjectSchema } from "@/lib/validators/subject";
 import { requireUser, requireWeeklyGoalsFilled } from "@/lib/auth/current";
 import { canChangeDoerFor } from "@/lib/auth/doer-permission";
+import { todayYmd } from "@/lib/queries/daily-checklist";
+import { istYmd } from "@/lib/weekly-goals/week";
 
 /** One wording for all three doer paths, so the refusal reads the same wherever it is hit. */
 const DOER_DENIED = "Only managers, Manan and Om can change a task's doer.";
@@ -138,6 +140,7 @@ function isUuid(v: string): boolean {
 function revalidateTaskRoutes(): void {
   revalidatePath("/tasks");
   revalidatePath("/archived");
+  revalidatePath("/my-day");
   // NOTE: `revalidatePath("/")` removed (Operation Butter P0). It force-busted
   // the dashboard route on every task write; the exec dashboard now serves from
   // its own `dashboard` tag (60s TTL) and doesn't need per-write invalidation.
@@ -148,6 +151,91 @@ function revalidateTaskRoutes(): void {
   // redirect/refresh that follows this action will see fresh data.
   updateTag(CACHE_TAGS.tasks);
   updateTag(CACHE_TAGS.subjects);
+}
+
+/** Keep an open task's one active Daily Commitment on its effective due date. */
+async function syncTaskToDailyCommitment(
+  task: {
+    id: string;
+    doerId: string | null;
+    title: string;
+    description: string | null;
+    client: string | null;
+    subject: string | null;
+  },
+  dueYmd: string,
+): Promise<void> {
+  if (!task.doerId) return;
+  const activeRow = and(
+    eq(dailyChecklist.taskId, task.id),
+    eq(dailyChecklist.done, false),
+    isNull(dailyChecklist.closedAt),
+    isNull(dailyChecklist.abandonedAt),
+  );
+
+  // An overdue task belongs in WMS To-Do, not in a past Daily Commitment day.
+  if (dueYmd < todayYmd()) {
+    await db.delete(dailyChecklist).where(activeRow);
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: dailyChecklist.id })
+    .from(dailyChecklist)
+    .where(activeRow)
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(dailyChecklist)
+      .set({ planDate: dueYmd, updatedAt: new Date() })
+      .where(activeRow);
+    return;
+  }
+
+  const [slot] = await db
+    .select({
+      count: sql<number>`count(*)::int`,
+      maxPosition: sql<number>`coalesce(max(${dailyChecklist.position}), 0)::int`,
+    })
+    .from(dailyChecklist)
+    .where(and(eq(dailyChecklist.employeeId, task.doerId), eq(dailyChecklist.planDate, dueYmd)));
+  if ((slot?.count ?? 0) >= 50) return;
+
+  await db.insert(dailyChecklist).values({
+    employeeId: task.doerId,
+    planDate: dueYmd,
+    taskId: task.id,
+    origin: "standalone",
+    title: task.description?.trim() || task.title.trim() || task.client?.trim() || "Untitled task",
+    client: task.client,
+    subject: task.subject,
+    position: (slot?.maxPosition ?? 0) + 1,
+  });
+}
+
+async function syncCreatedTasksToDailyCommitments(taskIds: string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  const created = await db
+    .select({
+      id: tasks.id,
+      doerId: tasks.doerId,
+      title: tasks.title,
+      description: tasks.description,
+      client: tasks.client,
+      subject: tasks.subject,
+      dueAt: tasks.dueAt,
+      revisedTargetDate: tasks.revisedTargetDate,
+    })
+    .from(tasks)
+    .where(inArray(tasks.id, taskIds));
+  await Promise.all(
+    created
+      .filter((task) => task.dueAt != null || task.revisedTargetDate != null)
+      .map((task) =>
+        syncTaskToDailyCommitment(task, istYmd(task.revisedTargetDate ?? task.dueAt!)),
+      ),
+  );
 }
 
 export async function archiveTask(
@@ -433,8 +521,16 @@ export async function rescheduleTask(
       .update(tasks)
       .set({ revisedTargetDate })
       .where(eq(tasks.id, taskId))
-      .returning({ id: tasks.id });
+      .returning({
+        id: tasks.id,
+        doerId: tasks.doerId,
+        title: tasks.title,
+        description: tasks.description,
+        client: tasks.client,
+        subject: tasks.subject,
+      });
     if (updated.length === 0) return { ok: false, error: "Task not found." };
+    await syncTaskToDailyCommitment(updated[0]!, dueYmd);
   } catch (err) {
     logDbError("tasks:reschedule", err);
     return { ok: false, error: `Could not reschedule: ${dbErrorMessage(err)}` };
@@ -1047,6 +1143,7 @@ export async function createTask(input: CreateTaskInput): Promise<
   // Delegate to the shared core (same rules as the mobile create API).
   const result = await createTasksCore({ id: me.id, name: me.name }, input);
   if (!result.ok) return result;
+  await syncCreatedTasksToDailyCommitments(result.ids);
 
   revalidateTaskRoutes();
   return result;
@@ -1117,7 +1214,10 @@ export async function bulkCreateTasks(
         dueAt: r.dueAt,
       },
     );
-    if (res.ok) created += res.ids.length;
+    if (res.ok) {
+      await syncCreatedTasksToDailyCommitments(res.ids);
+      created += res.ids.length;
+    }
     else failed.push(`Row ${i + 1}: ${res.error}`);
   }
 
@@ -1361,6 +1461,10 @@ export async function editTaskFields(
 
   if (updated.length === 0) {
     return { ok: false, error: "stale" };
+  }
+
+  if (revisedChange) {
+    await syncTaskToDailyCommitment(current, istYmd(revisedChange.value));
   }
 
   // One audit row per changed field.

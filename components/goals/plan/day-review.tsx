@@ -11,18 +11,17 @@ import {
   Copy,
   Loader2,
   PauseCircle,
-  Plus,
   Sunrise,
   UserRound,
   X,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import type { PlanItem, PlanPhase } from "./types";
-import { closeMyDay, reopenPlan } from "@/app/(app)/goals/plan/actions";
+import { closeMyDay } from "@/app/(app)/goals/plan/actions";
 import { autoPunch } from "@/components/attendance/auto-punch";
 import { SourceTag, fmtYmd } from "./source-tag";
 import { DuplicateDateDialog } from "./duplicate-date-dialog";
-import { minToClock, rangeFromHhmm } from "@/lib/goals/plan-time";
+import { minToClock } from "@/lib/goals/plan-time";
 import { PRIORITY_LABELS } from "@/db/enums";
 import { PlanItemHoverCard, TransferControl } from "./item-detail";
 import { HoverTip } from "@/components/ui/hover-tip";
@@ -39,14 +38,14 @@ const WARN = "var(--color-amber-deep)";
 interface Props {
   phase: Extract<PlanPhase, "active" | "closeout" | "closed">;
   items: PlanItem[];
-  onBackToPlan: () => void;
   /** Move from the day-started screen into the close-out list. */
   onToCloseout: () => void;
+  /** Leave the completed-day summary and prepare only upcoming commitments. */
+  onViewUpcoming?: () => void;
   /** Back to the BOARD without un-starting the day — the plan stays committed,
    *  you just want to look at it / move things around. */
   onAdjust: () => void;
   onClosed: () => void;
-  onReopened: () => void;
   /** All four decisions are the SAME handlers the kanban cards use, so review
    *  and planning can never disagree about what "done" means. */
   onToggleDone: (item: PlanItem) => void;
@@ -62,8 +61,6 @@ interface Props {
    * button itself for why that changed and what it costs.
    */
   onRemove: (item: PlanItem) => void;
-  /** Add a DAILY COMMITMENT to today straight from the day-started screen. */
-  onAddCommitment: (title: string, time?: { startMin: number | null; durationMin: number | null }) => void;
   busyId: string | null;
 }
 
@@ -78,47 +75,22 @@ interface Props {
 export function DayReview({
   phase,
   items,
-  onBackToPlan,
   onToCloseout,
+  onViewUpcoming,
   onAdjust,
   onClosed,
-  onReopened,
   onToggleDone,
   onPending,
   onTransfer,
   dayYmd,
   onDuplicate,
   onRemove,
-  onAddCommitment,
   busyId,
 }: Props) {
   const [busy, setBusy] = React.useState<string | null>(null);
   /** The row whose "Duplicate to" dialog is open, or null. */
   const [copyFor, setCopyFor] = React.useState<PlanItem | null>(null);
-  // Composer for the day-started screen — something always comes up after you
-  // have committed to the day, and going back to the board to type it was a
-  // detour (Sir).
-  const [draft, setDraft] = React.useState("");
-  const [at, setAt] = React.useState("");
-  const [until, setUntil] = React.useState("");
-  const range = rangeFromHhmm(at, until);
-
-  function addCommitment(e: React.FormEvent) {
-    e.preventDefault();
-    const t = draft.trim();
-    if (t.length < 2) return;
-    if (!range.ok) return;
-    const { startMin, durationMin } = range;
-    onAddCommitment(t, startMin == null && durationMin == null ? undefined : { startMin, durationMin });
-    setDraft("");
-    setAt("");
-    setUntil("");
-  }
   const isClosed = phase === "closed";
-
-  const total = items.length;
-  const doneCount = items.filter((i) => i.done).length;
-  const openCount = total - doneCount;
 
   const onFinish = () => {
     setBusy("__finish");
@@ -132,13 +104,6 @@ export function DayReview({
       })
       .finally(() => setBusy(null));
   };
-  const onReopen = () => {
-    setBusy("__reopen");
-    void reopenPlan()
-      .then((r) => (r.ok ? (phase === "closed" ? onReopened() : onBackToPlan()) : fireToast({ message: r.error, type: "error" })))
-      .finally(() => setBusy(null));
-  };
-
   // ── ACTIVE — the day is started, before close-out ───────────────────────
   // Restored (Sir). It is the one screen that says "you're set, go and work" —
   // the board is for arranging the day, this is the moment you commit to it.
@@ -152,14 +117,8 @@ export function DayReview({
             background: `color-mix(in srgb, ${GOALS_ACCENT} 5%, #fff)`,
           }}
         >
-          <span
-            className="mx-auto grid size-16 place-items-center rounded-2xl text-white shadow-[0_10px_28px_rgba(124,45,18,0.3)]"
-            style={{ background: GOALS_GRADIENT }}
-          >
-            <CheckCircle2 size={30} strokeWidth={2.3} />
-          </span>
           <h2
-            className="mt-4 text-ink-strong"
+            className="flex items-center justify-center gap-3 text-ink-strong"
             style={{
               fontFamily: "var(--font-display), system-ui, sans-serif",
               fontWeight: 900,
@@ -167,63 +126,15 @@ export function DayReview({
               letterSpacing: "-0.02em",
             }}
           >
+            <span
+              className="grid size-10 shrink-0 place-items-center rounded-xl text-white shadow-[0_8px_20px_rgba(124,45,18,0.28)]"
+              style={{ background: GOALS_GRADIENT }}
+              aria-label="Day planned"
+            >
+              <CheckCircle2 size={21} strokeWidth={2.3} />
+            </span>
             Your Day Is Planned
           </h2>
-          <p className="mx-auto mt-1.5 max-w-[52ch] text-[15px] font-medium text-ink-muted">
-            You&apos;re set to clock in. {items.length} commitment{items.length === 1 ? "" : "s"} lined up for today
-            — come back at the end of the day to mark what you delivered.
-          </p>
-
-          {/* ADD ANOTHER — right at the top of the list, so a commitment that
-              turns up after you've started the day goes straight in. */}
-          <form onSubmit={addCommitment} className="mt-6 flex w-full flex-col gap-1.5 text-left">
-            <div className="flex items-center gap-1.5">
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Add a commitment…"
-                aria-label="Add a commitment to today"
-                maxLength={280}
-                className="h-9 min-w-0 flex-1 rounded-chip border border-hairline bg-surface-card px-3 text-[13px] text-ink-strong placeholder:text-ink-muted/60 focus-visible:outline-2"
-                style={{ outlineColor: GOALS_ACCENT }}
-              />
-              <button
-                type="submit"
-                disabled={draft.trim().length < 2 || !range.ok}
-                aria-label="Add commitment"
-                className="inline-flex size-9 shrink-0 items-center justify-center rounded-chip text-white disabled:opacity-35"
-                style={{ background: GOALS_GRADIENT }}
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            {draft.trim().length > 0 ? (
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="time"
-                  value={at}
-                  onChange={(e) => setAt(e.target.value)}
-                  aria-label="Start time (optional)"
-                  className="h-8 rounded-lg border border-hairline bg-surface-card px-2 text-[12px] font-semibold tabular-nums text-ink-soft"
-                />
-                <span className="text-[12px] text-ink-muted">to</span>
-                <input
-                  type="time"
-                  value={until}
-                  onChange={(e) => setUntil(e.target.value)}
-                  aria-label="End time (optional)"
-                  className="h-8 rounded-lg border bg-surface-card px-2 text-[12px] font-semibold tabular-nums text-ink-soft"
-                  style={{ borderColor: range.error ? "var(--color-red-edge)" : "var(--color-hairline)" }}
-                />
-              </div>
-            ) : null}
-            {range.error ? (
-              <p className="text-[12px] font-semibold" style={{ color: "var(--color-red-deep)" }}>
-                {range.error}
-              </p>
-            ) : null}
-          </form>
-
           <ul className="mt-2.5 flex w-full flex-col gap-2 text-left">
             {items.map((it) => (
               <li
@@ -278,7 +189,7 @@ export function DayReview({
 
   return (
     <section className="w-full wg-rise">
-      <header className="mb-3 flex items-center gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3">
+      <header className="mb-3 flex items-center gap-3 px-1 py-1">
         <span
           className="grid size-9 shrink-0 place-items-center rounded-xl text-white"
           style={{ background: GOALS_GRADIENT }}
@@ -292,15 +203,18 @@ export function DayReview({
           >
             {isClosed ? "Day closed" : "Review Today"}
           </h2>
-          {/* A count, never a percentage (rule 5). */}
-          <p className="text-[13px] font-medium text-ink-muted">
-            {total === 0
-              ? "Nothing was planned for today."
-              : isClosed
-                ? `${doneCount} of ${total} completed.`
-                : `${doneCount} done · ${openCount} still open — mark each one.`}
-          </p>
         </div>
+        {isClosed ? (
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onViewUpcoming}
+              className="inline-flex h-9 items-center gap-2 rounded-chip border border-hairline bg-surface-card px-3.5 text-[12.5px] font-semibold text-ink-soft hover:border-hairline-strong"
+            >
+              Plan upcoming days
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <ul className="flex flex-col gap-2">
@@ -443,16 +357,16 @@ export function DayReview({
         })}
       </ul>
 
-      <div className="mt-5 flex items-center justify-between gap-3 max-md:flex-col-reverse">
-        <button
-          type="button"
-          onClick={onReopen}
-          disabled={busy === "__reopen"}
-          className="inline-flex h-10 items-center gap-2 rounded-chip border border-hairline bg-surface-card px-4 text-[13.5px] font-semibold text-ink-soft hover:border-hairline-strong disabled:opacity-50 max-md:w-full"
-        >
-          {busy === "__reopen" ? <Loader2 size={15} className="animate-spin" /> : <ArrowLeft size={15} />} Back to
-          planning
-        </button>
+      <div className={`mt-5 flex items-center gap-3 max-md:flex-col${isClosed ? " justify-center" : " justify-between max-md:flex-col-reverse"}`}>
+        {!isClosed ? (
+          <button
+            type="button"
+            onClick={onAdjust}
+            className="inline-flex h-10 items-center gap-2 rounded-chip border border-hairline bg-surface-card px-4 text-[13.5px] font-semibold text-ink-soft hover:border-hairline-strong max-md:w-full"
+          >
+            <ArrowLeft size={15} /> Change plan
+          </button>
+        ) : null}
         {!isClosed ? (
           <button
             type="button"
@@ -618,7 +532,7 @@ function ReviewRow({
     <li className="list-none">
         <div
           ref={setNodeRef}
-          className="flex items-start gap-2 rounded-2xl border bg-surface-card px-4 py-3"
+          className="flex items-start gap-2 rounded-none border bg-surface-card px-4 py-3"
           style={{
             transform: CSS.Translate.toString(transform),
             opacity: isDragging ? 0.4 : undefined,

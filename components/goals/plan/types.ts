@@ -154,6 +154,9 @@ export interface SourceItem {
   dueYmd?: string | null;
   /** Full description / target text — the untruncated body shown on hover. */
   description?: string | null;
+  /** WMS task context used by the compact source-table view. */
+  client?: string | null;
+  subject?: string | null;
   /** Whole IST days overdue relative to today (>0 = late). */
   overdueDays?: number | null;
   /** "4:30 PM – 5:30 PM" / "30 min" — real scheduled block or planned effort. */
