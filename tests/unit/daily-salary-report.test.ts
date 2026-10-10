@@ -1367,8 +1367,8 @@ describe("weekly earnings", () => {
     expect(views.length).toBeGreaterThan(0);
     for (const w of views) expect(w.totals.earned).not.toBeNull();
     const t = viewTotals(views, l.hasMoney);
-    expect(t.earned!).toBeCloseTo((MONTHLY_SALARY / DAYS_IN_MONTH) * halves.size, 1);
-    expect(t.adjustment!).toBeCloseTo(0, 1);
+    expect(t.earned!).toBeCloseTo((MONTHLY_SALARY / DAYS_IN_MONTH) * (halves.size / 2), 1);
+    expect(t.adjustment!).toBeCloseTo(-(MONTHLY_SALARY / DAYS_IN_MONTH), 1);
   });
 });
 

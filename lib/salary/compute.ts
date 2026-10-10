@@ -423,7 +423,7 @@ export interface ScheduleHourlyInput {
   /** Final payable hours BEFORE rounding (the caller keeps the precise value
    *  for reporting; this function is what rounds it down for money). */
   payableHoursRaw: number;
-  /** Half-days charged this month (the 4th onward — the first 3 are waived). */
+  /** Half-days charged in missed-target weeks. */
   chargeableHalfDays: number;
   /** One scheduled day in hours, for pricing a chargeable half-day. */
   dailyTargetHours: number;
