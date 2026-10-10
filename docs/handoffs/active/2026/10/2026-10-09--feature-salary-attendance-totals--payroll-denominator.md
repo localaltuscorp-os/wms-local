@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-09
 - **Work item:** `feature/salary-attendance-totals`
-- **Status:** Implemented locally; ready to push for preview.
+- **Status:** Preview validated; queued for approved production release.
 
 ## Objective
 
@@ -33,8 +33,19 @@ showing declared holidays, Sundays/weekly offs, and effective payable days.
 - Full local TypeScript check reached the existing local dependency issue in
   `lib/email/transport.ts` (missing `nodemailer` types). It reported no errors
   from this change; GitHub CI remains the authoritative full typecheck.
+- GitHub `test` check passed for commit `9c465936e8a102827317cb30764a97a78b5e0dbf`.
+- Preview deployment was Ready at `/my-salary`; its Vercel deployment is
+  `dpl_CR7bJUmfyWbbR9iHmk3pwQjoZQLp`.
+- On 2026-10-10, the branch was refreshed from then-current `origin/main`
+  (`0dda3c80`) with merge commit `071dfe12`; Git reported no conflicts.
+- The linked worktree has no installed local executable dependencies, so the
+  focused lint/test could not be repeated there after the refresh. This does
+  not alter the prior passing results; the refreshed branch requires a new
+  GitHub `test` run before release.
 
 ## Release and rollback
 
-- Requires a preview and review before release.
+- User approved the production release on 2026-10-10 after preview validation.
+- Merge only this branch after it is refreshed with current `main`; do not
+  include unrelated feature branches.
 - Roll back by reverting the feature commit; no database rollback is required.
