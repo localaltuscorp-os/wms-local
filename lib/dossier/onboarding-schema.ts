@@ -4,7 +4,7 @@
 // upload/validation — ONE source of truth. Every field is compulsory; where a
 // field can't apply (no sibling, current = permanent), the person types "NA".
 
-export type OnbFieldType = "text" | "tel" | "number" | "select" | "file" | "repeater";
+export type OnbFieldType = "text" | "tel" | "number" | "date" | "select" | "file" | "repeater";
 
 /** Rendered width, sized to the data (keeps the form compact — no full-width
  *  sprawl). sm ≈ short codes/names, md ≈ phones/city, lg ≈ company/refs,
@@ -82,6 +82,7 @@ export const ONBOARDING_SECTIONS: OnbSection[] = [
       { key: "firstName", label: "First Name", type: "text", required: r, w: "sm" },
       { key: "middleName", label: "Middle Name", type: "text", required: r, hint: "NA if none", w: "sm" },
       { key: "lastName", label: "Last Name", type: "text", required: r, w: "sm" },
+      { key: "dateOfBirth", label: "Date of Birth", type: "date", required: r, hint: "DD-MMM-YYYY", w: "sm" },
       { key: "phone", label: "Phone No", type: "tel", required: r, w: "md" },
       { key: "selfie", label: "Selfie (FaceCut · Plain BG)", type: "file", required: r, w: "lg" },
       // OPTIONAL (2026-09-18): a CV is useful to have on file but not everyone
@@ -252,6 +253,40 @@ export const ONB_FILE_KEYS: string[] = ONB_ALL_FIELDS.filter((f) => f.type === "
 export const ONB_TEXT_FIELDS: OnbField[] = ONB_ALL_FIELDS.filter((f) => f.type !== "file");
 export const ONB_FIELD_BY_KEY = new Map<string, OnbField>(ONB_ALL_FIELDS.map((f) => [f.key, f]));
 
+const ONB_DATE = /^(0[1-9]|[12]\d|3[01])-(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)-(19\d{2}|20\d{2})$/i;
+const ONB_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Canonical display/storage format for onboarding dates: `DD-MMM-YYYY`. */
+export function normaliseOnbDate(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(ONB_DATE);
+  if (!match) return trimmed;
+  const [day, monthName, year] = [match[1], match[2], match[3]];
+  if (!day || !monthName || !year) return trimmed;
+  return `${day}-${monthName[0]!.toUpperCase()}${monthName.slice(1).toLowerCase()}-${year}`;
+}
+
+/** Rejects impossible calendar dates as well as the wrong presentation format. */
+export function isValidOnbDate(value: string): boolean {
+  const normalised = normaliseOnbDate(value);
+  const match = normalised.match(ONB_DATE);
+  if (!match) return false;
+  const [day, monthName, year] = [match[1], match[2], match[3]];
+  if (!day || !monthName || !year) return false;
+  const month = ONB_MONTHS.indexOf(`${monthName[0]!.toUpperCase()}${monthName.slice(1).toLowerCase()}`);
+  const date = new Date(Date.UTC(Number(year), month, Number(day)));
+  return date.getUTCFullYear() === Number(year) && date.getUTCMonth() === month && date.getUTCDate() === Number(day);
+}
+
+/** Keeps every onboarding phone field to a plain Indian-style 10-digit number. */
+export function normaliseOnbPhone(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+export function isValidOnbPhone(value: string): boolean {
+  return /^\d{10}$/.test(value);
+}
+
 /** Is this field hidden given the current answers? Hidden fields are never required. */
 export function isOnbFieldHidden(field: OnbField, values: Record<string, string | undefined>): boolean {
   if (field.hiddenWhen && (values[field.hiddenWhen.key] ?? "") === field.hiddenWhen.equals) return true;
@@ -284,7 +319,7 @@ export function parseRepeaterRows(raw: string | null | undefined): Record<string
 export function isRepeaterRowComplete(field: OnbField, row: Record<string, string>): boolean {
   return (field.sub ?? []).every((s) => {
     const value = String(row?.[s.key] ?? "").trim();
-    return s.type === "tel" ? /^\d{10}$/.test(value) : value.length > 0;
+    return s.type === "tel" ? isValidOnbPhone(value) : value.length > 0;
   });
 }
 
@@ -301,7 +336,7 @@ export function normaliseRepeaterValue(field: OnbField, raw: string | null | und
       const o: Record<string, string> = {};
       for (const s of field.sub ?? []) {
         const value = String(row?.[s.key] ?? "").trim();
-        o[s.key] = s.type === "tel" ? value.replace(/\D/g, "").slice(0, 10) : value.slice(0, 200);
+        o[s.key] = s.type === "tel" ? normaliseOnbPhone(value) : value.slice(0, 200);
       }
       return o;
     });

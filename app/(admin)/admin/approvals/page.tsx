@@ -6,6 +6,7 @@ import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { AdminSection } from "@/components/admin/ui/section-shell";
 import { APPROVAL_PREVIEW_ROWS } from "@/lib/compensation/approval-preview";
 import { listCtcApprovalRows, type CtcApprovalRow } from "@/lib/hr/ctc/approval-list";
+import { isOnboardingApprovalWorkflowReady, listOnboardingApprovalRows, type OnboardingApprovalRow } from "@/lib/hr/onboarding/approval-list";
 
 export const dynamic = "force-dynamic";
 export default async function ApprovalsPage() {
@@ -18,6 +19,8 @@ export default async function ApprovalsPage() {
   let rows = APPROVAL_PREVIEW_ROWS;
   let preview = false;
   let ctcRows: CtcApprovalRow[] = [];
+  let onboardingRows: OnboardingApprovalRow[] = [];
+  let onboardingWorkflowReady = false;
   try {
     const result = await Promise.all([
       canViewCompensationApprovals(me),
@@ -32,13 +35,22 @@ export default async function ApprovalsPage() {
     if (!canUsePreview) throw error;
     preview = true;
   }
-  // CTC is a read-only register in this workspace. A missing CTC table must not
-  // prevent the rest of the approval queue from loading during a staged rollout.
+  // CTC source rows load separately so a staged CTC rollout cannot prevent the
+  // rest of the approval queue from loading.
   try {
     ctcRows = await listCtcApprovalRows();
   } catch {
     ctcRows = [];
   }
+  try {
+    [onboardingWorkflowReady, onboardingRows] = await Promise.all([
+      isOnboardingApprovalWorkflowReady(),
+      listOnboardingApprovalRows(),
+    ]);
+  } catch {
+    onboardingWorkflowReady = false;
+    onboardingRows = [];
+  }
   if (!preview && !DUMMY_MODE && !canView) redirect("/hub");
-  return <AdminSection title="Approvals"><ApprovalWorkbench rows={preview ? APPROVAL_PREVIEW_ROWS : rows} ctcRows={ctcRows} canDecide={preview || DUMMY_MODE || canDecide} canDecideIncentive={preview || DUMMY_MODE || canDecide} workflowReady={preview || workflowReady} allowEdit={preview || DUMMY_MODE || allowEdit} testingMode={preview || DUMMY_MODE} preview={preview} /></AdminSection>;
+  return <AdminSection title="Approvals"><ApprovalWorkbench rows={preview ? APPROVAL_PREVIEW_ROWS : rows} ctcRows={ctcRows} onboardingRows={onboardingRows} canDecide={preview || DUMMY_MODE || canDecide} canDecideIncentive={preview || DUMMY_MODE || canDecide} workflowReady={preview || workflowReady} onboardingWorkflowReady={onboardingWorkflowReady} allowEdit={preview || DUMMY_MODE || allowEdit} testingMode={preview || DUMMY_MODE} preview={preview} /></AdminSection>;
 }

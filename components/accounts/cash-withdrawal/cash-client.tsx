@@ -262,7 +262,7 @@ function CapsPanel({ fyStartYear, limits, withdrawnByEntity, entityOptions }: {
   if (rows.length === 0) return null;
 
   return (
-    <div>
+    <div id="cash-limits">
       <div className="mb-2 flex items-center gap-2">
         <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-ink-soft">Annual cap by entity</h2>
         <span className="text-[12px] font-semibold text-ink-subtle">- withdrawn vs allowed this FY</span>

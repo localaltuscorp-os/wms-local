@@ -1,5 +1,5 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { ctcBreakups, designations, employees } from "@/db/schema";
+import { compensationApprovals, ctcBreakups, designations, employees } from "@/db/schema";
 import { db } from "@/lib/db";
 import {
   annualOf,
@@ -33,11 +33,23 @@ export type CtcApprovalRow = {
   netMonthly: number;
   ctcMonthly: number;
   ctcAnnual: number;
+  status: "pending" | "approved" | "rejected";
+  decisionNote: string | null;
   components: CtcApprovalComponent[];
 };
 
 /** Read-only CTC register used by the Admin Approvals workspace. */
 export async function listCtcApprovalRows(): Promise<CtcApprovalRow[]> {
+  let decisions: Array<{ subjectId: string; status: string; decisionNote: string | null }> = [];
+  try {
+    decisions = await db.select({ subjectId: compensationApprovals.subjectId, status: compensationApprovals.status, decisionNote: compensationApprovals.decisionNote })
+      .from(compensationApprovals)
+      .where(eq(compensationApprovals.kind, "ctc"));
+  } catch (error) {
+    const candidate = error as { code?: unknown; cause?: { code?: unknown } } | null;
+    if (candidate?.code !== "42P01" && candidate?.cause?.code !== "42P01") throw error;
+  }
+  const decisionsBySubjectId = new Map(decisions.map((decision) => [decision.subjectId, decision]));
   const rows = await db
     .select({
       id: ctcBreakups.id,
@@ -57,6 +69,7 @@ export async function listCtcApprovalRows(): Promise<CtcApprovalRow[]> {
     .orderBy(desc(ctcBreakups.updatedAt), sql`lower(${employees.name})`);
 
   return rows.map((row) => {
+    const decision = decisionsBySubjectId.get(row.id);
     const { components } = parseFields(row.fields);
     const totals = computeTotals(components);
     return {
@@ -73,6 +86,8 @@ export async function listCtcApprovalRows(): Promise<CtcApprovalRow[]> {
       netMonthly: totals.netMonthly,
       ctcMonthly: totals.ctcMonthly,
       ctcAnnual: totals.ctcAnnual,
+      status: decision?.status === "approved" || decision?.status === "rejected" ? decision.status : "pending",
+      decisionNote: decision?.decisionNote ?? null,
       components: CTC_COMPONENTS
         .map((component) => {
           const value = components[component.id] ?? 0;

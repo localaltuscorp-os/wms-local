@@ -14,8 +14,8 @@
  * friendly: long policies flow across pages, tables keep their borders in print,
  * and the letterhead header/footer repeat on every printed page.
  *
- * The interactive shell (entity picker, Sign / Acknowledge, Export PDF) lives in
- * the client wrapper (components/hr/policies/policy-view.tsx); this component is
+ * The interactive shell (Sign / Acknowledge, Export PDF) lives in the client
+ * wrapper (components/hr/policies/policy-view.tsx); this component is
  * deliberately state-free so it renders identically on screen and on paper.
  */
 

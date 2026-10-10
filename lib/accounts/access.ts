@@ -4,6 +4,7 @@ import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { matchesDepartment, ACCOUNTS_DEPARTMENT } from "@/lib/workspaces";
 import type { Employee } from "@/db/schema";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 /**
  * Access model for the Accounts module: SUPER-ADMINS or members of the
@@ -20,6 +21,12 @@ export interface AccountsAccess {
 
 export async function accountsAccess(): Promise<AccountsAccess | null> {
   const me = await requireUser();
+  // Dummy mode exists only outside production and is specifically used for
+  // hands-on local verification. Let it exercise every Accounts page and
+  // action through this one shared gate, instead of bypassing only the index.
+  if (DUMMY_MODE) {
+    return { me, isAdmin: true, canViewCaHandover: true };
+  }
   const superAdmin = isSuperAdmin(me.email);
   if (!superAdmin) {
     const structured = await employeeDepartmentNames(me.id).catch(() => [] as string[]);

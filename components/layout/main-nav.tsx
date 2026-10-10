@@ -639,6 +639,11 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
           },
         ],
       },
+      {
+        href: "/accounts/payments" as Route,
+        label: "Payments",
+        Icon: Banknote,
+      },
       // Registered as a `stub` section, so the route is real today and renders
       // the standard scaffold rather than 404-ing while the module is built.
       {

@@ -5,7 +5,7 @@ import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { isPolicyKey } from "@/lib/hr/policies/registry";
 import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { renderPolicyPdf } from "@/lib/hr/policies/policy-pdf";
-import { getEntity } from "@/lib/hr/entities";
+import { policyEntityForEmployee } from "@/lib/hr/policies/employee-entity";
 import { getSignedPolicyPdfPath } from "@/app/(app)/hr/policies/signed-pdf";
 import { apiViewDenial } from "@/lib/permissions/api-guard";
 
@@ -79,7 +79,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     let bodyBytes: Uint8Array;
     try {
-      bodyBytes = await renderPolicyPdf({ doc, entity: getEntity(doc.entityDefault ?? null) });
+      bodyBytes = await renderPolicyPdf({ doc, entity: await policyEntityForEmployee(me) });
     } catch (e) {
       console.error("[policy download] body render failed", e);
       return NextResponse.json(

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Wallet, CalendarCheck2, Coins } from "lucide-react";
+import { Wallet, CalendarCheck2, Coins, BarChart3 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/header";
 import { ACCOUNTS_SECTIONS } from "@/lib/accounts/sections";
 import { AccountsIndex } from "@/components/accounts/accounts-index";
 import { PageCommandBar } from "@/components/layout/page-command-bar";
 import { requireAccountsAccess } from "@/lib/accounts/access";
+import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function AccountsIndexPage() {
   // Guard IN THE PAGE — super-admins or the Accounts department only. The (app)
   // layout gate alone isn't reliable on prod (a Next.js layout-redirect quirk),
   // so every accounts surface must assert access itself.
-  await requireAccountsAccess();
+  if (!DUMMY_MODE) await requireAccountsAccess();
   const sections = [...ACCOUNTS_SECTIONS].sort((a, b) => a.order - b.order);
   const built = sections.filter((s) => s.status === "built").length;
 
@@ -53,6 +54,18 @@ export default async function AccountsIndexPage() {
                 className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
               >
                 <Coins size={14} strokeWidth={2.4} /> Approved payments
+              </Link>
+              <Link
+                href={"/accounts/mis" as Route}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <BarChart3 size={14} strokeWidth={2.4} /> MIS
+              </Link>
+              <Link
+                href={"/accounts/payments" as Route}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline-strong bg-surface-card px-3 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+              >
+                <Wallet size={14} strokeWidth={2.4} /> Payments
               </Link>
               <Link
                 href={"/attendance/dashboard" as Route}
