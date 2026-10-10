@@ -139,6 +139,11 @@ export interface MySalaryMonth {
   present: number;
   absent: number;
   halfDay: number;
+  /** Declared holidays that fell on a scheduled (non-weekly-off) day. */
+  holidayDays: number;
+  /** Scheduled weekly-off days in the employee's calendar (normally Sundays). */
+  weeklyOffDays: number;
+  /** Scheduled days in the period that form the attendance/payroll denominator. */
   finalWorkingDays: number;
   daysInMonth: number;
   remarks: string | null;
@@ -333,6 +338,10 @@ async function loadStoredMonths(
       present: num(r.present),
       absent: num(r.absent),
       halfDay: num(r.halfDay),
+      // Replaced with graded calendar counts below whenever attendance is
+      // available. Legacy rows do not retain the individual off-day split.
+      holidayDays: 0,
+      weeklyOffDays: 0,
       // NOT `final_working_days`. That column is a Σ of day VALUES — present +
       // half/2 + weekly offs + holidays — which is a PAY quantity: 559 of the
       // 667 stored rows match that formula, only 23 match a plain count. Using
@@ -390,6 +399,10 @@ async function loadStoredMonths(
       present: r.payableDays,
       absent: 0,
       halfDay: 0,
+      // Replaced with graded calendar counts below whenever attendance is
+      // available. A stored run intentionally keeps only payroll totals.
+      holidayDays: 0,
+      weeklyOffDays: 0,
       finalWorkingDays: r.payableDays - r.lateDeductionDays,
       daysInMonth: r.daysInMonth,
       remarks: null,
@@ -462,6 +475,15 @@ async function withRealAttendance(
     }
     const s = g.value.summary;
     const workedHours = s.totalWorkedMinutes / 60;
+
+    // These are whole-month calendar facts, not attendance outcomes. Keep the
+    // two buckets disjoint so a holiday that falls on a weekly off is counted
+    // once in the weekly-off total, never twice in the pay-day explanation.
+    const joinedDays = g.value.days.filter((d) => d.code !== NOT_JOINED_CODE);
+    const weeklyOffDays = joinedDays.filter((d) => d.isWeeklyOff).length;
+    const holidayDays = joinedDays.filter(
+      (d) => !d.isWeeklyOff && (d.code === "H" || d.code === "HP" || d.code === "H-H/D"),
+    ).length;
 
     // ── ELAPSED DAYS ONLY ───────────────────────────────────────────────
     // `MonthSummary` counts the WHOLE month, and the grader marks every future
@@ -589,6 +611,8 @@ async function withRealAttendance(
       present: presentDays,
       absent: absentDays,
       halfDay: halfDays,
+      holidayDays,
+      weeklyOffDays,
       // A COUNT of expected working days, not `payableDays` — that is a Σ of day
       // VALUES across the whole month (30 for Om, including holidays and weekly
       // offs), which made "worked X of Y" compare a count against a weighted sum.

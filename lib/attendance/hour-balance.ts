@@ -87,7 +87,7 @@ export interface HalfDayCharge {
   date: string;
   /** 1-based index among this missed-target week's half-days. */
   ordinal: number;
-  /** The first three late half-days in a missed-target week are protected. */
+  /** Whether this half-day is within the applicable late-arrival grace. */
   waived: boolean;
 }
 
@@ -342,6 +342,21 @@ export function reconcileMonth(
   let waiverAbsorbed = 0;
   const halfDaysByWeek = new Map<string, number>();
   const lateHalfDaysByWeek = new Map<string, number>();
+  const lateMarksByWeek = new Map<string, number>();
+
+  // From September 2026, the fourth late MARK (not merely the fourth late
+  // half-day) costs a half day in a short week. Retain each late day's ordinal
+  // so a fourth-late day already graded H/D is charged once here instead of
+  // being both waived as an early H/D and charged again as a late penalty.
+  const lateMarkOrdinalByDate = new Map<string, number>();
+  if (independentWeeks) {
+    for (const d of inMonth) {
+      if (!d.late || !isOrdinaryAttendanceDay(d.code) || waivedWeeks.has(d.weekKey)) continue;
+      const ordinal = (lateMarksByWeek.get(d.weekKey) ?? 0) + 1;
+      lateMarksByWeek.set(d.weekKey, ordinal);
+      lateMarkOrdinalByDate.set(d.date, ordinal);
+    }
+  }
 
   for (const d of inMonth) {
     if (d.code !== "H/D") continue;
@@ -355,10 +370,11 @@ export function reconcileMonth(
       ? (lateHalfDaysByWeek.get(d.weekKey) ?? 0) + 1
       : 0;
     if (d.late) lateHalfDaysByWeek.set(d.weekKey, lateOrdinal);
+    const policyLateOrdinal = lateMarkOrdinalByDate.get(d.date) ?? lateOrdinal;
     halfDayCharges.push({
       date: d.date,
       ordinal,
-      waived: d.late && lateOrdinal <= LATE_PUNCH_GRACE_PER_WEEK,
+      waived: d.late && policyLateOrdinal <= LATE_PUNCH_GRACE_PER_WEEK,
     });
   }
 
