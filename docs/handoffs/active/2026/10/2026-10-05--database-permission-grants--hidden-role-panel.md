@@ -1,7 +1,7 @@
 # Hidden role panel
 
-Date: 2026-10-05  
-Branch: `feature/database-permission-grants`  
+Date: 2026-10-05
+Branch: `feature/database-permission-grants`
 Status: feature branch pushed and preview deployed; runtime guard migration remains pending.
 
 ## Objective
