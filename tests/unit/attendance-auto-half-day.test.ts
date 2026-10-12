@@ -3,14 +3,11 @@ import { computeDayCode } from "@/lib/attendance/status";
 import type { AttendanceSchedule } from "@/lib/attendance/schedule";
 
 /**
- * The two AUTOMATIC half-day rules.
+ * Missing-punch rules.
  *
- * Both exist because a missing PUNCH is not a missing DAY, and grading them the
- * same way is what these tests exist to prevent. They are pinned here rather
- * than left to the wider status suites because each one has a natural-looking
- * wrong answer the engine used to give: "out with no in" graded ABSENT, and an
- * auto-closed day graded ABSENT because the cron's out-punch carries the
- * clock-in time and so reads as zero minutes worked.
+ * A live open shift remains visible during the day, but a forgotten logout is
+ * Absent once the day is system-closed. An out-punch with no in-punch retains
+ * the separate existing half-day rule.
  */
 const sched: AttendanceSchedule = {
   lateAfter: "10:50",
@@ -21,9 +18,9 @@ const sched: AttendanceSchedule = {
 
 const ordinary = { isWeeklyOff: false } as const;
 
-describe("automatic half-day rules", () => {
+describe("missing-punch rules", () => {
   describe("Case 1 — checked in, forgot to check out", () => {
-    it("grades a half day, not absent and not a full one", () => {
+    it("keeps a currently open shift provisional during the live day", () => {
       const r = computeDayCode({ inAt: "10:00", outAt: null }, sched, ordinary, "20:00");
       expect(r.code).toBe("H/D");
       expect(r.dayValue).toBe(0.5);
@@ -42,24 +39,33 @@ describe("automatic half-day rules", () => {
   });
 
   describe("Case 1 continued — after the compulsory-punch-out cron closes the day", () => {
-    // The cron stamps its out at the CLOCK-IN time, so worked = 0. Without the
-    // autoClosed flag this falls through the three-tier rule, lands under the
-    // half-day floor and grades ABSENT — the opposite of the policy the cron is
-    // named after.
-    it("still grades a half day even though worked minutes are zero", () => {
+    it("grades absent with zero attendance and zero worked minutes", () => {
       const r = computeDayCode(
         { inAt: "10:00", outAt: "10:00" },
         sched,
         { ...ordinary, autoClosed: true },
         "23:30",
       );
-      expect(r.code).toBe("H/D");
-      expect(r.dayValue).toBe(0.5);
+      expect(r.code).toBe("A");
+      expect(r.dayValue).toBe(0);
+      expect(r.workedMinutes).toBe(0);
     });
 
     it("without the flag the same punches grade absent — the regression this guards", () => {
       const r = computeDayCode({ inAt: "10:00", outAt: "10:00" }, sched, ordinary, "23:30");
       expect(r.code).toBe("A");
+    });
+
+    it("grades a missed-cron unmatched check-in absent after the day closes", () => {
+      const r = computeDayCode(
+        { inAt: "10:00", outAt: null },
+        sched,
+        { ...ordinary, dayClosed: true },
+        "23:59",
+      );
+      expect(r.code).toBe("A");
+      expect(r.dayValue).toBe(0);
+      expect(r.workedMinutes).toBe(0);
     });
 
     it("does not downgrade a genuinely full day that happens to be flagged", () => {

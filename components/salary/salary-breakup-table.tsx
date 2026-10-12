@@ -214,16 +214,16 @@ const STATUS_RANK: Record<PaymentStatus, number> = { unpaid: 0, partial: 1, paid
 /**
  * THE PAYROLL COLUMNS — the settlement story, left to right, and nothing else.
  *
- * Employee · Entity · Advance · Payable · Adjustments · Final Amount ·
+ * Employee · Entity · Monthly Salary (CTC) · Advance · Payable · Adjustments · Final Amount ·
  * Amount to Pay · Balance · Status · Remarks · Payslip.
  *
  * The attendance block (Present/Absent/Half/W-off/Worked/Final days) and the
- * build-up columns (Monthly CTC, After leave, PT, After PT, Prev pending) are
- * GONE from this table. They are inputs to the payable, not decisions anyone
- * makes here, and eleven of them pushed the columns that matter — what is owed,
- * what went out, what is left — off the right edge of the screen. Every one of
- * those figures is still on the payslip PDF and in the attendance analytics; the
- * table now answers the one question the Accounts room opens it to ask.
+ * The underlying attendance build-up columns (After leave, PT, After PT and
+ * Prev pending) stay off this table because they are inputs to the payable.
+ * Monthly Salary (CTC) is the one exception: it is the employee's agreed
+ * monthly salary snapshot, and lets Accounts compare it directly with the
+ * attendance-adjusted payable. The remaining detail is still on the payslip
+ * PDF and in attendance analytics.
  *
  * THE ARITHMETIC IS CLOSED AND VISIBLE: Payable ± Adjustments = Final Amount,
  * and Final Amount − Amount to Pay = Balance. Every figure in that chain is
@@ -256,6 +256,19 @@ const COLUMNS: Col[] = [
       ) : (
         <span className="text-ink-subtle">-</span>
       ),
+  },
+  {
+    key: "monthlyCtc",
+    label: "Monthly Salary (CTC)",
+    align: "right",
+    groupStart: true,
+    minWidth: 148,
+    sortValue: (r) => num(r.monthlyCtc),
+    // This is the fixed salary snapshot for the selected payroll month. It is
+    // deliberately separate from Payable, which changes with attendance,
+    // statutory deductions, advances and other payroll adjustments.
+    render: (r) => <MoneyCell v={r.monthlyCtc} tone="strong" />,
+    total: (rows) => <MoneyTotal rows={rows} pick={(r) => r.monthlyCtc} />,
   },
   {
     key: "advance",

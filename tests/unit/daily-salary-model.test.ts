@@ -476,10 +476,15 @@ function toGraded(days: GradedDay[]): GradedDayInput[] {
 
 describe("full-time weekly surplus and deficit (spec §6)", () => {
   /** Two consecutive full weeks, with explicit hours per week. */
-  function twoWeeks(w1: number, w2: number, month = "2026-09"): GradedDayInput[] {
+  function twoWeeks(w1: number, w2: number, month = "2026-08"): GradedDayInput[] {
     // 2026-09: Mon 7 – Sat 12 is week 1, Mon 14 – Sat 19 is week 2.
-    const wk1 = ["07", "08", "09", "10", "11", "12"];
-    const wk2 = ["14", "15", "16", "17", "18", "19"];
+    const isSeptember = month === "2026-09";
+    const wk1 = isSeptember
+      ? ["07", "08", "09", "10", "11", "12"]
+      : ["03", "04", "05", "06", "07", "08"];
+    const wk2 = isSeptember
+      ? ["14", "15", "16", "17", "18", "19"]
+      : ["10", "11", "12", "13", "14", "15"];
     const mk = (dd: string, minutes: number): GradedDayInput => ({
       date: `${month}-${dd}`,
       weekKey: weekKeyOf(`${month}-${dd}`),
@@ -495,13 +500,13 @@ describe("full-time weekly surplus and deficit (spec §6)", () => {
     ];
   }
 
-  const recon = (days: GradedDayInput[], month = "2026-09") =>
+  const recon = (days: GradedDayInput[], month = "2026-08") =>
     reconcileMonth(days, {
       month,
       weeklyTargetMinutes: FT.weeklyTargetMinutes,
       waiverThresholdMinutes: FT.waiverThresholdMinutes,
       workingDaysPerWeek: FT.workingDaysPerWeek,
-      refTodayISO: "2026-09-30",
+      refTodayISO: `${month}-31`,
     });
 
   it("54h target, 58h worked → +4h surplus", () => {
@@ -568,7 +573,7 @@ describe("full-time weekly surplus and deficit (spec §6)", () => {
       late: false,
       leftEarly: false,
     }));
-    const september = twoWeeks(54, 54);
+    const september = twoWeeks(54, 54, "2026-09");
 
     // Graded together, as they would be if the balance ever crossed over.
     const sept = recon([...augustLong, ...september], "2026-09");

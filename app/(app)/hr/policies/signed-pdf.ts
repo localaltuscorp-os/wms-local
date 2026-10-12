@@ -65,6 +65,19 @@ export async function listSignedPolicyPdfs(employeeId: string): Promise<SignedPo
 
 /** The signed-PDF path for ONE policy, or null when there is no signed archive. */
 export async function getSignedPolicyPdfPath(employeeId: string, key: string): Promise<string | null> {
-  const all = await listSignedPolicyPdfs(employeeId);
-  return all.find((r) => r.key === key)?.signedPdfPath ?? null;
+  const [row] = await db
+    .select({ signedPdfPath: documentSignatures.signedPdfPath })
+    .from(documentInstances)
+    .innerJoin(
+      documentSignatures,
+      and(
+        eq(documentSignatures.docId, documentInstances.id),
+        eq(documentSignatures.docKind, "letter"),
+        eq(documentSignatures.status, "signed"),
+      ),
+    )
+    .where(and(eq(documentInstances.employeeId, employeeId), eq(documentInstances.typeKey, key)))
+    .orderBy(desc(documentSignatures.signedAt))
+    .limit(1);
+  return row?.signedPdfPath ?? null;
 }

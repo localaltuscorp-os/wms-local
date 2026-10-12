@@ -72,6 +72,10 @@ export interface HourlySalaryInput {
    * was less than their salary.
    */
   eligibleTargetHours?: number | null;
+  /** Approved unpaid-leave days removed from the attendance target. They are
+   * added back only for pricing so LWP cannot raise the rate and erase its own
+   * deduction; holidays remain excluded and therefore do raise the rate. */
+  unpaidLeaveDays?: number;
   /**
    * Fallback surplus threshold when `eligibleTargetHours` is absent — the
    * elapsed "required hours" the Attendance page shows. Only the surplus split
@@ -93,6 +97,8 @@ export interface FixedFeeSalaryInput {
 }
 
 const PT_AMOUNT = 200;
+/** Every policy half-day deduction removes one half of a paid calendar day. */
+const HALF_DAY_DEDUCTION_DAYS = 0.5;
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** Single salary-rate root for all current payroll paths. */
@@ -201,17 +207,19 @@ export function computeHourlySalary(i: HourlySalaryInput): SalaryBreakdown {
     i.eligibleTargetHours > 0
       ? i.eligibleTargetHours
       : null;
-  const rateTargetHours = eligible ?? calendarTarget;
+  const unpaidLeaveHours = Math.max(0, i.unpaidLeaveDays ?? 0) * Math.max(0, i.workingHoursPerDay ?? 0);
+  const rateTargetHours = eligible != null ? eligible + unpaidLeaveHours : calendarTarget;
   const salaryRate = deriveSalaryRate({
     monthlySalary: i.monthlyPayAtTarget,
     daysInMonth: i.daysInMonth,
     workingHoursPerDay: i.workingHoursPerDay ?? 0,
   });
-  // Frozen legacy callers omit schedule hours. Current payroll always supplies
-  // them through `computeForRow`; only those paths use the canonical root.
-  const hourlyRate = salaryRate.perHourExact > 0
-    ? salaryRate.perHourExact
-    : (rateTargetHours > 0 ? i.monthlyPayAtTarget / rateTargetHours : 0);
+  // Hourly pay is anchored to THIS month's eligible requirement. Do not use
+  // `monthly salary / calendar days / daily hours` here: that prices a
+  // holiday-shortened 115h month as though 150h were still owed, so completing
+  // every required hour earns less than the agreed monthly amount. The
+  // calendar target above remains the guarded fallback for sparse grading.
+  const hourlyRate = rateTargetHours > 0 ? i.monthlyPayAtTarget / rateTargetHours : 0;
   // PAY FOR WHOLE HOURS ONLY (spec §18) — the same floor the full-time engine
   // applies: 53.8h and 53.9h both pay 53h. The precise figure is still reported.
   const workedHours = Math.floor(i.workedMinutes / 60);
@@ -316,6 +324,8 @@ export interface DailySalaryInput {
    * far"; for a closed month it is the whole month.
    */
   payableDayValue: number;
+  /** Additional half-day penalties from the weekly late-mark policy. */
+  latePenaltyHalfDays?: number;
   ptExempt: boolean;
   tdsMonthly: number;
   advances: number;
@@ -333,7 +343,9 @@ export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
     workingHoursPerDay: i.workingHoursPerDay ?? 0,
   });
   const payableDays = Math.max(0, i.payableDayValue);
-  const gross = round2(rate.perDayExact * payableDays);
+  const lateDeductionDays = Math.max(0, i.latePenaltyHalfDays ?? 0) * HALF_DAY_DEDUCTION_DAYS;
+  const effectiveDays = Math.max(0, payableDays - lateDeductionDays);
+  const gross = round2(rate.perDayExact * effectiveDays);
   const pt = i.ptExempt ? 0 : PT_AMOUNT;
   const net = round2(gross - pt - i.tdsMonthly - i.advances + i.pendingBalanceIn);
 
@@ -341,11 +353,8 @@ export function computeDailySalary(i: DailySalaryInput): SalaryBreakdown {
     monthlyCtc: rate.monthlySalary,
     perDay: rate.perDay,
     payableDays,
-    // Late marks no longer cut pay (the day code already reflects a short day),
-    // so there is no late deduction to report and `effectiveDays` is simply the
-    // payable count. Kept on the shape because the payslip renders both.
-    lateDeductionDays: 0,
-    effectiveDays: payableDays,
+    lateDeductionDays,
+    effectiveDays,
     gross,
     pt,
     tds: i.tdsMonthly,
@@ -414,7 +423,7 @@ export interface ScheduleHourlyInput {
   /** Final payable hours BEFORE rounding (the caller keeps the precise value
    *  for reporting; this function is what rounds it down for money). */
   payableHoursRaw: number;
-  /** Half-days charged this month (the 4th onward — the first 3 are waived). */
+  /** Half-days charged in missed-target weeks. */
   chargeableHalfDays: number;
   /** One scheduled day in hours, for pricing a chargeable half-day. */
   dailyTargetHours: number;

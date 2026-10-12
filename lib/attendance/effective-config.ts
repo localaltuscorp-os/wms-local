@@ -45,14 +45,13 @@ export const PART_TIME_DAILY_MINUTES = 5 * 60; // 5h → 30h/week
  *   ≥ HALF_DAY_RATIO × target → Half Day (H/D)
  *   below that                → Absent   (A)
  *
- * Sir, 2026-08: against the standard 9h full-time day these are EXACTLY
- * 7.5h and 4.5h — 7.5–9h is a Full Day, 4.5–7.5h a Half Day, under 4.5h
- * Absent. (7.4h is a half day; 4.4h is absent. NOT "anything under 9h is a
- * half day".) Hourly shifts never read these — their whole shift is the day
+ * Against the standard 9h full-time day these are EXACTLY 9h and 5h:
+ * 9h+ is a Full Day, 5h to under 9h is a Half Day, and under 5h is Absent.
+ * Hourly shifts never read these — their whole shift is the day
  * (see the hourlyShift branch below).
  */
-export const FULL_DAY_RATIO = 7.5 / 9;
-export const HALF_DAY_RATIO = 4.5 / 9;
+export const FULL_DAY_RATIO = 1;
+export const HALF_DAY_RATIO = 5 / 9;
 
 /**
  * Punctuality grace when an employee has an official start but no explicit
@@ -258,10 +257,10 @@ export function resolveEffectiveConfig(
   //     (payableDaysByHours / daysFromMinutes);
   //   · the minutes a paid leave or comp-off is credited
   //     (payableHoursForMonth);
-  //   · the full/half-day cutoffs, as 7.5/9 and 4.5/9 of it.
+  //   · the full/half-day cutoffs, as 9/9 and 5/9 of it.
   //
-  // So widening someone's timings silently re-priced their attendance. Parvez
-  // Khan, scheduled 07:30–19:30, had a 12h "day": a complete 54h week earned
+  // So widening someone's timings silently re-priced their attendance. An
+  // employee scheduled 07:30–19:30 had a 12h "day": a complete 54h week earned
   // 54 ÷ 12 = 4.5 days, and a Full Day needed 10 hours on the clock. Nobody
   // chose either number; they fell out of a start and an end time.
   //
@@ -316,8 +315,8 @@ export function resolveEffectiveConfig(
     fullDayMinutes = emp.attFullDayMinutes ?? Math.round(dailyTargetMinutes);
     halfDayMinutes = emp.attHalfDayMinutes ?? Math.round(dailyTargetMinutes);
   } else {
-    // full_time / project_remote — ratios of their OWN target (≥7.5h Full,
-    // ≥4.5h Half against a 9h day), so neither type inherits the other's
+    // full_time / project_remote — ratios of their OWN target (≥9h Full,
+    // ≥5h Half against a 9h day), so neither type inherits the other's
     // absolute hours.
     fullDayMinutes = emp.attFullDayMinutes ?? Math.round(dailyTargetMinutes * FULL_DAY_RATIO);
     halfDayMinutes = emp.attHalfDayMinutes ?? Math.round(dailyTargetMinutes * HALF_DAY_RATIO);
@@ -336,8 +335,8 @@ export function resolveEffectiveConfig(
   // touching anything labelled "target", and that number is the waiver
   // threshold the salary deduction is computed against.
   //
-  // It was not hypothetical — Parvez Khan is scheduled 07:30–19:30 and was
-  // being measured against 72h/week.
+  // It was not hypothetical — a 07:30–19:30 schedule was being measured
+  // against 72h/week.
   //
   // The rule is the brief's: employee timings define WHEN the scheduled period
   // is; the contractual week stays 9h × 6 = 54h for a full-timer. An admin who
@@ -515,7 +514,7 @@ export function toAttendanceSchedule(cfg: EffectiveAttendanceConfig): {
  *                    weekday clamp exists: leaving on time is not leaving early.
  *   · cutoffs      — scaled to Saturday's span, never above the weekday ones.
  *                    A 10:30–16:00 Saturday is 5.5h scheduled, and holding it to
- *                    a 7.5h Full Day would code every complete Saturday a half
+ *                    a 9h Full Day would code every complete Saturday a half
  *                    day. This moves the DAY CODE only: pay on ordinary days is
  *                    the week's pooled hours against 54h (hours-rule.ts), which
  *                    this does not touch.

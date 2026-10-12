@@ -3,8 +3,8 @@ import { computeDayCode } from "@/lib/attendance/status";
 import type { AttendanceSchedule } from "@/lib/attendance/schedule";
 // An EXPLICIT schedule, so these cases exercise the engine directly. In
 // production the two cutoffs are resolved per employee from their own daily
-// target (lib/attendance/effective-config.ts) — 7h/5h for a 9h full-timer,
-// 3.5h/2.5h for a 4.5h part-timer. Grading is three-tier:
+// target (lib/attendance/effective-config.ts) — 9h/5h for a full-timer;
+// hourly shifts use their own complete-shift threshold. Grading is three-tier:
 //   >= fullDayMinutes -> P,  >= halfDayMinutes -> H/D,  below -> A.
 const sched: AttendanceSchedule = { lateAfter:"10:50", earlyBefore:"19:20", fullDayMinutes:540, halfDayMinutes:300 };
 const work = { isWeeklyOff:false };
@@ -23,10 +23,33 @@ describe("computeDayCode", () => {
     const r = computeDayCode({inAt:"11:00", outAt:"20:05"}, sched, work, "21:00");
     expect(r.late).toBe(true); expect(r.lateWaived).toBe(true); expect(r.code).toBe("P");
   });
+  it("keeps a late mark for the first hour after the configured late cutoff", () => {
+    const r = computeDayCode({inAt:"11:50", outAt:"21:00"}, sched, work, "21:30");
+    expect(r).toMatchObject({ code:"P", late:true, lateWaived:true, dayValue:1 });
+  });
+  it("keeps a late arrival as a full day when nine hours are completed", () => {
+    const r = computeDayCode({inAt:"11:51", outAt:"21:30"}, sched, work, "22:00");
+    expect(r).toMatchObject({ code:"P", late:true, lateWaived:true, dayValue:1 });
+  });
   it("left early flagged, <9h => half day", () => {
     // in 10:30 → out 19:00 = 8h30m (<9h) and before 19:20 → early + half day.
     const r = computeDayCode({inAt:"10:30", outAt:"19:00"}, sched, work, "20:00");
     expect(r.leftEarly).toBe(true); expect(r.code).toBe("H/D"); expect(r.dayValue).toBe(0.5);
+  });
+  it("keeps an early checkout as full day after enough raw hours", () => {
+    // The employee started early, worked nine hours, and still left before the
+    // clock cutoff. Full completed hours take precedence over the clock mark.
+    const r = computeDayCode({inAt:"09:00", outAt:"19:00"}, sched, work, "20:00");
+    expect(r.leftEarly).toBe(true); expect(r.code).toBe("P"); expect(r.dayValue).toBe(1);
+  });
+  it("grades a 10:30-11:30 late arrival ending at 19:30 as half day", () => {
+    const r = computeDayCode(
+      { inAt:"11:30", outAt:"19:30" },
+      { lateAfter:"10:30", earlyBefore:"19:30", fullDayMinutes:540, halfDayMinutes:300 },
+      work,
+      "20:00",
+    );
+    expect(r).toMatchObject({ code:"H/D", late:true, dayValue:0.5, workedMinutes:480 });
   });
   it("under the half-day floor => ABSENT, not half day", () => {
     // 11:00 -> 14:00 = 3h, below the 5h floor. Present-but-under-floor now

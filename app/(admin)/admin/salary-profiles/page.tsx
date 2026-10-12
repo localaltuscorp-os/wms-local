@@ -31,7 +31,7 @@ export default async function SalaryProfilesPage() {
 
   const withPay = rows.filter((r) => {
     const b = payBasisFor(r.workerType);
-    return b === "hourly" ? r.monthlyPayAtTarget > 0 : b === "fixed_fee" ? r.monthlyFee > 0 : r.annualCtc > 0;
+    return b === "hourly" ? (r.monthlyPayAtTargetRaw ?? 0) > 0 : b === "fixed_fee" ? r.monthlyFee > 0 : r.annualCtc > 0;
   }).length;
 
   return (

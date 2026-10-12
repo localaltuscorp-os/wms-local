@@ -143,7 +143,7 @@ describe("Layer 2 deduction chain — synthetic employee and intern", () => {
 
   it("keeps eligible overtime as earnings, including with an unpaid day", () => {
     const overtime = hourlyIntern(250);
-    const overtimeWithUnpaidDay = hourlyIntern(242, { eligibleTargetHours: 240 });
+    const overtimeWithUnpaidDay = hourlyIntern(242, { eligibleTargetHours: 240, unpaidLeaveDays: 1 });
     expect(overtime.overtimeHours).toBe(2);
     expect(overtime.overtimeAmount).toBe(40.32);
     expect(overtime.gross).toBe(5_040.32);

@@ -7,13 +7,12 @@ import { forgottenLogoutHalfDayOn } from "@/lib/goals/flag";
 import { AUTO_PUNCH_OUT_STAMP, AUTO_PUNCH_OUT_NOTE } from "@/lib/attendance/auto-punch-out";
 
 /**
- * FORGOTTEN LOGOUT → AUTOMATIC HALF DAY.
+ * FORGOTTEN LOGOUT → AUTOMATIC ABSENT.
  *
  * Runs at 23:59 Asia/Kolkata (`29 18 * * *` UTC — see vercel.json). Anyone who
  * clocked IN today and never clocked OUT gets a SYSTEM out-punch stamped at
- * their clock-in time, so the day finalizes as Half Day (H/D, 0.5) instead of
- * sitting incomplete. Coming in and forgetting to leave costs half a day — not a
- * full one, and not nothing.
+ * their clock-in time, so the day finalizes as Absent (A, 0) instead of sitting
+ * open and accumulating artificial hours until midnight.
  *
  * ── WHY A CRON AND NOT A TIMER ─────────────────────────────────────────────
  * The classification has to happen whether or not anyone is looking: browser
@@ -43,9 +42,10 @@ import { AUTO_PUNCH_OUT_STAMP, AUTO_PUNCH_OUT_NOTE } from "@/lib/attendance/auto
  * `source:'admin', reason:'forgot', recordedById:null` — see
  * lib/attendance/auto-punch-out.ts, which owns both the stamp and the test that
  * recognises it. The null `recordedById` is what says "the system did this", so
- * the grader floors the day at half AND the audit trail can say so honestly
+ * the grader marks the day absent AND the audit trail can say so honestly
  * rather than implying an administrator made the change. A human manager
- * correcting the day carries `recordedById` and is not floored.
+ * correcting the day carries `recordedById` and is graded from the corrected
+ * punch times normally.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,10 +99,8 @@ async function run(request: Request): Promise<NextResponse> {
           logDate: today,
           kind: "out",
           // = the clock-in time, so the pair reads as ZERO minutes worked. That
-          // does NOT grade half-day on its own — the ordinary three-tier rule
-          // puts zero below the half-day floor and returns Absent. What makes
-          // this a half-day is the grader recognising the stamp below and
-          // setting DayContext.autoClosed; see lib/attendance/auto-punch-out.ts.
+          // produces zero worked minutes. The marker below lets the grader and
+          // audit trail distinguish this policy action from a genuine checkout.
           loggedAt,
           source: AUTO_PUNCH_OUT_STAMP.source,
           reason: AUTO_PUNCH_OUT_STAMP.reason,
@@ -190,7 +188,7 @@ async function auditAutoClose(
         deviceKind: null,
         deviceExempt: false,
         systemJob: "attendance-autoout",
-        note: "No clock-out before 23:59 Asia/Kolkata — day classified Half Day automatically.",
+        note: "No clock-out before 23:59 Asia/Kolkata — day classified Absent automatically.",
       },
     });
   } catch (err) {

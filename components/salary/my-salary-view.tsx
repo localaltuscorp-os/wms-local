@@ -70,6 +70,8 @@ export interface MySalaryMonth {
   present: number;
   absent: number;
   halfDay: number;
+  holidayDays: number;
+  weeklyOffDays: number;
   finalWorkingDays: number;
   daysInMonth: number;
   paid: boolean;
@@ -308,7 +310,9 @@ export function MySalaryView({
         {showDetail && (
           <div className="mt-4 border-t border-solid border-hairline pt-2">
             <Section title="Attendance">
-              <Line label="Working Days" value={fmtDays(m.finalWorkingDays)} muted />
+              <Line label="Holidays" value={fmtDays(m.holidayDays)} muted />
+              <Line label="Sundays / Weekly Offs" value={fmtDays(m.weeklyOffDays)} muted />
+              <Line label="Effective Payable Days" value={fmtDays(m.finalWorkingDays)} muted />
               <Line label="Effective Days Worked" value={fmtDays(m.present)} muted />
               <Line label="Half Days" value={fmtDays(m.halfDay)} muted />
               <Line label="Absent Days" value={fmtDays(m.absent)} muted />

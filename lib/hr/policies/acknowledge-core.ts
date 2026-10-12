@@ -23,7 +23,7 @@ import { documentInstances, documentSignatures } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getEntity } from "@/lib/hr/entities";
-import { getPolicy, isPolicyKey } from "./registry";
+import { loadPublishedPolicy } from "./load-db";
 import { markPolicyPending, currentPolicyVersion } from "./compliance-sync";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
@@ -55,10 +55,8 @@ export async function acknowledgePolicy(
   if (limited) return limited;
 
   const key = (input.key ?? "").trim();
-  if (!key || !isPolicyKey(key)) {
-    return { ok: false, error: "This policy isn't published yet." };
-  }
-  const policy = getPolicy(key);
+  if (!key) return { ok: false, error: "This policy isn't published yet." };
+  const policy = await loadPublishedPolicy(key);
   if (!policy) return { ok: false, error: "This policy isn't published yet." };
 
   const resolvedEntity = getEntity(input.entity ?? policy.entityDefault ?? null);

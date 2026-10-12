@@ -5,6 +5,7 @@ import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import {
   TWO_STEP_PASS_COOKIE,
   isValidTwoStepPass,
+  previewTwoStepBypassEnabled,
   twoStepEnabled,
 } from "@/lib/auth/two-step-pass";
 
@@ -276,7 +277,7 @@ export async function proxy(request: NextRequest) {
       // makes "asked again the next day" true for someone who never signed
       // out. No pass, yesterday's, or one issued to a different person → the
       // session is dropped and they sign in again: password, then code.
-      if (twoStepEnabled()) {
+      if (twoStepEnabled() && !previewTwoStepBypassEnabled()) {
         const pass = request.cookies.get(TWO_STEP_PASS_COOKIE)?.value;
         if (!(await isValidTwoStepPass(pass, tokens.decodedToken.uid))) {
           const url = request.nextUrl.clone();
@@ -361,6 +362,12 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|xlsx|woff2|woff|ttf|otf|css)$).*)",
+    // Native-app and cron handlers authenticate themselves. Keeping them out
+    // of this cookie-auth proxy avoids a redundant function hop on every call:
+    //   mobile -> Firebase bearer + registered-device check in the route
+    //   cron   -> CRON_SECRET bearer check in the route
+    // tests/unit/proxy-matcher.test.ts keeps both invariants fail-closed when a
+    // new handler is added under either excluded prefix.
+    "/((?!_next/static|_next/image|favicon.ico|api/mobile(?:/|$)|api/cron(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|xlsx|woff2|woff|ttf|otf|css)$).*)",
   ],
 };

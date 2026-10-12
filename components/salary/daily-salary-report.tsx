@@ -146,6 +146,8 @@ export function DailySalaryReport({ ledger }: { ledger: DayLedger }) {
         </p>
       )}
 
+      <WaivedSalarySummary ledger={ledger} />
+
       <MonthStrip ledger={ledger} />
 
       <FilterBar
@@ -223,6 +225,34 @@ export function DailySalaryReport({ ledger }: { ledger: DayLedger }) {
  * hourly rate every EARNED cell is a multiple of, the whole payable hours the
  * money was actually computed on — or the anchor the rows sum to.
  */
+/** Salary already protected by the server-side weekly reconciliation. */
+function WaivedSalarySummary({ ledger }: { ledger: DayLedger }) {
+  const waived = ledger.days.filter((day) => day.waivedAmount != null && day.waivedAmount > 0);
+  if (waived.length === 0) return null;
+  const total = waived.reduce((sum, day) => sum + (day.waivedAmount ?? 0), 0);
+
+  return (
+    <section className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.09em] text-emerald-800">Salary waived this month</p>
+          <p className="mt-0.5 text-[12px] text-emerald-900/80">Half-day salary protected because the relevant weekly target was met.</p>
+        </div>
+        <p className="text-[18px] font-black tabular-nums text-emerald-800">{inr(total)}</p>
+      </div>
+      <ul className="mt-2 divide-y divide-emerald-200/80 rounded-xl border border-emerald-200/80 bg-white/70 px-3">
+        {waived.map((day) => (
+          <li key={day.date} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 py-2 text-[12px]">
+            <span className="font-bold text-ink-strong">{day.dateLabel}</span>
+            <span className="flex-1 text-ink-soft">{day.waiverReason}</span>
+            <span className="font-bold tabular-nums text-emerald-800">{inr(day.waivedAmount ?? 0)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function MonthStrip({ ledger }: { ledger: DayLedger }) {
   const t = ledger.totals;
   const e = ledger.engine;

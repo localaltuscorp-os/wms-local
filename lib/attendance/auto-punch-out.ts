@@ -3,9 +3,9 @@
  *
  * When an employee clocks IN and never clocks OUT, the nightly job
  * (`app/api/cron/attendance-autoout`) closes the day at 23:59 Asia/Kolkata by
- * writing an out-punch at the CLOCK-IN time. The pair then reads as zero minutes
- * worked, and the grader floors the day at Half Day rather than letting the
- * ordinary three-tier rule call it Absent.
+ * writing an out-punch at the CLOCK-IN time. The pair reads as zero minutes
+ * worked, and the marker tells the grader this was a forgotten logout that must
+ * remain Absent rather than a genuine zero-duration checkout.
  *
  * ── WHY THIS FILE EXISTS ───────────────────────────────────────────────────
  * That behaviour depends on a row shape — `source='admin'`, `reason='forgot'`,
@@ -38,7 +38,7 @@ export const AUTO_PUNCH_OUT_STAMP = {
 /** The note stored on the row, so the punch log reads as an explanation rather
  *  than an unexplained admin edit. */
 export const AUTO_PUNCH_OUT_NOTE =
-  "Auto check-out — no clock-out was recorded before 11:59 PM. Day marked Half Day (forgotten-logout policy).";
+  "Auto check-out — no clock-out was recorded before 11:59 PM. Day marked Absent (forgotten-logout policy).";
 
 /** As much of a punch row as the test needs. */
 export interface AutoPunchOutCandidate {

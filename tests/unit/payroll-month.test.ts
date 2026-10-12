@@ -182,6 +182,41 @@ describe("payrollMonthFor reproduces the sequence it replaced", () => {
     expect(midMonth.payroll.elapsedGradedDays).toBe(12);
     expect(finished.payroll.elapsedGradedDays).toBe(31);
   });
+
+  it("does not restore salary value for half-days in missed-target weeks", () => {
+    const days = month({
+      "2026-08-04": { code: "H/D", dayValue: 0.5, workedMinutes: 5 * 60 },
+      "2026-08-11": { code: "H/D", dayValue: 0.5, workedMinutes: 5 * 60 },
+      "2026-08-18": { code: "H/D", dayValue: 0.5, workedMinutes: 5 * 60 },
+      "2026-08-25": { code: "H/D", dayValue: 0.5, workedMinutes: 5 * 60 },
+    });
+
+    const got = payrollMonthFor(days, {
+      month: MONTH,
+      cfg: CFG,
+      refTodayISO: "2026-08-31",
+    });
+
+    expect(got.recon.warnedHalfDays).toBe(0);
+    expect(got.recon.chargeableHalfDays).toBe(4);
+    expect(got.payroll.payableDayValue).toBe(29);
+  });
+
+  it("restores salary value for a half-day absorbed by the weekly-hours waiver", () => {
+    const days = month({
+      "2026-08-11": { code: "H/D", dayValue: 0.5, workedMinutes: 9 * 60 },
+    });
+
+    const got = payrollMonthFor(days, {
+      month: MONTH,
+      cfg: CFG,
+      refTodayISO: "2026-08-31",
+    });
+
+    expect(got.recon.waiverAbsorbedHalfDays).toBe(1);
+    expect(got.recon.chargeableHalfDays).toBe(0);
+    expect(got.payroll.payableDayValue).toBe(31);
+  });
 });
 
 /* ── requiredElapsedMinutes ──────────────────────────────────────────────── */

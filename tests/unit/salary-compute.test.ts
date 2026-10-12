@@ -108,6 +108,7 @@ describe("computeHourlySalary — the ELIGIBLE monthly target anchors the rate",
   // engine's monthlyTargetHours. Salary ₹3,500 at target.
   const h = {
     monthlyPayAtTarget: 3500, weeklyTargetHours: 30, daysInMonth: 31,
+    workingHoursPerDay: 5,
     eligibleTargetHours: 125, overtimeEligible: true,
     ptExempt: true, tdsMonthly: 0, advances: 0, pendingBalanceIn: 0,
   };
@@ -148,6 +149,17 @@ describe("computeHourlySalary — the ELIGIBLE monthly target anchors the rate",
     expect(shrunk.gross).toBeCloseTo(3500, 2);
   });
 
+  it("an unpaid-leave day does not raise the rate and erase its own deduction", () => {
+    const r = computeHourlySalary({
+      ...h,
+      eligibleTargetHours: 120,
+      unpaidLeaveDays: 1,
+      workedMinutes: 120 * 60,
+    });
+    expect(r.hourlyRate).toBeCloseTo(3500 / 125, 2);
+    expect(r.gross).toBeCloseTo(3500 - 5 * (3500 / 125), 2);
+  });
+
   it("a degenerate eligible target (sparse grading) falls back to the calendar rate", () => {
     // 20h "eligible" against a ~133h calendar month would price ₹175/h and pay
     // the full figure for three days of work — the guard refuses it.
@@ -159,6 +171,22 @@ describe("computeHourlySalary — the ELIGIBLE monthly target anchors the rate",
     const r = computeHourlySalary({ ...h, overtimeEligible: false, workedMinutes: 174 * 60 });
     expect(r.gross).toBe(3500);
     expect(r.overtimeHours).toBe(0);
+  });
+
+  it("prices September from its 115h target even when a 5h daily schedule is present", () => {
+    const r = computeHourlySalary({
+      ...h,
+      daysInMonth: 30,
+      eligibleTargetHours: 115,
+      workedMinutes: 154 * 60 + 9,
+    });
+    const rate = 3500 / 115;
+    expect(r.hourlyRate).toBeCloseTo(rate, 2);
+    expect(r.targetHours).toBe(115);
+    // Existing payroll policy pays whole worked hours.
+    expect(r.workedHours).toBe(154);
+    expect(r.gross).toBeCloseTo(154 * rate, 2);
+    expect(r.gross - (r.overtimeAmount ?? 0)).toBeCloseTo(3500, 2);
   });
 });
 

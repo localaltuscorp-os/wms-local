@@ -62,6 +62,17 @@ const nextConfig: NextConfig = {
    */
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
+  // TypeScript is still mandatory in CI (`pnpm typecheck`). Do not run the
+  // same whole-program check again inside `next build`: on Vercel's 8 GB
+  // builder webpack is temporarily allowed a 4 GB heap while the larger
+  // production graph is being reduced; Vercel still enforces the 8 GB machine cap.
+  // while the duplicate Next typecheck needs more than that and aborts after
+  // compilation. Keeping the checks separate makes both fit and preserves the
+  // fail-closed GitHub check on every pushed commit.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // LAN ACCESS IN DEV — let a phone (or a second machine) open the dev server.
   //
   // `next dev` already listens on 0.0.0.0, so http://<lan-ip>:3002 CONNECTS and
@@ -154,7 +165,46 @@ const nextConfig: NextConfig = {
      *     (`build:clean` is also the honest home for it: the tracing note
      *     above records that a build following `rm -rf .next` traced ZERO
      *     node_modules, so the flag produces worse output as well as a slower
-     *     build.) */
+     *     build.)
+     *
+     * The first production build after the 23 September merge still reached
+     * the container's 8 GB limit with a 4096 MB heap during compilation. The
+     * cap was therefore 3072 MB. After the 29 September fork integration,
+     * Vercel exhausted both the 3072 MB and 3584 MB JavaScript heaps during
+     * compilation. This temporary 4096 MB attempt is bounded by Vercel's 8 GB
+     * machine cap; the durable fix remains reducing the production build graph.
+     *
+     * ── TURBOPACK WAS TRIED AND REJECTED (2026-09-24) ─────────────────────
+     * DO NOT "just drop --webpack". It is half the build time and it will
+     * break the deployment on Functions Storage. Measured, one machine, both
+     * cold, both exit 0:
+     *
+     *                       webpack     Turbopack
+     *     compile           8.4 min      3.9 min
+     *     TypeScript        3.3 min      1.8 min
+     *     total            15m03s        6m01s
+     *
+     * The speed is real and the tax is not. `pnpm measure:functions` over a
+     * Turbopack build reported:
+     *
+     *     TOTAL  29.23 GB   (allowance 10 GB)   514 functions traced
+     *       @electric-sql/pglite   9.98 GB   in 509 of 514 functions
+     *       @napi-rs/canvas-win32-x64-msvc  183.2 MB  (the WINDOWS binary)
+     *       largest single function  119.7 MB
+     *
+     * Turbopack's tracer is far blunter than nft. It re-broke the PGlite leak
+     * that the note above records as fixed — 509 functions, and the variable
+     * specifier in lib/db/index.ts does not hide it from this tracer — and it
+     * followed an optional Windows-only dependency into the server bundle.
+     * 29 GB against a 10 GB allowance is not a warning, it is a failed deploy
+     * with a different error message than the one we started with.
+     *
+     * `build:turbopack` is kept so the next attempt is one command, and so
+     * this comment is where they will find out why it is not the default. What
+     * has to be solved first: make the tracer see nothing it should not. Start
+     * by getting `pnpm measure:functions` under the allowance on a Turbopack
+     * build, then re-check it ON VERCEL — the script's own header says not to
+     * quote a local total, and that advice is exactly right here. */
     webpackMemoryOptimizations: true,
   },
   /**

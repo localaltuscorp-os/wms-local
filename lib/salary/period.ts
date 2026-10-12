@@ -42,6 +42,13 @@ export function currentMonthKeyOf(now: Date = new Date()): string {
   return todayKeyOf(now).slice(0, 7);
 }
 
+/** The calendar month immediately before a canonical YYYY-MM month. */
+export function previousMonthKey(month: string): string {
+  const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+  const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 /**
  * Places the active payroll month first without disturbing the remaining
  * newest-first history. This keeps future-dated payroll rows selectable while
