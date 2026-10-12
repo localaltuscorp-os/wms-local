@@ -1,7 +1,7 @@
 import "server-only";
 import type { ReactElement } from "react";
 import { eq } from "drizzle-orm";
-import { Resend } from "resend";
+import { getEmailClient, type EmailClient } from "@/lib/email/transport";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { employees, notifications, tasks } from "@/db/schema";
@@ -83,10 +83,10 @@ function asChipTone(color: string): ChipTone | undefined {
 /* Resend client + shared helpers                                      */
 /* ------------------------------------------------------------------ */
 
-let cached: Resend | null = null;
-
 /**
- * Returns the Resend client when `RESEND_API_KEY` is set, else `null`.
+ * Compatibility name retained for existing callers. Returns the shared email
+ * client when SMTP or Resend is configured; SMTP is primary and Resend is the
+ * fallback.
  *
  * The original auth-flow senders (invite, reset-password) used to throw
  * on a missing key.  M2.3 broadens the contract: notification senders
@@ -95,12 +95,8 @@ let cached: Resend | null = null;
  * the `void` return for `sendNotificationEmail`) to know whether an
  * email actually went out.
  */
-export function getResend(): Resend | null {
-  if (cached) return cached;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
-  cached = new Resend(key);
-  return cached;
+export function getResend(): EmailClient | null {
+  return getEmailClient();
 }
 
 /**

@@ -47,6 +47,13 @@ export async function mayPunchAttendanceAnywhere(
   return hasSecurityRole(employee, "attendance_punch_anywhere");
 }
 
+/** May this employee edit another person's attendance or override a month lock? */
+export async function canManageOthersAttendance(
+  employee: Pick<Employee, "id" | "email">,
+): Promise<boolean> {
+  return hasSecurityRole(employee, "attendance_manage");
+}
+
 /**
  * May this person GIVE the role to somebody else?
  *

@@ -36,3 +36,9 @@ export interface PublishPolicyInput {
   /** The secondary Admin PIN. */
   pin: string;
 }
+
+export interface CreatePolicyDraftInput {
+  title: string;
+  summary: string;
+  effectiveDate: string;
+}

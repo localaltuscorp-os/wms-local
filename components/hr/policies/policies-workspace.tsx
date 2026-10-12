@@ -7,6 +7,8 @@ import type { Route } from "next";
 import {
   Loader2,
   Upload,
+  Plus,
+  PencilLine,
   FileText,
   Download,
   Trash2,
@@ -146,13 +148,17 @@ export function PoliciesWorkspace({
               </a>
             )}
             {canManage && (
-              <button
-                onClick={() => setOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white"
-                style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}
-              >
-                <Upload size={14} /> Upload policy
-              </button>
+              <>
+                <Link href="/hr/policies/new" className="inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${RED}, ${RED_DEEP})` }}>
+                  <Plus size={14} /> Create policy
+                </Link>
+                <Link href="/hr/policies/drafts" className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-4 py-2 text-[13px] font-bold text-ink-strong">
+                  <PencilLine size={14} /> Manage drafts
+                </Link>
+                <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-pill border border-hairline bg-white px-4 py-2 text-[13px] font-bold text-ink-strong">
+                  <Upload size={14} /> Upload file
+                </button>
+              </>
             )}
           </span>
         </div>
@@ -210,6 +216,14 @@ export function PoliciesWorkspace({
                       >
                         <Download size={12} strokeWidth={2.4} aria-hidden /> Download
                       </a>
+                    )}
+                    {canManage && (
+                      <Link
+                        href={`/hr/policies/${p.key}/edit` as Route}
+                        className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted transition-colors hover:text-[var(--color-altus-red)]"
+                      >
+                        <PencilLine size={12} strokeWidth={2.4} aria-hidden /> Edit freely
+                      </Link>
                     )}
                   </span>
                 </div>

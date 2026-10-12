@@ -31,7 +31,7 @@ export async function loadPublishedPolicy(key: string): Promise<PolicyDoc | null
       .from(policyDocuments)
       .where(eq(policyDocuments.key, key))
       .limit(1);
-    if (!doc) return fallback;
+    if (!doc || doc.status !== "published") return fallback;
 
     const [current] = await db
       .select()
@@ -62,5 +62,24 @@ export async function loadPublishedPolicy(key: string): Promise<PolicyDoc | null
   } catch {
     // Never let a CMS read take down the public policy page — fall back to code.
     return fallback;
+  }
+}
+
+export interface PublishedPolicyCard {
+  key: string;
+  title: string;
+  blurb: string;
+  badge: string;
+}
+
+/** Published CMS-only policies. Registry policies remain available during migration. */
+export async function listPublishedCmsPolicyCards(): Promise<PublishedPolicyCard[]> {
+  try {
+    return await db
+      .select({ key: policyDocuments.key, title: policyDocuments.title, blurb: policyDocuments.blurb, badge: policyDocuments.badge })
+      .from(policyDocuments)
+      .where(eq(policyDocuments.status, "published"));
+  } catch {
+    return [];
   }
 }

@@ -121,14 +121,21 @@ export function SalaryProfileList({
             align: "right",
             sortValue: (r) => {
               const b = payBasisFor(r.workerType);
-              return b === "hourly" ? r.monthlyPayAtTarget * 12 : b === "fixed_fee" ? r.monthlyFee * 12 : r.annualCtc;
+              return b === "hourly" ? (r.monthlyPayAtTargetRaw ?? 0) * 12 : b === "fixed_fee" ? r.monthlyFee * 12 : r.annualCtc;
             },
             render: (r) => {
               const b = payBasisFor(r.workerType);
               if (b === "hourly") {
+                if (r.monthlyPayAtTargetRaw == null || r.monthlyPayAtTargetRaw <= 0) {
+                  return (
+                    <span className="font-medium text-red-700">
+                      Not configured
+                    </span>
+                  );
+                }
                 return (
                   <span className="tabular-nums text-ink-strong font-medium">
-                    Rs. {inr(r.monthlyPayAtTarget)}
+                    Rs. {inr(r.monthlyPayAtTargetRaw)}
                     <span className="text-[11px] text-ink-subtle font-normal"> /mo cap</span>
                   </span>
                 );

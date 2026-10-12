@@ -3,16 +3,15 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { isHrStaff } from "@/lib/hr/access";
 
 /**
  * WHO A VIEWER MAY OPEN IN "MY SALARY".
  *
- * My Salary was self-only. This adds two wider scopes, both gated SERVER-SIDE so
- * the `?emp=` query string can never widen anyone's reach:
- *   · admin / super-admin  → EVERYONE (they already own the full Accounts salary
- *     module; this is the same reach on the self-service page).
- *   · a manager            → THEMSELF + their FULL transitive downline (the same
- *     `getDownlineIds` tree the weekly-goals / attendance team views use).
+ * My Salary is self-only by default. HR administrators receive organization-wide
+ * access, gated SERVER-SIDE so the `?emp=` query string can never widen anyone's reach.
+ * Super-admins, and employees who are both HR staff and Admins, may view every
+ * active employee. Everyone else remains self-only.
  *   · anyone else          → only themself (unchanged; no picker shown).
  *
  * Salary is sensitive, so `canViewSalaryOf` is the single choke point: the page
@@ -41,19 +40,23 @@ type Viewer = {
   email: string | null;
   avatarUrl: string | null;
   isAdmin: boolean;
+  department: string | null;
   /** Optional because the access checks do not need it; only `resolveSalaryTarget`
    *  does, and it reads the signed-in employee's own row when the viewer IS the
    *  target. */
   workerType?: string | null;
 };
 
-function viewerIsAdmin(me: Pick<Viewer, "isAdmin" | "email">): boolean {
-  return isSuperAdmin(me.email);
+async function canViewOrganisationSalary(
+  me: Pick<Viewer, "id" | "isAdmin" | "email" | "department">,
+): Promise<boolean> {
+  if (isSuperAdmin(me.email)) return true;
+  return me.isAdmin && await isHrStaff(me);
 }
 
 /** The people this viewer may open in My Salary, and which scope they fall under. */
 export async function loadSalaryViewAccess(me: Viewer): Promise<SalaryViewAccess> {
-  if (viewerIsAdmin(me)) {
+  if (await canViewOrganisationSalary(me)) {
     const people = await db
       .select({ id: employees.id, name: employees.name, avatarUrl: employees.avatarUrl })
       .from(employees)
@@ -68,16 +71,16 @@ export async function loadSalaryViewAccess(me: Viewer): Promise<SalaryViewAccess
 }
 
 /**
- * The one gate the page trusts. Self is always allowed; admins reach anyone;
- * a manager reaches only their transitive downline. Everything else is refused,
+ * The one gate the page trusts. Self is always allowed; super-admins and HR
+ * administrators reach anyone. Everything else is refused,
  * so a hand-typed `?emp=` for someone out of scope silently falls back to self.
  */
 export async function canViewSalaryOf(
-  me: Pick<Viewer, "id" | "isAdmin" | "email">,
+  me: Pick<Viewer, "id" | "isAdmin" | "email" | "department">,
   targetId: string,
 ): Promise<boolean> {
   if (targetId === me.id) return true;
-  if (viewerIsAdmin(me)) return true;
+  if (await canViewOrganisationSalary(me)) return true;
   return false;
 }
 
@@ -93,7 +96,7 @@ export async function canViewSalaryOf(
  * the same behaviour My Salary has always had, and the safer direction to fail.
  */
 export async function resolveSalaryTarget(
-  me: Pick<Viewer, "id" | "name" | "isAdmin" | "email" | "workerType">,
+  me: Pick<Viewer, "id" | "name" | "isAdmin" | "email" | "department" | "workerType">,
   empParam: string | null | undefined,
 ): Promise<{ targetId: string; name: string; workerType: string | null }> {
   if (!empParam || empParam === me.id) {

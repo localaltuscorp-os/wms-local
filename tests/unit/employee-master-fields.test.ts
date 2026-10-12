@@ -7,6 +7,7 @@ import {
   type EmployeeStatusTab,
 } from "@/lib/employees/master-filters";
 import { EMPLOYEE_TYPE_OPTIONS, WORKER_TYPE_LABELS, payBasisFor } from "@/lib/attendance/worker-type";
+import { EditEmployeeSchema } from "@/lib/validators/employee";
 
 /**
  * EMPLOYEE MASTER — the field merges and the Employee status control.
@@ -202,6 +203,7 @@ describe("Employee Type became Shift Type; the empty shift_types picker went", (
     // It was read-only when it was called Employee Type.
     expect(ws).toMatch(/workerType\?: WorkerType;/);
     expect(ws).toMatch(/set\("workerType", x, asWorkerType\(r\.workerType\)\)/);
+    expect(EditEmployeeSchema.safeParse({ workerType: "hybrid" }).success).toBe(true);
   });
 
   it("the dropdown offers the real labels, not raw enum values", () => {

@@ -30,6 +30,9 @@ import antiHarassmentPolicy from "./content/anti-harassment-non-discrimination-p
 import clashPolicy from "./content/clash-policy";
 import preEmploymentTrainingEvaluationPolicy from "./content/pre-employment-training-evaluation-policy";
 import attendancePolicy from "./content/attendance-policy";
+import employeeTravelRailwayPassPolicy from "./content/employee-travel-railway-pass-policy";
+import companyAssetManagementPolicy from "./content/company-asset-management-policy";
+import attendanceLeaveRecordingPolicy from "./content/attendance-leave-recording-policy";
 
 /* ================================================================== */
 /* The registry — key → PolicyDoc                                       */
@@ -48,6 +51,9 @@ export const POLICIES: Record<string, PolicyDoc> = {
   [clashPolicy.key]: clashPolicy,
   [preEmploymentTrainingEvaluationPolicy.key]: preEmploymentTrainingEvaluationPolicy,
   [attendancePolicy.key]: attendancePolicy,
+  [employeeTravelRailwayPassPolicy.key]: employeeTravelRailwayPassPolicy,
+  [companyAssetManagementPolicy.key]: companyAssetManagementPolicy,
+  [attendanceLeaveRecordingPolicy.key]: attendanceLeaveRecordingPolicy,
 };
 
 /** Ordered list of every AUTHORED policy (iteration / listing). */
@@ -133,6 +139,27 @@ export const POLICY_CARDS: PolicyCard[] = [
     title: "Attendance Policy",
     blurb: "Working hours, half-day & waiver rules, deductions, ex-gratia, comp-off, WFH and the attendance legend.",
     badge: "AT",
+    status: "ready",
+  },
+  {
+    key: "employee-travel-railway-pass-policy",
+    title: "Employee Travel & Railway Pass",
+    blurb: "Eligibility, approval and reimbursement rules for First Class Railway Pass benefits.",
+    badge: "TR",
+    status: "ready",
+  },
+  {
+    key: "company-asset-management-policy",
+    title: "Company Asset Management",
+    blurb: "Responsible use, security, tracking and return of company-owned assets.",
+    badge: "AM",
+    status: "ready",
+  },
+  {
+    key: "attendance-leave-recording-policy",
+    title: "Attendance & Leave Recording",
+    blurb: "How to record attendance, leave, corrections and missed punches in Altus OS.",
+    badge: "AL",
     status: "ready",
   },
 ];

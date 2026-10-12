@@ -336,3 +336,8 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 
 - Revert this feature-branch commit to remove these UI/layout and navigation refinements. Browser-local page arrangement drafts can be removed from local storage independently; no database rollback is needed.
 - After the branch push, monitor the PR's latest `test` check. CI should be treated as the authoritative frozen-lockfile validation because the local pnpm wrapper could not establish a verified package-manager version.
+
+### Main synchronization (2026-10-12)
+
+- `origin/main` advanced after the feature commit was pushed, leaving the replacement PR in conflict. The feature branch merges `origin/main` at `4b49f4be` to resolve that integration state.
+- The only textual conflict was `package.json`. The resolution keeps upstream's Webpack default for `build` and `build:clean`, retains its explicit `build:turbopack` command, and consistently applies the local 6144 MB Node heap limit. No dependency or lockfile changes were made by this conflict resolution.

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { PDFDocument } from "pdf-lib";
 import { getCurrentEmployee } from "@/lib/auth/current";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
-import { isPolicyKey } from "@/lib/hr/policies/registry";
 import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { renderPolicyPdf } from "@/lib/hr/policies/policy-pdf";
 import { getEntity } from "@/lib/hr/entities";
@@ -52,21 +51,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!me) return NextResponse.redirect(new URL("/login", request.url));
 
   const key = new URL(request.url).searchParams.get("key") ?? "";
-  if (!key || !isPolicyKey(key)) {
-    return NextResponse.json({ error: "Unknown policy." }, { status: 400 });
-  }
-
+  if (!key) return NextResponse.json({ error: "Unknown policy." }, { status: 400 });
+  const doc = await loadPublishedPolicy(key);
+  if (!doc) return NextResponse.json({ error: "This policy has no published text." }, { status: 404 });
   const path = await getSignedPolicyPdfPath(me.id, key);
   if (!path) {
     return NextResponse.json(
       { error: "No signed copy found for this policy. Sign it first." },
       { status: 404 },
     );
-  }
-
-  const doc = await loadPublishedPolicy(key);
-  if (!doc) {
-    return NextResponse.json({ error: "This policy has no published text." }, { status: 404 });
   }
 
   try {

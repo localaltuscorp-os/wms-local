@@ -72,11 +72,11 @@ describe("Test 2 — Full-Time genuine early checkout", () => {
     expect(r.leftEarly).toBe(true);
   });
 
-  it("still earns a full day when the hours are there (deviation forgiven)", () => {
-    // 10:00→18:30 = 8h30 ≥ the 7.5h full-day cutoff.
+  it("is a half day when total work is below nine hours", () => {
+    // 10:00→18:30 = 8h30, below the 9h full-day cutoff.
     const r = grade(FULL_TIME, "10:00", "18:30");
-    expect(r.code).toBe("P");
-    expect(r.lateWaived).toBe(true);
+    expect(r.code).toBe("H/D");
+    expect(r.lateWaived).toBe(false);
   });
 });
 
@@ -108,7 +108,7 @@ describe("Test 3 — Part-Time targets are never the Full-Time ones", () => {
   });
 
   it("the full-time thresholds are never applied to an hourly shift", () => {
-    // 5h would be a HALF day under full-time rules (≥4.5h, <7.5h); for this
+    // 5h is a HALF day under full-time rules (≥5h, <9h); for this
     // shift it is the complete day.
     const r = grade(PART_TIME, "10:00", "15:00");
     expect(r.code).toBe("P");
@@ -116,15 +116,15 @@ describe("Test 3 — Part-Time targets are never the Full-Time ones", () => {
   });
 });
 
-describe("§3 — Full-Time three-tier daily classification (7.5h / 4.5h)", () => {
+describe("§3 — Full-Time three-tier daily classification (9h / 5h)", () => {
   const cases: [string, string, string][] = [
     ["10:00", "19:00", "P"], // 9h    → full day
-    ["10:00", "18:30", "P"], // 8h30
-    ["10:00", "17:30", "P"], // 7h30  → exactly the full-day bar
-    ["10:00", "17:24", "H/D"], // 7h24 → NOT "anything under 9h is half" — but under 7.5h is
+    ["10:00", "18:30", "H/D"], // 8h30 → under the full-day bar
+    ["10:00", "17:30", "H/D"], // 7h30
+    ["10:00", "17:24", "H/D"], // 7h24
     ["10:00", "16:00", "H/D"], // 6h
-    ["10:00", "14:30", "H/D"], // 4h30 → exactly the half-day floor
-    ["10:00", "14:24", "A"], // 4h24  → under the 4.5h floor
+    ["10:00", "15:00", "H/D"], // 5h → exactly the half-day floor
+    ["10:00", "14:59", "A"], // 4h59 → under the 5h floor
     ["10:00", "14:00", "A"], // 4h
   ];
   for (const [inAt, outAt, code] of cases) {
@@ -134,7 +134,7 @@ describe("§3 — Full-Time three-tier daily classification (7.5h / 4.5h)", () =
   }
 
   it("an under-floor day still records its marks for audit (§5)", () => {
-    const r = grade(FULL_TIME, "11:30", "14:00"); // 2h30 < 4.5h
+    const r = grade(FULL_TIME, "11:30", "14:00"); // 2h30 < 5h
     expect(r.code).toBe("A");
     expect(r.late).toBe(true); // 11:30 > 10:50
     expect(r.workedMinutes).toBe(150);
@@ -293,13 +293,13 @@ describe("§4–§6 — the signed weekly carry, the spec's own ladder", () => {
   });
 });
 
-describe("Test 6 — monthly half-day grace: 3 waived, the rest charged", () => {
-  // Five short weeks, each with exactly one half-day, none reaching the waiver.
+describe("Test 6 — missed-target half-days are charged immediately", () => {
+  // One short week with five half-days and no weekly-target waiver.
   const days = [
     ...weekDays("2025-08-04", [330, 330, 330, 330, 330, 330]),
     ...weekDays("2025-08-11", [330, 330, 330, 330, 330, 330]),
   ];
-  // Force exactly 5 half-days in the month, the rest absent.
+  // Force exactly 5 half-days in that week, the rest absent.
   const shaped = days.map((d, i) => ({
     ...d,
     code: i < 5 ? "H/D" : "A",
@@ -308,17 +308,17 @@ describe("Test 6 — monthly half-day grace: 3 waived, the rest charged", () => 
 
   const res = reconcileMonth(shaped, { month: "2025-08", ...FT_OPTS });
 
-  it("charges exactly 2 of the 5", () => {
+  it("charges all 5 half-days", () => {
     expect(res.halfDayCharges).toHaveLength(5);
-    expect(res.warnedHalfDays).toBe(3);
-    expect(res.chargeableHalfDays).toBe(2);
+    expect(res.warnedHalfDays).toBe(0);
+    expect(res.chargeableHalfDays).toBe(5);
   });
 
-  it("the first three are warnings, the 4th and 5th bite", () => {
+  it("does not grant a half-day warning allowance", () => {
     expect(res.halfDayCharges.map((c) => c.waived)).toEqual([
-      true,
-      true,
-      true,
+      false,
+      false,
+      false,
       false,
       false,
     ]);
@@ -342,7 +342,7 @@ describe("§6/§7 — a waived week's half-day does not spend a grace slot", () 
     expect(res.weeks[0]!.deviationsWaived).toBe(true);
   });
 
-  it("its half-day is absorbed, not counted against the 3 monthly slots", () => {
+  it("its half-day is absorbed because the week met its target", () => {
     expect(res.waiverAbsorbedHalfDays).toBe(1);
     expect(res.halfDayCharges.every((c) => c.date >= "2025-08-11")).toBe(true);
   });
@@ -470,7 +470,7 @@ describe("other worker types are left alone", () => {
 });
 
 describe("Regression: paired hybrid punches retain their worked duration", () => {
-  it("grades 13:20 to 19:55 as Present even with a legacy-wide schedule window", () => {
+  it("keeps the worked duration and credits a complete shift as Full Day", () => {
     const cfg = resolveEffectiveConfig(
       {
         workerType: "hybrid",

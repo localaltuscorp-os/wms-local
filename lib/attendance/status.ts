@@ -28,16 +28,12 @@ export interface DayContext {
   compOffRedeemed?: boolean;
   /**
    * The out-punch was written by the compulsory-punch-out cron, not by the
-   * employee.
-   *
-   * WHY THE ENGINE HAS TO KNOW: the cron stamps its out at the CLOCK-IN time, so
-   * worked ≈ 0. Left to the ordinary three-tier rule that lands below the
-   * half-day floor and grades ABSENT — the exact opposite of the policy the cron
-   * is named after, and of the rule that a missing punch-out costs half a day
-   * rather than all of it. Passing the flag lets the day be floored at H/D
-   * without inventing a fake worked duration to get there.
+   * employee. A system-closed forgotten logout is Absent with zero worked
+   * minutes; the marker prevents it being mistaken for a genuine checkout.
    */
   autoClosed?: boolean;
+  /** The calendar day has ended, so an unmatched check-in is no longer live. */
+  dayClosed?: boolean;
 }
 
 export interface DayCodeResult {
@@ -63,6 +59,13 @@ function workedForDay(punch: DayPunchInput, refNow: string): number {
   const open = punch.openInAt ? Math.max(0, toMin(refNow) - toMin(punch.openInAt)) : 0;
   return Math.max(0, completed + open);
 }
+
+/**
+ * After an employee's configured late cutoff, they have one hour in which the
+ * day remains a late-mark day. Later arrivals are half-days. The cutoff itself
+ * remains employee-specific; this is only the policy window after it.
+ */
+export const LATE_MARK_WINDOW_MINUTES = 60;
 
 /**
  * Pure day-code rules engine. Given a check-in/check-out pair, the resolved
@@ -139,45 +142,62 @@ export function computeDayCode(
   }
 
   const late = toMin(inAt) > toMin(sched.lateAfter);
+  const lateBeyondHalfDayWindow =
+    toMin(inAt) > toMin(sched.lateAfter) + LATE_MARK_WINDOW_MINUTES;
   // Early = left strictly BEFORE the early-before time (7:30 pm). At exactly the
   // cutoff it is NOT early (Sir: "7:30 ke pehle logout = early").
   const leftEarly = !hasOpenSession && outAt != null && toMin(outAt) < toMin(sched.earlyBefore);
 
-  // Checked in but NEVER checked out (Sir #12): credit a HALF-DAY, not the old
-  // "incomplete/0". The person came in; a missing punch-out shouldn't zero them.
+  // A live check-in keeps accumulating time while today's shift is open. Once
+  // the calendar day has ended, an unmatched check-in is a forgotten logout and
+  // therefore Absent with no credited hours. This fallback matters when the
+  // nightly auto-close job was delayed or missed.
   if (hasOpenSession) {
+    if (ctx.dayClosed) {
+      return { code: "A", dayValue: 0, late, leftEarly: false, lateWaived: false, workedMinutes: 0 };
+    }
     return { code: "H/D", dayValue: 0.5, late, leftEarly: false, lateWaived: false, workedMinutes: worked };
   }
 
-  // Same day, one step later: the cron has since written the out-punch itself.
-  // The rule must not change just because a system row now exists where a
-  // missing one used to be — see DayContext.autoClosed.
+  // The nightly job stamps its out-punch at the check-in time and marks it as a
+  // system close. Policy: forgetting to punch out makes the day Absent and must
+  // never contribute artificial punch-in-to-midnight hours to the weekly total.
   if (ctx.autoClosed) {
-    return { code: "H/D", dayValue: 0.5, late, leftEarly: false, lateWaived: false, workedMinutes: worked };
+    return { code: "A", dayValue: 0, late, leftEarly: false, lateWaived: false, workedMinutes: 0 };
   }
 
   // THREE-TIER day rule. The cutoffs come from the employee's own resolved
-  // config (lib/attendance/effective-config.ts), which derives them as ratios of
-  // that person's daily target — so a full-timer grades at 7.5h/4.5h against a 9h
-  // day and a part-timer at 3.5h/2.5h against a 4.5h day. Neither can ever
-  // inherit the other's absolute hours.
+  // config (lib/attendance/effective-config.ts). A standard full-timer grades
+  // at 9h/5h; an hourly-shift worker grades against their own complete shift.
+  // Neither can ever inherit the other's absolute hours.
   //
   //   ≥ fullDayMinutes → Full Day (P)
   //   ≥ halfDayMinutes → Half Day (H/D)
   //   below            → Absent   (A)  ← present but under the floor
   //
-  // A late arrival / early exit that STILL lands a full day is forgiven
-  // (lateWaived) — the hours were made up, so the mark should not also bite.
-  if (worked >= sched.fullDayMinutes) {
-    const lateWaived = late || leftEarly;
-    return { code: "P", dayValue: 1, late, leftEarly, lateWaived, workedMinutes: worked };
+  // Someone below the half-day minimum is still absent, even if they also left
+  // before the cutoff. A half-day requires at least the employee's configured
+  // half-day minimum.
+  if (worked < sched.halfDayMinutes) {
+    return { code: "A", dayValue: 0, late, leftEarly, lateWaived: false, workedMinutes: worked };
   }
-  if (worked >= sched.halfDayMinutes) {
+
+  // Completing the employee's full-day target always earns a Full Day. Clock
+  // marks remain visible for punctuality reporting, but an early start or a
+  // late finish must not turn nine completed hours into a half-day.
+  if (worked >= sched.fullDayMinutes) {
+    return { code: "P", dayValue: 1, late, leftEarly, lateWaived: late, workedMinutes: worked };
+  }
+
+  // Below the full-day target, a check-in more than one hour after the
+  // employee's configured late cutoff, or a checkout before their configured
+  // end time, is a half-day. For example, a 10:30-11:30 late window followed
+  // by a 19:30 checkout is short of a nine-hour day and remains H/D.
+  if (lateBeyondHalfDayWindow || leftEarly) {
     return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
   }
-  // Under the half-day floor. The person punched in, so the marks stay visible
-  // and auditable (spec §5) even though the day itself credits nothing.
-  return { code: "A", dayValue: 0, late, leftEarly, lateWaived: false, workedMinutes: worked };
+
+  return { code: "H/D", dayValue: 0.5, late, leftEarly, lateWaived: false, workedMinutes: worked };
 }
 
 /**
