@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ArrowLeftRight, ChevronDown, Loader2, Users } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, Loader2, SquarePen, Users } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionIcon } from "@/components/dashboard/section-icon";
 import { SectionSearchBox } from "@/components/dashboard/section-chrome";
@@ -565,7 +565,7 @@ export function CreatorWorkloadTable({
   return (
     <section className="relative min-w-0" aria-label="Creator workload board">
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="red" />}
+        icon={<SectionIcon icon={SquarePen} tone="red" />}
         title="Who Is Creating How Much Work"
         subtitle={
           targets

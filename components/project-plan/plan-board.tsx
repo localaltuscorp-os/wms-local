@@ -7,10 +7,9 @@ import Link from "next/link";
 import type { Route } from "next";
 import {
   ChevronDown, ChevronRight, Plus, Trash2, Archive, Copy, ArrowUp, ArrowDown,
-  Loader2, CalendarCheck2, CircleDashed, FolderPlus, SlidersHorizontal,
+  Loader2, CalendarCheck2, CircleDashed, FolderPlus,
   Maximize2, Minimize2, X, Layers, Search, Download, ArrowUpDown,
-  Columns3, Check, GripVertical, Pencil, ChevronUp, Eye, List, LayoutGrid, Table2, Link2,
-  User, ShieldCheck,
+  Columns3, Check, GripVertical, Pencil, ChevronUp, Eye, Table2, Link2, Upload,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
 import {
@@ -42,11 +41,6 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { sortPlanTree, type SortableColumn, type SortDir } from "@/lib/project-plan/sort";
 import { SelectAllBar } from "@/components/ui/select-all-bar";
 import { PlanKanban, kanbanCards } from "./plan-kanban";
-import {
-  STATUS_AXES,
-  STATUS_AXIS_LABEL,
-  type StatusAxis,
-} from "@/lib/status/axes";
 import { NewNodeDialog } from "./new-node-dialog";
 import { NewItemButtons, usePlanCreateShortcuts } from "./new-item-buttons";
 import { PlanBulkUpload } from "./plan-bulk-upload";
@@ -55,8 +49,9 @@ import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-ce
 import { PlanAttachmentPanel } from "./plan-attachment-cell";
 import { normaliseUrl } from "./plan-links-cell";
 import { PlanProgressCell } from "./plan-progress-cell";
-import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
-import { PlanStatusKpiStrip } from "./plan-status-kpi-strip";
+import { PlanStatusKpiStrip, PROJECT_STATUS_FOR_KPI } from "./plan-status-kpi-strip";
+import type { TaskKpiKey, TaskKpiView } from "@/components/tasks/task-status-kpi-strip";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 
 /**
  * Project Plan — the hierarchy table.
@@ -594,7 +589,6 @@ function initialCollapsed(nodes: PlanRow[]): Set<string> {
 }
 
 export function PlanBoard({ level, tree, employees, canManage, labels, clients, isAdmin, me, downline, initialView = "list" }: Props) {
-  const pageChromeSlots = usePageChromeSlots();
   const router = useRouter();
   const pathname = usePathname();
   /** The viewer's downline as a set — rebuilt only when the list itself does,
@@ -645,6 +639,24 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
   const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
   const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
+  const [statusAxis, setStatusAxis] = React.useState<TaskKpiView>("doer");
+  const [hierarchyToolbar, setHierarchyToolbar] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setHierarchyToolbar(document.getElementById("project-plan-hierarchy-toolbar"));
+  }, []);
+
+  React.useEffect(() => {
+    const onAxisChange = (event: Event) => {
+      const axis = (event as CustomEvent<unknown>).detail;
+      if (axis === "doer" || axis === "initiator") setStatusAxis(axis);
+    };
+    window.addEventListener("altus:module-status-axis", onAxisChange);
+    return () => window.removeEventListener("altus:module-status-axis", onAxisChange);
+  }, []);
+
+  const hierarchyActionsTarget = hierarchyToolbar?.querySelector<HTMLElement>("#project-plan-hierarchy-actions") ?? null;
+  const hierarchyFiltersTarget = hierarchyToolbar?.querySelector<HTMLElement>("#project-plan-hierarchy-filters") ?? null;
 
   /**
    * One click on a header, three states — ascending, descending, back to the
@@ -672,7 +684,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
   }, [sortKey, sortDir]);
   const [cols, setCols] = React.useState<Set<ColKey>>(() => new Set(DEFAULT_COLS));
   const [colOrder, setColOrder] = React.useState<ColKey[]>(DEFAULT_COL_ORDER);
-  const [chip, setChip] = React.useState<ChipKey | null>(null);
+  // The legacy summary chips were removed from the screen. Keep the tree on
+  // its unfiltered default rather than leaving an invisible active filter.
+  const chip: ChipKey | null = null;
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   // Default ALL: this is a tree, and silently hiding branches behind a page
   // size the user never chose is a good way to make a plan look incomplete.
@@ -740,11 +754,6 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
    */
   const [bulkEditing, setBulkEditing] = React.useState<DetailTarget[] | null>(null);
   const [view, setView] = React.useState<"list" | "kanban">(initialView);
-  // Which axis the KANBAN columns answer for. Local state, unlike the WMS
-  // board's URL param, because this board's view/level/filter state is all
-  // local here already — putting one of them in the URL and not the others
-  // would make Back behave differently depending on which control you touched.
-  const [axis, setAxis] = React.useState<StatusAxis>("doer");
   /**
    * Open the full WMS record for an executable row.
    *
@@ -1437,6 +1446,135 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
     run(`purge:${node.id}`, () => purgePlanNode(node.id), "Deleted.");
   }
 
+  const hierarchyKpis = (
+    <PlanStatusKpiStrip
+      counts={planStatusCounts}
+      total={counts.total}
+      view={statusAxis}
+      activeKey={(
+        statusAxis === "initiator" && doerStatus[0] === "done" ? "done" :
+        statusAxis === "initiator" && doerStatus[0] === "abandoned" ? "abandoned" :
+        Object.entries(PROJECT_STATUS_FOR_KPI).find(([, status]) => status === (statusAxis === "doer" ? doerStatus[0] : initiatorStatus[0]))?.[0] as TaskKpiKey | undefined
+      ) ?? "total"}
+      onKpiChange={(key) => {
+        const status = PROJECT_STATUS_FOR_KPI[key];
+        if (key === "total") { setDoerStatus([]); setInitiatorStatus([]); return; }
+        if (statusAxis === "initiator" && (key === "done" || key === "abandoned")) {
+          setDoerStatus(doerStatus[0] === status ? [] : status ? [status] : []); setInitiatorStatus([]); return;
+        }
+        if (statusAxis === "doer") { setDoerStatus(doerStatus[0] === status ? [] : status ? [status] : []); setInitiatorStatus([]); return; }
+        setInitiatorStatus(initiatorStatus[0] === status ? [] : status ? [status] : []); setDoerStatus([]);
+      }}
+    />
+  );
+
+  const hierarchyActions = (
+    <>
+      <CollapsibleSearch scope="project plan" className="order-2 ml-auto translate-x-3">
+        <label className="inline-flex min-w-[260px] flex-1 items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2 transition-colors focus-within:border-[#E10600]">
+          <Search size={15} strokeWidth={2.2} className="shrink-0 text-ink-subtle" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Local search — projects, milestones, results, actions" aria-label="Search the plan" className="w-full min-w-0 bg-transparent text-[13.5px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle" />
+          {search && <button onClick={() => setSearch("")} aria-label="Clear search" className="shrink-0 text-ink-subtle hover:text-ink-strong"><X size={14} strokeWidth={2.6} /></button>}
+        </label>
+      </CollapsibleSearch>
+      <NewItemButtons onPick={setCreating} className="order-1 shrink-0" />
+    </>
+  );
+
+  const hierarchyFilters = (
+    <>
+      {projectIds.map((id) => {
+        const project = tree.find((node) => node.id === id);
+        return (
+          <button
+            key={`project-filter-${id}`}
+            type="button"
+            onClick={() => setProjectIds((ids) => ids.filter((value) => value !== id))}
+            className="inline-flex h-8 max-w-[180px] items-center gap-1 rounded-lg px-2 text-[11.5px] font-bold text-altus-red-deep"
+            style={{ background: "var(--color-altus-red-wash)" }}
+            title="Remove project filter"
+          >
+            <span className="truncate">{project?.name || "Project"}</span>
+            <X size={13} strokeWidth={2.6} className="shrink-0" aria-hidden />
+          </button>
+        );
+      })}
+      {doerStatus.map((status) => {
+        const labels: Record<string, string> = { not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned" };
+        return (
+          <button
+            key={`doer-filter-${status}`}
+            type="button"
+            onClick={() => setDoerStatus((statuses) => statuses.filter((value) => value !== status))}
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-indigo-50 px-2 text-[11.5px] font-bold text-indigo-700"
+            title="Remove Doer Status filter"
+          >
+            {labels[status] ?? status}<X size={13} strokeWidth={2.6} aria-hidden />
+          </button>
+        );
+      })}
+      {initiatorStatus.map((status) => {
+        const labels: Record<string, string> = { not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled" };
+        return (
+          <button
+            key={`initiator-filter-${status}`}
+            type="button"
+            onClick={() => setInitiatorStatus((statuses) => statuses.filter((value) => value !== status))}
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-violet-50 px-2 text-[11.5px] font-bold text-violet-700"
+            title="Remove Initiator Status filter"
+          >
+            {labels[status] ?? status}<X size={13} strokeWidth={2.6} aria-hidden />
+          </button>
+        );
+      })}
+      <MultiSelect
+        selected={projectIds}
+        placeholder="All projects"
+        onChange={(values) => { setProjectIds(values); if (values.length === 1) remember(values[0]!); }}
+        options={tree.map((project) => ({ value: project.id, label: project.name || "Untitled project" }))}
+        className="h-8 min-w-[110px] gap-1 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
+      />
+      <MultiSelect
+        selected={doerStatus}
+        onChange={setDoerStatus}
+        placeholder="All Doer Status"
+        options={[
+          { value: "not_read", label: "Not Read" }, { value: "not_started", label: "Not Started" }, { value: "initiated", label: "Initiated" },
+          { value: "follow_up", label: "Follow Up" }, { value: "need_info", label: "Need Info" }, { value: "done", label: "Done" }, { value: "abandoned", label: "Abandoned" },
+        ]}
+        className="h-8 min-w-[120px] gap-1 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
+      />
+      <MultiSelect
+        selected={initiatorStatus}
+        onChange={setInitiatorStatus}
+        placeholder="All Initiator Status"
+        options={[
+          { value: "not_applicable", label: "Not Applicable" }, { value: "pending", label: "Pending" }, { value: "approved", label: "Approved" },
+          { value: "not_approved", label: "Not Approved" }, { value: "on_hold", label: "On Hold" }, { value: "archived", label: "Archived" }, { value: "cancelled", label: "Cancelled" },
+        ]}
+        className="h-8 min-w-[132px] gap-1 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
+      />
+      <BarSelect
+        label="Show down to"
+        icon={<Layers size={13} strokeWidth={2.2} />}
+        value=""
+        placeholder="Show down to…"
+        onChange={(v) => {
+          if (v === "all") setCollapsed(new Set());
+          else if (v !== "") collapseFrom(Number(v));
+        }}
+        options={[
+          { value: "all", label: "All levels" },
+          { value: "0", label: "Projects only" },
+          { value: "1", label: "To milestone" },
+          { value: "2", label: "To result" },
+          { value: "3", label: "To action" },
+        ]}
+        className="inline-flex h-8 min-w-[132px] items-center gap-1 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2 text-ink-strong transition-colors hover:bg-surface-soft [&_svg]:!text-ink-strong"
+      />
+    </>
+  );
+
   const board = (
     <section className={fullscreen ? "flex h-full flex-col" : "flex flex-col"}>
       {/* The Client column's suggestions. ONE datalist for the whole table
@@ -1444,14 +1582,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           a copy per row on a 200-row plan is 200 identical option lists in the
           DOM. Free text either way — the roster suggests, it does not refuse. */}
       {/* ── Title row — name, the shape of what is on screen, full screen. ── */}
-      <header className="mb-3 flex flex-wrap items-center gap-3">
-        <h1
-          className="shrink-0 text-ink-strong"
-          style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 800, fontSize: 26, letterSpacing: "-0.02em", lineHeight: 1.1 }}
-        >
-          Project Plan
-        </h1>
-
+      <header className="mb-3 flex items-center justify-between gap-3">
         {/* Count chips — counted over the WHOLE filtered plan, not the rendered
             rows, so a collapsed branch never understates its contents. Click one
             to narrow the table to exactly those rows. */}
@@ -1459,34 +1590,32 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             one segmented pill. The remaining chips (Total, Actions, In WMS,
             Not scheduled) stay loose beside it; all of them drive the same
             `chip` filter, so only one narrowing is ever in force. */}
-        <LevelTabs level={level} tree={tree} view={view} />
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {CHIPS.map((c) => (
-            <CountChip
-              key={c.key}
-              label={c.label}
-              n={counts[c.key]}
-              tone={c.tone}
-              active={chip === c.key}
-              // Clicking a chip shows what is inside it; clicking the active one
-              // (or Total) goes back to the whole plan.
-              onClick={() => setChip((prev) => (prev === c.key || c.key === "total" ? null : c.key))}
-            />
-          ))}
+        <div className="pl-1">
+          {hierarchyKpis}
         </div>
-
-        <PlanStatusKpiStrip
-          counts={planStatusCounts}
-          total={counts.total}
-          activeStatus={doerStatus[0] ?? null}
-          onStatusChange={(status) => setDoerStatus(status ? [status] : [])}
-        />
+        <Link
+          href={registerHref as Route}
+          title={`See every ${LEVEL_KIND[level] ? KIND_LABEL[LEVEL_KIND[level]!].toLowerCase() : "row"} as a table`}
+          className="inline-flex h-8 shrink-0 translate-x-3 items-center gap-1.5 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+        >
+          <Table2 size={14} strokeWidth={2.2} aria-hidden />
+          Table view
+        </Link>
 
       </header>
 
+      {hierarchyActionsTarget && createPortal(hierarchyActions, hierarchyActionsTarget)}
+      {hierarchyFiltersTarget && createPortal(hierarchyFilters, hierarchyFiltersTarget)}
+
       {/* ── Search row — its own line, with the primary action opposite it. ── */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
+      <div
+        className={hierarchyActionsTarget ? "hidden" : "sticky sticky-below-topbar z-30 -mx-8 mb-3 flex min-h-[51px] flex-wrap items-center gap-3 border-y border-hairline px-8 py-2 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4"}
+        style={{
+          background: "radial-gradient(560px 90px at 6% 0%, color-mix(in srgb, var(--color-altus-red) 4%, transparent), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.86), rgba(250,251,252,0.80))",
+          boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
+        }}
+      >
+        <CollapsibleSearch scope="project plan" className="ml-auto translate-x-3">
         <label className="inline-flex min-w-[260px] flex-1 items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2 transition-colors focus-within:border-[#E10600]">
           <Search size={15} strokeWidth={2.2} className="shrink-0 text-ink-subtle" />
           <input
@@ -1502,6 +1631,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             </button>
           )}
         </label>
+        </CollapsibleSearch>
 
         {/* The four create boxes, beside the local search — the SAME component
             the register's toolbar renders, so both surfaces offer the same
@@ -1509,7 +1639,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             old single "New Item" button, which opened this very dialog on
             Action: "+ Action" is that button, and the other three say out loud
             what used to be hidden behind a level picker. */}
-        <NewItemButtons onPick={setCreating} onBulkUpload={setBulkKind} className="shrink-0" />
+        <NewItemButtons onPick={setCreating} className="shrink-0" />
       </div>
 
       {/* ── Control bar ───────────────────────────────────────────────────────
@@ -1529,80 +1659,19 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
               tight it is a project name that truncates — not the Rows /
               Columns / Export group dropping to a second line.
           No overflow-x scroll here: it would clip the Rows / Columns menus. */}
-      {view === "kanban" && pageChromeSlots?.actions && createPortal(
-        <div role="group" aria-label="Status axis" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
-          {STATUS_AXES.map((a) => (
-            <ViewTab
-              key={a}
-              active={axis === a}
-              onClick={() => setAxis(a)}
-              activeColor="var(--color-ink-muted)"
-              icon={a === "doer" ? <User size={13} strokeWidth={2.4} /> : <ShieldCheck size={13} strokeWidth={2.4} />}
-            >
-              {STATUS_AXIS_LABEL[a]}
-            </ViewTab>
-          ))}
-        </div>,
-        pageChromeSlots.actions,
-      )}
-      <div className="mb-4 flex flex-wrap items-center gap-1 rounded-2xl border border-hairline-strong bg-white px-2 py-1 md:flex-nowrap">
+      <div className="mb-4 flex flex-wrap items-center gap-1 rounded-none border border-hairline-strong bg-white px-2 py-1 md:flex-nowrap">
+        <LevelTabs level={level} tree={tree} view={view} />
         {/* View toggle — the same List / Kanban pair the Goals board uses. */}
-        <div role="group" aria-label="Board view" className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong">
-          <ViewTab active={view === "list"} onClick={() => setView("list")} icon={<List size={13} strokeWidth={2.4} />}>
-            List
-          </ViewTab>
-          <ViewTab active={view === "kanban"} onClick={() => setView("kanban")} icon={<LayoutGrid size={13} strokeWidth={2.4} />}>
-            Kanban
-          </ViewTab>
-        </div>
-
-        {/* The axis switch, shown only with the board it re-columns. Same two
-            questions, same wording, as the WMS kanban's toggle. */}
-        {view === "kanban" && !pageChromeSlots?.actions && (
-          <div
-            role="group"
-            aria-label="Status axis"
-            className="inline-flex shrink-0 overflow-hidden rounded-lg border border-hairline-strong"
-          >
-            {STATUS_AXES.map((a) => (
-              <ViewTab
-                key={a}
-                active={axis === a}
-                onClick={() => setAxis(a)}
-                activeColor="var(--color-ink-muted)"
-                icon={
-                  a === "doer" ? (
-                    <User size={13} strokeWidth={2.4} />
-                  ) : (
-                    <ShieldCheck size={13} strokeWidth={2.4} />
-                  )
-                }
-              >
-                {STATUS_AXIS_LABEL[a]}
-              </ViewTab>
-            ))}
-          </div>
-        )}
-
         {/* The way back to the REGISTER. The register has always linked here;
             without this the hierarchy was a one-way door — you could reach the
             tree but only the browser's Back button returned you to the table. */}
-        <Link
-          href={registerHref as Route}
-          title={`See every ${LEVEL_KIND[level] ? KIND_LABEL[LEVEL_KIND[level]!].toLowerCase() : "row"} as a table`}
-          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-hairline-strong px-2 text-[11.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
-        >
-          <Table2 size={12} strokeWidth={2.4} aria-hidden />
-          Table view
-        </Link>
-
         {/* NEW PROJECT, in the control bar as well as at the foot of the table.
             The footer button sits where the row appears, which is the right
             place once you are reading rows and the wrong place when the plan is
             long enough that the foot of the table is a scroll away. Both call
             the same `addProject`, and unlike the footer this one is never
             hidden by a filter — the bar is always on screen. */}
-        <button
+        {!hierarchyActionsTarget && <button
           type="button"
           onClick={addProject}
           disabled={pending}
@@ -1616,13 +1685,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             <Plus size={12} strokeWidth={2.8} aria-hidden />
           )}
           New project
-        </button>
+        </button>}
 
-        <span className="grid size-5 shrink-0 place-items-center text-ink-subtle" aria-hidden>
-          <SlidersHorizontal size={13} strokeWidth={2.2} />
-        </span>
-
-        <MultiSelect
+        {!hierarchyFiltersTarget && <MultiSelect
           selected={projectIds}
           placeholder="All projects"
           // Narrowing the board to one project is the plainest statement there
@@ -1632,9 +1697,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             ...tree.map((p) => ({ value: p.id, label: p.name || "Untitled project" })),
           ]}
           className="h-7 min-w-[132px] rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-semibold text-ink-strong"
-        />
+        />}
 
-        <BarSelect
+        {!hierarchyFiltersTarget && <BarSelect
           label="Show down to"
           icon={<Layers size={13} strokeWidth={2.2} />}
           value=""
@@ -1650,31 +1715,9 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             { value: "2", label: "To result" },
             { value: "3", label: "To action" },
           ]}
-        />
+        />}
 
-        <BarSelect
-          label="Sort"
-          icon={<ArrowUpDown size={13} strokeWidth={2.2} />}
-          value={sortKey}
-          onChange={(v) => {
-            setSortKey(v as SortKey);
-            // Picking from the box always starts ascending; reversing is the
-            // header's own click.
-            setSortDir("asc");
-          }}
-          // The box lists the four headline orders. Sorting by any OTHER column
-          // happens from its header — and the box then NAMES that column rather
-          // than sitting on "Plan order" while the table is sorted by Client.
-          options={
-            SORT_OPTIONS.some((o) => o.value === sortKey)
-              ? SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
-              : [
-                  ...SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
-                  { value: sortKey, label: COL_META.get(sortKey as ColKey)?.label ?? sortKey },
-                ]
-          }
-        />
-        <MultiSelect
+        {!hierarchyFiltersTarget && <MultiSelect
           selected={doerStatus}
           onChange={setDoerStatus}
           placeholder="All Doer Status"
@@ -1683,8 +1726,8 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             { value: "not_read", label: "Not Read" }, { value: "not_started", label: "Not Started" }, { value: "initiated", label: "Initiated" },
             { value: "follow_up", label: "Follow Up" }, { value: "need_info", label: "Need Info" }, { value: "done", label: "Done" }, { value: "abandoned", label: "Abandoned" },
           ]}
-        />
-        <MultiSelect
+        />}
+        {!hierarchyFiltersTarget && <MultiSelect
           selected={initiatorStatus}
           onChange={setInitiatorStatus}
           placeholder="All Initiator Status"
@@ -1693,7 +1736,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
             { value: "not_applicable", label: "Not Applicable" }, { value: "pending", label: "Pending" }, { value: "approved", label: "Approved" },
             { value: "not_approved", label: "Not Approved" }, { value: "on_hold", label: "On Hold" }, { value: "archived", label: "Archived" }, { value: "cancelled", label: "Cancelled" },
           ]}
-        />
+        />}
 
 
 
@@ -1717,6 +1760,10 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           {view === "list" && (
             <ColumnsPicker visible={cols} onChange={setCols} order={colOrder} onReorder={setColOrder} />
           )}
+
+          <BarButton compact onClick={() => setBulkKind("action")} icon={<Upload size={12} strokeWidth={2.2} />}>
+            Bulk Upload
+          </BarButton>
 
           <BarButton compact onClick={exportCsv} icon={<Download size={12} strokeWidth={2.2} />}>
             Export
@@ -1830,7 +1877,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
       )}
 
       {view === "kanban" ? (
-        <PlanKanban cards={cards} me={me} downlineSet={downlineSet} axis={axis} />
+        <PlanKanban cards={cards} me={me} downlineSet={downlineSet} axis="doer" />
       ) : (
       <>
       {/* ── Table ────────────────────────────────────────────────────────────
@@ -1841,7 +1888,7 @@ export function PlanBoard({ level, tree, employees, canManage, labels, clients, 
           it is capped against the viewport. */}
       <div
         ref={scrollBoxRef}
-        className={`overflow-auto rounded-xl border border-hairline-strong bg-white ${
+        className={`no-scrollbar overflow-auto rounded-none border border-hairline-strong bg-white ${
           fullscreen ? "min-h-0 flex-1" : "max-h-[calc(100vh-300px)] min-h-[220px]"
         }`}
       >
@@ -2303,6 +2350,11 @@ function Row({
       // The drop resolver reads this off `elementFromPoint` — see the drag
       // block in the board above.
       data-plan-row-id={node.id}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData("application/x-altus-project-node", JSON.stringify({ id: node.id }));
+        event.dataTransfer.effectAllowed = "move";
+      }}
       className={`border-b border-hairline transition-colors last:border-b-0 hover:bg-[color:var(--color-surface-soft,#f6f8fb)] ${
         dragging ? "opacity-45" : ""
       }`}
@@ -3055,7 +3107,7 @@ function LevelSeg({
       role="tab"
       aria-selected={active}
       title={`Show the ${label.toLowerCase()} level`}
-      className="inline-flex items-center gap-1.5 rounded-pill px-4 py-1.5 text-[13px] font-bold transition-colors"
+      className="inline-flex items-center gap-1 rounded-pill px-3 py-1 text-[12px] font-bold transition-colors"
       style={
         active
           ? {
@@ -3069,7 +3121,7 @@ function LevelSeg({
       {label}
       <span
         className="tabular-nums font-mono"
-        style={{ fontSize: 11, opacity: active ? 0.8 : 0.65 }}
+        style={{ fontSize: 10, opacity: active ? 0.8 : 0.65 }}
       >
         {n}
       </span>
@@ -3097,7 +3149,7 @@ function LevelTabs({
     <div
       role="tablist"
       aria-label="Plan level"
-      className="inline-flex shrink-0 items-center gap-1 rounded-pill p-1"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-pill p-0.5"
       style={{
         background: "var(--color-surface-soft)",
         border: "1px solid var(--color-hairline-strong)",
@@ -3198,7 +3250,7 @@ function RowsPicker({
 /* ───────────────────────────── Control-bar parts ────────────────────────── */
 
 function BarSelect({
-  label, value, onChange, options, placeholder, icon,
+  label, value, onChange, options, placeholder, icon, className,
 }: {
   label: string;
   value: string;
@@ -3206,9 +3258,10 @@ function BarSelect({
   options: { value: string; label: string }[];
   placeholder?: string;
   icon?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <span className="inline-flex h-7 min-w-0 shrink items-center gap-1 rounded-lg border border-hairline-strong px-2 transition-colors hover:bg-surface-soft">
+    <span className={className ?? "inline-flex h-7 min-w-0 shrink items-center gap-1 rounded-lg border border-hairline-strong px-2 transition-colors hover:bg-surface-soft"}>
       {icon && <span className="shrink-0 text-ink-subtle">{icon}</span>}
       {/* A small box, not a native popup: "All projects (22)" listed all
           twenty-two floor to ceiling. This opens about seven rows and scrolls,
@@ -3219,6 +3272,7 @@ function BarSelect({
         options={options}
         placeholder={placeholder ?? "—"}
         required={!placeholder}
+        placeholderClassName="text-ink-strong"
         aria-label={label}
         // `min-w-0` is what lets a long project name give way when the row is
         // tight, instead of shoving the right-hand group onto a second line.

@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import {
-  Users,
+  AlarmClock,
   ArrowLeftRight,
   ChevronsUpDown,
   ChevronDown,
@@ -398,7 +398,7 @@ export function PerformanceByPersonTable({
   return (
     <CollapsibleSection
       label="Overdue tasks by person"
-      icon={<SectionIcon icon={Users} tone="red" />}
+      icon={<SectionIcon icon={AlarmClock} tone="red" />}
       title="Overdue Tasks by Person"
       subtitle="On-time rate & late spread · heaviest overdue burden first"
       /* TOOLBAR ORDER: search · transpose · collapse.

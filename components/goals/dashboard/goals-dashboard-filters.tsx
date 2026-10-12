@@ -183,6 +183,7 @@ export function GoalsDashboardFilters({
 
   return (
     <PageShell as="div" width="full" py={false} className="flex flex-wrap items-center gap-2 py-2">
+      <div className="ml-auto flex items-center gap-2 max-sm:w-full max-sm:justify-end">
       <Popover.Root
         open={dateOpen}
         onOpenChange={(open) => {
@@ -363,6 +364,7 @@ export function GoalsDashboardFilters({
           />
         )}
       />
+      </div>
     </PageShell>
   );
 }

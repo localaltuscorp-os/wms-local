@@ -133,7 +133,7 @@ export function NewItemButtons({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+    <div className={`flex flex-nowrap items-center gap-1 ${className}`}>
       {CREATABLE_KINDS.map((k) => {
         const key = KIND_SHORTCUT[k];
         return (
@@ -144,16 +144,16 @@ export function NewItemButtons({
             title={key ? `New ${KIND_LABEL[k]} — press ${key}` : `New ${KIND_LABEL[k]}`}
             // `relative` + the wider right padding is what gives the keycap a
             // corner to sit INSIDE without it landing on the label. Inside
-            // rather than hanging off the edge: these buttons wrap on a narrow
-            // toolbar, and a badge outside the box overlaps the row above it.
-            className="relative inline-flex items-center gap-1 rounded-xl border border-hairline-strong bg-white py-2 pl-2.5 pr-5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+            // rather than hanging off the edge: the toolbar stays on one line,
+            // so an outside badge would collide with its neighbouring control.
+            className="relative inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-hairline-strong bg-white pl-2 pr-4 text-[11.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
           >
             {/* The shortcut letter, top-right, ahead of the + — a keycap, so it
                 reads as "press this" rather than as part of the level's name. */}
             {key && (
               <kbd
                 aria-hidden
-                className="pointer-events-none absolute right-[3px] top-[3px] grid size-[14px] place-items-center rounded-[4px] border border-hairline bg-surface-soft text-[9px] font-black leading-none text-ink-subtle"
+                className="pointer-events-none absolute right-[3px] top-[3px] grid size-3 place-items-center rounded-[3px] border border-hairline bg-surface-soft text-[8px] font-black leading-none text-ink-subtle"
                 style={{ fontFamily: "inherit" }}
               >
                 {key}
@@ -175,7 +175,7 @@ export function NewItemButtons({
           type="button"
           onClick={() => onBulkUpload(bulkKind)}
           title="Bulk upload milestones, results, actions or sub-actions"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-hairline-strong bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+          className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-hairline-strong bg-white px-2 text-[11.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
         >
           <Upload size={13} strokeWidth={2.6} aria-hidden />
           Bulk Upload

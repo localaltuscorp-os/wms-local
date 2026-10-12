@@ -7,6 +7,7 @@ import { signOut } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { ShortcutsSheet } from "@/components/header/shortcuts-sheet";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import {
   Crown,
@@ -52,6 +53,8 @@ export function UserMenu({
   archivedTasks,
   variant,
 }: Props) {
+  const router = useRouter();
+
   async function handleSignOut() {
     try {
       await signOut(getFirebaseAuth());
@@ -197,30 +200,31 @@ export function UserMenu({
 
           {/* Admin entry — only for admins, with chevron + subtle highlight */}
           {isAdmin && (
-            <DropdownMenu.Item asChild>
-              <Link
-                href={"/admin" as Route}
-                className="mt-1 flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(225, 6, 0, 0.06), rgba(244, 63, 94, 0.04))",
-                  color: "#0F172A",
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Crown
-                    size={14}
-                    strokeWidth={2.2}
-                    style={{ color: "var(--color-altus-red)" }}
-                  />
-                  <span className="font-medium">Admin Panel</span>
-                </span>
-                <ChevronRight
+            <DropdownMenu.Item
+              onSelect={(event) => {
+                event.preventDefault();
+                router.push("/admin" as Route);
+              }}
+              className="mt-1 flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-[15px] rounded-lg cursor-pointer outline-none"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(225, 6, 0, 0.06), rgba(244, 63, 94, 0.04))",
+                color: "#0F172A",
+              }}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Crown
                   size={14}
                   strokeWidth={2.2}
-                  style={{ color: "#64748B" }}
+                  style={{ color: "var(--color-altus-red)" }}
                 />
-              </Link>
+                <span className="font-medium">Admin Panel</span>
+              </span>
+              <ChevronRight
+                size={14}
+                strokeWidth={2.2}
+                style={{ color: "#64748B" }}
+              />
             </DropdownMenu.Item>
           )}
 

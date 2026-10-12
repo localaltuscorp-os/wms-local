@@ -558,6 +558,7 @@ export function FilterBar({
 
   return (
     <div
+      data-wms-filter-ribbon
       className="sticky sticky-below-topbar max-md:top-14 z-40 border-b border-hairline"
       style={{
         // Frosted glass band with a whisper of the module's brand red washed
@@ -570,7 +571,10 @@ export function FilterBar({
       }}
     >
       {pageChromeSlots?.actions && createPortal(viewToggle, pageChromeSlots.actions)}
-      <div className="mx-auto max-w-[1600px] px-6 py-2.5 max-md:px-4 flex flex-col gap-2">
+      <div
+        className="mx-auto flex max-w-[var(--content-full)] flex-col gap-2 py-2.5"
+        style={{ paddingInline: "var(--page-gutter)" }}
+      >
         {/* Row 1 — filter pill-cards. WRAPS to a second line when they don't fit
             (instead of cutting off the last filter). Wrapping is popover-safe:
             the filter popovers portal to <body>, so — unlike a scroll/overflow
@@ -894,8 +898,8 @@ function SectionSearchBox({ placeholder }: { placeholder: string }) {
   return (
     /* Rests as its magnifier until clicked. This bar is already a ribbon of
        eight filter pills before the search; the box was 150px of permanent
-       width for something empty most of the time. size-[30px] matches the
-       ribbon's control height exactly. */
+       width for something empty most of the time. The shared search component
+       normalizes this legacy 30px caller to the WMS-standard 36px footprint. */
     <CollapsibleSearch scope={placeholder.replace(/^search\s+/i, "").replace(/[.…\s]+$/, "")} className="size-[30px]">
     <div className="relative shrink-0">
       <Search
@@ -915,7 +919,7 @@ function SectionSearchBox({ placeholder }: { placeholder: string }) {
         aria-label={placeholder}
         // Narrow by default so the ribbon fits on one line, widening on focus
         // (and on wide screens) once you're actually typing into it.
-        className="h-[30px] w-[150px] 2xl:w-[200px] focus:w-[220px] rounded-xl border border-hairline bg-surface-card pl-7 pr-6 text-[12px] font-semibold text-ink-strong placeholder:font-normal placeholder:text-ink-subtle outline-none transition-all hover:border-hairline-strong focus:border-altus-red focus:ring-2 focus:ring-altus-red/20"
+        className="h-9 w-[150px] 2xl:w-[200px] focus:w-[220px] rounded-xl border border-hairline bg-surface-card pl-7 pr-6 text-[12px] font-semibold text-ink-strong placeholder:font-normal placeholder:text-ink-subtle outline-none transition-all hover:border-hairline-strong focus:border-altus-red focus:ring-2 focus:ring-altus-red/20"
         style={{ boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)" }}
       />
       {text && (

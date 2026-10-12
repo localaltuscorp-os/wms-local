@@ -54,6 +54,11 @@ export function CollapsibleSearch({
   className?: string;
   defaultOpen?: boolean;
 }) {
+  // The WMS filter ribbon predates the shared 36px search-control rule and
+  // still supplies its old `size-[30px]` utility. Normalize that legacy caller
+  // here so every collapsed WMS search icon has the same footprint without
+  // changing the caller's filtering or open/close behavior.
+  const collapsedClassName = className.replace("size-[30px]", "size-9");
   const [open, setOpen] = React.useState(defaultOpen);
   // Whether the field still held text when it closed. Read off the DOM at
   // collapse time rather than taken as a prop: 40 call sites, 40 differently
@@ -107,7 +112,7 @@ export function CollapsibleSearch({
         aria-label={title}
         aria-expanded={false}
         title={title}
-        className={`relative inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${className}`}
+        className={`relative inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${collapsedClassName}`}
       >
         <Search className="size-5" strokeWidth={2.2} />
         {filtering && (

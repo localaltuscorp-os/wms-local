@@ -96,6 +96,15 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 - The only conflict was `components/layout/module-footer.tsx`. The task branch deliberately retains its rectangular, full-width footer treatment; all other incoming main changes were preserved.
 - Generated `.next-dev-cache-backup/` and `.pnpm-store/` remain local-only and are excluded from commits.
 
+## Admin UI/UX Designer foundation (2026-10-09)
+
+- Added the Admin-only `/admin/ui-designer` route and System-navigation entry. Its page and both mutation actions call `requireAdmin()` server-side; no client-side visibility check is relied upon.
+- Added the constrained `lib/ui-designer/registry.ts` target registry. The first supported targets are global tokens, WMS Dashboard, Goals Dashboard, Billing Documents, and the shared DataTable. It explicitly does not permit arbitrary DOM nodes, routes, APIs, data bindings, executable JavaScript, or raw CSS.
+- Added `db/migrations/0270_ui_designer.sql` and matching `db/schema.ts` tables for immutable versioned design configurations and their audit events. The migration has **not** been executed. Draft saves create a new version; publishing archives the previous published version for the same target and records an audit event in one transaction.
+- The initial workspace gives admins a live token preview and working draft, publish, and copy-design-only actions for validated primary color, radius, and spacing values. It must not be represented as a full arbitrary page-layout or behavior editor yet; future phases must register each supported surface and apply its validated config at runtime.
+- No business data, routes, existing API behaviour, or non-admin access was changed.
+- Verification: focused ESLint completed with no errors for the new Admin designer files, registry, navigation config, and schema. `git diff --check` completed without diff errors. A full TypeScript run was started directly but did not return a terminal result within the local tool window; rerun before commit.
+
 ## CI follow-up
 
 - PR #11's required `test` check failed at TypeScript validation. The follow-up corrects the flat Goal Kanban card wiring by passing its required stable empty `childGoals` list, defaults an unspecified Tasks Doer-column visibility to visible, and narrows persisted column-order ids before checking the fixed workflow-order tuple.
@@ -247,6 +256,83 @@ Revert the focused changes above. If Cancelled statuses have been assigned after
 - Removed all temporary **Reset Start My Day** controls from the Daily Commitments ribbon and Day Review planned/closed states. The associated client-only reset callback and state wiring are also removed. The normal Start My Day, Review My Day, checkout, and attendance punch flows are unchanged.
 - Verification: `vitest run tests/unit/day-review-row-actions.test.tsx tests/unit/attendance-plan-gate.test.ts tests/unit/daily-start-exemption.test.ts` passed: 3 files, 38 tests. `git diff --check` passed; a reference scan found no remaining reset-control text or props under the Daily Commitments planner.
 
+## Admin UI/UX Designer module coverage (2026-10-09)
+
+- The administrator-only UI/UX Designer now exposes a persisted design target for every registered application workspace: WMS, Admin, Employees, HR, Sales, Training, Accounts, Monthly Events Master, Goals, Performance, Billing, Hand-holding, Project, Operations, Incentive, and Control Panel. Global, supported page, and shared-component targets remain available.
+- This expands the target registry and draft/publish scope only. Applying a stored module configuration to each production module at runtime remains a follow-up integration step; no business logic, routes, data actions, or authorization behavior in those modules changes from this registry expansion.
+
+## Admin UI/UX Designer WMS module preview (2026-10-09)
+
+- Selecting WMS Module now renders a WMS-specific design preview rather than the generic component placeholder. It contains Dashboard, Tasks, Daily Commitments, and Reports areas. Each preview card expands or collapses independently when selected, so an administrator can inspect compact and expanded alignment before saving a design.
+- The configured colour, spacing, and radius are reflected across the WMS preview. The copy control now moves the current in-memory settings to a selected registered target, where the administrator can adjust them and save a separate draft. This does not copy production data, actions, access, or business rules.
+
+## Admin UI/UX Designer removal (2026-10-09)
+
+- Removed the UI/UX Designer from the Admin Panel at the feature owner's request. The navigation entry, route, preview workspace, actions, target registry, Drizzle schema declarations, and un-applied `0270_ui_designer.sql` migration have been removed together, leaving no incomplete Admin Panel surface or database dependency.
+
+## Temporary in-module arrangement mode (2026-10-09)
+
+- Added a temporary, administrator-only **Arrange UI** control within application workspace pages. It operates per page (not per whole module) and only on direct, high-level `PageShell` regions. It cannot drag task rows, form fields, buttons, permissions, or live data controls.
+- While active, eligible regions receive a visible drag treatment. Admins can reorder them, save the arrangement for that page in their current browser, right-click to copy the compatible arrangement, and paste it into another page before saving. The configuration is intentionally browser-local for this temporary test tool; it is not a production database layout system.
+- The shared `PageShell` now identifies its surface for the arrangement tool. Removing the temporary UI later requires retaining or replacing the layout applier if browser-saved arrangements are meant to continue applying.
+- Corrected the arrangement tool's initial hydration behaviour: with no saved layout it now makes no client-side changes to streamed page children. This prevents its prior generated region marker from being inserted before a nested Dashboard client component completed hydration.
+- A saved browser arrangement is now applied only when an admin explicitly enters Arrange UI, rather than automatically on page load. This avoids mutating a streamed Dashboard `PageShell` before nested client components hydrate; the draft remains available to edit, paste, or save without causing a hydration mismatch.
+- The WMS Dashboard now declares its report-panel stack as the preferred arrangement surface. In Arrange UI mode, each top-level dashboard report section can be reordered independently; the sticky filters, dashboard navigation, and their interactive controls remain fixed to avoid breaking filtering and navigation behaviour.
+- The Dashboard status KPI chips participate in the same temporary Arrange UI mode. When active, each status chip has its own drag outline and can be reordered independently; clicking the shared Save control persists the chip order in the temporary browser-local dashboard draft. Counts, status mapping, links, and KPI behaviour are unchanged.
+- The full KPI strip is now also a top-level Dashboard layout block. It can be moved before, between, or after the report-panel sections through Arrange UI, while the individual status chips remain reorderable only within that strip.
+
+## Goals navigation cleanup (2026-10-09)
+
+- Removed the Daily Goals entry from both the professional and personal Goals rails. The WMS Daily Commitments/Daily Goals route itself remains available from WMS; no daily planner data or behaviour changed.
+
+## Shared top-bar search alignment (2026-10-09)
+
+- Standardized the existing global-search triggers in the shared Aura module header and the Hub header: both now use the same 36px rounded-square control, border, surface, icon size, and hover treatment as the established app header control. This aligns search presentation across modules without adding new search controls or changing search behavior.
+- Standardized the existing right-pinned WMS filter-ribbon local search to the same 36px footprint used by Daily Commitments and Dashboard section searches. Existing Dashboard card searches already use that shared size and right-hand action slot, so all WMS search triggers now have the same alignment model.
+- Shifted only the Dashboard filter-ribbon search icon four pixels right. Daily Commitments keeps its original profile-area local-search position; global header search placement and other module controls are unchanged.
+
+## Local logs-ingest route recovery (2026-10-09)
+
+- Investigated repeated local `POST /api/logs/ingest` 404 responses. The handler source and generated route manifest were both present, proving this was a stale Next development-server route registry rather than a missing API route.
+- Stopped the stale server, rebuilt the generated `.next` cache, and restarted the project dev server on port 3000. A post-restart request reaches the handler and returns its normal validation response instead of 404. No application, database, or authorization code changed.
+
+## Project Hierarchy View ribbon alignment (2026-10-09)
+
+- Shifted the Project Dashboard and Project Hierarchy View local-search controls twelve pixels to the right. The project selector, Expand all and Collapse actions, top-bar search, and all other module ribbons are unchanged.
+- Replaced only the Projects register's wide search field with the same compact local-search trigger, placed in the top Project ribbon on the right below the profile area. It expands to the original field when selected. Milestone and Result registers retain their existing full-width search field.
+- Removed the redundant Projects register row-count label (for example, `20 projects`); the status KPI strip remains the summary for that page.
+- Moved the Projects register status KPI strip to the top of the page content so it occupies the space directly below the Project ribbon. The existing ordering on Milestone and Result registers is unchanged.
+- Moved the Projects register Hierarchy View link onto that same upper KPI row, aligned to its right. Its prior standalone header row is no longer rendered for Projects; other register headers are unchanged.
+- The Project KPI strip now reuses the shared task KPI chip presentation and reacts to the top-bar Doer/Initiator switch. It displays the matching status vocabulary and counts for that perspective; selecting a chip applies its matching perspective filter, and selecting it again (or Total) clears the status filter.
+
 ### Rollback and deployment
 
 - Revert the application commit to undo UI and resilience changes. The attendance migration is additive; if it is applied, do not drop live columns as a casual rollback. Use the normal migration rollback decision process.
+
+## Dashboard, Project Plan, and local validation follow-up (2026-10-12)
+
+### Objective and status
+
+- Standardize the requested WMS, Goals, and Project Plan dashboard presentation while retaining the existing data flows and permissions. The branch also includes the small Admin Panel menu-navigation reliability fix and the temporary administrator-only page arrangement utility.
+- No database schema, migration, API contract, or authorization-policy change is included in this follow-up. The observed local database query timeouts remain an environment/database-availability issue and were not worked around in application code.
+
+### Changed surfaces
+
+- Goals dashboard filters, overview cards, board table, shared filter/search controls, headers, and KPI presentation now use the requested WMS-style layout and action ordering without changing filter or dashboard business logic.
+- Project Plan dashboard, hierarchy/register pages, Kanban board, status KPI strip, and creation controls received the requested compact ribbons, rectangular board regions, hidden native scrollbar treatment, and status movement/presentation refinements while retaining existing dialogs and drag-and-drop data handling.
+- `components/header/user-menu.tsx` now routes the Admin Panel menu selection through the Next router from the dropdown selection event, preventing the menu layer from swallowing the navigation.
+- `components/layout/page-layout-arranger.tsx` is the browser-local, administrator-only arrangement utility used by `PageShell`; it does not store layouts in the database or alter user permissions.
+- `package.json` keeps the local development/build memory setting at 6144 MB after reconciling the current `origin/main` setting.
+
+### Validation and known limitations
+
+- Clean local Next production compilation completed successfully in 3.5 minutes. Turbopack emitted existing NFT tracing warnings from `next.config.ts` / dynamic filesystem paths.
+- The final built-in Next TypeScript worker failed with Windows `spawn EPERM`; this occurs while spawning the checker rather than from an application diagnostic.
+- After removing only ignored generated caches (`.next/` and `task-management/.next/`), direct `node_modules/.bin/tsc.cmd --noEmit` completed successfully with exit code 0. The nested cache had stale generated route declarations that conflicted with this workspace.
+- `git diff --check` passed (Git reports the existing CRLF notice for `package.json`). The configured `pnpm build` remains unavailable locally because Corepack cannot verify the pinned pnpm signature after registry retrieval; no verification setting was disabled.
+- `.next-dev-cache-backup/` and `.pnpm-store/` are local generated directories and must remain uncommitted.
+
+### Rollback and next steps
+
+- Revert this feature-branch commit to remove these UI/layout and navigation refinements. Browser-local page arrangement drafts can be removed from local storage independently; no database rollback is needed.
+- After the branch push, monitor the PR's latest `test` check. CI should be treated as the authoritative frozen-lockfile validation because the local pnpm wrapper could not establish a verified package-manager version.

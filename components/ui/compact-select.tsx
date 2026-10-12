@@ -61,6 +61,7 @@ export function CompactSelect({
   panelWidth = 240,
   /** Match the trigger's width instead of `panelWidth` — for full-width fields. */
   matchTriggerWidth = false,
+  placeholderClassName,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -75,6 +76,7 @@ export function CompactSelect({
   title?: string;
   panelWidth?: number;
   matchTriggerWidth?: boolean;
+  placeholderClassName?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -163,7 +165,7 @@ export function CompactSelect({
             }
           }}
         >
-          <span className={cn("min-w-0 flex-1 truncate", !selected && "text-ink-subtle")}>
+          <span className={cn("min-w-0 flex-1 truncate", !selected && (placeholderClassName ?? "text-ink-subtle"))}>
             {selected?.label ?? placeholder}
           </span>
           <ChevronDown

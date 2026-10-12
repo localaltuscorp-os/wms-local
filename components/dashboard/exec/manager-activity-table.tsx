@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronUp, Loader2, Users, ArrowLeftRight } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Send, Users, ArrowLeftRight } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionIcon } from "@/components/dashboard/section-icon";
 import { SectionSearchBox } from "@/components/dashboard/section-chrome";
@@ -1124,7 +1124,7 @@ export function ManagerActivityTable({
   return (
     <section className="relative min-w-0" aria-label="Manager activity board">
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="red" />}
+        icon={<SectionIcon icon={Send} tone="red" />}
         title="Who is Delegating, and How Much"
         subtitle={
           targets

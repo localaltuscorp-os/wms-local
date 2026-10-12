@@ -70,6 +70,11 @@ function Triangle({ size = 40, glow = true }: { size?: number; glow?: boolean })
       // loading after it has already drifted into view.
       loading="eager"
       style={{
+        // Tailwind's image reset sets `height: auto`; state that intended
+        // proportional sizing here so next/image does not report it as an
+        // accidental one-axis resize in development.
+        width: w,
+        height: "auto",
         objectFit: "contain",
         filter: glow ? "drop-shadow(0 4px 14px rgba(225,6,0,0.45))" : undefined,
       }}

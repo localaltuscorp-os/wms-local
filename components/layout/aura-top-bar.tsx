@@ -361,11 +361,11 @@ export function AuraTopBar({
             trigger={
               <button
                 type="button"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-hairline bg-white/70 text-ink-muted transition hover:border-hairline-strong hover:text-ink-strong"
+                className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-hairline-strong bg-surface-soft text-ink-strong transition-colors hover:bg-surface-card hover:text-ink-strong"
                 aria-label="Search the whole app (Ctrl+K)"
                 title="Search · Ctrl+K"
               >
-                <Search size={16} strokeWidth={2.2} aria-hidden />
+                <Search size={17} strokeWidth={2.3} aria-hidden />
               </button>
             }
           />

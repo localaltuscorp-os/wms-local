@@ -3344,7 +3344,7 @@ export function GoalTableView(props: GoalTableViewProps) {
 
       {/* ---------- the table ---------- */}
       <div
-        className="table-scroll wg-rise bg-surface-card rounded-section border border-hairline overflow-x-auto overflow-y-auto overscroll-x-contain max-h-[calc(100vh-260px)]"
+        className={cn("table-scroll wg-rise bg-surface-card rounded-section border border-hairline overflow-x-auto overflow-y-auto overscroll-x-contain max-h-[calc(100vh-260px)]", level === "year" && "goals-yearly-hide-x-scrollbar")}
         onKeyDown={grid.onKeyDown}
         onBlur={(e) => {
           // Clear the active-cell highlight when focus leaves the table entirely

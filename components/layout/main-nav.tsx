@@ -8,6 +8,7 @@ import {
   ClipboardList,
   CalendarDays,
   FolderTree,
+  FolderKanban,
   SquareKanban,
   Target,
   ListChecks,
@@ -735,7 +736,7 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
       // rows by level once you know which branch you want.
       { href: "/project-plan/dashboard" as Route, label: "Dashboard", Icon: LayoutDashboard, exact: true },
       { href: "/project-plan/views" as Route, label: "Hierarchy View", Icon: FolderTree, exact: true },
-      { href: "/project-plan" as Route, label: "Projects", Icon: FolderTree, exact: true },
+      { href: "/project-plan" as Route, label: "Projects", Icon: FolderKanban, exact: true },
       { href: "/project-plan/milestones" as Route, label: "Milestones", Icon: Flag },
       { href: "/project-plan/results" as Route, label: "Results", Icon: Target },
       { href: "/project-plan/actions" as Route, label: "Actions", Icon: ListChecks },
@@ -786,16 +787,6 @@ const WORKSPACE_NAV: Record<WorkspaceId, WorkspaceNav> = {
         Icon: CalendarCheck,
         not: ["/goals/weekly/team"],
       },
-      // DAILY GOALS — the same page as WMS › Daily Goals, on the same `/my-day`
-      // href (Sir 2026-08-20: "keep it right below Weekly Goals"). Deliberately
-      // NOT a second route: one planner, one URL, one set of daily_checklist
-      // rows. `/goals/plan` remains a redirect stub to it.
-      //
-      // NOTE the side effect of sharing the href: workspaceForPath maps
-      // `/my-day` to the WMS room, so opening it from here switches the sidebar
-      // to WMS. Pointing this entry at `/goals/plan` instead would keep the
-      // rail but bounce through a redirect to the same place.
-      { href: "/my-day" as Route, label: "Daily Goals", Icon: CalendarDays },
       // "Cascade" removed — the canvas is retired as the UI; the four level
       // pages (board design) + rituals below are the whole module. Cross-level
       // moves live in each card's "Move to…" drawer (the drag-to-sidebar
@@ -848,8 +839,6 @@ const GOALS_PERSONAL_NAV: WorkspaceNav = {
     { href: "/goals/quarterly" as Route, label: "Quarterly Goals", Icon: Target },
     { href: "/goals/monthly" as Route, label: "Monthly Goals", Icon: CalendarRange },
     { href: "/goals/weekly" as Route, label: "Weekly Goals", Icon: CalendarCheck },
-    // Daily Goals — same page, same href as the professional rail above.
-    { href: "/my-day" as Route, label: "Daily Goals", Icon: CalendarDays },
     { href: "/goals/recycle-bin" as Route, label: "Recycle Bin", Icon: Trash2, adminOnly: true },
   ],
   groups: [],

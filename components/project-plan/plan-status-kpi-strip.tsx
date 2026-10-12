@@ -1,56 +1,89 @@
 "use client";
 
-import { PLAN_STATUS_LABEL, PLAN_STATUS_TONE, type PlanStatus } from "@/lib/project-plan/status";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import {
+  DOER_TASK_KPI_SPECS,
+  INITIATOR_TASK_KPI_SPECS,
+  TaskStatusKpiChip,
+  type TaskKpiKey,
+  type TaskKpiView,
+} from "@/components/tasks/task-status-kpi-strip";
+import { setPlanNodeStatus } from "@/app/(app)/project-plan/actions";
+import { fireToast } from "@/lib/toast";
 
-const DOER_STATUSES: string[] = [
-  "dont_know", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned",
-];
+export const PROJECT_STATUS_FOR_KPI: Partial<Record<TaskKpiKey, string>> = {
+  notRead: "dont_know",
+  notStarted: "not_started",
+  initiated: "initiated",
+  followUp: "follow_up",
+  needInfo: "need_info",
+  done: "done",
+  abandoned: "abandoned",
+  pending: "pending",
+  approved: "approved",
+  notApproved: "not_approved",
+  onHold: "on_hold",
+  cancelled: "cancelled",
+  archived: "archived",
+};
 
 export function PlanStatusKpiStrip({
   counts,
   total,
-  activeStatus,
-  onStatusChange,
+  view = "doer",
+  activeKey,
+  onKpiChange,
 }: {
   counts: Record<string, number>;
   total: number;
-  activeStatus: string | null;
-  onStatusChange: (status: string | null) => void;
+  view?: TaskKpiView;
+  activeKey: TaskKpiKey | null;
+  onKpiChange: (key: TaskKpiKey) => void;
 }) {
+  const specs = view === "initiator" ? INITIATOR_TASK_KPI_SPECS : DOER_TASK_KPI_SPECS;
+  const router = useRouter();
+  const [savingKey, setSavingKey] = React.useState<string | null>(null);
+  const moveDroppedNode = async (event: React.DragEvent<HTMLButtonElement>, status: string, label: string) => {
+    event.preventDefault();
+    if (savingKey) return;
+    try {
+      const payload = JSON.parse(event.dataTransfer.getData("application/x-altus-project-node")) as { id?: unknown };
+      if (typeof payload.id !== "string") return;
+      setSavingKey(status);
+      const result = await setPlanNodeStatus({ id: payload.id, status });
+      if (!result.ok) {
+        fireToast({ message: result.error ?? "You can't move this project to that status.", type: "error" });
+        return;
+      }
+      fireToast({ message: `Project moved to ${label}` });
+      router.refresh();
+    } catch {
+      fireToast({ message: "Couldn't move this project. Please try again.", type: "error" });
+    } finally {
+      setSavingKey(null);
+    }
+  };
   return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label="Project status summary">
-      <PlanStatusKpiChip label="Total" value={total} tone="#64748B" active={activeStatus === null} onClick={() => onStatusChange(null)} />
-      {DOER_STATUSES.map((status) => (
-        <PlanStatusKpiChip
-          key={status}
-          label={status === "pending" ? "Pending" : PLAN_STATUS_LABEL[status as PlanStatus]}
-          value={counts[status] ?? 0}
-          tone={PLAN_STATUS_TONE[status as PlanStatus]}
-          active={activeStatus === status}
-          onClick={() => onStatusChange(activeStatus === status ? null : status)}
-        />
-      ))}
+    <div className="flex flex-wrap items-center gap-2" aria-label={`${view === "initiator" ? "Initiator" : "Doer"} project status summary`}>
+      {specs.map((spec) => {
+        const status = PROJECT_STATUS_FOR_KPI[spec.key];
+        const value = spec.key === "total" ? total : counts[status ?? ""] ?? 0;
+        const acceptsDrop = view === "doer" && Boolean(status);
+        return (
+          <button
+            key={spec.key}
+            type="button"
+            onClick={() => onKpiChange(spec.key)}
+            onDragOver={(event) => { if (acceptsDrop && !savingKey) event.preventDefault(); }}
+            onDrop={(event) => { if (acceptsDrop && status) void moveDroppedNode(event, status, spec.label); }}
+            aria-pressed={spec.key === activeKey}
+            className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-altus-red/50"
+          >
+            <TaskStatusKpiChip spec={spec} value={value} active={spec.key === activeKey} />
+          </button>
+        );
+      })}
     </div>
-  );
-}
-
-function PlanStatusKpiChip({ label, value, tone, active, onClick }: { label: string; value: number; tone: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className="inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 transition-all duration-150"
-      style={{
-        background: `color-mix(in srgb, ${tone} 8%, white)`,
-        borderColor: active ? "white" : `color-mix(in srgb, ${tone} 28%, white)`,
-        color: tone,
-        boxShadow: active ? "0 0 0 1px rgba(15,23,42,0.10)" : undefined,
-      }}
-    >
-      <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: tone }} />
-      <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{value}</span>
-      <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>{label}</span>
-    </button>
   );
 }

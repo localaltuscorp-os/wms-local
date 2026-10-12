@@ -49,6 +49,31 @@ export async function localSessionEmployee(): Promise<Employee | null> {
   const wanted = process.env.DEV_USER_EMAIL?.trim().toLowerCase();
 
   if (wanted) {
+    // The local-session value is normalized to lowercase. Direct equality lets
+    // PostgreSQL use the normal email indexes; applying lower() to each column
+    // can force a full employees-table scan and exceed the statement timeout.
+    const emailMatch = await retryOnDroppedConnection(
+      () =>
+        db.query.employees.findFirst({
+          where: eq(employees.email, wanted),
+        }),
+      "local-session",
+    );
+    if (emailMatch) return emailMatch;
+
+    // Do this separately from the primary-email lookup. Combining the two with
+    // `OR` lets Postgres ignore the unique `employees.email` index when
+    // `official_email` is not indexed, turning every local page load into a
+    // full roster scan.
+    const officialEmailMatch = await retryOnDroppedConnection(
+      () =>
+        db.query.employees.findFirst({
+          where: eq(employees.officialEmail, wanted),
+        }),
+      "local-session",
+    );
+    if (officialEmailMatch) return officialEmailMatch;
+
     // Retried once if the pooler dropped the connection under it — this is
     // the first query of every local request, so a dropped socket here was
     // taking the whole page down with a "Failed query" error.
