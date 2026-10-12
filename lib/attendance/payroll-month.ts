@@ -12,7 +12,7 @@
 //   lib/queries/attendance-status.ts  getMonthDashboard's per-employee payroll
 //                                     block (the one the salary engine reads)
 //   lib/queries/attendance-summary.ts salaryLostForMonth  (the Attendance KPI)
-//   lib/queries/attendance-summary.ts graceForMonth       (half-day grace)
+//   lib/queries/attendance-summary.ts graceForMonth       (target-met half-day waiver)
 //
 // Three copies of an ordering that MATTERS: `payableHoursForMonth` takes the
 // reconciliation as an input, the reconciliation takes the employee's resolved
@@ -30,6 +30,7 @@
 
 import {
   monthKeyOf,
+  HALF_DAY_SALARY_FRACTION,
   payableHoursForMonth,
   reconcileMonth,
   type GradedDayInput,
@@ -89,8 +90,10 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    *  excluded) — the self-view's requiredElapsedHours. Overtime is worked beyond
    *  this, so My Salary and the Attendance page report one overtime figure. */
   requiredElapsedMinutes: number;
-  /** Half-days charged at 50% — the 4th onward; the first three are waived. */
+  /** Actual half-days charged at 50% under the half-day attendance policy. */
   chargeableHalfDays: number;
+  /** Additional half-day deductions from late marks in short full-time weeks. */
+  latePenaltyHalfDays: number;
   /**
    * Days of approved UNPAID leave. Carried alongside the hours rather than
    * folded into them: an LWP day leaves the TARGET (so no hour deficit is
@@ -98,7 +101,11 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    * engine — see `payableHoursForMonth` and `computeScheduleHourlySalary`.
    */
   unpaidLeaveDays: number;
-  /** Surplus/deficit carried inside this calendar month only. */
+  /**
+   * Signed hours difference for the month. Before September 2026 it is the
+   * within-month carry; from September it is informational because weeks are
+   * settled independently and never carry into one another.
+   */
   monthlyHourBalanceMinutes: number;
   /**
    * Σ day-values over the ELAPSED days of the month — the full-timer's pay
@@ -107,7 +114,9 @@ export interface EmployeePayrollMonth extends PayableHoursResult {
    *
    * A complete 31-day month sums to 31 and pays the salary exactly, because
    * weekly offs, holidays, paid leave and comp-off are all worth a full day and
-   * only absence and unpaid leave are worth nothing.
+   * only absence and unpaid leave are worth nothing. Half-days forgiven by the
+   * monthly grace or weekly-hours waiver are restored here; chargeable
+   * half-days remain worth 0.5.
    */
   payableDayValue: number;
   /**
@@ -193,6 +202,10 @@ export function payrollMonthFor(
     refTodayISO,
   });
   const hours = payableHoursForMonth(graded, recon, cfg.dailyTargetMinutes);
+  const rawPayableDayValue = payableDayValue(joined, refTodayISO);
+  const forgivenHalfDayValue =
+    (recon.warnedHalfDays + recon.waiverAbsorbedHalfDays) *
+    HALF_DAY_SALARY_FRACTION;
 
   // Hours the employee was REQUIRED to work so far — elapsed working days ×
   // daily target — through the SAME shared predicate the self-view uses
@@ -216,11 +229,18 @@ export function payrollMonthFor(
       dailyTargetMinutes: cfg.dailyTargetMinutes,
       requiredElapsedMinutes,
       chargeableHalfDays: recon.chargeableHalfDays,
+      latePenaltyHalfDays: recon.latePenaltyHalfDays,
       unpaidLeaveDays: hours.unpaidLeaveDays,
       monthlyHourBalanceMinutes: recon.monthlyHourBalanceMinutes,
       // `joined` is already bounded to elapsed, gradeable days, so this is the
       // month SO FAR — the same set every other figure above was derived from.
-      payableDayValue: payableDayValue(joined, refTodayISO),
+      // The grader records every H/D as 0.5. Reconciliation decides which of
+      // those halves are actually forgiven: only half-days in a week that meets
+      // its target. In a missed-target week, every half-day remains a half-pay
+      // day. Restore only the forgiven halves here.
+      // Manual/admin waive-offs remain a separate salary-breakup adjustment;
+      // including them here as well would credit the same waiver twice.
+      payableDayValue: rawPayableDayValue + forgivenHalfDayValue,
       elapsedGradedDays: joined.length,
     },
   };

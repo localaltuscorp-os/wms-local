@@ -48,11 +48,15 @@ export const getIntegrationHealth = cache(
     const out: IntegrationStatus[] = [];
 
     const resendKey = process.env.RESEND_API_KEY;
+    const smtpHost = process.env.SMTP_HOST?.trim();
+    const smtpConfigured = Boolean(
+      smtpHost && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS,
+    );
     const emailStats = await deliveryStats("email");
     out.push({
       channel: "email",
-      connected: !!resendKey,
-      maskedKey: mask(resendKey),
+      connected: smtpConfigured || !!resendKey,
+      maskedKey: smtpConfigured ? mask(smtpHost) : mask(resendKey),
       ...emailStats,
     });
 

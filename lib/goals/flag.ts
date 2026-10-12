@@ -44,7 +44,7 @@ export function planGateOn(): boolean {
 }
 
 /**
- * FORGOTTEN LOGOUT → automatic Half Day at 23:59 IST (the autoout cron).
+ * FORGOTTEN LOGOUT → automatic Absent at 23:59 IST (the autoout cron).
  *
  * ── ON BY DEFAULT, WHICH IS A CHANGE ───────────────────────────────────────
  * This replaces `compulsoryPunchoutOn()`, which was hard-coded `return false`
@@ -59,8 +59,9 @@ export function planGateOn(): boolean {
  * name that mis-describes an enabled behaviour is worse than one that
  * mis-describes a disabled one.
  *
- * `FORGOTTEN_LOGOUT_HALF_DAY=off` disables it — an operator escape hatch for a
- * day when the classification needs to be paused, not a default.
+ * `FORGOTTEN_LOGOUT_HALF_DAY=off` disables it. The legacy environment-variable
+ * name is retained to avoid silently changing deployed configuration; it now
+ * controls the forgotten-logout Absent policy.
  */
 export function forgottenLogoutHalfDayOn(): boolean {
   return process.env.FORGOTTEN_LOGOUT_HALF_DAY !== "off";

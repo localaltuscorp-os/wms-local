@@ -85,12 +85,12 @@ export async function markPolicySigned(
  *  the typeKey when it is a registered policy, else null. */
 export async function policyKeyForInstance(docInstanceId: string): Promise<string | null> {
   const { documentInstances } = await import("@/db/schema");
-  const { isPolicyKey } = await import("./registry");
+  const { loadPublishedPolicy } = await import("./load-db");
   const [row] = await db
     .select({ typeKey: documentInstances.typeKey })
     .from(documentInstances)
     .where(eq(documentInstances.id, docInstanceId))
     .limit(1);
   const key = row?.typeKey ?? null;
-  return key && isPolicyKey(key) ? key : null;
+  return key && (await loadPublishedPolicy(key)) ? key : null;
 }

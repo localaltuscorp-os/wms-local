@@ -10,6 +10,18 @@ import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { matchesDepartment } from "@/lib/workspaces";
 
 /**
+ * Session-derived viewers can lack an email even though persisted employee rows
+ * cannot. A missing email is safe here: `isSuperAdmin` rejects it and the
+ * remaining HR decision still uses the authenticated employee id/department.
+ */
+type HrAccessEmployee = Omit<
+  Pick<Employee, "id" | "email" | "isAdmin" | "department">,
+  "email"
+> & {
+  email: string | null;
+};
+
+/**
  * HR Support access — the role fork + the grievance wall live here.
  *
  * Two roles inside the HR help desk:
@@ -31,7 +43,7 @@ export const HR_DEPARTMENT = "HR";
  * are; otherwise membership of the "HR" department. One small indexed lookup —
  * called on the HR desk entry path, not the hot dashboard path.
  */
-export async function isHrHandler(me: Employee): Promise<boolean> {
+export async function isHrHandler(me: HrAccessEmployee): Promise<boolean> {
   if (isSuperAdmin(me.email)) return true;
   if (me.isAdmin) return true;
   const structured = await employeeDepartmentNames(me.id).catch(() => [] as string[]);
@@ -46,7 +58,7 @@ export async function isHrHandler(me: Employee): Promise<boolean> {
  * employee who only sees the limited HR view: their own record (the /portal
  * self-service), the Holiday List, and the Help Desk.
  */
-export async function isHrStaff(me: Employee): Promise<boolean> {
+export async function isHrStaff(me: HrAccessEmployee): Promise<boolean> {
   if (isSuperAdmin(me.email)) return true;
   const structured = await employeeDepartmentNames(me.id).catch(() => [] as string[]);
   const departments = me.department ? [...structured, me.department] : structured;

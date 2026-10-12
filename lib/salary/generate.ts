@@ -80,6 +80,7 @@ export interface MonthInputRow {
     payableHoursRaw: number;
     dailyTargetHours: number;
     chargeableHalfDays: number;
+    latePenaltyHalfDays: number;
     /**
      * Days of approved UNPAID leave. The target already excludes them (nobody
      * is asked to work an approved day off back), so without this the month
@@ -122,6 +123,7 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
       overtimeEligible: earnsOvertime(r.workerType),
       eligibleTargetHours:
         r.payroll && r.payroll.monthlyTargetHours > 0 ? r.payroll.monthlyTargetHours : null,
+      unpaidLeaveDays: r.payroll?.unpaidLeaveDays ?? 0,
       overtimeThresholdHours: r.overtimeThresholdHours,
       ptExempt: r.input.ptExempt,
       tdsMonthly: r.input.tdsMonthly,
@@ -145,6 +147,7 @@ export function computeForRow(r: MonthInputRow): SalaryBreakdown {
       daysInMonth: r.daysInMonth,
       workingHoursPerDay: r.workingHoursPerDay,
       payableDayValue: r.payroll.payableDayValue,
+      latePenaltyHalfDays: r.payroll.latePenaltyHalfDays,
       ptExempt: r.input.ptExempt,
       tdsMonthly: r.input.tdsMonthly,
       advances: r.input.advances,
@@ -248,9 +251,11 @@ export async function assembleMonthInputs(
         payableHoursRaw: pr.payableMinutesRaw / 60,
         dailyTargetHours: pr.dailyTargetMinutes / 60,
         chargeableHalfDays: pr.chargeableHalfDays,
+        latePenaltyHalfDays: pr.latePenaltyHalfDays,
         unpaidLeaveDays: pr.unpaidLeaveDays,
-        // Netted across the WHOLE month by `payableHoursForMonth` — a short week
-        // cancels a long one, so this is genuine extra time rather than a swing.
+        // Before September 2026 this is netted across the month. From September,
+        // `payableHoursForMonth` settles every week separately: long-week hours
+        // never cover a later short week.
         netSurplusHours: pr.netSurplusMinutes / 60,
       };
     };

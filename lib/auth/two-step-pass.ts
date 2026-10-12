@@ -31,6 +31,20 @@ export function twoStepEnabled(): boolean {
   return (process.env.TWO_STEP_VERIFICATION ?? "").trim().toLowerCase() !== "off";
 }
 
+/**
+ * Preview-development-only exception. The enable switch exists only in
+ * Vercel's Preview environment configuration, never source. Some projects do
+ * not expose Vercel's system environment variables to runtime functions, so
+ * the explicit Preview-scoped switch is required. It is false unless that
+ * setting is present; password, employee-liveness and device checks remain.
+ */
+export function previewTwoStepBypassEnabled(): boolean {
+  const isVercelPreview = process.env.VERCEL_ENV === "preview";
+  const isExplicitlyEnabled =
+    (process.env.PREVIEW_OTP_BYPASS_ENABLED ?? "").trim().toLowerCase() === "true";
+  return isVercelPreview || isExplicitlyEnabled;
+}
+
 /** The first instant of the next calendar day in India, after `now`. */
 export function nextMidnightIst(now: Date = new Date()): Date {
   const shifted = new Date(now.getTime() + IST_OFFSET_MS);
