@@ -23,7 +23,9 @@ Bring the commits present on `localaltuscorp-os/Altus-OS` `main` into the develo
 
 - Merge completed without conflicts.
 - `git diff --check origin/main...HEAD` passed.
-- Required repository checks must pass on the latest branch SHA before merge.
+- `pnpm.cmd test` started Vitest but produced no test result before the 180-second local timeout.
+- `pnpm.cmd typecheck` exhausted Node's default heap after about 79 seconds. Retrying the same compiler with a 4 GB heap produced no diagnostics before the 300-second local timeout.
+- The sync's net tree change contains no TypeScript application files. The required GitHub `test` check must provide the definitive validation result on the latest branch SHA before merge.
 
 ## Rollback
 
