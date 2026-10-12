@@ -2,7 +2,8 @@ import "server-only";
 
 import type { Employee } from "@/db/schema";
 import type { AttendanceAuthorizationContext } from "@/db/enums";
-import { canManageOthersAttendance, ATTENDANCE_OTHERS_REFUSAL } from "@/lib/security/capabilities";
+import { ATTENDANCE_OTHERS_REFUSAL } from "@/lib/security/capabilities";
+import { canManageOthersAttendance } from "@/lib/auth/security-roles";
 import { resolveDeviceContext } from "@/lib/security/device-access";
 import {
   selfCorrectionWindow,
@@ -78,7 +79,7 @@ export async function authorizeAttendanceMutation(
 ): Promise<AttendanceDecision> {
   const now = req.now ?? new Date();
   const isSelf = req.targetEmployeeId === req.actor.id;
-  const privileged = canManageOthersAttendance(req.actor.email);
+  const privileged = await canManageOthersAttendance(req.actor);
 
   /* ── 1. DEVICE. The request must come from an authorized device. ────────── */
   //
