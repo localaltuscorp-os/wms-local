@@ -3,7 +3,8 @@
 - Date: 2026-10-12
 - Branch: `feature/attendance-manager-role`
 - Objective: Make attendance-log editing for other employees depend on the database-backed `attendance_manage` hidden role.
-- Status: Implemented on the feature branch; not merged or deployed.
+- Status: Implemented and verified on the feature branch; release pending.
+- Release commit: `c46a0807`.
 
 ## Summary
 
@@ -30,6 +31,7 @@ No schema or migration change is required; `security_role_grants` already exists
 - Focused ESLint: passed for all changed source and test files.
 - TypeScript: reached the existing unrelated `nodemailer` module/type resolution error in `lib/email/transport.ts` after increasing the local Node heap; no changed-file diagnostic was reported.
 - `git diff --check`: passed.
+- Production release: not yet promoted at handoff update time.
 
 ## Deployment and rollback
 
