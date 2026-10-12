@@ -72,7 +72,7 @@ export const SECURITY_ROLE_DEFS: Record<SecurityRole, SecurityRoleDef> = {
   account_unlock: role("account_unlock", "Account Unlocker", "Release employee accounts locked after failed sign-ins.", "Security", true),
   device_exempt: role("device_exempt", "Device Restriction Exemption", "Use the system without registering the current device.", "Security"),
   device_manage: role("device_manage", "Device Manager", "Approve, register and revoke employee devices.", "Security"),
-  attendance_manage: role("attendance_manage", "Attendance Manager", "Edit other employees' attendance and override locks.", "Attendance"),
+  attendance_manage: role("attendance_manage", "Attendance Manager", "Edit other employees' attendance and override locks.", "Attendance", true),
   attendance_audit_view: role("attendance_audit_view", "Attendance Audit Viewer", "Read the attendance change history.", "Attendance"),
   attendance_settings_manage: role("attendance_settings_manage", "Attendance Settings Administrator", "Manage device, office IP and attendance settings.", "Attendance"),
   attendance_punch_anywhere: role("attendance_punch_anywhere", "Punch From Anywhere", "Punch attendance from any location or network while keeping login, device and anti-spoof security active.", "Attendance", true),

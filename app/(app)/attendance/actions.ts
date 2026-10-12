@@ -514,9 +514,9 @@ function punchTimeLabel(at: Date | null | undefined, tz: string): string | null 
  * This used to be `requireAdmin()` — every admin in the company could rewrite
  * anybody's attendance. It is now `requireUser()` plus
  * `authorizeAttendanceMutation`, which grants changing SOMEONE ELSE'S
- * attendance only to holders of `attendance.manage_others`. That is a genuine
- * NARROWING and it is the point: attendance decides pay, and the rule asked for
- * names two people rather than a role that thirty accounts carry.
+ * attendance only to holders of the database-backed `attendance_manage` role.
+ * That is a genuine NARROWING and it is the point: attendance decides pay,
+ * and the approved holders are selected in the Super Admin role panel.
  *
  * An ordinary admin keeps every other admin capability, and keeps their own
  * 15-minute self-correction like everyone else.
@@ -676,8 +676,8 @@ const SuperAdminSetPunch = z.object({
 export async function superAdminSetPunch(input: unknown): Promise<ActionResult> {
   // `requireUser` + the authorization service, NOT `requireAdmin` + super-admin.
   // The super-admin email test used to be the whole gate here; it is now one
-  // input among several, and the capability registry decides. Super-admins who
-  // hold `attendance.manage_others` are unaffected; one who does not now edits
+  // input among several, and the database-backed role decides. Super-admins who
+  // hold `attendance_manage` are unaffected; one who does not now edits
   // only their own attendance, inside their own window — which is the rule the
   // brief asks for, applied without an exception for seniority.
   const me = await requireUser();

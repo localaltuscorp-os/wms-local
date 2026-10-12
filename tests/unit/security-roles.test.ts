@@ -27,8 +27,13 @@ describe("the role catalogue", () => {
 
   it("recognises only its own keys", () => {
     expect(isSecurityRole("account_unlock")).toBe(true);
+    expect(isSecurityRole("attendance_manage")).toBe(true);
     expect(isSecurityRole("account_unlock_v2")).toBe(false);
     expect(isSecurityRole("")).toBe(false);
+  });
+
+  it("marks attendance management as an enforced runtime role", () => {
+    expect(SECURITY_ROLE_DEFS.attendance_manage.enforced).toBe(true);
   });
 
   it("is client-safe, so the screen and the guard read one definition", () => {
