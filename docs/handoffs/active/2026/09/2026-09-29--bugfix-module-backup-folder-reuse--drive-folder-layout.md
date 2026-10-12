@@ -21,10 +21,14 @@ Altus Module Backups/
 
 ## Status
 
-Implemented and verified locally. The folder-reuse commit is `7273722e`, the
-readable-filename commit is `54dff959`, and current `origin/main` was integrated
-without conflicts in `56421e1c`. Authorized direct development push is ready;
-nothing has been deployed to production.
+Implemented and verified. The approved development commits are `7273722e` for
+folder reuse and `54dff959` for readable filenames. They are ancestors of
+`origin/main`. The isolated production release branch is
+`release/module-backup-only-2026-09-30`, based on `fork/main` at `8750402e`,
+with production candidate commits `08b65f75`, `ebc43555`, and documentation
+commits `d6fa5b5c` and `a29a03ce`. The release contains only this backup work.
+It was pushed directly to `fork/main` under the user's explicit release
+authorization and the remote update was verified.
 
 ## Root cause
 
@@ -97,6 +101,14 @@ lookup can only discover folders visible to the application connection.
     - PASS: no errors or warnings.
   - `node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit --pretty false`
     - PASS: zero TypeScript errors.
+- Production candidate based on `fork/main`:
+  - `pnpm.cmd typecheck`: PASS.
+  - Focused folder-reuse test: PASS, 4/4.
+  - Focused readable-filename test: PASS, 4/4 (18 unrelated tests skipped).
+  - Changed-file ESLint: PASS, zero errors.
+  - `pnpm.cmd build`: PASS; optimized build, TypeScript, page collection, and
+    all 36 static pages completed.
+  - `pnpm.cmd check:leaks`: PASS; zero PGlite source or NFT traces.
 
 ## Risks and remaining work
 
@@ -111,6 +123,7 @@ lookup can only discover folders visible to the application connection.
 
 ## Rollback
 
-Revert the folder lookup in `googleDriveClient.ensureFolder` and the filename
-metadata/builder changes. No database or Drive data rollback is required
-because this change does not move, delete, or rename existing content.
+Rollback production to pre-release `fork/main` SHA `8750402e`, or revert the
+three production release commits without rewriting history. No database or
+Drive data rollback is required because this change does not move, delete, or
+rename existing content.
