@@ -22,9 +22,9 @@ import { db } from "@/lib/db";
 import { documentInstances, documentSignatures } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { getEntity } from "@/lib/hr/entities";
 import { getPolicy, isPolicyKey } from "./registry";
 import { markPolicyPending, currentPolicyVersion } from "./compliance-sync";
+import { policyEntityForEmployee } from "./employee-entity";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -33,8 +33,6 @@ const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : S
 export interface AcknowledgePolicyInput {
   /** The policy key (must be a registered, authored policy). */
   key?: string;
-  /** The paying entity the reader signed under (branding only). */
-  entity?: string;
 }
 
 /**
@@ -61,9 +59,10 @@ export async function acknowledgePolicy(
   const policy = getPolicy(key);
   if (!policy) return { ok: false, error: "This policy isn't published yet." };
 
-  const resolvedEntity = getEntity(input.entity ?? policy.entityDefault ?? null);
-
   try {
+    // Branding is owned by the employee's paying-entity assignment, not a
+    // browser-controlled field or the policy's historic default.
+    const entity = await policyEntityForEmployee(me);
     // Which version is published RIGHT NOW. An instance is only reusable when it
     // was filed against this SAME version — otherwise a re-published policy could
     // never be re-signed (the flow found the old signed row and showed "already
@@ -99,8 +98,8 @@ export async function acknowledgePolicy(
           status: "sent",
           // merge_values is a string map — the version is stamped as a string and
           // parsed back with Number() on read.
-          mergeValues: { __entity: resolvedEntity.id, __version: String(version) },
-          bodySnapshotMd: JSON.stringify({ key, entity: resolvedEntity.id, kind: "policy", version }),
+          mergeValues: { __entity: entity.id, __version: String(version) },
+          bodySnapshotMd: JSON.stringify({ key, entity: entity.id, kind: "policy", version }),
           issuedById: me.id,
           issuedAt: new Date(),
         })

@@ -10,9 +10,11 @@ import { listClaimAttachments, type ClaimAttachmentView } from "@/app/(app)/reim
 import { Checkbox } from "@/components/ui/checkbox";
 import { CtcBreakupTab } from "@/components/admin/approvals/ctc-breakup-tab";
 import type { CtcApprovalRow } from "@/lib/hr/ctc/approval-list";
+import { OnboardingApprovalsTab } from "@/components/admin/approvals/onboarding-approvals-tab";
+import type { OnboardingApprovalRow } from "@/lib/hr/onboarding/approval-list";
 
-type ApprovalTab = ApprovalKind | "ctc";
-const TABS: readonly ApprovalTab[] = ["attendance", "incentive", "reimbursement", "salary", "ctc"];
+type ApprovalTab = ApprovalKind | "ctc" | "onboarding";
+const TABS: readonly ApprovalTab[] = ["attendance", "incentive", "reimbursement", "salary", "ctc", "onboarding"];
 const STATUSES: readonly ("all" | ApprovalStatus)[] = ["pending", "approved", "rejected", "paid", "all"];
 
 const money = (amount: number) => `Rs. ${amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -131,9 +133,9 @@ function sortKeyForColumn(column: ApprovalColumn): ApprovalSortKey | null {
     : null;
 }
 
-export function ApprovalWorkbench({ rows, ctcRows, canDecide, canDecideIncentive, workflowReady, allowEdit, testingMode, preview = false }: { rows: ApprovalRow[]; ctcRows: CtcApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; allowEdit: boolean; testingMode: boolean; preview?: boolean }) {
+export function ApprovalWorkbench({ rows, ctcRows, onboardingRows, canDecide, canDecideIncentive, workflowReady, onboardingWorkflowReady, allowEdit, testingMode, preview = false }: { rows: ApprovalRow[]; ctcRows: CtcApprovalRow[]; onboardingRows: OnboardingApprovalRow[]; canDecide: boolean; canDecideIncentive: boolean; workflowReady: boolean; onboardingWorkflowReady: boolean; allowEdit: boolean; testingMode: boolean; preview?: boolean }) {
   const [kind, setKind] = useState<ApprovalTab>("attendance");
-  const approvalKind: ApprovalKind = kind === "ctc" ? "attendance" : kind;
+  const approvalKind: ApprovalKind = kind === "ctc" || kind === "onboarding" ? "attendance" : kind;
   // The local test workspace starts on every status so Edit controls are
   // immediately visible for each approval tab. The real queue remains
   // focused on pending items by default.
@@ -367,12 +369,12 @@ export function ApprovalWorkbench({ rows, ctcRows, canDecide, canDecideIncentive
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Approval sections">
           {TABS.map((tab) => (
             <button key={tab} type="button" role="tab" aria-selected={kind === tab} onClick={() => selectKind(tab)} className={`rounded-lg border px-3 py-2 text-sm font-bold transition-colors ${kind === tab ? "border-red-200 bg-red-50 text-red-700" : "border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50"}`}>
-              {tab === "ctc" ? "CTC Breakup" : labelFor(tab)}
+              {tab === "ctc" ? "CTC Breakup" : tab === "onboarding" ? "Onboarding" : labelFor(tab)}
             </button>
           ))}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {kind === "ctc" ? <Link href="/hr/ctc" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"><ClipboardList size={15} strokeWidth={2.4} aria-hidden /> CTC workspace</Link> : <>
+          {kind === "ctc" ? <Link href="/hr/ctc" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-3 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"><ClipboardList size={15} strokeWidth={2.4} aria-hidden /> CTC workspace</Link> : kind === "onboarding" ? null : <>
           {kind === "attendance" && (
             <Link
               href="/attendance/dashboard"
@@ -392,7 +394,7 @@ export function ApprovalWorkbench({ rows, ctcRows, canDecide, canDecideIncentive
         </div>
       </div>
 
-      {kind === "ctc" ? <CtcBreakupTab rows={ctcRows} /> : <>
+      {kind === "ctc" ? <CtcBreakupTab rows={ctcRows} canDecide={canDecide} workflowReady={workflowReady} /> : kind === "onboarding" ? <OnboardingApprovalsTab rows={onboardingRows} canDecide={canDecide} workflowReady={onboardingWorkflowReady} /> : <>
       {selectedVisibleCount > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm shadow-[0_8px_20px_-18px_rgba(15,23,42,0.4)]" aria-live="polite" role="region" aria-label="Actions for selected approvals">
         <span className="mr-1 font-semibold text-slate-700">{selectedVisibleCount} approval{selectedVisibleCount === 1 ? "" : "s"} selected</span>
         <button type="button" disabled={!canUseSelectedEdit || pending} onClick={() => selectedRow && openDecisionDialog(selectedRow, selectedRow.status === "approved" ? "approved" : "rejected", true)} title={canUseSelectedEdit ? "Edit the selected approval" : "Select one approved or rejected unpaid approval to edit"} className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:border-red-200 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-45"><Pencil size={14} aria-hidden /> Edit</button>

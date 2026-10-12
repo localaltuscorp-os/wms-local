@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { designations, employees, hrAssets, hrContacts, onboardingSubmissions } from "@/db/schema";
 import type { HrAssetIssuedKind } from "@/db/schema";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
+import { employeeDirectoryDetailsFromOnboarding } from "@/lib/hr/employee-directory";
 
 /**
  * Read side of the Address Book + Asset Register. Writes live in the two
@@ -200,29 +201,28 @@ export async function listEmployeeContacts(): Promise<EmployeeContactRow[]> {
     .orderBy(asc(employees.name));
 
   return rows.map((r) => {
-    const fields = (r.fields as Record<string, string> | null) ?? {};
-    const formPhone = String(fields.phone ?? "").trim();
-    const contacts = Array.isArray(fields.emergencyContacts) ? fields.emergencyContacts : [];
-    const emergency = contacts.flatMap((item): Array<{ name: string | null; cell: string | null }> => {
-      if (!item || typeof item !== "object") return [];
-      const value = item as Record<string, unknown>;
-      const name = typeof value.name === "string" ? value.name.trim() || null : null;
-      const cell = typeof value.mobile === "string" ? value.mobile.trim() || null : typeof value.phone === "string" ? value.phone.trim() || null : null;
-      return name || cell ? [{ name, cell }] : [];
-    });
-    const [firstName = "", ...last] = r.name.trim().split(/\s+/);
+    const details = employeeDirectoryDetailsFromOnboarding(
+      (r.fields as Record<string, unknown> | null) ?? {},
+      {
+        name: r.name,
+        personalEmail: r.personalEmail,
+        email: r.email,
+        phone: r.phone,
+        whatsappPhone: r.whatsappPhone,
+      },
+    );
     return {
       id: r.id,
       name: r.name,
-      firstName,
-      lastName: last.join(" "),
+      firstName: details.firstName,
+      lastName: details.lastName,
       designation: r.designation ?? null,
-      cell: formPhone || r.phone || r.whatsappPhone || null,
-      email: r.personalEmail || r.email || null,
-      contact1Name: emergency[0]?.name ?? null,
-      contact1Cell: emergency[0]?.cell ?? null,
-      contact2Name: emergency[1]?.name ?? null,
-      contact2Cell: emergency[1]?.cell ?? null,
+      cell: details.cell,
+      email: details.personalEmail,
+      contact1Name: details.contact1Name,
+      contact1Cell: details.contact1Cell,
+      contact2Name: details.contact2Name,
+      contact2Cell: details.contact2Cell,
       isActive: r.isActive && r.employmentStatus === "active",
     };
   });

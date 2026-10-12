@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import {
   flexRender,
   getCoreRowModel,
@@ -413,7 +414,7 @@ export function LettersTable({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Always open — the whole bar is the input, not just its icon. */}
+          <CollapsibleSearch scope="letters and policies">
           <div className="relative w-full sm:w-[240px]">
             <Search size={15} strokeWidth={2.2} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
             <input
@@ -438,6 +439,7 @@ export function LettersTable({
               </button>
             )}
           </div>
+          </CollapsibleSearch>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">

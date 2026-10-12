@@ -34,7 +34,7 @@ export function AccountsIndex({ sections }: { sections: AccountsSection[] }) {
                 }}
                 aria-hidden
               >
-                {String(s.order).padStart(2, "0")}
+                {String(i).padStart(2, "0")}
               </span>
 
               <div className="min-w-0 flex-1">

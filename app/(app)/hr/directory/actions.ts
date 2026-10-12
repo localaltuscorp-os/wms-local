@@ -7,8 +7,8 @@ import { db } from "@/lib/db";
 import { hrContacts } from "@/db/schema";
 import { requireHrStaff } from "@/lib/hr/access";
 import { rateLimitOrError } from "@/lib/rate-limit";
-import { isMissingRegisterTable, listDirectoryContacts } from "@/lib/hr/registers-server";
-import { directoryReport, safeDirectoryType } from "@/lib/hr/directory";
+import { isMissingRegisterTable, listDirectoryContacts, listEmployeeContacts } from "@/lib/hr/registers-server";
+import { directoryReport, employeeDirectoryReport, safeDirectoryType } from "@/lib/hr/directory";
 import { issueVendorRegistrationLink, VendorRegistrationInput } from "@/lib/hr/vendor-registration";
 import { renderSectionPdf } from "@/lib/reports/section-pdf";
 import { snapshotFilename } from "@/lib/reports/section-report";
@@ -140,22 +140,23 @@ export async function setDirectoryContactActive(id: string, active: boolean): Pr
   }
 }
 
-/** Sends the complete active directory PDF to the signed-in HR staff member only. */
-export async function emailDirectoryPdf(): Promise<Result<{ to: string }>> {
+/** Sends the active contacts or employee-directory PDF to the signed-in HR staff member only. */
+export async function emailDirectoryPdf(scope: "contacts" | "employees" = "contacts"): Promise<Result<{ to: string }>> {
   const who = await editor();
   if (!who.ok) return who;
   const resend = getResend();
   if (!resend) return { ok: false, error: "Email is not configured." };
-  const contacts = await listDirectoryContacts();
-  const report = directoryReport(contacts);
+  const report = scope === "employees"
+    ? employeeDirectoryReport(await listEmployeeContacts())
+    : directoryReport(await listDirectoryContacts());
   const pdf = await renderSectionPdf(report);
   const to = who.officialEmail?.trim() || who.email;
   if (!to) return { ok: false, error: "Your account has no email address." };
   const { error } = await resend.emails.send({
     from: FROM,
     to,
-    subject: clampSubject("HR Directory — Altus Corp Dashboard"),
-    html: "<p>Attached is the current HR Directory PDF, including Vendors and HR Consultants.</p>",
+    subject: clampSubject(`${report.title} — Altus Corp Dashboard`),
+    html: `<p>Attached is the current ${report.title} PDF.</p>`,
     attachments: [{ filename: snapshotFilename(report.title), content: pdf.toString("base64") }],
     ...companyBcc(),
   });

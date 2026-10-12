@@ -17,6 +17,10 @@ import {
   parseRepeaterRows,
   countCompleteRepeaterRows,
   isOnbFieldRequired,
+  isValidOnbDate,
+  isValidOnbPhone,
+  normaliseOnbDate,
+  normaliseOnbPhone,
   type OnboardingFileRef,
 } from "@/lib/dossier/onboarding-schema";
 
@@ -90,7 +94,8 @@ export async function saveOnboardingSubmission(
       fields[f.key] = normaliseRepeaterValue(f, String(form.get(f.key) ?? ""));
       continue;
     }
-    fields[f.key] = String(form.get(f.key) ?? "").trim().slice(0, 2000);
+    const value = String(form.get(f.key) ?? "").trim().slice(0, 2000);
+    fields[f.key] = f.type === "date" ? normaliseOnbDate(value) : f.type === "tel" ? normaliseOnbPhone(value) : value;
   }
 
   // 2) required-field guard (only when actually submitting)
@@ -117,6 +122,18 @@ export async function saveOnboardingSubmission(
   }
 
   // 3) files — merge onto whatever already exists so a re-submit keeps prior uploads
+  if (enforceRequired) {
+    for (const f of ONB_TEXT_FIELDS) {
+      const value = fields[f.key] ?? "";
+      if (f.type === "date" && value && !isValidOnbDate(value)) {
+        return { ok: false, error: "Date of Birth must use DD-MMM-YYYY (for example, 05-Jan-1998)." };
+      }
+      if (f.type === "tel" && value && !isValidOnbPhone(value)) {
+        return { ok: false, error: `“${f.label}” must contain exactly 10 digits.` };
+      }
+    }
+  }
+
   const files: Record<string, OnboardingFileRef> = { ...((existing?.files as Record<string, OnboardingFileRef>) ?? {}) };
   const admin = getSupabaseAdmin();
   const uploadedPaths: string[] = [];

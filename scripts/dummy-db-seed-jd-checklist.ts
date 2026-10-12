@@ -143,6 +143,19 @@ export async function seedJdChecklist(pg: PGlite): Promise<Record<string, number
     counts[table] = r.rows[0]?.n ?? 0;
   };
 
+  const managerDesignationId = await ensureNamed(
+    pg,
+    "designations",
+    "Manager",
+    DESIG.manager,
+    async (id) => {
+      await pg.query(
+        `insert into designations (id, name) values ($1, 'Manager') on conflict do nothing`,
+        [id],
+      );
+    },
+  );
+
   /* ── Manan Vasa ─────────────────────────────────────────────────────────
      The top of the line, so the dummy admin has somebody to report to. */
   await pg.query(
@@ -150,7 +163,7 @@ export async function seedJdChecklist(pg: PGlite): Promise<Record<string, number
      values ($1, 'Manan Vasa', 'manan@unleashed.in', 'both'::employee_role, true, true, $2,
              now() - interval '900 days')
      on conflict (id) do nothing`,
-    [EMP.manan, DESIG.manager],
+    [EMP.manan, managerDesignationId],
   );
 
   /* The reporting line. Team scoping everywhere is read from

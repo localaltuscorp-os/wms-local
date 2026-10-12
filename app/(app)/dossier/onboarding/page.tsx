@@ -38,12 +38,6 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
             safety notice, not the decorative blurb that used to sit here: HR
             editing on someone's behalf must never have to infer whose record
             they are on, because that is how an edit lands on the wrong one. */}
-        {onBehalf && (
-          <p className="wg-rise mb-6 max-w-[74ch] text-[15.5px] font-medium text-ink-muted">
-            Editing <strong className="font-black text-ink-strong">{data.employee.name}</strong>
-            &rsquo;s onboarding form. Changes save against their record, not yours.
-          </p>
-        )}
         <OnboardingForm initial={data} backHref={backHref} />
       </main>
     </>

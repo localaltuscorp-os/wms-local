@@ -19,6 +19,7 @@ import {
   Search,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { POLICY_CATEGORIES } from "@/lib/hr/policy-types";
 import { uploadPolicy, deletePolicy } from "@/app/(app)/policies/actions";
 import { formatDateHr } from "@/lib/format";
@@ -99,29 +100,29 @@ export function PoliciesWorkspace({
 
   return (
     <div className="space-y-8">
-      <form
+      <div
         className="flex flex-wrap items-center gap-3 rounded-2xl border border-hairline bg-surface-card px-4 py-3"
-        onSubmit={(event) => event.preventDefault()}
       >
-        <Search size={17} className="shrink-0 text-ink-muted" aria-hidden />
-        <label className="min-w-[220px] flex-1">
-          <span className="sr-only">Search policies</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search policies, categories, or file names"
-            className="w-full bg-transparent text-[14px] font-medium text-ink-strong outline-none placeholder:text-ink-soft"
-          />
-        </label>
+        <CollapsibleSearch scope="policies, categories, or file names">
+          <div className="flex min-w-[220px] flex-1 items-center gap-3">
+            <Search size={17} className="shrink-0 text-ink-muted" aria-hidden />
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Search policies</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search policies, categories, or file names"
+                className="w-full bg-transparent text-[14px] font-medium text-ink-strong outline-none placeholder:text-ink-soft"
+              />
+            </label>
+          </div>
+        </CollapsibleSearch>
         {queryText && (
           <span className="text-[12px] font-semibold text-ink-muted">
             {visibleSignable.length + visibleUploadedCount} matches
           </span>
         )}
-        <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-[12.5px] font-bold text-ink-strong hover:border-[var(--color-altus-red)]">
-          <Search size={13} /> Search
-        </button>
-      </form>
+      </div>
       {/* ── THE FIRM POLICIES — authored, versioned, signable ───────────────
           These are the policies people actually sign (POSH, Exit, …). They are
           ALWAYS present (the registry is code, not uploaded files), which is why

@@ -41,7 +41,9 @@
     ".next-dummy/types/**/*.ts",
     ".next-dummy/dev/types/**/*.ts",
     ".next-build/types/**/*.ts",
-    ".next-build/dev/types/**/*.ts"
+    ".next-build/dev/types/**/*.ts",
+    ".next-dummy-mis/types/**/*.ts",
+    ".next-dummy-mis/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

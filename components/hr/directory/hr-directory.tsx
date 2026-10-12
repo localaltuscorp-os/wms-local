@@ -6,7 +6,7 @@ import { Archive, ArrowDown, ArrowUp, ArrowUpDown, Copy, Download, Eye, FileDown
 import { useRouter } from "next/navigation";
 import { fireToast } from "@/lib/toast";
 import type { ContactRow, EmployeeContactRow } from "@/lib/hr/registers-server";
-import { directoryReport, directoryTypeLabel, safeDirectoryType, type DirectoryType } from "@/lib/hr/directory";
+import { directoryReport, directoryTypeLabel, employeeDirectoryReport, safeDirectoryType, type DirectoryType } from "@/lib/hr/directory";
 import { whatsappHref } from "@/lib/hr/registers";
 import { createVendorRegistrationLink, createVendorRegistrationLinkForContact, emailDirectoryPdf, saveDirectoryContact, setDirectoryContactActive } from "@/app/(app)/hr/directory/actions";
 import { Field, INPUT, Modal, PASS_VERTICAL_SCROLL, TD, TH } from "@/components/hr/registers/register-ui";
@@ -175,23 +175,28 @@ export function HrDirectory({ contacts, employees = [], preview = false }: { con
   }
 
   function downloadCsv() {
-    const headers = ["Type", "Name", "Company Name", "Cell Number", "Email", "Contact 2 Name", "Contact 2 Cell Number", "Contact 2 Email"];
-    const csv = [headers, ...contacts.filter((row) => row.isActive).map((row) => [directoryTypeLabel(safeDirectoryType(row.directoryType)), row.personName, row.companyName ?? "", row.cellNo ?? "", row.email ?? "", row.contact2Name ?? "", row.contact2CellNo ?? "", row.contact2Email ?? ""])].map((line) => line.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\r\n");
+    const headers = tab === "employee"
+      ? ["First Name", "Last Name", "Cell No.", "Personal Email", "Contact 1 Name", "Contact 1 Cell No.", "Contact 2 Name", "Contact 2 Cell No."]
+      : ["Type", "Name", "Company Name", "Cell Number", "Email", "Contact 2 Name", "Contact 2 Cell Number", "Contact 2 Email"];
+    const data = tab === "employee"
+      ? employees.filter((row) => row.isActive).map((row) => [row.firstName, row.lastName, row.cell ?? "", row.email ?? "", row.contact1Name ?? "", row.contact1Cell ?? "", row.contact2Name ?? "", row.contact2Cell ?? ""])
+      : contacts.filter((row) => row.isActive).map((row) => [directoryTypeLabel(safeDirectoryType(row.directoryType)), row.personName, row.companyName ?? "", row.cellNo ?? "", row.email ?? "", row.contact2Name ?? "", row.contact2CellNo ?? "", row.contact2Email ?? ""]);
+    const csv = [headers, ...data].map((line) => line.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a"); link.href = url; link.download = "hr-directory.csv"; link.click(); URL.revokeObjectURL(url);
+    const link = document.createElement("a"); link.href = url; link.download = tab === "employee" ? "employee-directory.csv" : "hr-directory.csv"; link.click(); URL.revokeObjectURL(url);
   }
 
   async function downloadPdf() {
     setBusy("pdf");
     try {
-      const response = await fetch("/api/reports/section-pdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(directoryReport(contacts)) });
+      const response = await fetch("/api/reports/section-pdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tab === "employee" ? employeeDirectoryReport(employees) : directoryReport(contacts)) });
       if (!response.ok) throw new Error("Could not create the PDF.");
-      const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = "hr-directory.pdf"; link.click(); URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = tab === "employee" ? "employee-directory.pdf" : "hr-directory.pdf"; link.click(); URL.revokeObjectURL(url);
     } catch (error) { fireToast({ message: error instanceof Error ? error.message : "Could not create the PDF.", type: "error" }); } finally { setBusy(null); }
   }
 
   async function emailPdf() {
-    setBusy("email"); const result = await emailDirectoryPdf().catch(() => ({ ok: false as const, error: "Could not send the directory PDF." })); setBusy(null);
+    setBusy("email"); const result = await emailDirectoryPdf(tab === "employee" ? "employees" : "contacts").catch(() => ({ ok: false as const, error: "Could not send the directory PDF." })); setBusy(null);
     if (!result.ok) return fireToast({ message: result.error, type: "error" });
     fireToast({ message: `Directory PDF sent to ${result.to}`, type: "success" });
   }
@@ -435,7 +440,7 @@ function ContactActions({ name, phone, email }: { name: string; phone: string | 
  * once and cannot drift into a second, conflicting contact record. */
 function EmployeeDirectory({ employees, query, onPreview }: { employees: EmployeeContactRow[]; query: string; onPreview: (row: EmployeeContactRow) => void }) {
   const rows = employees.filter((row) => row.isActive).filter((row) => !query || [row.firstName, row.lastName, row.cell, row.email, row.contact1Name, row.contact1Cell, row.contact2Name, row.contact2Cell].some((value) => value?.toLowerCase().includes(query)));
-  return <section className="overflow-hidden rounded-2xl border border-hairline-strong bg-white"><div className="directory-table-scroll overflow-x-auto" style={PASS_VERTICAL_SCROLL}><table className="min-w-[1020px] w-full table-fixed border-separate border-spacing-0"><colgroup><col style={{ width: 64 }} /><col style={{ width: 190 }} /><col style={{ width: 230 }} /><col style={{ width: 170 }} /><col style={{ width: 240 }} /><col style={{ width: 120 }} /></colgroup><thead className="bg-surface-soft"><tr><th className={TH}>Sr. No.</th><th className={TH}>Name</th><th className={TH}>Company Name</th><th className={TH}>Cell Number</th><th className={TH}>Email</th><th className={`${TH} text-right`}>Actions</th></tr></thead><tbody>{rows.map((row, index) => <tr key={row.id} className="border-t border-hairline"><td className={`${TD} text-ink-muted`}>{index + 1}</td><td className={`${TD} truncate font-bold`}>{row.name}</td><td className={TD}>Altus Corp</td><td className={TD}><ContactActions name={row.name} phone={row.cell} email={row.email} /></td><td className={`${TD} truncate`} title={row.email ?? "-"}>{row.email ?? "-"}</td><td className={`${TD} text-right`}><button type="button" title="View full employee record" onClick={() => onPreview(row)} className="rounded-lg border border-hairline p-2 text-red-700 hover:bg-red-50"><Eye size={14} /></button></td></tr>)}</tbody></table>{rows.length === 0 ? <p className="px-4 py-8 text-center text-[13px] text-ink-muted">No employee records are available from onboarding.</p> : null}</div><p className="border-t border-hairline bg-surface-soft px-4 py-2.5 text-[12px] text-ink-muted">Employee details are pulled directly from the onboarding form.</p></section>;
+  return <section className="overflow-hidden rounded-2xl border border-hairline-strong bg-white"><div className="directory-table-scroll overflow-x-auto" style={PASS_VERTICAL_SCROLL}><table className="min-w-[1580px] w-full table-fixed border-separate border-spacing-0"><colgroup><col style={{ width: 64 }} /><col style={{ width: 150 }} /><col style={{ width: 150 }} /><col style={{ width: 160 }} /><col style={{ width: 250 }} /><col style={{ width: 190 }} /><col style={{ width: 170 }} /><col style={{ width: 190 }} /><col style={{ width: 170 }} /><col style={{ width: 82 }} /></colgroup><thead className="bg-surface-soft"><tr><th className={TH}>Sr. No.</th><th className={TH}>First Name</th><th className={TH}>Last Name</th><th className={TH}>Cell No.</th><th className={TH}>Personal Email</th><th className={TH}>Contact 1 Name</th><th className={TH}>Contact 1 Cell No.</th><th className={TH}>Contact 2 Name</th><th className={TH}>Contact 2 Cell No.</th><th className={`${TH} text-right`}>Actions</th></tr></thead><tbody>{rows.map((row, index) => <tr key={row.id} className="border-t border-hairline"><td className={`${TD} text-ink-muted`}>{index + 1}</td><td className={`${TD} truncate font-bold`} title={row.firstName || "-"}>{row.firstName || "-"}</td><td className={`${TD} truncate font-bold`} title={row.lastName || "-"}>{row.lastName || "-"}</td><td className={TD}><ContactActions name={row.name} phone={row.cell} email={null} /></td><td className={`${TD} truncate`} title={row.email ?? "-"}>{row.email ? <a className="hover:underline" href={`mailto:${row.email}`}>{row.email}</a> : "-"}</td><td className={`${TD} truncate`} title={row.contact1Name ?? "-"}>{row.contact1Name ?? "-"}</td><td className={TD}><ContactActions name={row.contact1Name ?? "Contact 1"} phone={row.contact1Cell} email={null} /></td><td className={`${TD} truncate`} title={row.contact2Name ?? "-"}>{row.contact2Name ?? "-"}</td><td className={TD}><ContactActions name={row.contact2Name ?? "Contact 2"} phone={row.contact2Cell} email={null} /></td><td className={`${TD} text-right`}><button type="button" title="View full employee record" onClick={() => onPreview(row)} className="rounded-lg border border-hairline p-2 text-red-700 hover:bg-red-50"><Eye size={14} /></button></td></tr>)}</tbody></table>{rows.length === 0 ? <p className="px-4 py-8 text-center text-[13px] text-ink-muted">No employee records are available from onboarding.</p> : null}</div><p className="border-t border-hairline bg-surface-soft px-4 py-2.5 text-[12px] text-ink-muted">Employee details are pulled directly from the onboarding form. Personal email falls back to the employee profile when it was not collected on onboarding.</p></section>;
 }
 
 function DetailSection({ title, items }: { title: string; items: Array<[string, string | null | undefined]> }) {

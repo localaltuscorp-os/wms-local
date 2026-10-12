@@ -12,7 +12,14 @@ import {
   ONB_HAVE,
   isOnbFieldHidden,
   isOnbFieldRequired,
+  isValidOnbDate,
+  isValidOnbPhone,
+  normaliseOnbDate,
+  normaliseOnbPhone,
 } from "@/lib/dossier/onboarding-schema";
+import { employeeDirectoryDetailsFromOnboarding } from "@/lib/hr/employee-directory";
+import { employeeDirectoryReport } from "@/lib/hr/directory";
+import { panFromGstin } from "@/lib/hr/vendor-tax";
 
 describe("HR register editors", () => {
   /**
@@ -92,5 +99,69 @@ describe("onboarding passport / driving licence rules", () => {
     expect(isOnbFieldRequired(signature, {})).toBe(true);
     expect(isOnbFieldRequired(ONB_FIELD_BY_KEY.get("panCopy")!, {})).toBe(true);
     expect(isOnbFieldRequired(ONB_FIELD_BY_KEY.get("aadharCopy")!, {})).toBe(true);
+  });
+});
+
+describe("onboarding date of birth", () => {
+  it("keeps DOB in DD-MMM-YYYY form and validates real calendar dates", () => {
+    expect(normaliseOnbDate("05-jan-1998")).toBe("05-Jan-1998");
+    expect(isValidOnbDate("29-Feb-2024")).toBe(true);
+    expect(isValidOnbDate("29-Feb-2023")).toBe(false);
+    expect(isValidOnbDate("1998-01-05")).toBe(false);
+  });
+});
+
+describe("onboarding phone numbers", () => {
+  it("keeps only ten digits and rejects incomplete numbers", () => {
+    expect(normaliseOnbPhone("vinbhcuyfv 98765-43210")).toBe("9876543210");
+    expect(normaliseOnbPhone("123456789012")).toBe("1234567890");
+    expect(isValidOnbPhone("9876543210")).toBe(true);
+    expect(isValidOnbPhone("987654321")).toBe(false);
+  });
+});
+
+describe("employee directory onboarding details", () => {
+  it("reads the saved emergency-contact JSON and prioritises onboarding values", () => {
+    const details = employeeDirectoryDetailsFromOnboarding(
+      {
+        firstName: "Test",
+        lastName: "User",
+        phone: "9876543210",
+        emergencyContacts: JSON.stringify([
+          { name: "Test Contact One", relation: "Parent", mobile: "9876500001" },
+          { name: "Test Contact Two", relation: "Parent", mobile: "9876500002" },
+        ]),
+      },
+      { name: "Legacy Test User", personalEmail: "test.user@example.invalid", email: "test.user@company.example.invalid", phone: "9000000000", whatsappPhone: null },
+    );
+
+    expect(details).toMatchObject({
+      firstName: "Test",
+      lastName: "User",
+      cell: "9876543210",
+      personalEmail: "test.user@example.invalid",
+      contact1Name: "Test Contact One",
+      contact1Cell: "9876500001",
+      contact2Name: "Test Contact Two",
+      contact2Cell: "9876500002",
+    });
+  });
+
+  it("uses the same requested columns in the employee PDF export", () => {
+    const report = employeeDirectoryReport([{
+      id: "employee-1", name: "Test User", firstName: "Test", lastName: "User", designation: null,
+      cell: "9876543210", email: "test.user@example.invalid", contact1Name: "Test Contact One", contact1Cell: "9876500001",
+      contact2Name: "Test Contact Two", contact2Cell: "9876500002", isActive: true,
+    }]);
+    expect(report.columns.map((column) => column.label)).toEqual(["First Name", "Last Name", "Cell No.", "Personal Email", "Contact 1 Name", "Contact 1 Cell No.", "Contact 2 Name", "Contact 2 Cell No."]);
+    expect(report.rows[0]).toEqual(["Test", "User", "9876543210", "test.user@example.invalid", "Test Contact One", "9876500001", "Test Contact Two", "9876500002"]);
+  });
+});
+
+describe("vendor GST details", () => {
+  it("derives PAN automatically from a valid GST number", () => {
+    expect(panFromGstin("27ABCDE1234F1Z5")).toBe("ABCDE1234F");
+    expect(panFromGstin("27 abcde1234f 1z5")).toBe("ABCDE1234F");
+    expect(panFromGstin("27ABCDE1234F")).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import { PolicySignOffBox } from "@/components/hr/policies/policy-sign-off-box";
 import { myPolicySignOff } from "@/app/(app)/hr/policies/sign-off-actions";
 import { getMyPolicySignStatus, type MyPolicySignStatus } from "@/app/(app)/hr/policies/sign-status";
 import { HrTitleBar } from "@/components/hr/console/hr-title-bar";
+import { policyEntityForEmployee } from "@/lib/hr/policies/employee-entity";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,8 @@ export const dynamic = "force-dynamic";
  * A single policy, on its own full-screen page: `/hr/policies/<key>`. Loads the
  * PolicyDoc from the CMS (the currently-published version, so live edits render),
  * falling back to the code registry, and renders it on the shared <Letterhead>
- * via <PolicyView> (read-only body + entity picker + Export PDF + day-one Sign /
+ * via <PolicyView> (read-only body on the employee's assigned company letterhead
+ * + Export PDF + day-one Sign /
  * Acknowledge). Workspace admins additionally see an "Edit policy" entry point.
  * Keys that are advertised-but-unauthored ("coming soon", e.g. CLASH) show a
  * tasteful greyed placeholder so the popup links never dead-end.
@@ -36,7 +38,10 @@ export default async function PolicyPage({
   // (requireHrStaff). It used to be `isAdmin || isSuperAdmin`, which is a
   // wider set: an admin outside the HR department saw a button that bounced
   // them straight back here. Reading stays open to everyone (2026-09-17).
-  const canEdit = await isHrStaff(me);
+  const [canEdit, entity] = await Promise.all([
+    isHrStaff(me),
+    policyEntityForEmployee(me),
+  ]);
   const showDoc = Boolean(policy) && !comingSoon;
   // Has the CURRENT viewer already signed this policy? Drives the "Signed · date"
   // state so they don't re-sign just to check (self-scoped, best-effort).
@@ -69,6 +74,7 @@ export default async function PolicyPage({
           <>
             <PolicyView
               doc={policy}
+              entity={entity}
               signedAt={signedAt}
               outdated={outdated}
               backHref="/policies"
@@ -112,7 +118,7 @@ function ComingSoon({ title }: { title?: string }) {
       </h1>
       <p className="mt-2 text-[14px] font-medium leading-relaxed text-ink-muted">
         This policy is being drafted. It will appear here as a fully readable,
-        day-one signable document on the Altus letterhead soon.
+        day-one signable document on the employee's assigned company letterhead soon.
       </p>
     </div>
   );

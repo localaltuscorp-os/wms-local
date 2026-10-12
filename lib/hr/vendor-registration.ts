@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { hrContacts, vendorRegistrationLinks } from "@/db/schema";
 import { DOCUMENTS_BUCKET, getSupabaseAdmin, storageErrorMessage } from "@/lib/supabase/admin";
+import { panFromGstin } from "@/lib/hr/vendor-tax";
 
 const tokenHash = (token: string) => createHash("sha256").update(token, "utf8").digest("hex");
 export const VENDOR_REGISTRATION_TTL_DAYS = 30;
@@ -101,7 +102,7 @@ export async function submitVendorRegistration(token: string, input: unknown) {
     category: values.category, utility: values.utility, amcOnCall: values.amcOnCall,
     companyName: values.companyName, email: values.email,
     addressLine1: values.addressLine1, addressLine2: values.addressLine2, addressLine3: values.addressLine3, addressLine4: values.addressLine4, pincode: values.pincode,
-    gstNo: values.gstNo, panNo: values.panNo, gstName: values.gstName,
+    gstNo: values.gstNo, panNo: panFromGstin(values.gstNo) ?? values.panNo, gstName: values.gstName,
     bankDetails, contact1Name: values.contact1Name, contact1CellNo: values.contact1CellNo, contact1Email: values.contact1Email,
     contact2Name: values.contact2Name, contact2CellNo: values.contact2CellNo, contact2Email: values.contact2Email,
     attachments: values.attachments, registrationSubmittedAt: now, updatedAt: now,

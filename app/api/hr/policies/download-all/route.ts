@@ -4,7 +4,7 @@ import { getCurrentEmployee } from "@/lib/auth/current";
 import { getSupabaseAdmin, DOCUMENTS_BUCKET } from "@/lib/supabase/admin";
 import { loadPublishedPolicy } from "@/lib/hr/policies/load-db";
 import { renderPolicyPdfs } from "@/lib/hr/policies/policy-pdf";
-import { getEntity } from "@/lib/hr/entities";
+import { policyEntityForEmployee } from "@/lib/hr/policies/employee-entity";
 import type { PolicyDoc } from "@/lib/hr/policies/types";
 import { listSignedPolicyPdfs } from "@/app/(app)/hr/policies/signed-pdf";
 import { apiViewDenial } from "@/lib/permissions/api-guard";
@@ -90,11 +90,12 @@ export async function GET(request: Request): Promise<NextResponse> {
   const bodies = new Map<number, Uint8Array>();
   if (withText.length > 0) {
     try {
+      const entity = await policyEntityForEmployee(me);
       const rendered = await renderPolicyPdfs(
         withText.map((w) => w.doc),
-        // Every policy in the packet shares the firm's default letterhead; a
-        // per-policy entity is a property of the DOC, not of the packet.
-        getEntity(withText[0]!.doc.entityDefault ?? null),
+        // One packet belongs to one employee, so every policy uses their
+        // assigned paying entity rather than a document-level default.
+        entity,
       );
       withText.forEach((w, i) => {
         const bytes = rendered[i];

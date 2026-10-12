@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { fireToast } from "@/lib/toast";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { Select } from "@/components/ui/select";
 import { describeSchedule } from "@/lib/hr/records-export/schedule";
 import type { DriveStatus } from "@/lib/hr/records-export/status";
@@ -571,6 +572,7 @@ export function RecordsBackupScreen({
           sub="One ZIP with every filled form (as PDF), scanned document and letter, in the same folders as Drive."
         >
           <div className="mb-3 flex flex-wrap items-center gap-2">
+            <CollapsibleSearch scope="name, email, or department">
             <div className="relative min-w-[220px] flex-1">
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" />
               <input
@@ -581,6 +583,7 @@ export function RecordsBackupScreen({
                 className="w-full rounded-xl border border-hairline-strong bg-white py-2 pl-9 pr-3 text-[13.5px] font-medium outline-none focus:border-ink-muted"
               />
             </div>
+            </CollapsibleSearch>
             <div className="inline-flex rounded-xl border border-hairline p-0.5">
               {(
                 [

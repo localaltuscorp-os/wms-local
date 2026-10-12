@@ -7,6 +7,7 @@ import {
   attendanceSheetMonth,
   attendanceLogs,
   compensationApprovals,
+  ctcBreakups,
   employees,
   incentiveRequests,
   moduleSubmissionAttachments,
@@ -14,6 +15,7 @@ import {
   salaryBreakup,
   superAdminGrants,
 } from "@/db/schema";
+import { computeTotals, parseFields, REASON_LABELS } from "@/lib/hr/ctc/model";
 import { employeeDepartmentNames } from "@/lib/queries/departments";
 import { matchesDepartment, ACCOUNTS_DEPARTMENT } from "@/lib/workspaces";
 import { employeeEmailTargets } from "@/lib/email/recipients";
@@ -23,9 +25,9 @@ import { sendDocumentTemplate, uploadMedia } from "@/lib/whatsapp/media";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { legacyBillKind } from "@/lib/reimbursements/attachment-rules";
 import { hasDatabaseSuperAdminGrant } from "@/lib/security/super-admin-grants";
+import { APPROVAL_KINDS, isPayableApprovalKind, PAYABLE_APPROVAL_KINDS, type ApprovalKind, type PayableApprovalKind } from "@/lib/compensation/approval-kinds";
 
-export const APPROVAL_KINDS = ["attendance", "incentive", "reimbursement", "salary"] as const;
-export type ApprovalKind = (typeof APPROVAL_KINDS)[number];
+export { APPROVAL_KINDS, isPayableApprovalKind, PAYABLE_APPROVAL_KINDS, type ApprovalKind, type PayableApprovalKind };
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "paid";
 
 export type AttendancePerformanceDay = {
@@ -192,6 +194,37 @@ export async function listCompensationApprovals(kind?: ApprovalKind): Promise<Ap
       out.push({ kind: "salary", subjectId: row.id, employeeId: row.employeeId, employeeName: row.employeeName, periodMonth: String(row.month), label: "Monthly salary", amount: amountOf(a?.payableAmount ?? row.finalPayment), status: approvalStatus(a), note: a?.decisionNote ?? null, daily: [] });
     }
   }
+  if (wanted.includes("ctc")) {
+    const rows = await db.select({
+      id: ctcBreakups.id,
+      employeeId: ctcBreakups.employeeId,
+      employeeName: employees.name,
+      version: ctcBreakups.version,
+      reason: ctcBreakups.reason,
+      effectiveDate: ctcBreakups.effectiveDate,
+      fields: ctcBreakups.fields,
+    })
+      .from(ctcBreakups)
+      .innerJoin(employees, eq(employees.id, ctcBreakups.employeeId))
+      .orderBy(desc(ctcBreakups.updatedAt));
+    for (const row of rows) {
+      const a = byKey.get(`ctc:${row.id}`);
+      const totals = computeTotals(parseFields(row.fields).components);
+      const reason = REASON_LABELS[row.reason as keyof typeof REASON_LABELS] ?? row.reason;
+      out.push({
+        kind: "ctc",
+        subjectId: row.id,
+        employeeId: row.employeeId,
+        employeeName: row.employeeName,
+        periodMonth: row.effectiveDate ? String(row.effectiveDate).slice(0, 7) : null,
+        label: `CTC breakup · ${reason} · V${row.version}`,
+        amount: totals.ctcAnnual,
+        status: approvalStatus(a),
+        note: a?.decisionNote ?? null,
+        daily: [],
+      });
+    }
+  }
   return out;
 }
 
@@ -249,6 +282,7 @@ export async function decideCompensationApproval(input: { kind: ApprovalKind; su
 }
 
 export async function compensationApprovalIsPayable(kind: ApprovalKind, subjectId: string): Promise<boolean> {
+  if (kind === "ctc") return false;
   if (!(await isCompensationApprovalWorkflowReady())) return false;
   const [row] = await db.select({ status: compensationApprovals.status })
     .from(compensationApprovals)
@@ -258,6 +292,7 @@ export async function compensationApprovalIsPayable(kind: ApprovalKind, subjectI
 }
 
 export async function markCompensationPaid(input: { kind: ApprovalKind; subjectId: string; actorId: string }): Promise<{ ok: true; row: ApprovalRow } | { ok: false; error: string }> {
+  if (!isPayableApprovalKind(input.kind)) return { ok: false as const, error: "This approval does not create a payment instruction." };
   if (!(await isCompensationApprovalWorkflowReady())) return { ok: false, error: "Approvals are in setup mode. Install the compensation approval database migration before recording a payment." };
   const rows = await listCompensationApprovals(input.kind);
   const row = rows.find((candidate) => candidate.subjectId === input.subjectId);

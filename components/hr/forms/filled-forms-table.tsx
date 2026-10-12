@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Search, X, Eye, Download, Mail, Loader2 } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { fireToast } from "@/lib/toast";
 import { compareRows, type FilledFormSortKey } from "@/lib/hr/forms/sort";
 
@@ -142,6 +143,7 @@ export function FilledFormsTable({
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <CollapsibleSearch scope={showEmployee ? "employee or form" : "form"}>
         <label className="relative">
           <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
           <input
@@ -162,6 +164,7 @@ export function FilledFormsTable({
             </button>
           )}
         </label>
+        </CollapsibleSearch>
 
         <Select
           value={section}
