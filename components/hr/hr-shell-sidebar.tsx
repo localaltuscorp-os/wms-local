@@ -58,7 +58,13 @@ export function HrShellSidebar() {
         className="group flex items-center gap-2.5 border-b border-hairline px-4 py-3.5 transition-colors hover:bg-surface-soft"
         title="Back to Hub"
       >
-        <Image src="/logo-mark.png" alt="Altus" width={34} height={34} className="h-[34px] w-[34px] rounded-lg object-contain" />
+        <Image
+          src="/logo-mark.png"
+          alt="Altus"
+          width={31}
+          height={34}
+          className="h-[34px] w-auto rounded-lg object-contain"
+        />
         <span className="min-w-0">
           <span className="block text-[15px] font-black leading-none text-ink-strong" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", letterSpacing: "-0.02em" }}>
             Altus

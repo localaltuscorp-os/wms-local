@@ -61,6 +61,7 @@ export function PageShell({
   const Tag: ElementType = as ?? "main";
   return (
     <Tag
+      data-layout-surface
       className={`mx-auto w-full ${py ? "pt-4 pb-16 max-md:pt-3 max-md:pb-12" : ""} ${className}`}
       style={{
         maxWidth: WIDTH_VAR[width],

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import type { TaskKpiKey } from "@/lib/task-status-kpis";
 
 export type { TaskKpiKey } from "@/lib/task-status-kpis";
@@ -29,6 +30,8 @@ export const DOER_TASK_KPI_SPECS: readonly TaskKpiSpec[] = [
 
 export const INITIATOR_TASK_KPI_SPECS: readonly TaskKpiSpec[] = [
   TOTAL_KPI,
+  { key: "done", label: "DONE", sublabel: "Work completed" },
+  { key: "abandoned", label: "ABANDONED", sublabel: "Work stopped" },
   { key: "pending", label: "PENDING", sublabel: "Awaiting a verdict" },
   { key: "approved", label: "APPROVED", sublabel: "Signed off" },
   { key: "notApproved", label: "NOT APPROVED", sublabel: "Declined" },
@@ -76,9 +79,41 @@ export function TaskStatusKpiChip({ spec, value, active = false }: { spec: TaskK
 
 export function TaskStatusKpiStrip({ counts, view }: { counts: Record<TaskKpiKey, number>; view: TaskKpiView }) {
   const specs = view === "initiator" ? INITIATOR_TASK_KPI_SPECS : DOER_TASK_KPI_SPECS;
+  const storageKey = `altus:dashboard-kpi-order:${view}`;
+  const [editing, setEditing] = React.useState(false);
+  const [order, setOrder] = React.useState<readonly TaskKpiKey[]>(() => specs.map((spec) => spec.key));
+  const dragKey = React.useRef<TaskKpiKey | null>(null);
+
+  React.useEffect(() => {
+    const arrange = (event: Event) => {
+      const next = (event as CustomEvent<{ editing?: boolean }>).detail?.editing === true;
+      setEditing(next);
+      if (!next) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as TaskKpiKey[];
+        if (saved.length) setOrder([...saved.filter((key) => specs.some((spec) => spec.key === key)), ...specs.map((spec) => spec.key).filter((key) => !saved.includes(key))]);
+      } catch { /* ignore malformed temporary browser layout */ }
+    };
+    const save = () => localStorage.setItem(storageKey, JSON.stringify(order));
+    window.addEventListener("altus:arrange-ui", arrange);
+    window.addEventListener("altus:save-arrange-ui", save);
+    return () => { window.removeEventListener("altus:arrange-ui", arrange); window.removeEventListener("altus:save-arrange-ui", save); };
+  }, [order, specs, storageKey]);
+
+  const visible = [...specs].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const moveBefore = React.useCallback((from: TaskKpiKey, target: TaskKpiKey) => {
+    if (from === target) return;
+    setOrder((current) => {
+      const next = current.filter((key) => key !== from);
+      const targetIndex = next.indexOf(target);
+      if (targetIndex < 0) return current;
+      next.splice(targetIndex, 0, from);
+      return next;
+    });
+  }, []);
   return (
     <div className="flex flex-wrap items-center gap-2" aria-label={`${view === "initiator" ? "Initiator" : "Doer"} task status summary`}>
-      {specs.map((spec) => <TaskStatusKpiChip key={spec.key} spec={spec} value={counts[spec.key]} />)}
+      {visible.map((spec) => <div key={spec.key} draggable={editing} onDragStart={(event) => { dragKey.current = spec.key; event.dataTransfer.setData("application/x-altus-kpi", spec.key); event.dataTransfer.setData("text/plain", spec.key); event.dataTransfer.effectAllowed = "move"; }} onDragOver={(event) => { if (editing) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const from = (event.dataTransfer.getData("application/x-altus-kpi") || event.dataTransfer.getData("text/plain") || dragKey.current) as TaskKpiKey | null; if (!editing || !from || !specs.some((item) => item.key === from)) return; moveBefore(from, spec.key); dragKey.current = null; }} onDragEnd={() => { dragKey.current = null; }} className={editing ? "cursor-grab rounded-xl outline outline-2 outline-dashed outline-altus-red/50" : undefined}><TaskStatusKpiChip spec={spec} value={counts[spec.key]} /></div>)}
     </div>
   );
 }

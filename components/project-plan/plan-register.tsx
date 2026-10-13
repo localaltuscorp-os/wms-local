@@ -32,7 +32,7 @@ import {
 import { PlanApproverCell, PlanStatusCell, planActorFor } from "./plan-status-cell";
 import { effectivePlanStatus, isSelfRaisedNode } from "@/lib/project-plan/status";
 import { approverDisplay } from "@/lib/status/approver-status";
-import { PlanStatusKpiStrip } from "./plan-status-kpi-strip";
+import { PlanStatusKpiStrip, PROJECT_STATUS_FOR_KPI } from "./plan-status-kpi-strip";
 import { PlanProgressCell } from "./plan-progress-cell";
 import { PlanAttachmentCell } from "./plan-attachment-cell";
 import { PlanLinksCell } from "./plan-links-cell";
@@ -49,6 +49,8 @@ import { NewItemButtons, usePlanCreateShortcuts } from "./new-item-buttons";
 import { PlanBulkUpload } from "./plan-bulk-upload";
 import { useRememberPlanNode } from "./use-recent-plan";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import type { TaskKpiKey, TaskKpiView } from "@/components/tasks/task-status-kpi-strip";
 
 /**
  * Project Plan — the Milestones and Results REGISTERS.
@@ -143,6 +145,7 @@ export function PlanRegister({
   const [projectIds, setProjectIds] = React.useState<string[]>([]);
   const [doerStatus, setDoerStatus] = React.useState<string[]>([]);
   const [initiatorStatus, setInitiatorStatus] = React.useState<string[]>([]);
+  const [statusAxis, setStatusAxis] = React.useState<TaskKpiView>("doer");
   const [sortKey, setSortKey] = React.useState<SortKey>("plan");
   const [asc, setAsc] = React.useState(true);
   /** Which level the create dialog is opening on, or null when it is closed. */
@@ -169,6 +172,17 @@ export function PlanRegister({
     // client register, so attach them only after the browser has mounted.
     setCreateRibbonTarget(document.getElementById("project-register-create-ribbon"));
   }, []);
+
+  React.useEffect(() => {
+    const onAxisChange = (event: Event) => {
+      const axis = (event as CustomEvent<unknown>).detail;
+      if (axis === "doer" || axis === "initiator") setStatusAxis(axis);
+    };
+    window.addEventListener("altus:module-status-axis", onAxisChange);
+    return () => window.removeEventListener("altus:module-status-axis", onAxisChange);
+  }, []);
+
+  const searchRibbonTarget = createRibbonTarget?.parentElement?.querySelector<HTMLElement>("#project-register-search-ribbon") ?? null;
 
   /**
    * WHERE YOU ARE, remembered — the register's half of the same memory the
@@ -285,6 +299,34 @@ export function PlanRegister({
     }),
     [scopedRows, doerStatus, initiatorStatus],
   );
+
+  const activeProjectKpiKey = React.useMemo<TaskKpiKey>(() => {
+    const selected = statusAxis === "doer" ? doerStatus[0] : initiatorStatus[0];
+    if (statusAxis === "initiator" && doerStatus[0] === "done") return "done";
+    if (statusAxis === "initiator" && doerStatus[0] === "abandoned") return "abandoned";
+    return (Object.entries(PROJECT_STATUS_FOR_KPI).find(([, status]) => status === selected)?.[0] as TaskKpiKey | undefined) ?? "total";
+  }, [statusAxis, doerStatus, initiatorStatus]);
+
+  const onProjectKpiChange = React.useCallback((key: TaskKpiKey) => {
+    const status = PROJECT_STATUS_FOR_KPI[key];
+    if (key === "total" || key === activeProjectKpiKey) {
+      setDoerStatus([]);
+      setInitiatorStatus([]);
+      return;
+    }
+    if (statusAxis === "initiator" && (key === "done" || key === "abandoned")) {
+      setDoerStatus(status ? [status] : []);
+      setInitiatorStatus([]);
+      return;
+    }
+    if (statusAxis === "doer") {
+      setDoerStatus(status ? [status] : []);
+      setInitiatorStatus([]);
+      return;
+    }
+    setInitiatorStatus(status ? [status] : []);
+    setDoerStatus([]);
+  }, [statusAxis, activeProjectKpiKey]);
 
   /**
    * Open the linked WMS record. `?task=` is the SAME contract /tasks uses, and
@@ -572,6 +614,7 @@ export function PlanRegister({
     "sub-actions": "/project-plan/sub-actions?view=tree",
   };
   const hierarchyHref = HIERARCHY_HREF[level];
+  const usesCompactRegisterLayout = true;
   const levelLabel = KIND_LABEL[kind];
   const rollupLabel = `${KIND_LABEL[rollupKind]}s Completion`;
   // The tick column, two columns per ancestor (No + Name), then: own No, own
@@ -584,9 +627,28 @@ export function PlanRegister({
 
   return (
     <div className="flex flex-col gap-4">
+      {usesCompactRegisterLayout && (
+        <div className="flex flex-wrap items-center gap-3">
+          <PlanStatusKpiStrip
+            counts={statusCounts}
+            total={scopedRows.length}
+            view={statusAxis}
+            activeKey={activeProjectKpiKey}
+            onKpiChange={onProjectKpiChange}
+          />
+          <Link
+            href={hierarchyHref as Route}
+            className="ml-auto inline-flex translate-x-3 items-center gap-1.5 rounded-lg border border-hairline-strong px-2.5 py-1.5 text-[12.5px] font-bold text-ink-strong transition-colors hover:bg-surface-soft"
+          >
+            <Rows3 size={14} strokeWidth={2.2} aria-hidden />
+            Hierarchy view
+          </Link>
+        </div>
+      )}
       {/* ── Title + level switch ─────────────────────────────────────────── */}
+      {!usesCompactRegisterLayout && (
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {level !== "projects" ? <div>
+        <div>
           <h1 className="text-[19px] font-black tracking-tight text-ink-strong">
             {levelLabel}s
           </h1>
@@ -597,7 +659,7 @@ export function PlanRegister({
                   .map((k) => KIND_LABEL[k].toLowerCase())
                   .join(" › ")} it belongs to.`}
           </p>
-        </div> : <span />}
+        </div>
         {/* The hierarchy view of this same level is one click away — the
             register replaces the tree on this route, it does not remove it. */}
         <Link
@@ -608,6 +670,7 @@ export function PlanRegister({
           Hierarchy view
         </Link>
       </div>
+      )}
 
       {createRibbonTarget
         ? createPortal(
@@ -615,17 +678,41 @@ export function PlanRegister({
             createRibbonTarget,
           )
         : null}
-
-      <PlanStatusKpiStrip
+      {usesCompactRegisterLayout && searchRibbonTarget
+        ? createPortal(
+            <CollapsibleSearch scope={`${levelLabel.toLowerCase()}s`} className="translate-x-4">
+              <div className="flex min-w-[280px] items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2">
+                <Search size={15} strokeWidth={2.2} className="shrink-0 text-ink-subtle" aria-hidden />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={`Search ${levelLabel.toLowerCase()}s, projects, references…`}
+                  aria-label={`Search ${levelLabel.toLowerCase()}s`}
+                  className="w-[280px] min-w-0 bg-transparent text-[13.5px] font-medium text-ink-strong outline-none placeholder:font-normal placeholder:text-ink-subtle"
+                />
+                {search && (
+                  <button onClick={() => setSearch("")} aria-label="Clear search" className="shrink-0 text-ink-subtle hover:text-ink-strong">
+                    <X size={14} strokeWidth={2.4} />
+                  </button>
+                )}
+              </div>
+            </CollapsibleSearch>,
+            searchRibbonTarget,
+          )
+        : null}
+      {!usesCompactRegisterLayout && <PlanStatusKpiStrip
         counts={statusCounts}
         total={scopedRows.length}
-        activeStatus={doerStatus[0] ?? null}
-        onStatusChange={(status) => setDoerStatus(status ? [status] : [])}
-      />
+        view={statusAxis}
+        activeKey={activeProjectKpiKey}
+        onKpiChange={onProjectKpiChange}
+      />}
 
       {/* ── Search + project filter ──────────────────────────────────────── */}
+      {!usesCompactRegisterLayout && (
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex min-w-[280px] flex-1 items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2">
+        {level !== "projects" && (
+          <div className="flex min-w-[280px] flex-1 items-center gap-2 rounded-xl border border-hairline-strong bg-white px-3 py-2">
           <Search size={15} strokeWidth={2.2} className="shrink-0 text-ink-subtle" aria-hidden />
           <input
             value={search}
@@ -643,7 +730,8 @@ export function PlanRegister({
               <X size={14} strokeWidth={2.4} />
             </button>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Redundant on the Projects register — the rows ARE the projects, and
             the search box already narrows that same column. */}
@@ -663,10 +751,13 @@ export function PlanRegister({
 
         {/* The create boxes and Bulk Upload — shared with the hierarchy board,
             so both surfaces offer the same levels under the same rule. */}
-        <span className="ml-auto text-[12.5px] font-semibold text-ink-muted">
-          {rows.length} {rows.length === 1 ? levelLabel.toLowerCase() : `${levelLabel.toLowerCase()}s`}
-        </span>
+        {level !== "projects" && (
+          <span className="ml-auto text-[12.5px] font-semibold text-ink-muted">
+            {rows.length} {rows.length === 1 ? levelLabel.toLowerCase() : `${levelLabel.toLowerCase()}s`}
+          </span>
+        )}
       </div>
+      )}
 
       {/* ── Selection bar ────────────────────────────────────────────────────
           PLAN ACTIONS ONLY — Edit, Duplicate, Delete. The six task-side
@@ -736,7 +827,7 @@ export function PlanRegister({
       )}
 
       {/* ── Table ────────────────────────────────────────────────────────── */}
-      <div className="overflow-auto rounded-xl border border-hairline-strong bg-white max-h-[calc(100vh-300px)]">
+      <div className="no-scrollbar max-h-[calc(100vh-300px)] overflow-auto rounded-none border border-hairline-strong bg-white">
         {/* Width grows with the ancestor chain rather than being one of two
             hard-coded values — Sub-Actions carries four parents, Milestones one. */}
         <table
@@ -744,7 +835,10 @@ export function PlanRegister({
           style={{ minWidth: (showsSchedule ? 1200 : 884) + 44 + 240 + ancestorKinds.length * 280 }}
         >
           <thead className="sticky top-0 z-[2]">
-            <tr className="border-b border-hairline-strong bg-surface-soft [&>th]:bg-[color:var(--color-surface-soft,#eef2f7)]">
+            <tr
+              className="border-b border-hairline-strong bg-surface-soft [&>th]:bg-[color:var(--color-surface-soft,#eef2f7)]"
+              style={{ whiteSpace: "nowrap" }}
+            >
               {/* Tick-all — every row the current filters show. Indeterminate
                   while only some of them are ticked, so the header reports the
                   state instead of guessing at it. */}
@@ -868,6 +962,11 @@ export function PlanRegister({
                 <tr
                   key={n.id}
                   title={row.fullRef}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData("application/x-altus-project-node", JSON.stringify({ id: n.id }));
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
                   data-picked={picked.has(n.id) || undefined}
                   // bg-white is load-bearing: the frozen cells take their
                   // colour from the row (`background: inherit`), and a
@@ -884,7 +983,8 @@ export function PlanRegister({
                   // cell inheriting it was 60% alpha as well, so the columns
                   // sliding underneath showed straight through whichever row
                   // the pointer was on. Nothing translucent may go here.
-                  className="border-b border-hairline-soft bg-white transition-colors last:border-0 last:[&>td]:border-b-0 hover:bg-surface-soft data-[picked]:bg-[color:var(--color-altus-red-wash,#fdf0f0)]"
+                  className="border-b border-hairline-soft bg-white transition-colors last:border-0 last:[&>td]:border-b-0 hover:bg-surface-soft data-[picked]:bg-[color:var(--color-altus-red-wash,#fdf0f0)] data-[drag-project]:cursor-grab"
+                  data-drag-project
                 >
                   <Td className={`pl-3 z-[1] border-b border-hairline-soft ${idCol(freezeLeft.tick, ID_W.tick).className}`} style={idCol(freezeLeft.tick, ID_W.tick).style}>
                     <input

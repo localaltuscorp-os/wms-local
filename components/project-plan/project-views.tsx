@@ -43,9 +43,12 @@ import {
 import { CollapseToggle, CollapsibleBody } from "@/components/dashboard/section-chrome";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { PlanStatusKpiStrip } from "@/components/project-plan/plan-status-kpi-strip";
+import type { TaskKpiKey, TaskKpiView } from "@/components/tasks/task-status-kpi-strip";
+import { approverDisplay } from "@/lib/status/approver-status";
 
 import type { PlanRow } from "./plan-board";
-import { effectivePlanStatus, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, type PlanStatus } from "@/lib/project-plan/status";
+import { effectivePlanStatus, isSelfRaisedNode, PLAN_STATUS_LABEL, PLAN_STATUS_TONE, type PlanStatus } from "@/lib/project-plan/status";
 
 /**
  * PROJECT VIEWS — the whole plan as ONE indented tree.
@@ -229,6 +232,8 @@ export function ProjectViews({
   const [rootIds, setRootIds] = React.useState<string[]>(arriving.projectId ? [arriving.projectId] : []);
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PlanStatus | "all">("all");
+  const [dashboardStatusAxis, setDashboardStatusAxis] = React.useState<TaskKpiView>("doer");
+  const [activeDashboardKpi, setActiveDashboardKpi] = React.useState<TaskKpiKey>("total");
   const [sort, setSort] = React.useState<TreeSort>(null);
   // A tree can be wider than its viewport, but Project Views must always open
   // from the first column.  In particular, restoring a page from browser
@@ -286,6 +291,20 @@ export function ProjectViews({
       : 0;
     return { projectStatuses, milestoneCount, progress };
   }, [allNodes, projects]);
+
+  const dashboardStatusCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const projectNode of projects) {
+      const doerStatus = effectivePlanStatus(projectNode.status, null, false);
+      const initiatorStatus = approverDisplay(
+        projectNode.approvalStatus,
+        isSelfRaisedNode(projectNode),
+      );
+      counts[doerStatus] = (counts[doerStatus] ?? 0) + 1;
+      counts[initiatorStatus] = (counts[initiatorStatus] ?? 0) + 1;
+    }
+    return counts;
+  }, [projects]);
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -360,18 +379,43 @@ export function ProjectViews({
     treeScrollRef.current?.scrollTo({ left: 0 });
   }, [mode]);
 
+  React.useEffect(() => {
+    const onAxisChange = (event: Event) => {
+      const axis = (event as CustomEvent<unknown>).detail;
+      if (axis === "doer" || axis === "initiator") {
+        setDashboardStatusAxis(axis);
+        setActiveDashboardKpi("total");
+      }
+    };
+    window.addEventListener("altus:module-status-axis", onAxisChange);
+    return () => window.removeEventListener("altus:module-status-axis", onAxisChange);
+  }, []);
+
   return (
     <div className="flex flex-col gap-5">
       {mode === "dashboard" && (
         <>
+      <nav className="sticky sticky-below-topbar z-[39] -mx-8 -mt-2 border-y border-hairline bg-white/95 px-8 py-2.5 shadow-sm backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4" aria-label="Project dashboard quick access">
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+          {[{ id: "project-status", label: "Status Distribution" }, { id: "project-breakdown", label: "Milestone Breakdown" }, { id: "project-delivery", label: "Delivery Timeline" }, { id: "project-execution", label: "Execution" }].map((item) => (
+            <button key={item.id} type="button" onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-altus-red">{item.label}</button>
+          ))}
+        </div>
+      </nav>
+      <div className="flex min-h-8 items-center" aria-label="Project dashboard status summary">
+        <PlanStatusKpiStrip
+          counts={dashboardStatusCounts}
+          total={projects.length}
+          view={dashboardStatusAxis}
+          activeKey={activeDashboardKpi}
+          onKpiChange={setActiveDashboardKpi}
+        />
+      </div>
+
       {/* ── Title + controls ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-black tracking-tight text-ink-strong">Project Dashboard</h1>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <CollapsibleSearch scope="project rows">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <CollapsibleSearch scope="project rows" className="translate-x-3">
           <label className="relative flex items-center">
             <Search
               size={14}
@@ -441,22 +485,6 @@ export function ProjectViews({
         </div>
       </div>
 
-      <nav className="sticky sticky-below-topbar z-30 -mx-8 border-y border-hairline bg-white/95 px-8 py-2.5 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4" aria-label="Project dashboard quick access">
-        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-          {[{ id: "project-overview", label: "Overview" }, { id: "project-status", label: "Status Distribution" }, { id: "project-breakdown", label: "Milestone Breakdown" }, { id: "project-delivery", label: "Delivery Timeline" }, { id: "project-execution", label: "Execution" }].map((item) => (
-            <button key={item.id} type="button" onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-altus-red">{item.label}</button>
-          ))}
-        </div>
-      </nav>
-
-      <section id="project-overview" className="grid gap-3 scroll-mt-32 sm:grid-cols-2 xl:grid-cols-5" aria-label="Project summary">
-        <MetricCard label="Total projects" value={projects.length} icon={<FolderKanban size={18} />} onClick={() => pickProject([])} />
-        <MetricCard label="Initiated" value={metrics.projectStatuses.initiated ?? 0} tone="cyan" icon={<TrendingUp size={18} />} onClick={() => { setStatusFilter("initiated"); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
-        <MetricCard label="Not started" value={metrics.projectStatuses.not_started ?? 0} tone="slate" icon={<ListTree size={18} />} onClick={() => { setStatusFilter("not_started"); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
-        <MetricCard label="Total milestones" value={metrics.milestoneCount} tone="violet" icon={<BarChart3 size={18} />} onClick={() => router.push("/project-plan/milestones" as Route)} />
-        <MetricCard label="Overall progress" value={`${metrics.progress}%`} tone="green" icon={<TrendingUp size={18} />} onClick={() => document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" })} />
-      </section>
-
       <section className="space-y-5">
         <DashboardWidget id="project-status" title="Project status distribution" icon={<BarChart3 size={17} />} subtitle="Current status across top-level projects">
           <StatusDistribution counts={metrics.projectStatuses} total={projects.length} onPick={(status) => { setStatusFilter(status); document.getElementById("project-tree")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} />
@@ -481,9 +509,13 @@ export function ProjectViews({
         <>
       <nav
         aria-label="Project Views controls"
-        className="sticky sticky-below-topbar z-30 -mx-8 mb-5 border-y border-hairline bg-white/95 px-8 py-3 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4"
+        className="sticky sticky-below-topbar z-30 -mx-8 mb-5 h-[51px] border-y border-hairline px-8 backdrop-blur max-lg:-mx-6 max-lg:px-6 max-md:-mx-4 max-md:px-4"
+        style={{
+          background: "radial-gradient(560px 90px at 6% 0%, color-mix(in srgb, var(--color-altus-red) 4%, transparent), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.86), rgba(250,251,252,0.80))",
+          boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
+        }}
       >
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex h-full flex-wrap items-center justify-end gap-2">
           <label className="hidden">
             <Search
               size={14}
@@ -535,7 +567,7 @@ export function ProjectViews({
             <ChevronsDownUp size={13} strokeWidth={2.4} aria-hidden />
             Collapse
           </button>
-          <CollapsibleSearch scope="project rows" className="size-9">
+          <CollapsibleSearch scope="project rows" className="size-9 translate-x-3">
             <label className="relative flex items-center">
               <Search size={14} strokeWidth={2.4} aria-hidden className="pointer-events-none absolute left-2.5 text-ink-subtle" />
               <input
@@ -577,7 +609,7 @@ export function ProjectViews({
         <div
           id="project-tree"
           ref={treeScrollRef}
-          className="no-scrollbar overflow-auto rounded-xl border border-hairline-strong bg-white"
+          className="no-scrollbar overflow-auto rounded-none border border-hairline-strong bg-white"
           style={{ maxHeight: "calc(100vh - 220px)", minHeight: 220 }}
         >
           {/* `w-max min-w-full`: as wide as the columns need, never narrower
@@ -638,39 +670,15 @@ export function ProjectViews({
 
 /* ────────────────────────────────────────────────────────────── Summary ─ */
 
-/** The filtered project's own line: what it contains and where it stands. */
-function MetricCard({
-  label,
-  value,
-  icon,
-  tone = "red",
-  onClick,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ReactNode;
-  tone?: "red" | "cyan" | "slate" | "violet" | "green";
-  onClick: () => void;
-}) {
-  const tones = {
-    red: "border-red-200 bg-red-50/50 text-altus-red",
-    cyan: "border-cyan-200 bg-cyan-50/70 text-cyan-700",
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-    violet: "border-violet-200 bg-violet-50/70 text-violet-700",
-    green: "border-emerald-200 bg-emerald-50/70 text-emerald-700",
-  };
-  return <button type="button" onClick={onClick} className={`group rounded-[16px] border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 ${tones[tone]}`}><span className="flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-wider">{label}<span className="opacity-70 transition-transform group-hover:scale-110">{icon}</span></span><span className="mt-3 block text-[28px] font-black leading-none tabular-nums text-ink-strong">{value}</span></button>;
-}
-
 function DashboardWidget({ id, title, subtitle, icon, actions, children }: { id?: string; title: string; subtitle: string; icon: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = React.useState(true);
-  return <section id={id} className="scroll-mt-32 rounded-[18px] border border-hairline-strong bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-altus-red/10 text-altus-red">{icon}</span><div className="min-w-0"><h2 className="truncate text-[15px] font-black text-ink-strong">{title}</h2><p className="truncate text-[11.5px] font-medium text-ink-subtle">{subtitle}</p></div></div><div className="flex shrink-0 items-center gap-2">{actions}<CollapseToggle expanded={open} onToggle={() => setOpen((value) => !value)} label={title} /></div></div><CollapsibleBody expanded={open}><div className="pt-5">{children}</div></CollapsibleBody></section>;
+  return <section id={id} className="scroll-mt-[calc(var(--app-topbar-h)+51px)] rounded-none border border-hairline-strong bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-altus-red/10 text-altus-red">{icon}</span><div className="min-w-0"><h2 className="truncate text-[15px] font-black text-ink-strong">{title}</h2><p className="truncate text-[11.5px] font-medium text-ink-subtle">{subtitle}</p></div></div><div className="flex shrink-0 items-center gap-2">{actions}<CollapseToggle expanded={open} onToggle={() => setOpen((value) => !value)} label={title} /></div></div><CollapsibleBody expanded={open}><div className="pt-5">{children}</div></CollapsibleBody></section>;
 }
 
 function StatusDistribution({ counts, total, onPick }: { counts: Partial<Record<PlanStatus, number>>; total: number; onPick: (status: PlanStatus) => void }) {
   const entries = (Object.entries(counts) as [PlanStatus, number][]).filter(([, count]) => count > 0);
   if (entries.length === 0) return <p className="py-6 text-center text-[13px] font-semibold text-ink-subtle">No project statuses to display.</p>;
-  return <div className="space-y-5"><div className="flex h-12 w-full overflow-hidden rounded-xl bg-slate-100 shadow-inner">{entries.map(([status, count]) => <button key={status} type="button" onClick={() => onPick(status)} title={`${PLAN_STATUS_LABEL[status]}: ${count} projects`} className="min-w-0 transition-[filter] hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" style={{ flexGrow: count, background: PLAN_STATUS_TONE[status] }}><span className="sr-only">{PLAN_STATUS_LABEL[status]} {count}</span></button>)}</div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{entries.map(([status, count]) => { const percent = total ? Math.round((count / total) * 100) : 0; return <button key={status} type="button" onClick={() => onPick(status)} className="rounded-xl border border-hairline p-3 text-left transition-colors hover:border-altus-red/40 hover:bg-surface-soft"><span className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-[12px] font-bold text-ink-strong"><i className="size-2.5 rounded-full" style={{ background: PLAN_STATUS_TONE[status] }} />{PLAN_STATUS_LABEL[status]}</span><strong className="text-[18px] font-black tabular-nums" style={{ color: PLAN_STATUS_TONE[status] }}>{count}</strong></span><span className="mt-2 block text-[11px] font-semibold text-ink-subtle">{percent}% of the portfolio</span></button>; })}</div></div>;
+  return <div className="space-y-5"><div className="flex h-12 w-full overflow-hidden rounded-none bg-slate-100 shadow-inner">{entries.map(([status, count]) => <button key={status} type="button" onClick={() => onPick(status)} title={`${PLAN_STATUS_LABEL[status]}: ${count} projects`} className="min-w-0 transition-[filter] hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" style={{ flexGrow: count, background: PLAN_STATUS_TONE[status] }}><span className="sr-only">{PLAN_STATUS_LABEL[status]} {count}</span></button>)}</div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{entries.map(([status, count]) => { const percent = total ? Math.round((count / total) * 100) : 0; return <button key={status} type="button" onClick={() => onPick(status)} className="rounded-none border border-hairline p-3 text-left transition-colors hover:border-altus-red/40 hover:bg-surface-soft"><span className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-[12px] font-bold text-ink-strong"><i className="size-2.5 rounded-full" style={{ background: PLAN_STATUS_TONE[status] }} />{PLAN_STATUS_LABEL[status]}</span><strong className="text-[18px] font-black tabular-nums" style={{ color: PLAN_STATUS_TONE[status] }}>{count}</strong></span><span className="mt-2 block text-[11px] font-semibold text-ink-subtle">{percent}% of the portfolio</span></button>; })}</div></div>;
 }
 
 function ProjectProgressChart({ projects, onPick }: { projects: PlanRow[]; onPick: (id: string) => void }) {

@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, Search } from "lucide-react";
 import { LiveIndicator } from "./live-indicator";
 import { MainNavServer } from "./main-nav-server";
 import { NavHistoryButtons } from "./nav-history-buttons";
@@ -90,7 +90,19 @@ export async function DashboardHeader({
 
           {/* RIGHT: search + live indicator + actions + avatar. */}
           <div className="flex items-center gap-2.5 2xl:gap-3 shrink-0 max-xl:ml-auto max-md:gap-1.5">
-            <GlobalSearch workspace={ws} />
+            <GlobalSearch
+              workspace={ws}
+              trigger={
+                <button
+                  type="button"
+                  aria-label="Global search"
+                  title="Global search — tasks, clients, people, documents (Ctrl+K)"
+                  className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-hairline-strong bg-surface-soft text-ink-strong transition-colors hover:bg-surface-card hover:text-ink-strong"
+                >
+                  <Search size={17} strokeWidth={2.3} />
+                </button>
+              }
+            />
             <span className="max-2xl:hidden">
               <LiveIndicator />
             </span>

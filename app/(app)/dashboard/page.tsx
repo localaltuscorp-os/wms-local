@@ -219,9 +219,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </div>
             )}
             <div className={mobileToday ? "max-md:hidden" : undefined}>
-              <PageShell as="div" width="full" py={false} className="pt-4">
-                <TaskStatusKpiStrip counts={data.taskStatusCounts} view={filters.view} />
-              </PageShell>
               {/* Fixed vertical order below the compact status summary:
                     1 Overdue Tasks by Person
                     2 Aging Heatmap
@@ -249,14 +246,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 isAdmin={Boolean(me?.isAdmin)}
                 meId={me?.id ?? null}
               >
-                {/* ONE column owns the rhythm: gap-6 (24px) between every block,
-                    and nothing carries its own top margin. `mt-6` is the column's
-                    own clearance from the status strip above — gap only spaces
-                    siblings INSIDE the column. */}
                 {/* ONE gap rule for the whole stack. Sections used to add their own
                     top margins on top of this, so the spacing between any two
                     of them depended on which two they were. */}
-                <div className="mt-6 flex flex-col gap-6 md:gap-8">
+                <div data-layout-surface="dashboard" className="flex flex-col gap-6 pt-4 md:gap-8">
+                  <div id="task-status-summary" className="scroll-mt-32">
+                    <PageShell as="div" width="full" py={false}>
+                      <TaskStatusKpiStrip counts={data.taskStatusCounts} view={filters.view} />
+                    </PageShell>
+                  </div>
                   {/* 1 — Overdue Tasks by Person. PageShell: outside the tabs box
                       these sections no longer inherit the panel's padding, so each
                       needs the page gutter itself. AgingHeatmap renders its own. */}

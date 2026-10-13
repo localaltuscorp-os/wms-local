@@ -269,7 +269,7 @@ export function PlanKanban({
        a full-screen flex parent there was no page scroll to fall back on.
        Each column scrolls its own cards (below), so the headers stay put. */
     <div
-      className="kanban-palette kanban-board-container kanban-scroll overflow-auto rounded-section border border-hairline-strong bg-white p-4 shadow-sm"
+      className="kanban-palette kanban-board-container kanban-scroll project-plan-kanban-scroll overflow-auto rounded-none border border-hairline-strong bg-white p-4 shadow-sm"
       style={{ height: "calc(100vh - 300px)", minHeight: 320 }}
     >
       <div className="flex h-full items-stretch gap-4" style={{ minWidth: COLUMNS.length * 320 }}>
@@ -287,7 +287,7 @@ export function PlanKanban({
               }}
               onDragLeave={() => setOverCol((c) => (c === col ? null : c))}
               onDrop={() => onDrop(col)}
-              className="flex h-full w-[300px] shrink-0 flex-col overflow-hidden rounded-section border bg-surface-soft transition-colors"
+              className="flex h-full w-[300px] shrink-0 flex-col overflow-hidden rounded-none border bg-surface-soft transition-colors"
               style={{
                 borderLeftColor: isOver ? ACCENT : "var(--color-hairline-strong)",
                 borderRightColor: isOver ? ACCENT : "var(--color-hairline-strong)",
@@ -356,7 +356,21 @@ export function PlanKanban({
                     <article
                       key={c.node.id}
                       draggable={draggable}
-                      onDragStart={() => setDragId(c.node.id)}
+                      onDragStart={(event) => {
+                        // KPI cards use the same native drag payload as the
+                        // status columns. Without this, a card could move
+                        // between Kanban columns but a KPI drop target had no
+                        // node id to update.
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData(
+                          "application/x-altus-project-node",
+                          JSON.stringify({ id: c.node.id }),
+                        );
+                        // A plain-text fallback keeps the drag usable for
+                        // browser tooling that only preserves standard types.
+                        event.dataTransfer.setData("text/plain", c.node.id);
+                        setDragId(c.node.id);
+                      }}
                       onDragEnd={() => { setDragId(null); setOverCol(null); }}
                       title={
                         draggable

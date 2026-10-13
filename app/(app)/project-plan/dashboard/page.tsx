@@ -17,7 +17,7 @@ export default async function ProjectDashboardPage() {
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 pt-8 max-lg:px-6 max-md:px-4">
+      <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 max-lg:px-6 max-md:px-4">
         <ProjectViews
           mode="dashboard"
           tree={tree.map(toRow)}

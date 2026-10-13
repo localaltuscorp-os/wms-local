@@ -25,7 +25,6 @@ import {
   CalendarRange,
   CalendarCheck,
   CalendarDays,
-  Gauge,
   AlertTriangle,
   ArrowLeftRight,
   SquareArrowOutUpRight,
@@ -33,6 +32,8 @@ import {
   X,
   ArrowDown,
   ArrowUp,
+  ArrowDownUp,
+  ChevronDown,
   ChevronsUpDown,
 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
@@ -43,7 +44,6 @@ import {
   DASHBOARD_TABLE_HEAD,
   CollapseToggle,
   CollapsibleBody,
-  SECTION_CONTROL,
 } from "@/components/dashboard/section-chrome";
 import { DashboardSectionNav } from "@/components/dashboard/section-nav";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
@@ -78,7 +78,6 @@ import { statusCardTokens, type StatusCardKey } from "@/lib/status-palette";
  * section hidden by a filter never leaves a pill pointing at nothing.
  */
 export const GOALS_DASHBOARD_SECTIONS = [
-  { id: "goals-overview", label: "Overview" },
   { id: "yearly-goals", label: "Yearly Goals" },
   { id: "quarterly-goals", label: "Quarterly Goals" },
   { id: "monthly-goals", label: "Monthly Goals" },
@@ -182,6 +181,7 @@ const GOAL_COLUMNS: {
 
 type GoalSortKey = "goal" | "progress" | "period" | "area" | "attainment" | "pace" | "status";
 type GoalSort = { key: GoalSortKey; direction: "asc" | "desc" } | null;
+type DashboardGoalSort = "risk" | "progress" | "goal";
 
 const GOAL_TABLE_HEADERS: { key: GoalSortKey; label: string }[] = [
   { key: "goal", label: "Goal" },
@@ -299,38 +299,6 @@ export function GoalsOverviewDashboard({
     [data.fyStartYear, data.range, scopeLabel],
   );
 
-  /* OVERVIEW — the six headline figures, then the band split, as one
-     measure-per-row table. The section shows KPI tiles above a segmented bar;
-     both are the same numbers, and a PDF wants them in one column rather than
-     as a picture of a bar. */
-  const overviewReport = React.useCallback(
-    (): SectionReport => ({
-      title: "Goals Overview",
-      subtitle: "Everything in the selected window, across all five levels",
-      meta: reportMeta,
-      summary: `${totals.total} ${totals.total === 1 ? "goal" : "goals"} · ${totals.weighted}% attained, pace expects ${totals.expected}%`,
-      columns: [
-        { label: "Measure", weight: 3, align: "left" },
-        { label: "Value", weight: 1, align: "right" },
-      ],
-      rows: [
-        ["Total goals", String(totals.total)],
-        ["Done", String(totals.counts.done)],
-        ["On pace", String(totals.onPace)],
-        ["At risk", String(totals.atRisk)],
-        ["Overdue", String(totals.counts.overdue)],
-        ["Attainment (weighted)", `${totals.weighted}%`],
-        ["Pace expects", `${totals.expected}%`],
-        // The band split, in the bar's own order so the table reads left to
-        // right the way the bar does. Zero bands included: "0 overdue" is the
-        // best line this report can carry, and a table that omits it makes the
-        // reader count the rows to notice.
-        ...BAND_ORDER.map((b) => [BAND_META[b].label, String(totals.counts[b])]),
-      ],
-    }),
-    [reportMeta, totals],
-  );
-
   /* DAILY COMMITMENTS — one row per day, which is exactly what the bar strip
      draws and exactly what a table does better. */
   const dailyReport = React.useCallback(
@@ -380,11 +348,12 @@ export function GoalsOverviewDashboard({
           fyRange={fyRange}
         />
         <DashboardSectionNav sections={GOALS_DASHBOARD_SECTIONS} />
+        <GoalsKpiStrip summary={totals} />
       </div>
 
-      <PageShell width="full" className="pt-6 pb-16 max-md:pt-4 max-md:pb-12">
+      <PageShell width="full" className="pt-4 pb-16 max-md:pt-3 max-md:pb-12">
         <header
-          className="mb-4 px-1"
+          className="hidden"
         >
           <div>
             {/* `page-heading` — the same class the Tasks list and the four
@@ -397,33 +366,6 @@ export function GoalsOverviewDashboard({
             </p>
           </div>
         </header>
-
-        {/* ── OVERVIEW ──────────────────────────────────────────────────── */}
-        <Section
-          id="goals-overview"
-          icon={<SectionIcon icon={Gauge} tone="red" />}
-          title="Overview"
-          subtitle="Everything in the selected window, across all five levels."
-          label="the overview"
-          report={overviewReport}
-        >
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label="Total goals" value={totals.total} tone="total" />
-            <Kpi label="On pace" value={totals.onPace} tone="done" />
-            <Kpi label="Needs attention" value={totals.needsAttention} tone="pending" />
-            <Kpi
-              label="Attainment"
-              value={totals.weighted}
-              suffix="%"
-              tone="notStarted"
-              /* WEIGHTED, not a plain average of percentages: a goal carrying
-                 five times the weight of another has to move this number five
-                 times as far, or the headline rewards finishing whatever
-                 happens to be smallest. */
-              hint={`weighted · pace expects ${totals.expected}%`}
-            />
-          </div>
-        </Section>
 
         {/* ── ONE SECTION PER GOAL LEVEL ────────────────────────────────── */}
         {LEVELS.map((lv) => (
@@ -488,6 +430,8 @@ function Section({
   label,
   href,
   report,
+  sortControl,
+  toolbarControl,
   controls,
   children,
 }: {
@@ -507,9 +451,13 @@ function Section({
    * (the window selected, the rows in scope), so building it eagerly on every
    * render would be both wasteful and wrong: the snapshot has to be taken when
    * the button is pressed, not when the header last re-rendered.
-   */
+  */
   report?: () => SectionReport;
-  /** Section-owned controls (Transpose), placed left of the fold toggle. */
+  /** Compact sort selector, placed first to match the WMS dashboard. */
+  sortControl?: React.ReactNode;
+  /** View control, such as transpose, between the share controls and fold control. */
+  toolbarControl?: React.ReactNode;
+  /** Section search, placed directly to the right of the fold control. */
   controls?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -521,31 +469,34 @@ function Section({
         title={title}
         subtitle={subtitle}
         inset="px-4 md:px-5"
-        /* THE ORDER IS THE WMS DASHBOARD'S: share pair, then the section's own
-           controls, then the board shortcut, then the fold toggle rightmost. It reads
-           as arbitrary until you scroll a page of eight sections — then the two
-           round icons start every toolbar at the same x and the fold control
-           ends every one of them, which is the only thing that stops the header
-           row looking ragged down the column. */
+        /* Match the WMS section-header sequence: sort, WhatsApp, email,
+           transpose, fold, then search. */
         actions={
           <>
+            {sortControl}
             {report && <SectionDispatch report={report} />}
-            {controls}
+            {toolbarControl}
+            <CollapseToggle
+              expanded={open}
+              onToggle={() => setOpen((value) => !value)}
+              label={label}
+            />
+            {controls && (
+              <span data-sec="search" className="inline-flex shrink-0">
+                {controls}
+              </span>
+            )}
             {href && (
               <Link
                 href={href}
                 aria-label={`Open ${label} board`}
                 title={`Open ${label} board`}
                 className="inline-flex size-8 items-center justify-center rounded-lg border border-hairline-strong bg-white text-ink-soft shadow-sm transition-colors hover:border-altus-red hover:text-altus-red focus-visible:-outline-offset-2"
+                style={{ order: 4.5 }}
               >
                 <SquareArrowOutUpRight size={15} strokeWidth={2.2} aria-hidden />
               </Link>
             )}
-            <CollapseToggle
-              expanded={open}
-              onToggle={() => setOpen((value) => !value)}
-              label={label}
-            />
           </>
         }
       />
@@ -584,13 +535,17 @@ function TransposeButton({
   return (
     <button
       type="button"
+      data-sec="transpose"
       onClick={onToggle}
       aria-pressed={on}
+      aria-label={on ? `Back to ${noun} as rows` : `Transpose: ${noun} as columns`}
       title={on ? `Back to ${noun} as rows` : `Transpose: ${noun} as columns`}
-      className={`${SECTION_CONTROL} ${on ? "text-altus-red" : ""}`}
+      className={`inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-2xs transition-colors hover:bg-slate-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-altus-red/40 ${
+        on ? "text-altus-red" : ""
+      }`}
     >
-      <ArrowLeftRight className="size-3.5" strokeWidth={2.6} />
-      Transpose
+      <ArrowLeftRight size={15} strokeWidth={2.4} aria-hidden />
+      <span className="sr-only">Transpose</span>
     </button>
   );
 }
@@ -660,7 +615,7 @@ function TransposedGoals({
   fy: number;
 }) {
   return (
-    <div className="-mx-1 max-h-[680px] overflow-auto px-1">
+    <div className="no-scrollbar -mx-1 max-h-[680px] overflow-auto px-1">
       {/* `w-auto`, NOT `w-full`, with a stated width per column.
           A full-width table divides its slack among the columns it has, so a
           level holding one goal drew a single 1300px-wide column with four
@@ -765,7 +720,7 @@ function GoalsTable({
   };
 
   return (
-    <div className="max-h-[680px] overflow-auto rounded-[14px] border border-hairline">
+    <div className="no-scrollbar max-h-[680px] overflow-auto rounded-[14px] border border-hairline">
       <table className="min-w-[1060px] w-full border-collapse text-left">
         <thead className="sticky top-0 z-20 bg-surface-card shadow-[0_1px_0_var(--color-hairline-strong)]">
           <tr>
@@ -871,6 +826,7 @@ function LevelSection({
   const [transposed, setTransposed] = React.useState(false);
   const [visibleCount, setVisibleCount] = React.useState(LIST_MAX);
   const [query, setQuery] = React.useState("");
+  const [sortMode, setSortMode] = React.useState<DashboardGoalSort>("risk");
   const filteredRows = React.useMemo(
     () => rows.filter((row) => matchesGoalQuery(row, query)),
     [query, rows],
@@ -879,11 +835,8 @@ function LevelSection({
   // Worst first, so the rows worth reading are the ones on screen when the
   // list caps.
   const sorted = React.useMemo(
-    () =>
-      filteredRows
-        .slice()
-        .sort((a, b) => BAND_ORDER.indexOf(b.band) - BAND_ORDER.indexOf(a.band) || a.h.delta - b.h.delta),
-    [filteredRows],
+    () => sortDashboardGoals(filteredRows, sortMode),
+    [filteredRows, sortMode],
   );
   const listed = React.useMemo(() => sorted.slice(0, visibleCount), [sorted, visibleCount]);
 
@@ -917,27 +870,28 @@ function LevelSection({
       label={level.label.toLowerCase()}
       href={`${level.href}?fy=${fy}` as Route}
       report={buildReport}
+      sortControl={<GoalDashboardSort value={sortMode} onChange={setSortMode} />}
       /* No Transpose on an empty level — a control that flips nothing between
          two identical empty states is a dead button, and every level section
          is empty on a narrow date range. */
-      controls={
-        <>
-          <GoalSectionSearch
-            query={query}
-            onQueryChange={(value) => {
-              setQuery(value);
-              setVisibleCount(LIST_MAX);
-            }}
-            label={level.label}
+      toolbarControl={
+        filteredRows.length > 0 ? (
+          <TransposeButton
+            on={transposed}
+            onToggle={() => setTransposed((v) => !v)}
+            noun="goals"
           />
-          {filteredRows.length > 0 && (
-            <TransposeButton
-              on={transposed}
-              onToggle={() => setTransposed((v) => !v)}
-              noun="goals"
-            />
-          )}
-        </>
+        ) : null
+      }
+      controls={
+        <GoalSectionSearch
+          query={query}
+          onQueryChange={(value) => {
+            setQuery(value);
+            setVisibleCount(LIST_MAX);
+          }}
+          label={level.label}
+        />
       }
     >
       {filteredRows.length === 0 ? (
@@ -1082,9 +1036,14 @@ function AttentionSection({
 }) {
   const [transposed, setTransposed] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const [sortMode, setSortMode] = React.useState<DashboardGoalSort>("risk");
   const filteredRows = React.useMemo(
     () => rows.filter((row) => matchesGoalQuery(row, query)),
     [query, rows],
+  );
+  const sortedRows = React.useMemo(
+    () => sortDashboardGoals(filteredRows, sortMode),
+    [filteredRows, sortMode],
   );
 
   const buildReport = React.useCallback(
@@ -1102,9 +1061,9 @@ function AttentionSection({
       columns: GOAL_REPORT_COLUMNS,
       // Every flagged goal, not the 15 on screen — see the note on the level
       // sections' report.
-      rows: goalReportRows(filteredRows),
+      rows: goalReportRows(sortedRows),
     }),
-    [filteredRows, totalInWindow, fy],
+    [filteredRows.length, sortedRows, totalInWindow, fy],
   );
 
   return (
@@ -1115,17 +1074,18 @@ function AttentionSection({
       subtitle="Overdue, at risk, or carried over and still open — worst first."
       label="the attention list"
       report={buildReport}
+      sortControl={<GoalDashboardSort value={sortMode} onChange={setSortMode} />}
+      toolbarControl={
+        filteredRows.length > 0 ? (
+          <TransposeButton
+            on={transposed}
+            onToggle={() => setTransposed((v) => !v)}
+            noun="flagged goals"
+          />
+        ) : null
+      }
       controls={
-        <>
-          <GoalSectionSearch query={query} onQueryChange={setQuery} label="flagged goals" />
-          {filteredRows.length > 0 && (
-            <TransposeButton
-              on={transposed}
-              onToggle={() => setTransposed((v) => !v)}
-              noun="flagged goals"
-            />
-          )}
-        </>
+        <GoalSectionSearch query={query} onQueryChange={setQuery} label="flagged goals" />
       }
     >
       {filteredRows.length === 0 ? (
@@ -1137,9 +1097,9 @@ function AttentionSection({
             : "Nothing behind pace. Every goal is on track or done."}
         </EmptyNote>
       ) : transposed ? (
-        <TransposedGoals rows={filteredRows} fy={fy} />
+        <TransposedGoals rows={sortedRows} fy={fy} />
       ) : (
-        <GoalsTable rows={filteredRows} fy={fy} />
+        <GoalsTable rows={sortedRows} fy={fy} />
       )}
     </Section>
   );
@@ -1230,7 +1190,7 @@ function Kpi({
   return (
     <div
       title={hint}
-      className={`min-h-[90px] rounded-[14px] border p-4 shadow-sm transition-shadow hover:shadow-md ${tokens.shell}`}
+      className={`min-h-[90px] rounded-[16px] border p-4 shadow-sm transition-shadow hover:shadow-md ${tokens.shell}`}
     >
       <span className={`block text-[11px] font-bold uppercase tracking-wider ${tokens.label}`}>
         {label}
@@ -1246,6 +1206,88 @@ function Kpi({
         <span className="sr-only">{hint}</span>
       )}
     </div>
+  );
+}
+
+function GoalDashboardSort({
+  value,
+  onChange,
+}: {
+  value: DashboardGoalSort;
+  onChange: (value: DashboardGoalSort) => void;
+}) {
+  const label = value === "risk" ? "Risk" : value === "progress" ? "Progress" : "Goal";
+  return (
+    <span className="relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs">
+      <ArrowDownUp className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+      <span className="whitespace-nowrap">
+        Sort by: <span className="text-slate-900">{label}</span>
+      </span>
+      <ChevronDown className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as DashboardGoalSort)}
+        aria-label="Sort goals"
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        <option value="risk">Sort by Risk</option>
+        <option value="progress">Sort by Progress</option>
+        <option value="goal">Sort by Goal</option>
+      </select>
+    </span>
+  );
+}
+
+function sortDashboardGoals(rows: Row[], mode: DashboardGoalSort): Row[] {
+  return rows.slice().sort((a, b) => {
+    const risk =
+      BAND_ORDER.indexOf(b.band) - BAND_ORDER.indexOf(a.band) || a.h.delta - b.h.delta;
+    if (mode === "risk") return risk;
+    if (mode === "progress") return b.eff - a.eff || risk;
+    return a.g.title.localeCompare(b.g.title, undefined, { sensitivity: "base" }) || risk;
+  });
+}
+
+/**
+ * The compact dashboard summary row mirrors the WMS status strip, but keeps
+ * the goal module's pace bands and their existing semantic colours.  It lives
+ * with the sticky filters/navigation so the scope, section navigation and the
+ * numbers they describe are always read as one dashboard control area.
+ */
+function GoalsKpiStrip({ summary }: { summary: Summary }) {
+  const items: { label: string; value: number | string; color: string }[] = [
+    { label: "Total goals", value: summary.total, color: "#64748b" },
+    ...BAND_ORDER.map((band) => ({
+      label: BAND_META[band].short,
+      value: summary.counts[band],
+      color: BAND_META[band].color,
+    })),
+    { label: "Attainment", value: `${summary.weighted}%`, color: "#174ea6" },
+  ];
+
+  return (
+    <PageShell
+      as="div"
+      width="full"
+      py={false}
+      className="flex flex-wrap items-center gap-2 border-t border-hairline py-2.5 max-md:gap-1.5"
+    >
+      {items.map((item) => (
+        <span
+          key={item.label}
+          title={`${item.label}: ${item.value}`}
+          className="inline-flex h-7 items-center gap-1.5 rounded-pill border bg-white px-3 text-[11.5px] font-bold text-ink-soft shadow-2xs"
+          style={{
+            borderColor: `color-mix(in srgb, ${item.color} 28%, white)`,
+            background: `color-mix(in srgb, ${item.color} 7%, white)`,
+          }}
+        >
+          <span aria-hidden className="size-2 rounded-full" style={{ background: item.color }} />
+          <span className="tabular-nums text-[14px] font-black text-ink-strong">{item.value}</span>
+          <span>{item.label}</span>
+        </span>
+      ))}
+    </PageShell>
   );
 }
 

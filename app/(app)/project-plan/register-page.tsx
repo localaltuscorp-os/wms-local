@@ -88,9 +88,12 @@ export async function RegisterPage({
           boxShadow: "0 10px 26px -22px rgba(15, 23, 42, 0.20)",
         }}
       >
-        <div id="project-register-create-ribbon" className="mx-auto flex h-full max-w-[1600px] items-center gap-2 px-8 max-lg:px-6 max-md:px-4" />
+        <div className="mx-auto flex h-full max-w-[1600px] items-center gap-2 px-8 max-lg:px-6 max-md:px-4">
+          <div id="project-register-create-ribbon" className="flex items-center gap-2" />
+          <div id="project-register-search-ribbon" className="ml-auto flex h-full items-center" />
+        </div>
       </div>
-      <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 pt-8 max-lg:px-6 max-md:px-4">
+      <main className="mx-auto w-full max-w-[1600px] px-8 pb-16 pt-2 max-lg:px-6 max-md:px-4">
         <PlanRegister
           level={level}
           tree={tree.map(toRow)}

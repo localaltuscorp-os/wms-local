@@ -65,7 +65,7 @@ export default function GetAppPage() {
             alt="Altus"
             width={44}
             height={44}
-            style={{ filter: "brightness(0) invert(1)" }}
+            style={{ width: 44, height: "auto", filter: "brightness(0) invert(1)" }}
             priority
           />
         </div>

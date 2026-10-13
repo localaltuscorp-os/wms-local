@@ -1432,6 +1432,12 @@ html {
 .section-actions > [data-sec="fold"]      { order: 4; }
 .section-actions > [data-sec="search"]    { order: 5; }
 
+/* Dashboard only: nudge the collapsed filter-ribbon search icon toward the
+   profile column without moving Tasks, Kanban, or Daily Commitments search. */
+[data-wms-dashboard] [data-wms-filter-ribbon] button[aria-label^="Local search"] {
+  transform: translateX(4px);
+}
+
 /* Pill-card filter trigger — icon badge + value/sublabel + chevron. */
 /* Compressed so the whole ribbon (date · filters · view toggle · switcher ·
    search) holds ONE non-wrapping line — see the flex-nowrap row in
@@ -3068,6 +3074,12 @@ table {
   background: #94a3b8;
 }
 
+/* Yearly Goals is a wide planning board. Keep its native horizontal panning
+   but hide the always-visible bottom rail, matching the quiet module footer. */
+.goals-yearly-hide-x-scrollbar::-webkit-scrollbar:horizontal {
+  height: 0;
+}
+
 /* A WIDE, TALL GRID'S scrollbars — the Event Checklist and WCC / MCC, which
    scroll both ways inside their own box (account holder, 2026-09-18: "add a
    scrollbar on both horizontal and vertical"). Thicker than `table-scroll`,
@@ -3532,6 +3544,19 @@ table {
   display: none;
 }
 
+/* Project Plan's Kanban uses the same clean, footer-style overflow treatment:
+   its board remains fully pannable, but the browser's horizontal rail is not
+   rendered as a spare row beneath the columns. */
+.project-plan-kanban-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.project-plan-kanban-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* ============================================================
    Premium dropdown language — one cohesive look shared by the
    Goals `Select` (components/ui/select.tsx) + `GoalLookupSelect`
@@ -3790,6 +3815,7 @@ table {
   box-shadow: none;
   transform: none;
 }
+
 .sidebar-rail .sidebar-nav .nav-pill-count {
   background: rgba(0, 0, 0, 0.06);
   color: #1a1a1a;

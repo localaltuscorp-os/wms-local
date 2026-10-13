@@ -14,7 +14,7 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import {
   Search,
   X,
-  Users,
+  ListChecks,
   ChevronRight,
   ChevronDown,
   ChevronsUpDown,
@@ -634,7 +634,7 @@ export function StatusTable({
       }}
     >
       <DashboardSectionHeader
-        icon={<SectionIcon icon={Users} tone="red" />}
+        icon={<SectionIcon icon={ListChecks} tone="red" />}
         title={`Status by ${view === "doer" ? "Doer" : "Initiator"}`}
         subtitle={
           hasActiveFilter ? (
