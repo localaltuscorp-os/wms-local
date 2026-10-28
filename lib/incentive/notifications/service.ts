@@ -11,6 +11,7 @@ import type { IncentiveStatus, IncentiveType } from "@/db/enums";
 import { resolveEmployeeType } from "@/lib/incentive/master";
 import { localDateString } from "@/lib/format";
 import { canReviewIncentives } from "@/lib/auth/incentive-permissions";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import { notify, type NotifyOpts } from "@/lib/notifications/dispatch";
 import type { DecisionAction } from "@/lib/incentive/workflow";
 import { INCENTIVE_NOTIFICATION_CHANNELS, encodeIncentiveMeta } from "./kinds";
@@ -258,8 +259,9 @@ export async function notifyIncentiveResubmitted(
       .from(employees);
     // The same rule the decision action enforces — whoever may decide is who
     // is told there is something to decide.
+    const founderIds = await founderEmployeeIds();
     const reviewers = people.filter(
-      (p) => canReviewIncentives(p.email) && isActiveEmployee(p) && p.id !== input.employeeId,
+      (p) => canReviewIncentives(founderIds.has(p.id)) && isActiveEmployee(p) && p.id !== input.employeeId,
     );
     if (reviewers.length === 0) {
       console.error(`${LOG} no active incentive reviewer to notify of resubmission ${input.submissionId}.`);

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Lock } from "lucide-react";
@@ -16,6 +17,7 @@ import {
   canSetInitiatorStatus,
   initiatorColumnFor,
   isInitiatorStatus,
+  type InitiatorStatus,
   type InitiatorColId,
   type StatusActor,
 } from "@/lib/status/axes";
@@ -42,7 +44,7 @@ import { formatDate } from "@/lib/format";
  * permission rule, and the server action re-checks the same rule before it
  * writes.
  *
- * NO VERDICT LEADS THE BOARD. Work nobody has ruled on is the queue an
+ * PENDING LEADS THE BOARD. Work nobody has ruled on is the queue an
  * initiator is here to clear, so it is the first column rather than an absence.
  * It is also the one column you cannot drag INTO: un-deciding is not a
  * decision, and there is no value to write.
@@ -71,10 +73,35 @@ interface Props {
   cards: InitiatorCard[];
   /** The signed-in user, for the permission check the dropdown renders from. */
   me: { id: string; isAdmin: boolean };
+  /** Page-level outlet used to keep KPI cards outside the board panel. */
+  kpiPortalTarget?: string;
 }
 
 const asDate = (v: Date | string | null): Date | null =>
   v == null ? null : v instanceof Date ? v : new Date(v);
+
+const INITIATOR_KPI_SPECS: Array<{
+  status: InitiatorStatus;
+  label: string;
+  pill: string;
+  border: string;
+  dot: string;
+}> = [
+  { status: "approved", label: "Approved", pill: "bg-teal-50 text-teal-950", border: "border-teal-200", dot: "bg-teal-600" },
+  { status: "not_approved", label: "Not approved", pill: "bg-rose-50 text-rose-950", border: "border-rose-200", dot: "bg-rose-600" },
+  { status: "on_hold", label: "On hold", pill: "bg-amber-50 text-amber-950", border: "border-amber-200", dot: "bg-amber-600" },
+  { status: "cancelled", label: "Cancelled", pill: "bg-orange-50 text-orange-950", border: "border-orange-200", dot: "bg-orange-600" },
+  { status: "archived", label: "Archived", pill: "bg-fuchsia-50 text-fuchsia-950", border: "border-fuchsia-200", dot: "bg-fuchsia-600" },
+];
+
+const INITIATOR_DOER_SUMMARY_SPECS = [
+  { status: "done", label: "Done", pill: "bg-emerald-50 text-emerald-950", border: "border-emerald-200", dot: "bg-emerald-600" },
+  { status: "abandoned", label: "Abandoned", pill: "bg-sky-50 text-sky-950", border: "border-sky-200", dot: "bg-sky-500" },
+] as const;
+
+const INITIATOR_READ_ONLY_SUMMARY_SPECS = [
+  { key: "pending", label: "Pending", pill: "bg-violet-50 text-violet-950", border: "border-violet-200", dot: "bg-violet-600" },
+] as const;
 
 function actorFor(me: Props["me"], card: InitiatorCard): StatusActor {
   return {
@@ -86,12 +113,17 @@ function actorFor(me: Props["me"], card: InitiatorCard): StatusActor {
   };
 }
 
-export function InitiatorKanbanBoard({ cards, me }: Props) {
+export function InitiatorKanbanBoard({ cards, me, kpiPortalTarget }: Props) {
   const router = useRouter();
   const [pending, setPending] = React.useState<string | null>(null);
   // Optimistic overlay: card id → the column it was just moved to. Cleared by
   // the refresh that follows a successful write.
   const [moved, setMoved] = React.useState<Record<string, InitiatorColId>>({});
+  const [kpiTarget, setKpiTarget] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setKpiTarget(kpiPortalTarget ? document.getElementById(kpiPortalTarget) : null);
+  }, [kpiPortalTarget]);
 
   const columnOf = React.useCallback(
     (c: InitiatorCard): InitiatorColId => moved[c.id] ?? initiatorColumnFor(c),
@@ -138,11 +170,89 @@ export function InitiatorKanbanBoard({ cards, me }: Props) {
     scheduleReconcile(() => router.refresh());
   }
 
+  const kpiStrip = (
+    <div className="flex flex-wrap items-center gap-2" aria-label="Initiator task status summary and drop targets">
+        <div className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-900">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-500" />
+          <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{cards.filter((card) => !card.archived).length}</span>
+          <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>Total</span>
+        </div>
+        {/* Progress context for an initiator: these two cards deliberately read
+            the doer axis, while the cards below remain initiator verdicts. */}
+        {INITIATOR_DOER_SUMMARY_SPECS.map((spec) => (
+          <div key={spec.status} className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 ${spec.pill} ${spec.border}`}>
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${spec.dot}`} />
+            <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>
+              {cards.filter((card) => !card.archived && effectiveDoerStatus(card.status) === spec.status).length}
+            </span>
+            <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>{spec.label}</span>
+          </div>
+        ))}
+        {INITIATOR_READ_ONLY_SUMMARY_SPECS.filter((spec) => spec.key === "pending").map((spec) => {
+          const count = spec.key === "pending"
+            ? (byColumn.get(NO_VERDICT_COL)?.length ?? 0)
+            : cards.filter((card) => card.approvalStatus === "cancelled").length;
+          return (
+            <div key={spec.key} className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 ${spec.pill} ${spec.border}`}>
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${spec.dot}`} />
+              <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{count}</span>
+              <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>{spec.label}</span>
+            </div>
+          );
+        })}
+        {INITIATOR_KPI_SPECS.filter((spec) => spec.status !== "archived").map((spec) => {
+          const count = byColumn.get(spec.status)?.length ?? 0;
+          return (
+            <div
+              key={spec.status}
+              className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 ${spec.pill} ${spec.border}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const card = cards.find((item) => item.id === e.dataTransfer.getData("text/plain"));
+                if (card) void move(card, spec.status);
+              }}
+              aria-label={`Drop a task to mark it ${spec.label.toLowerCase()}`}
+            >
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${spec.dot}`} />
+              <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{count}</span>
+              <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>{spec.label}</span>
+            </div>
+          );
+        })}
+        {INITIATOR_KPI_SPECS.filter((spec) => spec.status === "archived").map((spec) => {
+          const count = byColumn.get(spec.status)?.length ?? 0;
+          return (
+            <div
+              key={spec.status}
+              className={`inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 ${spec.pill} ${spec.border}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const card = cards.find((item) => item.id === e.dataTransfer.getData("text/plain"));
+                if (card) void move(card, spec.status);
+              }}
+              aria-label={`Drop a task to mark it ${spec.label.toLowerCase()}`}
+            >
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${spec.dot}`} />
+              <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em" }}>{count}</span>
+              <span className="font-semibold leading-none" style={{ fontSize: 11.5 }}>{spec.label}</span>
+            </div>
+          );
+        })}
+    </div>
+  );
+
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
+    <div>
+      {/* Mirrors the Tasks-section KPI position. These are verdict targets, so
+          dropping an initiator-authorized card applies the chosen verdict. */}
+      {kpiTarget ? createPortal(kpiStrip, kpiTarget) : <div className="mb-4">{kpiStrip}</div>}
+      <div className="flex gap-4 overflow-x-auto pb-2">
       {INITIATOR_COLUMN_ORDER.map((col) => {
         const list = byColumn.get(col) ?? [];
         const tone = INITIATOR_COLUMN_TONE[col];
+        const label = col === NO_VERDICT_COL ? "Pending" : INITIATOR_COLUMN_LABEL[col];
         const droppable = col !== NO_VERDICT_COL;
         return (
           <section
@@ -164,7 +274,7 @@ export function InitiatorKanbanBoard({ cards, me }: Props) {
               style={{ borderTop: `3px solid ${tone}` }}
             >
               <span className="text-[13px] font-bold text-ink-strong">
-                {INITIATOR_COLUMN_LABEL[col]}
+                {label}
               </span>
               <span
                 className="rounded-pill px-2 py-0.5 text-[11.5px] font-bold text-white"
@@ -241,7 +351,7 @@ export function InitiatorKanbanBoard({ cards, me }: Props) {
                           }}
                         >
                           <option value="" disabled>
-                            No Verdict
+                            Pending
                           </option>
                           {INITIATOR_COLUMN_ORDER.filter(
                             (x): x is Exclude<InitiatorColId, typeof NO_VERDICT_COL> =>
@@ -261,6 +371,7 @@ export function InitiatorKanbanBoard({ cards, me }: Props) {
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

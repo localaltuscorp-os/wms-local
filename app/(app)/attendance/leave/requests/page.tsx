@@ -144,6 +144,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
           rows={rows}
           statusCounts={statusCounts}
           balances={balances}
+          canRevoke={scope.all}
           employeeOptions={employeeOptions}
           departmentOptions={departmentOptions}
           filters={{

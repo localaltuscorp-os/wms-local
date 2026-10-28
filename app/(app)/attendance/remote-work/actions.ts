@@ -142,6 +142,7 @@ export async function decideRemoteWorkRequest(
 
 const AmendSchema = z.object({
   requestId: z.string().uuid(),
+  workDate: DateSchema.optional(),
   workMode: z.enum(REMOTE_WORK_MODES),
   clientLocationId: z.string().uuid().nullable().optional(),
   allDay: z.boolean(),
@@ -149,9 +150,10 @@ const AmendSchema = z.object({
   endTime: ClockSchema.nullable().optional(),
   reason: z.string().max(1000).nullable().optional(),
   reasonBucket: z.enum(REMOTE_REASON_BUCKETS).nullable().optional(),
+  applyToSeries: z.boolean().optional(),
 });
 
-/** Correct a request in place. The date is deliberately not editable. */
+/** Correct a request in place. */
 export async function amendRemoteWorkRequest(input: z.input<typeof AmendSchema>): Promise<Result> {
   const me = await requireUser();
   const limited = rateLimitOrError(me.id, "write");

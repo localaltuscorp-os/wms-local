@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -36,12 +37,39 @@ import { fireToast } from "@/lib/toast";
 
 /** Progress-band quick filter shown next to the level heading. */
 type ProgressFilter = "all" | "done" | "p75" | "p50" | "p25" | "below25" | "unstarted";
+type YearlyStatusAxis = "doer" | "initiator";
+type YearlyStatusKpi =
+  | "total"
+  | "not_read"
+  | "not_started"
+  | "initiated"
+  | "follow_up"
+  | "need_info"
+  | "done"
+  | "abandoned"
+  | "pending"
+  | "approved"
+  | "not_approved"
+  | "on_hold"
+  | "cancelled"
+  | "archived";
 const DOER_STATUS_OPTIONS = ["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"];
 const INITIATOR_STATUS_OPTIONS = ["not_applicable", "pending", "approved", "not_approved", "on_hold", "archived", "cancelled"];
 const STATUS_LABEL: Record<string, string> = {
   not_read: "Not Read", not_started: "Not Started", initiated: "Initiated", follow_up: "Follow Up", need_info: "Need Info", done: "Done", abandoned: "Abandoned",
   not_applicable: "Not Applicable", pending: "Pending", approved: "Approved", not_approved: "Not Approved", on_hold: "On Hold", archived: "Archived", cancelled: "Cancelled",
 };
+const DOER_KPI_TO_TASK_STATUS: Record<Exclude<YearlyStatusKpi, "total" | "pending" | "approved" | "not_approved" | "on_hold" | "cancelled" | "archived">, TaskStatus> = {
+  not_read: "dont_know",
+  not_started: "not_started",
+  initiated: "initiated",
+  follow_up: "follow_up",
+  need_info: "need_info",
+  done: "done",
+  abandoned: "abandoned",
+};
+const toDoerKpiStatus = (status: string | null | undefined) =>
+  status === "dont_know" ? "not_read" : (status ?? "not_started");
 import { goalPolicy } from "@/lib/goals/policy";
 import {
   quartersOfFy,
@@ -73,22 +101,24 @@ import {
   moveGoalToLevel,
   copyGoalToPeriod,
   archiveGoal,
+  editGoal,
   reorderGoals,
   moveWeeklyToWeek,
 } from "@/app/(app)/goals/cascade/actions";
 import { GoalBoardCard, ProgressRing, type SharedCardProps } from "./goal-board-card";
 import { GoalTableView, QUARTER_TYPE_OPTIONS, ALL_VISIBLE_COLS, REORDERABLE_COLUMNS, reconcileColOrder } from "./goal-table-view";
-import { GOAL_TYPE_LABELS, type GoalType } from "@/db/enums";
+import { GOAL_TYPE_LABELS, type GoalType, type TaskStatus } from "@/db/enums";
 import { LEVEL_TABLE_ACTIONS } from "./level-table-actions";
 import { PersonalStartPrompt } from "./personal-start-prompt";
 import { BoardQuickAdd, type BoardQuickAddHandle } from "./board-quick-add";
 import { GoalCaptureBox } from "@/components/goals/capture/goal-capture-box";
 import { GoalsBulkUpload } from "./goals-bulk-upload";
-import { HierarchyKanban } from "./hierarchy-kanban";
+import { GoalStatusKanban } from "./goal-status-kanban";
 import { GoalsDashboard } from "./goals-dashboard";
 import { DEFAULT_DASHBOARD_FILTERS, type DashboardFilters } from "./dashboard-model";
 import type { GoalsLevelBoardProps } from "./types";
 import { CollapsibleSearch } from "@/components/ui/collapsible-search";
+import { usePageChromeSlots } from "@/components/layout/page-chrome-slots";
 
 /** Shared visible focus ring for keyboard users (brand-red on neutral surfaces). */
 const FOCUS_RING =
@@ -176,8 +206,12 @@ export function csvCell(v: string): string {
  */
 export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const router = useRouter();
+  const pageChromeSlots = usePageChromeSlots();
   const { goals, mutation } = useOptimisticGoals(props.goals);
   const fy = props.fyStartYear;
+  // Every Goals level uses the shared Tasks-style status workspace.
+  const usesTaskStyleStatusBoard =
+    props.level === "year" || props.level === "quarter" || props.level === "month";
 
   // PER-LEVEL layout switch. `props.level` maps 1:1 onto a route - "year" only
   // ever arrives from /goals/yearly, "quarter" from /goals/quarterly, "month"
@@ -503,6 +537,19 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const [search, setSearch] = React.useState("");
   const deferredSearch = React.useDeferredValue(search);
   const [completion, setCompletion] = React.useState<ProgressFilter>("all");
+  // Yearly Goals exposes the same two status perspectives as Tasks. This is
+  // display/filter state only: it reads the existing goal status fields and
+  // drives the existing status-filter sets below; it never writes a goal.
+  const [yearlyStatusAxis, setYearlyStatusAxis] = React.useState<YearlyStatusAxis>("doer");
+  React.useEffect(() => {
+    if (!usesTaskStyleStatusBoard) return;
+    const onAxisChange = (event: Event) => {
+      const axis = (event as CustomEvent<unknown>).detail;
+      if (axis === "doer" || axis === "initiator") setYearlyStatusAxis(axis);
+    };
+    window.addEventListener("altus:module-status-axis", onAxisChange);
+    return () => window.removeEventListener("altus:module-status-axis", onAxisChange);
+  }, [usesTaskStyleStatusBoard]);
   const [sortKey, setSortKey] = React.useState<SortKey>("position");
   // Area / Type filters - empty set = no restriction (matches every goal).
   const [areaFilter, setAreaFilter] = React.useState<Set<string>>(new Set());
@@ -550,7 +597,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
       }
       if (areaFilter.size > 0 && !areaFilter.has(g.area ?? "")) return false;
       if (typeFilter.size > 0 && !typeFilter.has(goalTypeLabel(g))) return false;
-      if (doerStatusFilter.size > 0 && !doerStatusFilter.has(g.status ?? "not_started")) return false;
+      if (doerStatusFilter.size > 0 && !doerStatusFilter.has(toDoerKpiStatus(g.status))) return false;
       const initiatorStatus = g.isPutAway ? "archived" : (g.approverStatus ?? g.approvalStatus ?? "pending");
       if (initiatorStatusFilter.size > 0 && !initiatorStatusFilter.has(initiatorStatus)) return false;
       const q = deferredSearch.trim().toLowerCase();
@@ -645,6 +692,47 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     return c;
   }, [chipScope]);
 
+  const yearlyStatusCounts = React.useMemo<Record<YearlyStatusKpi, number>>(() => {
+    const counts: Record<YearlyStatusKpi, number> = {
+      total: chipScope.length,
+      not_read: 0,
+      not_started: 0,
+      initiated: 0,
+      follow_up: 0,
+      need_info: 0,
+      done: 0,
+      abandoned: 0,
+      pending: 0,
+      approved: 0,
+      not_approved: 0,
+      on_hold: 0,
+      cancelled: 0,
+      archived: 0,
+    };
+    for (const goal of chipScope) {
+      const doer = toDoerKpiStatus(goal.status);
+      if (doer in counts) counts[doer as YearlyStatusKpi]++;
+      const initiator = goal.isPutAway
+        ? "archived"
+        : (goal.approverStatus ?? goal.approvalStatus ?? "pending");
+      if (initiator in counts) counts[initiator as YearlyStatusKpi]++;
+    }
+    return counts;
+  }, [chipScope]);
+
+  const toggleYearlyStatusKpi = React.useCallback((key: YearlyStatusKpi) => {
+    if (key === "total") {
+      setDoerStatusFilter(new Set());
+      setInitiatorStatusFilter(new Set());
+      return;
+    }
+    const isDoerStatus = ["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"].includes(key);
+    const setFilter = isDoerStatus ? setDoerStatusFilter : setInitiatorStatusFilter;
+    setFilter((current) =>
+      current.size === 1 && current.has(key) ? new Set() : new Set([key]),
+    );
+  }, []);
+
   const visibleCount = kanban
     ? [...goalsByBucket.values()].reduce((n, l) => n + l.length, 0)
     : displayed.length;
@@ -654,12 +742,16 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     (search.trim() ? 1 : 0) +
     (completion !== "all" ? 1 : 0) +
     (areaFilter.size > 0 ? 1 : 0) +
-    (typeFilter.size > 0 ? 1 : 0);
+    (typeFilter.size > 0 ? 1 : 0) +
+    (doerStatusFilter.size > 0 ? 1 : 0) +
+    (initiatorStatusFilter.size > 0 ? 1 : 0);
   const clearFilters = () => {
     setSearch("");
     setCompletion("all");
     setAreaFilter(new Set());
     setTypeFilter(new Set());
+    setDoerStatusFilter(new Set());
+    setInitiatorStatusFilter(new Set());
   };
 
   // Rows-per-page - a plain slice of the already-filtered/sorted list view;
@@ -761,6 +853,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
   const dragDisabled =
     !canWrite || !policy.canReorder || activeFilterCount > 0 || sortKey !== "position";
   const [activeDrag, setActiveDrag] = React.useState<GoalDTO | null>(null);
+  const [yearlyKpiHost, setYearlyKpiHost] = React.useState<HTMLElement | null>(null);
   // Stable, SSR-safe DndContext id. Without it dnd-kit falls back to a
   // module-global counter that drifts between the server render (fresh) and the
   // client (StrictMode double-mount / prior instances) → the accessibility
@@ -1085,6 +1178,139 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
     [policy, canWrite, props.roster, areaOptions, measureOptions, typeOptions, customLookups, props.isAdmin, fy, mutation, requestArchive, dragDisabled, codeOf, rankOf],
   );
 
+  const yearlyStatusKpis: Array<{ key: YearlyStatusKpi; label: string; tone: "slate" | "neutral" | "green" | "amber" | "red" | "blue" | "yellow" | "orange" }> =
+    yearlyStatusAxis === "doer"
+      ? [
+          { key: "total", label: "Total", tone: "neutral" },
+          { key: "not_read", label: "Not Read", tone: "blue" },
+          { key: "not_started", label: "Not Started", tone: "slate" },
+          { key: "initiated", label: "Initiated", tone: "amber" },
+          { key: "follow_up", label: "Follow Up", tone: "orange" },
+          { key: "need_info", label: "Need Info", tone: "red" },
+          { key: "done", label: "Done", tone: "green" },
+          { key: "abandoned", label: "Abandoned", tone: "blue" },
+        ]
+      : [
+          { key: "total", label: "Total", tone: "neutral" },
+          { key: "done", label: "Done", tone: "green" },
+          { key: "abandoned", label: "Abandoned", tone: "blue" },
+          { key: "pending", label: "Pending", tone: "amber" },
+          { key: "approved", label: "Approved", tone: "green" },
+          { key: "not_approved", label: "Not Approved", tone: "red" },
+          { key: "on_hold", label: "On Hold", tone: "yellow" },
+          { key: "cancelled", label: "Cancelled", tone: "orange" },
+          { key: "archived", label: "Archived", tone: "slate" },
+        ];
+
+  const yearlyStatusKpiActive = (key: YearlyStatusKpi) => {
+    if (key === "total") return doerStatusFilter.size === 0 && initiatorStatusFilter.size === 0;
+    const isDoerStatus = ["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"].includes(key);
+    const selected = isDoerStatus ? doerStatusFilter : initiatorStatusFilter;
+    return selected.size === 1 && selected.has(key);
+  };
+
+  /** A KPI drop changes the Goal's persisted Doer status. Progress deliberately
+   * stays untouched: unlike percentage editing, status is its own Goal field. */
+  const setGoalDoerStatus = React.useCallback(
+    (goal: GoalDTO, status: TaskStatus) => {
+      if (!canWrite || goal.status === status) return;
+      void mutation
+        .mutate(
+          { type: "update", id: goal.id, fields: { status } },
+          () => editGoal({ id: goal.id, status }),
+        )
+        .then((ok) => {
+          if (ok) fireToast({ message: `Doer status changed to ${STATUS_LABEL[status === "dont_know" ? "not_read" : status] ?? status}.`, type: "success" });
+        });
+    },
+    [canWrite, mutation],
+  );
+
+  const setYearlyGoalDoerStatus = React.useCallback(
+    (goal: GoalDTO, kpiStatus: keyof typeof DOER_KPI_TO_TASK_STATUS) =>
+      setGoalDoerStatus(goal, DOER_KPI_TO_TASK_STATUS[kpiStatus]),
+    [setGoalDoerStatus],
+  );
+
+  const dropYearlyGoalOnKpi = React.useCallback(
+    (event: React.DragEvent<HTMLButtonElement>, kpiStatus: Exclude<YearlyStatusKpi, "total" | "pending" | "approved" | "not_approved" | "on_hold" | "cancelled" | "archived">) => {
+      event.preventDefault();
+      const id = event.dataTransfer.getData("application/x-altus-goal-id");
+      const goal = goals.find((item) => item.id === id);
+      if (goal) setYearlyGoalDoerStatus(goal, kpiStatus);
+    },
+    [goals, setYearlyGoalDoerStatus],
+  );
+
+  // Keep the Tasks-style Goals filter strip consistent with Tasks: a selected filter
+  // becomes the leading control, so the reader can immediately see what is
+  // narrowing the list. Yearly Goals deliberately has no date-range control.
+  const yearlyFilterControls = [
+    {
+      key: "areas",
+      active: areaFilter.size > 0,
+      control: <MultiPickFilter label="Areas" options={areaOptions} selected={areaFilter} onChange={setAreaFilter} taskStyle={usesTaskStyleStatusBoard} />,
+    },
+    {
+      key: "types",
+      active: typeFilter.size > 0,
+      control: <MultiPickFilter label="Types" options={QUARTER_TYPE_OPTIONS} selected={typeFilter} onChange={setTypeFilter} taskStyle={usesTaskStyleStatusBoard} />,
+    },
+    {
+      key: "doer-status",
+      active: doerStatusFilter.size > 0,
+      control: <MultiPickFilter label="Doer Status" options={DOER_STATUS_OPTIONS.map((value) => STATUS_LABEL[value]!)} selected={new Set([...doerStatusFilter].map((value) => STATUS_LABEL[value]!))} onChange={(labels) => setDoerStatusFilter(new Set(DOER_STATUS_OPTIONS.filter((value) => labels.has(STATUS_LABEL[value]!))))} taskStyle={usesTaskStyleStatusBoard} />,
+    },
+    {
+      key: "initiator-status",
+      active: initiatorStatusFilter.size > 0,
+      control: <MultiPickFilter label="Initiator Status" options={INITIATOR_STATUS_OPTIONS.map((value) => STATUS_LABEL[value]!)} selected={new Set([...initiatorStatusFilter].map((value) => STATUS_LABEL[value]!))} onChange={(labels) => setInitiatorStatusFilter(new Set(INITIATOR_STATUS_OPTIONS.filter((value) => labels.has(STATUS_LABEL[value]!))))} taskStyle={usesTaskStyleStatusBoard} />,
+    },
+  ].sort((left, right) => Number(right.active) - Number(left.active));
+
+  // Tasks exposes every multi-selected filter directly in its ribbon instead
+  // of hiding the selection behind a "3 selected" trigger. Keep the same
+  // affordance for Yearly and Monthly Goals: each chip can be removed independently and
+  // the filter triggers remain available immediately after the active chips.
+  const yearlyActiveFilterChips = [
+    ...[...areaFilter].map((value) => ({
+      key: `area:${value}`,
+      label: value,
+      clear: () => setAreaFilter((current) => {
+        const next = new Set(current);
+        next.delete(value);
+        return next;
+      }),
+    })),
+    ...[...typeFilter].map((value) => ({
+      key: `type:${value}`,
+      label: value,
+      clear: () => setTypeFilter((current) => {
+        const next = new Set(current);
+        next.delete(value);
+        return next;
+      }),
+    })),
+    ...[...doerStatusFilter].map((value) => ({
+      key: `doer:${value}`,
+      label: STATUS_LABEL[value] ?? value,
+      clear: () => setDoerStatusFilter((current) => {
+        const next = new Set(current);
+        next.delete(value);
+        return next;
+      }),
+    })),
+    ...[...initiatorStatusFilter].map((value) => ({
+      key: `initiator:${value}`,
+      label: STATUS_LABEL[value] ?? value,
+      clear: () => setInitiatorStatusFilter((current) => {
+        const next = new Set(current);
+        next.delete(value);
+        return next;
+      }),
+    })),
+  ];
+
   return (
     <div
       className={
@@ -1102,9 +1328,71 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             compact glass-strip control row for search / bucket nav / FY /
             Viewing. Only the bucket-nav control inside the strip changes
             per level (quarters, months, or nothing for Yearly). ── */}
+        {/* The Tasks-style Goals filter bar stays available in both List and
+            Kanban: both views use `filterGoal`, so these controls genuinely
+            narrow either view. Dashboard owns a separate analytics filter set. */}
+        {usesTaskStyleStatusBoard && !dashboard && pageChromeSlots?.ribbon && createPortal(
+          /* Keep this in the page column. `w-screen` escapes that column and
+             starts beneath the persistent Goals rail, which makes the first
+             filter overlap the sidebar. */
+          <div className="no-scrollbar mx-auto flex w-full min-w-0 max-w-[1600px] flex-nowrap items-center gap-x-1 overflow-x-auto px-6 py-2.5 max-md:px-4">
+            {yearlyActiveFilterChips.length > 0 && (
+              <>
+                <span className="shrink-0 text-[13px] font-bold tabular-nums text-ink-muted">
+                  {yearlyActiveFilterChips.length} active
+                </span>
+                {yearlyActiveFilterChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={chip.clear}
+                    className={`filter-pill text-[11.5px] font-bold ${FOCUS_RING}`}
+                    data-active="true"
+                    style={{ ["--filter-pill-tint" as string]: "var(--color-altus-red)" }}
+                    aria-label={`Remove ${chip.label} filter`}
+                  >
+                    <span className="max-w-[190px] truncate">{chip.label}</span>
+                    <X size={14} strokeWidth={2.5} aria-hidden />
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className={`shrink-0 px-1 text-[13px] font-bold text-altus-red transition-colors hover:text-altus-red-deep ${FOCUS_RING}`}
+                >
+                  Clear all
+                </button>
+              </>
+            )}
+            {yearlyFilterControls.map(({ key, control }) => (
+              <React.Fragment key={key}>{control}</React.Fragment>
+            ))}
+            <div className="ml-auto shrink-0">
+              <CollapsibleSearch scope="goals, areas, notes">
+                <div className="relative min-w-[180px] max-w-[360px]">
+                  <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Local search - goals, areas, notes"
+                    title="Local search - filters only the list on this page"
+                    aria-label="Local search - goals, areas, notes - this page only"
+                    className={`h-9 w-full rounded-pill border border-hairline bg-surface-card pl-9 pr-9 text-[13.5px] font-medium text-ink-strong transition-colors focus:border-altus-red ${FOCUS_RING}`}
+                  />
+                  {search && (
+                    <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className={`absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-full text-ink-subtle hover:text-ink-strong ${FOCUS_RING}`}>
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </CollapsibleSearch>
+            </div>
+          </div>,
+          pageChromeSlots.ribbon,
+        )}
         <header className="wg-rise relative mb-3 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-x-4 gap-y-2 flex-wrap min-w-0">
-            <h1
+            {props.level === "quarter" && !usesTaskStyleStatusBoard && <h1
               /* `page-heading` (app/globals.css) — the display face at 900 and
                  the shared size ramp, black. The ramp that used to sit inline
                  here travelled into that class unchanged; the brand red and
@@ -1113,7 +1401,23 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               className="page-heading shrink-0"
             >
               {props.heading}
-            </h1>
+            </h1>}
+            {usesTaskStyleStatusBoard ? (
+              <div ref={kanban ? setYearlyKpiHost : undefined} className="flex flex-wrap items-center gap-1.5">
+                {!kanban && yearlyStatusKpis.map((kpi) => (
+                  <GoalStatChip
+                    key={kpi.key}
+                    label={kpi.label}
+                    value={yearlyStatusCounts[kpi.key]}
+                    tone={kpi.tone}
+                    active={yearlyStatusKpiActive(kpi.key)}
+                    onClick={() => toggleYearlyStatusKpi(kpi.key)}
+                    dropStatus={yearlyStatusAxis === "doer" && kpi.key !== "total" ? kpi.key : undefined}
+                    onGoalDrop={(event, status) => dropYearlyGoalOnKpi(event, status as keyof typeof DOER_KPI_TO_TASK_STATUS)}
+                  />
+                ))}
+              </div>
+            ) : (
             <div className="flex flex-wrap items-center gap-1.5">
               <GoalStatChip
                 /* `neutral`, not `slate` — Total and Not Started are both greys
@@ -1169,24 +1473,12 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 onClick={() => setCompletion(completion === "unstarted" ? "all" : "unstarted")}
               />
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setFullscreen((v) => !v)}
-              aria-pressed={fullscreen}
-              aria-label={fullscreen ? "Exit full screen" : "Full screen"}
-              title={fullscreen ? "Exit full screen (Esc)" : "Full screen"}
-              className={`inline-flex shrink-0 items-center gap-1.5 h-9 px-3.5 rounded-pill text-[13px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all cursor-pointer ${FOCUS_RING}`}
-            >
-              {fullscreen ? <Minimize2 size={14} strokeWidth={2.4} /> : <Maximize2 size={14} strokeWidth={2.4} />}
-              {fullscreen ? "Exit" : "Full screen"}
-            </button>
+            )}
           </div>
         </header>
 
         <div
-          className="wg-rise mb-3 flex flex-col gap-2 rounded-section border border-hairline px-3 py-2 max-md:px-3"
+          className="wg-rise mb-3 flex flex-col gap-2 rounded-none border border-hairline px-3 py-2 max-md:px-3"
           style={{
             background:
               "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(250,251,252,0.72))",
@@ -1213,8 +1505,11 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
               slack, so the group's internal order is fixed no matter the
               width. Narrow enough and the whole cluster drops to a second line
               intact, which is the failure mode you want. */}
-          <div className="flex flex-wrap items-center gap-2">
-          <CollapsibleSearch scope="goals, areas, notes">
+          <div className={`flex items-center gap-2 ${usesTaskStyleStatusBoard ? "no-scrollbar flex-nowrap overflow-x-auto" : "flex-wrap"}`}>
+          {!usesTaskStyleStatusBoard && (
+          <CollapsibleSearch
+            scope="goals, areas, notes"
+          >
           <div className="relative min-w-[180px] max-w-[360px] flex-1 shrink-0">
             <Search size={15} strokeWidth={2.4} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-subtle" />
             <input
@@ -1237,21 +1532,30 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             )}
           </div>
           </CollapsibleSearch>
+          )}
+
+          {usesTaskStyleStatusBoard && (
+            <div role="group" aria-label="Board view" className="inline-flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-soft [&>button]:gap-1 [&>button]:px-2 [&>button]:text-[12px]">
+              <ViewToggleButton active={!kanban && !dashboard} label="List" icon={<List size={14} strokeWidth={2.4} />} onClick={() => pickView("list")} />
+              <ViewToggleButton active={kanban} label="Kanban" icon={<Columns3 size={14} strokeWidth={2.4} />} onClick={() => pickView("kanban")} />
+              <ViewToggleButton active={dashboard} label="Dashboard" icon={<LayoutDashboard size={14} strokeWidth={2.4} />} onClick={() => pickView("dashboard")} />
+            </div>
+          )}
 
             {/* `flex-wrap justify-end`, and NOT `shrink-0`. Holding four
                 controls, this cluster is wider than a narrow window's content
                 column — pinned rigid it simply overflowed sideways at ~900px.
                 Wrapping preserves DOM order, so the controls still cannot
                 reorder themselves; they only ever break onto a second line, in
-                sequence, right-aligned. */}
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2.5">
+            sequence, right-aligned. */}
+            <div className={`ml-auto flex shrink-0 items-center justify-end ${usesTaskStyleStatusBoard ? "flex-nowrap gap-1.5" : "flex-wrap gap-2.5"}`}>
             {canWrite && (
               <button
                 type="button"
                 onClick={openComposer}
                 title="New Goal - press G"
                 aria-keyshortcuts="G"
-                className={`pastel-cta wg-btn inline-flex shrink-0 items-center gap-1.5 h-9 rounded-pill px-3.5 text-[13px] font-bold transition-all hover:-translate-y-px cursor-pointer ${FOCUS_RING}`}
+                className={`pastel-cta wg-btn inline-flex shrink-0 items-center gap-1.5 rounded-pill font-bold transition-all hover:-translate-y-px cursor-pointer ${usesTaskStyleStatusBoard ? "h-8 px-2.5 text-[12px]" : "h-9 px-3.5 text-[13px]"} ${FOCUS_RING}`}
               >
                 <Plus size={14} strokeWidth={2.8} /> New Goal
               </button>
@@ -1276,7 +1580,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 the FY stepper IS the period control, so the group is simply the
                 one half -- which is exactly what it already looked like. */}
             <div
-              className="inline-flex items-stretch overflow-hidden rounded-lg border border-hairline-strong bg-surface-card"
+              className={`inline-flex items-stretch overflow-hidden rounded-lg border border-hairline-strong bg-surface-card ${usesTaskStyleStatusBoard ? "[&>button]:px-1.5 [&>button]:py-1 [&>span]:px-2 [&>span]:py-1 [&>span]:text-[12px]" : ""}`}
               role="group"
               aria-label="Move the board through time"
             >
@@ -1375,14 +1679,53 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 viewedName={props.viewedName}
                 onChange={(v) => go({ emp: v })}
                 myEmployeeId={props.myEmployeeId}
+                compact={usesTaskStyleStatusBoard}
               />
+            )}
+            {usesTaskStyleStatusBoard && !kanban && !dashboard && (
+              <>
+                <div className="relative inline-flex h-8 shrink-0 items-center rounded-lg border border-hairline bg-surface-card pl-6 pr-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
+                  <ArrowUpDown size={12} strokeWidth={2.4} className="pointer-events-none absolute left-2 text-ink-subtle" />
+                  <Select
+                    value={sortKey}
+                    onValueChange={(v) => setSortKey(v as SortKey)}
+                    ariaLabel="Sort goals"
+                    unstyled
+                    className="flex min-w-[4.5rem] cursor-pointer items-center gap-1 text-[12px] font-bold text-ink-soft"
+                    options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                  />
+                </div>
+                <div className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-hairline bg-surface-card px-2 transition-colors focus-within:border-altus-red hover:border-hairline-strong">
+                  <span className="text-[12px] font-semibold text-ink-subtle">Rows</span>
+                  <Select
+                    value={String(rowsPerPage)}
+                    onValueChange={(v) => setRowsPerPage(v === "all" ? "all" : Number(v))}
+                    ariaLabel="Rows per page"
+                    unstyled
+                    className="flex min-w-[1.9rem] cursor-pointer items-center gap-1 text-[12px] font-bold text-ink-strong"
+                    options={[
+                      { value: "25", label: "25" },
+                      { value: "50", label: "50" },
+                      { value: "100", label: "100" },
+                      { value: "all", label: "All" },
+                    ]}
+                  />
+                </div>
+                <ColumnsPicker
+                  compact
+                  visibleCols={visibleCols}
+                  onChange={setVisibleCols}
+                  colOrder={colOrder}
+                  onReorder={setColOrder}
+                />
+              </>
             )}
             <button
               type="button"
               onClick={exportCsv}
               disabled={displayed.length === 0}
               aria-label="Export visible goals to CSV"
-              className={`inline-flex shrink-0 items-center gap-1.5 h-9 px-3.5 rounded-pill text-[13px] font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${FOCUS_RING}`}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-pill font-bold border border-hairline bg-surface-card text-ink-soft hover:border-hairline-strong hover:text-ink-strong transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${usesTaskStyleStatusBoard ? "h-8 px-2.5 text-[12px]" : "h-9 px-3.5 text-[13px]"} ${FOCUS_RING}`}
             >
               <Download size={14} strokeWidth={2.4} /> Export
             </button>
@@ -1396,6 +1739,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                 typeOptions={typeOptions}
                 roster={props.roster}
                 existingTitles={levelGoals.filter((g) => g.periodKey === props.periodKey).map((g) => g.title)}
+                compact={usesTaskStyleStatusBoard}
               />
             )}
             </div>
@@ -1470,8 +1814,8 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             in the row above, right after the FY stepper. Search sits on its
             own row, directly above the table. Shown on ALL levels (Yearly
             included). ── */}
-        <div
-          className="wg-rise mb-3 flex flex-wrap items-center gap-1.5 rounded-section border border-hairline px-3 py-2 max-md:px-3"
+        {!usesTaskStyleStatusBoard && <div
+          className="wg-rise mb-3 flex flex-wrap items-center gap-1.5 rounded-none border border-hairline px-3 py-2 max-md:px-3"
           style={{
             animationDelay: "30ms",
             background:
@@ -1566,7 +1910,7 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             </>
           )}
 
-        </div>
+        </div>}
 
         {/* Sort pauses drag-reorder - tell the user how to get it back. */}
         {canWrite && policy.canReorder && sortKey !== "position" && view === "list" && (
@@ -1599,27 +1943,17 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
             onFiltersChange={setDashboardFilters}
           />
         ) : kanban ? (
-          <HierarchyKanban
-            onRehomeLevel={rehomeToLevel}
-            onCascadeChild={cascadeToChild}
-            parentLevel={parentLevel}
-            fyStartYear={fy}
-            selectedKey={props.periodKey}
-            goals={goals}
+          <GoalStatusKanban
+            goals={inBucket}
             filterGoal={filterGoal}
-            filtersActive={activeFilterCount > 0}
             cardProps={sharedCardProps}
-            childrenByParent={childrenByParent}
-            roster={props.roster}
-            viewedEmployeeId={props.viewedEmployeeId}
-            viewedName={props.viewedName}
-            canWrite={canWrite}
-            policy={policy}
-            onRehome={moveToBucket}
-            onReorder={reorderChildIds}
-            weekCards={weekCards}
-            onRehomeWeek={rehomeWeekCard}
-            focusId={props.focusId ?? null}
+            onDropStatus={setGoalDoerStatus}
+            kpiHost={usesTaskStyleStatusBoard ? yearlyKpiHost : null}
+            yearlyStatusKpis={usesTaskStyleStatusBoard ? yearlyStatusKpis : []}
+            yearlyStatusCounts={usesTaskStyleStatusBoard ? yearlyStatusCounts : null}
+            yearlyStatusKpiActive={yearlyStatusKpiActive}
+            onYearlyStatusKpiClick={toggleYearlyStatusKpi}
+            allowKpiDrops={yearlyStatusAxis === "doer"}
           />
         ) : (
           <DndContext
@@ -1669,6 +2003,15 @@ export function GoalsLevelBoard(props: GoalsLevelBoardProps) {
                   visibleCols={visibleCols}
                   colOrder={colOrder}
                   onColOrderChange={setColOrder}
+                  onRowDragStart={
+                    usesTaskStyleStatusBoard
+                      ? (goal, event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("application/x-altus-goal-id", goal.id);
+                          event.dataTransfer.setData("text/plain", goal.title);
+                        }
+                      : undefined
+                  }
                 />
               )}
 
@@ -1830,12 +2173,16 @@ export function GoalStatChip({
   tone,
   active,
   onClick,
+  dropStatus,
+  onGoalDrop,
 }: {
   label: string;
   value: number;
   tone: "slate" | "neutral" | "green" | "amber" | "red" | "blue" | "yellow" | "orange";
   active: boolean;
   onClick: () => void;
+  dropStatus?: string;
+  onGoalDrop?: (event: React.DragEvent<HTMLButtonElement>, status: string) => void;
 }) {
   /* EACH CHIP CARRIES ITS OWN COLOUR — the three-part palette per tone:
        background  var(--color-<tone>-bg)     #ECFDF5, #EFF6FF, #FFFBEB …
@@ -1857,6 +2204,8 @@ export function GoalStatChip({
     <button
       type="button"
       onClick={onClick}
+      onDragOver={dropStatus ? (event) => event.preventDefault() : undefined}
+      onDrop={dropStatus && onGoalDrop ? (event) => onGoalDrop(event, dropStatus) : undefined}
       aria-pressed={active}
       aria-label={`${active ? "Remove" : "Add"} ${label.toLowerCase()} filter`}
       className="group inline-flex items-center gap-2 rounded-xl transition-all cursor-pointer"
@@ -1906,6 +2255,7 @@ export function MultiPickFilter({
   selected,
   onChange,
   compact,
+  taskStyle = false,
 }: {
   label: string;
   options: string[];
@@ -1914,6 +2264,8 @@ export function MultiPickFilter({
   /** Tighter pill - for toolbars with many controls (e.g. Weekly's, which
    *  also carries the ritual chips + bulk upload on the same line). */
   compact?: boolean;
+  /** Match the Tasks filter bar's compact rounded-rectangle geometry. */
+  taskStyle?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const active = selected.size > 0;
@@ -1936,9 +2288,8 @@ export function MultiPickFilter({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex shrink-0 items-center rounded-pill border font-bold transition-all cursor-pointer ${
-            compact ? "h-7 gap-1 px-2 text-[11px]" : "h-9 gap-1.5 px-3.5 text-[13px]"
-          } ${FOCUS_RING}`}
+          className={`${taskStyle ? "filter-pill text-[11.5px] font-semibold" : `inline-flex shrink-0 items-center rounded-pill border font-bold transition-all cursor-pointer ${compact ? "h-7 gap-1 px-2 text-[11px]" : "h-9 gap-1.5 px-3.5 text-[13px]"}`} ${FOCUS_RING}`}
+          data-active={taskStyle ? active : undefined}
           style={
             active
               ? {

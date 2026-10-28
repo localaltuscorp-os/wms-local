@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { employees, employeeEvents, salaryAdvances, salaryProfiles } from "@/db/schema";
+import {
+  employees,
+  employeeEvents,
+  salaryAdvances,
+  salaryCtcBreakup,
+  salaryProfiles,
+} from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { fyForMonth } from "@/lib/salary/period";
@@ -85,6 +91,12 @@ export async function upsertSalaryProfile(input: unknown): Promise<ActionResult>
 
       if (Object.keys(empPatch).length > 0) {
         await tx.update(employees).set(empPatch).where(eq(employees.id, data.employeeId));
+      }
+      if (data.payingEntityId !== undefined) {
+        await tx
+          .update(salaryCtcBreakup)
+          .set({ payingEntityId: data.payingEntityId })
+          .where(eq(salaryCtcBreakup.employeeId, data.employeeId));
       }
     });
   } catch (err: unknown) {

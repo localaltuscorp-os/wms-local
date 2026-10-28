@@ -211,11 +211,11 @@
 /* Labels, badges, table headers and counts are 700 (§3). */
 .aura .label {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 10.5px;
-  letter-spacing: 0.09em;
+  font-weight: 800;
+  font-size: 11.5px;
+  letter-spacing: 0.075em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: #0f172a;
 }
 
 /* Secondary text runs at 500–600, never 400 — light type dissolves (§3). */
@@ -225,13 +225,15 @@
 }
 
 .aura .quiet {
-  color: var(--ink-3);
-  font-weight: 500;
+  color: #475569;
+  font-weight: 600;
 }
 
 /* Flat, compact WMS form treatment. */
-.aura { --r-pane: 8px; --r-ctl: 5px; background: #fff; color: #172033; }
+.aura { --r-pane: 8px; --r-ctl: 6px; background: #fff; color: #0f172a; }
 .aura-field, .aura-grain, .aura-blob { display: none !important; }
+.aura .chrome-bar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+.aura .chrome-rail { background: #f8fafc; border-right: 1px solid #e2e8f0; }
 .aura .glass, .aura .chrome-bar, .aura .chrome-rail {
   background: #fff;
   backdrop-filter: none;
@@ -239,7 +241,7 @@
   border-color: #e2e8f0;
   box-shadow: none;
 }
-.aura .glass { border: 1px solid #e2e8f0; border-radius: 8px; }
+.aura .glass { border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05); }
 .aura .btn { background: #b42318; box-shadow: none; border-radius: 5px; }
 .aura .btn:hover:not(:disabled) { transform: none; box-shadow: none; }
 
@@ -347,9 +349,15 @@
   transition: background 160ms var(--ease), color 160ms var(--ease);
 }
 
-.aura .nav-item:hover { background: rgba(255, 255, 255, 0.42); color: var(--ink); }
+.aura .nav-item:hover:not([aria-current="true"]) { background: #e2e8f0; color: #0f172a; }
 
 .aura .nav-item[aria-current="true"] {
+  background: #b42318 !important;
+  color: #ffffff !important;
+  border-color: #b42318 !important;
+  box-shadow: 0 2px 6px -1px rgba(180, 35, 24, 0.4) !important;
+}
+.aura .legacy-nav-item[aria-current="true"] {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.4));
   border-color: rgba(255, 255, 255, 0.75);
   color: var(--accent);
@@ -360,20 +368,21 @@
    design language caps glass at two deep, and a translucent input over a
    translucent pane over the field is unreadable at any weight. */
 .aura .ctl {
+  border: 1px solid #94a3b8;
   width: 100%;
   border-radius: var(--r-ctl);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   padding: 8px 11px;
   font-family: var(--font-body);
   font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
+  font-weight: 600;
+  color: #0f172a;
   outline: none;
   transition: border-color 160ms var(--ease), background 160ms var(--ease), box-shadow 160ms var(--ease);
 }
 
-.aura .ctl:hover { background: rgba(255, 255, 255, 0.78); }
+.aura .ctl:hover { background: #ffffff; border-color: #94a3b8; }
 
 .aura .ctl:focus {
   background: rgba(255, 255, 255, 0.92);
@@ -393,35 +402,42 @@
 /* A read-only value: same footprint as a control, visibly not one. */
 .aura .readout {
   border-radius: var(--r-ctl);
-  background: rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
   padding: 8px 11px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink-2);
+  color: #0f172a;
   min-height: 36px;
   overflow-wrap: anywhere;
 }
 
 .aura .email-ctl { min-width: 0; }
-.aura .email-readout, .aura .address-readout { word-break: break-word; }
+.aura .email-readout {
+  word-break: normal;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.aura .address-readout { word-break: break-word; }
+.aura .other-settings .quiet { display: none !important; }
 
 .aura .check {
+  border: 1px solid #94a3b8 !important;
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   border-radius: var(--r-ctl);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   padding: 8px 11px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--ink);
+  color: #0f172a;
   transition: background 160ms var(--ease);
 }
 
-.aura .check:hover { background: rgba(255, 255, 255, 0.8); }
+.aura .check:hover { background: #f8fafc; border-color: #94a3b8; }
 .aura .check input { accent-color: var(--accent); width: 14px; height: 14px; }
 
 /* ── Pills, states, avatar ───────────────────────────────────────────────── */
@@ -491,7 +507,9 @@
   text-transform: uppercase;
   color: var(--ink-3);
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.65);
+  border-bottom: 2px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
 }
 
 .aura td {
@@ -499,7 +517,8 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--ink-2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
 }
 
 .aura tbody tr:last-child td { border-bottom: none; }
@@ -574,7 +593,7 @@
    flat and quiet; no decorative gradients or lift on hover. */
 .aura .glass.interactive:hover,
 .aura .chrome-bar,
-.aura .chrome-rail,
+.aura .chrome-rail-disabled,
 .aura .btn,
 .aura .avatar,
 .aura .meter > span {
@@ -584,7 +603,7 @@
 }
 .aura .glass.interactive:hover,
 .aura .chrome-bar,
-.aura .chrome-rail,
+.aura .chrome-rail-disabled,
 .aura .avatar { background: #fff; }
 .aura .meter > span { background: #164a8f; }
 .aura .avatar { box-shadow: none; }

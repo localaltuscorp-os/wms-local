@@ -121,8 +121,8 @@ describe("operationsAreaForPath", () => {
   });
 
   it("never lets /operations forward to itself", () => {
-    /* app/(app)/operations/page.tsx redirects to OPERATIONS_AREAS[0].href. If an
-       area ever claimed "/operations" as its own href, that redirect would point
+    /* app/(app)/operations/page.tsx redirects to the declared landing area's
+       href. If an area ever claimed "/operations" as its own href, that redirect would point
        at the page issuing it and the room would hang in a loop — a failure that
        shows up as a dead room in the browser and nowhere in a typecheck. The
        forwarder itself cannot assert this, so it is asserted here. */

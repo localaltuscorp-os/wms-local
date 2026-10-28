@@ -38,7 +38,10 @@
 type AnyFn = (...args: unknown[]) => unknown;
 
 export function devDbOfflineEnabled(): boolean {
-  return process.env.DEV_DB_OFFLINE === "true" && process.env.NODE_ENV !== "production";
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL || process.env.VERCEL_ENV) {
+    return false;
+  }
+  return true;
 }
 
 /** True for statements that only read, so returning no rows is honest. */

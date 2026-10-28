@@ -6,8 +6,6 @@ import {
   Download,
   LayoutDashboard,
   List,
-  Maximize2,
-  Minimize2,
   SlidersHorizontal,
   Upload,
 } from "lucide-react";
@@ -92,7 +90,7 @@ export function ChecklistTableToolbar({
 
   const button = "inline-flex h-8 items-center gap-1.5 rounded-lg border border-hairline bg-surface-card px-2.5 text-[12px] font-bold text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink-strong";
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-section border border-hairline bg-surface-card px-2 py-1.5" aria-label="Table controls">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-none border border-hairline bg-surface-card px-2 py-1.5" aria-label="Table controls">
       <div role="group" aria-label="View" className="inline-flex overflow-hidden rounded-lg border border-hairline">
         {([
           ["list", "List", List],
@@ -125,7 +123,6 @@ export function ChecklistTableToolbar({
       </Popover>
       <button type="button" onClick={onExport} className={button}><Download size={13} /> Export CSV</button>
       {onUpload && <><input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importCsv(file); }} /><button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className={button}><Upload size={13} /> {uploading ? "Uploading…" : "Bulk Upload"}</button></>}
-      <button type="button" onClick={() => onFullscreenChange(!fullscreen)} title={fullscreen ? "Exit full screen (Esc)" : "Full screen"} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-bold text-ink-soft hover:bg-surface-soft hover:text-ink-strong">{fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{fullscreen ? "Exit" : "Full screen"}</button>
     </div>
   );
 }

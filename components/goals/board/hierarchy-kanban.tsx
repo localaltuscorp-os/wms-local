@@ -31,6 +31,7 @@
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   DragOverlay,
@@ -94,6 +95,12 @@ const FOCUS_RING =
 const LANE_DROP_PREFIX = "lane:";
 /** Period-rail droppable — `period:<key>` reaches ANY quarter/month (#8). */
 const PERIOD_DROP_PREFIX = "period:";
+const STATUS_DROP_PREFIX = "doer-status:";
+
+type DoerStatusKpi = "not_read" | "not_started" | "initiated" | "follow_up" | "need_info" | "done" | "abandoned";
+type YearlyStatusKpi = "total" | DoerStatusKpi | "pending" | "approved" | "not_approved" | "on_hold" | "cancelled" | "archived";
+type StatusKpiTone = "slate" | "neutral" | "green" | "amber" | "red" | "blue" | "yellow" | "orange";
+const DOER_STATUS_KPI_SET = new Set<DoerStatusKpi>(["not_read", "not_started", "initiated", "follow_up", "need_info", "done", "abandoned"]);
 
 /** Stable empty identity so React.memo stays effective for childless cards. */
 const EMPTY: GoalDTO[] = [];
@@ -128,6 +135,14 @@ export interface HierarchyKanbanProps {
   viewedName: string;
   canWrite: boolean;
   policy: GoalPolicy;
+  /** The Yearly header is above this component, but Kanban owns the DnD
+   * context. This host makes its KPI cards valid DnD targets. */
+  yearlyKpiHost?: HTMLElement | null;
+  yearlyStatusKpis?: Array<{ key: YearlyStatusKpi; label: string; tone: StatusKpiTone }>;
+  yearlyStatusCounts?: Partial<Record<YearlyStatusKpi, number>> | null;
+  yearlyStatusKpiActive?: (key: YearlyStatusKpi) => boolean;
+  onYearlyStatusKpiClick?: (key: YearlyStatusKpi) => void;
+  onDropDoerStatus?: (goal: GoalDTO, status: DoerStatusKpi) => void;
   /** Same-level re-home (Q2→Q4, Jul→Aug…) — the board's shared `moveToBucket`. */
   onRehome: (g: GoalDTO, periodKey: string) => void;
   /** Cross-LEVEL re-home via the period rail (roll-up → any quarter/any month). */
@@ -175,6 +190,12 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
     viewedName,
     canWrite,
     policy,
+    yearlyKpiHost,
+    yearlyStatusKpis = [],
+    yearlyStatusCounts,
+    yearlyStatusKpiActive,
+    onYearlyStatusKpiClick,
+    onDropDoerStatus,
     onRehome,
     onRehomeLevel,
     onCascadeChild,
@@ -326,6 +347,23 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
       const activeId = String(active.id);
       const overId = String(over.id);
 
+      // A Yearly Goal dropped on a Doer KPI updates its persisted Doer status.
+      // The header is portalled from within this DnD context, so this target is
+      // handled alongside lanes and the period rail.
+      if (overId.startsWith(STATUS_DROP_PREFIX)) {
+        const status = overId.slice(STATUS_DROP_PREFIX.length) as DoerStatusKpi;
+        const dragged = childGoals.find((x) => x.id === activeId) ?? parents.find((x) => x.id === activeId);
+        if (
+          dragged &&
+          !weeklyIdSet.has(dragged.id) &&
+          !isAssigned(dragged) &&
+          DOER_STATUS_KPI_SET.has(status)
+        ) {
+          onDropDoerStatus?.(dragged, status);
+        }
+        return;
+      }
+
       // ── PARENT (frozen roll-up) dropped onto a CHILD lane → CASCADE a linked
       //    child goal into that bucket (the parent stays put). ─────────────────
       const parent = parents.find((x) => x.id === activeId);
@@ -384,7 +422,7 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
       if (oldIndex < 0 || newIndex < 0) return;
       onReorder(arrayMove(lane, oldIndex, newIndex).map((x) => x.id));
     },
-    [childGoals, childrenByLane, parents, laneKeys, childLevel, onCascadeChild, onRehome, onRehomeLevel, onReorder, weeklyIdSet, onRehomeWeek],
+    [childGoals, childrenByLane, parents, laneKeys, childLevel, onCascadeChild, onDropDoerStatus, onRehome, onRehomeLevel, onReorder, weeklyIdSet, onRehomeWeek],
   );
 
   // ── ARIA-LIVE narration (keyboard parity) ───────────────────────────
@@ -445,6 +483,23 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
       onDragEnd={onDragEnd}
       accessibility={{ announcements, screenReaderInstructions: instructions }}
     >
+      {yearlyKpiHost && yearlyStatusCounts && createPortal(
+        <div className="flex flex-wrap items-center gap-1.5">
+          {yearlyStatusKpis.map((kpi) => (
+            <StatusKpiDropChip
+              key={kpi.key}
+              label={kpi.label}
+              value={yearlyStatusCounts[kpi.key] ?? 0}
+              tone={kpi.tone}
+              active={yearlyStatusKpiActive?.(kpi.key) ?? false}
+              canDrop={canWrite && DOER_STATUS_KPI_SET.has(kpi.key as DoerStatusKpi)}
+              status={DOER_STATUS_KPI_SET.has(kpi.key as DoerStatusKpi) ? (kpi.key as DoerStatusKpi) : null}
+              onClick={() => onYearlyStatusKpiClick?.(kpi.key)}
+            />
+          ))}
+        </div>,
+        yearlyKpiHost,
+      )}
       {weekGap && (
         <div
           className="wg-rise mb-3 flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-[13px] font-semibold"
@@ -513,7 +568,11 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
               parents.map((g) => (
                 <DraggableParent
                   key={g.id}
-                  draggable={canWrite && policy.canRehomeLevel && !!onCascadeChild && !isAssigned(g)}
+                  draggable={
+                    canWrite &&
+                    !isAssigned(g) &&
+                    ((policy.canRehomeLevel && !!onCascadeChild) || !!onDropDoerStatus)
+                  }
                   goal={g}
                   srNo={cardProps.rankOf(g)}
                   code={cardProps.codeOf(g)}
@@ -631,6 +690,47 @@ export function HierarchyKanban(props: HierarchyKanbanProps) {
 
 /** One droppable pill on the period rail — drop a card here to move it to this
  *  quarter/month. Dims the card's current bucket; glows on hover-over. */
+/** The Yearly header is portalled into the Kanban's DnD tree so its Doer KPI
+ * cards can accept drops while retaining their normal click-to-filter action. */
+function StatusKpiDropChip({
+  label, value, tone, active, canDrop, status, onClick,
+}: {
+  label: string;
+  value: number;
+  tone: StatusKpiTone;
+  active: boolean;
+  canDrop: boolean;
+  status: DoerStatusKpi | null;
+  onClick: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status ? `${STATUS_DROP_PREFIX}${status}` : `status-kpi:${label}`,
+    disabled: !canDrop,
+  });
+  const bg = `var(--color-${tone}-bg)`;
+  const ink = `var(--color-${tone}-deep)`;
+  const accent = `var(--color-${tone})`;
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={`${active ? "Remove" : "Add"} ${label.toLowerCase()} filter${canDrop ? "; drop a goal here to change its Doer status" : ""}`}
+      className="group inline-flex cursor-pointer items-center gap-2 rounded-xl transition-all"
+      style={{
+        padding: "5px 10px",
+        background: isOver ? `color-mix(in srgb, ${accent} 20%, ${bg})` : active ? `color-mix(in srgb, ${accent} 14%, ${bg})` : bg,
+        boxShadow: isOver || active ? `inset 0 0 0 2px ${accent}` : `inset 0 0 0 1px color-mix(in srgb, ${accent} 26%, transparent)`,
+      }}
+    >
+      <span aria-hidden className="inline-block size-2 shrink-0 rounded-full" style={{ background: accent }} />
+      <span className="tabular-nums leading-none" style={{ fontFamily: "var(--font-display), system-ui, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "-0.02em", color: ink }}>{value}</span>
+      <span className="font-semibold leading-none" style={{ fontSize: 11.5, color: ink, opacity: active ? 1 : 0.88 }}>{label}</span>
+    </button>
+  );
+}
+
 function PeriodDropPill({ periodKey, label, sourceKey }: { periodKey: string; label: string; sourceKey: string }) {
   const { setNodeRef, isOver } = useDroppable({ id: PERIOD_DROP_PREFIX + periodKey });
   const isSource = periodKey === sourceKey;

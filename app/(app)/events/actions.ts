@@ -37,6 +37,8 @@ import {
  */
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type EventDb = typeof db | DbTransaction;
 
 const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
 const Minute = z.number().int().min(0).max(1440);
@@ -234,6 +236,7 @@ function occurrenceDaysFromRule(rule: string, anchorDay: string, capDay: string)
  * on edit (`updateExecRoutine`).
  */
 async function stampDays(
+  database: EventDb,
   me: { id: string },
   routineId: string,
   v: {
@@ -249,7 +252,7 @@ async function stampDays(
   days: string[],
 ): Promise<{ created: number; skipped: number }> {
   if (days.length === 0) return { created: 0, skipped: 0 };
-  const existing = await db
+  const existing = await database
     .select({
       day: execCalendarEvents.eventDate,
       startMin: execCalendarEvents.startMin,
@@ -306,7 +309,7 @@ async function stampDays(
       createdById: me.id,
     });
   }
-  if (rows.length > 0) await db.insert(execCalendarEvents).values(rows);
+  if (rows.length > 0) await database.insert(execCalendarEvents).values(rows);
   return { created: rows.length, skipped };
 }
 
@@ -376,9 +379,10 @@ export async function stampRecurringEvent(
   // already computed from the rule), so Daily/Weekly/Every-weekday still stamp
   // correctly today; only a Monthly/Custom routine's re-editability is reduced
   // until the migration lands.
-  let routine: { id: string } | undefined;
-  try {
-    [routine] = await db
+  const result = await db.transaction(async (tx) => {
+    let routine: { id: string } | undefined;
+    try {
+      [routine] = await tx
       .insert(execCalendarRoutines)
       .values({
         ...baseValues,
@@ -387,12 +391,12 @@ export async function stampRecurringEvent(
         recurrenceRule: v.recurrenceRule,
       })
       .returning({ id: execCalendarRoutines.id });
-  } catch {
+    } catch {
     // postgres.js does not auto-serialize a bare JS array parameter for an
     // `integer[]` column — pass the Postgres array-literal string instead
     // (`{3}`, matching what the typed Drizzle insert above sends).
     const daysLiteral = `{${baseValues.daysOfWeek.join(",")}}`;
-    const rows = (await db.execute(sql`
+      const rows = (await tx.execute(sql`
       INSERT INTO exec_calendar_routines
         (owner_id, title, category_key, days_of_week, start_min, end_min, from_date, to_date, visibility, created_by_id)
       VALUES
@@ -402,12 +406,14 @@ export async function stampRecurringEvent(
       RETURNING id
     `)) as unknown as { id: string }[];
     routine = rows[0];
-  }
-  if (!routine) return { ok: false, error: "Could not save the routine." };
-
-  const { created, skipped } = await stampDays(me, routine.id, v, days);
+    }
+    if (!routine) throw new Error("Could not save the routine.");
+    const stamped = await stampDays(tx, me, routine.id, v, days);
+    return { routineId: routine.id, ...stamped };
+  }).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
+  if ("error" in result) return { ok: false, error: result.error };
   revalidatePath("/events");
-  return { ok: true, routineId: routine.id, created, skipped };
+  return { ok: true, ...result };
 }
 
 /* ── Importing the sheet (lib/exec-calendar/import.ts) ───────────────────── */
@@ -491,9 +497,11 @@ export async function importExecBlocks(
   // Chunked: one 2,000-row INSERT is a large statement to send over a pooler,
   // and a failure halfway through a quarter is harder to reason about than a
   // failure on one chunk.
-  for (let i = 0; i < rows.length; i += 200) {
-    await db.insert(execCalendarEvents).values(rows.slice(i, i + 200));
-  }
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < rows.length; i += 200) {
+      await tx.insert(execCalendarEvents).values(rows.slice(i, i + 200));
+    }
+  });
 
   revalidatePath("/events");
   return { ok: true, created: rows.length, skipped };
@@ -745,7 +753,7 @@ export async function updateExecRoutine(
     `);
   }
 
-  const { created, skipped } = await stampDays(me, v.id, v, days);
+  const { created, skipped } = await stampDays(db, me, v.id, v, days);
   revalidatePath("/events");
   return { ok: true, created, skipped };
 }

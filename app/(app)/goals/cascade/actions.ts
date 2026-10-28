@@ -11,6 +11,8 @@ import { goalsSpace } from "@/lib/goals/space";
 import { autoPctDone, statusForPct } from "@/lib/goals/auto-pct";
 import { bucketWeightSum, WEIGHT_CAP } from "@/lib/goals/weight";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import {
   loadWritableGoalRow,
   goalScopeFor,
@@ -266,6 +268,8 @@ export async function createGoal(
   const parsed = CreateGoalSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: firstError(parsed.error) };
   const d = parsed.data;
+  const required = await enforceRequiredRows(TEMPLATE_KEYS.goals, "default", d.rows as unknown as Record<string, unknown>[]);
+  if (!required.ok) return required;
 
   const accessScope = await goalScopeFor({ id: me.id, isAdmin });
   if (!canManageGoalFor(accessScope, d.employeeId)) {

@@ -9,7 +9,7 @@ import {
   buildDelegationClassifier,
   type DelegationChannel,
 } from "@/lib/transforms/initiator-scorecard";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { founderEmployeeIds } from "@/lib/auth/founder";
 import {
   deliveryOf,
   statusDonut,
@@ -269,7 +269,8 @@ export async function loadManagerDrilldown(
     .from(employees)
     .where(eq(employees.isActive, true))
     .catch(() => [] as { id: string; name: string; managerId: string | null; email: string | null }[]);
-  const classify = buildDelegationClassifier(managerId, orgRows, isFounderEmail);
+  const founderIds = await founderEmployeeIds();
+  const classify = buildDelegationClassifier(managerId, orgRows, (id) => founderIds.has(id));
 
   // ── tasks[] table rows with delivery badge. ──
   const taskRows = rowsRaw.map((t) => {

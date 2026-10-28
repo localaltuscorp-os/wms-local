@@ -59,8 +59,16 @@ export function periodRange(view: CalendarView, day: string): { from: string; to
       return { from: first, to: addDays(addMonths(first, 1), -1) };
     }
     case "quarter": {
-      const month = parseDay(day).getUTCMonth();
-      const first = monthStart(`${day.slice(0, 4)}-${String(Math.floor(month / 3) * 3 + 1).padStart(2, "0")}-01`);
+      const d = parseDay(day);
+      const year = d.getUTCFullYear();
+      const m = d.getUTCMonth(); // 0-based: 0=Jan..11=Dec
+      // Financial Year: Q1 (Apr–Jun), Q2 (Jul–Sep), Q3 (Oct–Dec), Q4 (Jan–Mar).
+      // Jan–Mar belong to the FY that started the previous April.
+      const fyStart = m >= 3 ? year : year - 1;
+      const qIndex = Math.floor(((m - 3 + 12) % 12) / 3); // 0=Q1, 1=Q2, 2=Q3, 3=Q4
+      const calYear = qIndex === 3 ? fyStart + 1 : fyStart;
+      const startMonth = qIndex === 0 ? "04" : qIndex === 1 ? "07" : qIndex === 2 ? "10" : "01";
+      const first = `${calYear}-${startMonth}-01`;
       return { from: first, to: addDays(addMonths(first, 3), -1) };
     }
   }
@@ -135,10 +143,21 @@ export function periodLabel(view: CalendarView, day: string, today: string): str
       return day.slice(0, 7) === today.slice(0, 7) ? "This month" : label;
     }
     case "quarter": {
-      const q = Math.floor(parseDay(day).getUTCMonth() / 3) + 1;
-      const tq = Math.floor(parseDay(today).getUTCMonth() / 3) + 1;
-      if (day.slice(0, 4) === today.slice(0, 4) && q === tq) return "This quarter";
-      return `Q${q} ${day.slice(0, 4)}`;
+      const d = parseDay(day);
+      const year = d.getUTCFullYear();
+      const m = d.getUTCMonth();
+      const fyStart = m >= 3 ? year : year - 1;
+      const q = Math.floor(((m - 3 + 12) % 12) / 3) + 1;
+
+      const td = parseDay(today);
+      const tYear = td.getUTCFullYear();
+      const tm = td.getUTCMonth();
+      const tFyStart = tm >= 3 ? tYear : tYear - 1;
+      const tq = Math.floor(((tm - 3 + 12) % 12) / 3) + 1;
+
+      if (fyStart === tFyStart && q === tq) return "This quarter";
+      const nextYear = String((fyStart + 1) % 100).padStart(2, "0");
+      return `Q${q} FY ${fyStart}–${nextYear}`;
     }
   }
 }

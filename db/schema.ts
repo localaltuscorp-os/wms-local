@@ -261,8 +261,20 @@ export const billingEntityFiles = pgTable(
     entityId: uuid("entity_id")
       .notNull()
       .references(() => payingEntities.id, { onDelete: "cascade" }),
-    /** 'logo' | 'signature' | 'document' — constrained in the database. */
-    kind: text("kind").$type<"logo" | "signature" | "document">().notNull(),
+    /** Billing file role — constrained in the database. */
+    kind: text("kind").$type<
+      | "logo"
+      | "signature"
+      | "document"
+      | "cancelled_cheque"
+      | "gst_certificate"
+      | "pan_card"
+      | "aadhar_card"
+      | "msme_certificate"
+      | "tin_certificate"
+      | "signing_entity_photo"
+      | "signing_entity_signature"
+    >().notNull(),
     storagePath: text("storage_path").notNull(),
     fileName: text("file_name").notNull(),
     mimeType: text("mime_type"),
@@ -1130,6 +1142,10 @@ export const hrContacts = pgTable(
     alternateNo: text("alternate_no"),
     email: text("email"),
     service: text("service").notNull().default("Other"),
+    directoryType: text("directory_type").notNull().default("vendor"),
+    contact2Name: text("contact_2_name"),
+    contact2CellNo: text("contact_2_cell_no"),
+    contact2Email: text("contact_2_email"),
     notes: text("notes"),
     isActive: boolean("is_active").notNull().default(true),
     createdById: uuid("created_by_id").references(() => employees.id, {
@@ -1148,6 +1164,7 @@ export const hrContacts = pgTable(
   (t) => [
     index("hr_contacts_active_idx").on(t.isActive),
     index("hr_contacts_service_idx").on(t.service),
+    index("hr_contacts_directory_type_idx").on(t.directoryType, t.isActive, t.personName),
   ],
 );
 
@@ -3072,6 +3089,10 @@ export const attendanceLogs = pgTable(
     /** WFH/on-site attendance (migration 0127): work mode + photo evidence.
      *  Office geofenced punches leave these null. */
     workMode: text("work_mode"), // office | wfh | client_site | field | other
+    remoteWorkRequestId: uuid("remote_work_request_id").references(
+      (): AnyPgColumn => remoteWorkRequests.id,
+      { onDelete: "set null" },
+    ),
     evidencePath: text("evidence_path"),
     recordedById: uuid("recorded_by_id").references(() => employees.id, {
       onDelete: "set null",
@@ -4923,6 +4944,10 @@ export const incentiveEntries = pgTable(
     employeeId: uuid("employee_id").references(() => employees.id, {
       onDelete: "set null",
     }),
+    /** Set when this ledger row is finalized from the New Incentive Request workflow. */
+    incentiveRequestId: uuid("incentive_request_id").references(() => incentiveRequests.id, {
+      onDelete: "set null",
+    }),
     participantName: text("participant_name"),
     prospectGroupName: text("prospect_group_name"),
     amount: numeric("amount", { precision: 14, scale: 2 })
@@ -4972,6 +4997,7 @@ export const incentiveEntries = pgTable(
     index("incentive_entries_period_idx").on(t.periodMonth),
     index("incentive_entries_employee_idx").on(t.employeeId),
     index("incentive_entries_reversed_idx").on(t.reversed),
+    uniqueIndex("incentive_entries_request_uq").on(t.incentiveRequestId),
   ],
 );
 

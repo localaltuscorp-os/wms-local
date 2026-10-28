@@ -1,7 +1,7 @@
 import "server-only";
 import { and, between, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { attendanceLogs, employees, type OrgSettings } from "@/db/schema";
+import { attendanceLogs, employees, remoteWorkRequests, type OrgSettings } from "@/db/schema";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { type AttendanceSchedule } from "@/lib/attendance/schedule";
 import { computeDayCode, type DayCodeResult } from "@/lib/attendance/status";
@@ -287,7 +287,22 @@ type PunchRow = {
   source?: string | null;
   reason?: string | null;
   recordedById?: string | null;
+  workMode?: string | null;
+  remoteWorkRequestId?: string | null;
+  remoteStatus?: string | null;
 };
+
+function validPunchRows(
+  rows: PunchRow[],
+  remote: Map<string, RemoteWorkMode>,
+): PunchRow[] {
+  return rows.filter((row) => {
+    if (!row.workMode || row.workMode === "office") return true;
+    if (row.workMode === "other") return true;
+    if (row.remoteWorkRequestId) return row.remoteStatus === "approved";
+    return remote.get(row.logDate) === row.workMode;
+  });
+}
 
 /**
  * Is this the system's auto punch-out?
@@ -694,8 +709,12 @@ export async function getEmployeeMonthStatus(
       source: attendanceLogs.source,
       reason: attendanceLogs.reason,
       recordedById: attendanceLogs.recordedById,
+      workMode: attendanceLogs.workMode,
+      remoteWorkRequestId: attendanceLogs.remoteWorkRequestId,
+      remoteStatus: remoteWorkRequests.status,
     })
     .from(attendanceLogs)
+    .leftJoin(remoteWorkRequests, eq(attendanceLogs.remoteWorkRequestId, remoteWorkRequests.id))
     .where(
       and(
         eq(attendanceLogs.employeeId, employeeId),
@@ -718,7 +737,7 @@ export async function getEmployeeMonthStatus(
 
   const defaults = companyDefaults(org);
   const sched = employeeSchedule(emp, defaults);
-  const byDay = foldPunches(rows, tz);
+  const byDay = foldPunches(validPunchRows(rows, remoteByEmp.get(employeeId) ?? new Map()), tz);
   return gradeMonth(emp, sched, byDay, year, month, refTodayISO, {
     saturdaySched: employeeScheduleForWeekday(emp, defaults, 6),
     holidaySet,
@@ -829,8 +848,12 @@ export async function getMonthDashboard(
         source: attendanceLogs.source,
         reason: attendanceLogs.reason,
         recordedById: attendanceLogs.recordedById,
+        workMode: attendanceLogs.workMode,
+        remoteWorkRequestId: attendanceLogs.remoteWorkRequestId,
+        remoteStatus: remoteWorkRequests.status,
       })
       .from(attendanceLogs)
+      .leftJoin(remoteWorkRequests, eq(attendanceLogs.remoteWorkRequestId, remoteWorkRequests.id))
       .where(between(attendanceLogs.logDate, first, last)),
     listHolidayDateSet(year),
   ]);
@@ -879,6 +902,9 @@ export async function getMonthDashboard(
       source: r.source,
       reason: r.reason,
       recordedById: r.recordedById,
+      workMode: r.workMode,
+      remoteWorkRequestId: r.remoteWorkRequestId,
+      remoteStatus: r.remoteStatus,
     });
   }
 
@@ -889,7 +915,10 @@ export async function getMonthDashboard(
     }
     const tz = p.timezone || "Asia/Kolkata";
     const sched = employeeSchedule(p, defaults);
-    const byDay = foldPunches(rowsByEmp.get(p.id) ?? [], tz);
+    const byDay = foldPunches(
+      validPunchRows(rowsByEmp.get(p.id) ?? [], remoteByEmp.get(p.id) ?? new Map()),
+      tz,
+    );
     const { summary, days } = gradeMonth(p, sched, byDay, year, month, refTodayISO, {
       saturdaySched: employeeScheduleForWeekday(p, defaults, 6),
       holidaySet,

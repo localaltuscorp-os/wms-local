@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { readSession } from "@/lib/auth/session";
+import { isLocalhostSession } from "@/lib/auth/local-session";
 
 // Never static: this page reads the session cookie directly (and the root
 // layout does too), so Next bails it out to dynamic rendering regardless.
@@ -33,7 +34,8 @@ function sanitizeNext(v: string | string[] | undefined): string {
  */
 export default async function WelcomePage({ searchParams }: PageProps) {
   const claims = await readSession();
-  if (!claims) redirect("/login" as Route);
+  const isLocalhost = await isLocalhostSession();
+  if (!claims && !isLocalhost) redirect("/login" as Route);
   const sp = await searchParams;
   redirect(sanitizeNext(sp["next"]) as Route);
 }

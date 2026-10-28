@@ -40,6 +40,8 @@ export type HrConsoleSubModule = {
   blurb: string;
   Icon: LucideIcon;
   href: string;
+  /** Approved letter code, when this is a catalogue letter. */
+  code?: string;
   /** Lives outside /hr — opening it leaves the console shell behind. */
   external: boolean;
 };
@@ -98,6 +100,7 @@ const lifecycleModules: HrConsoleModule[] = HR_STAGES.map((stage) => ({
       blurb: item.blurb,
       Icon: item.Icon,
       href,
+      code: item.code,
       external: isOutsideConsole(href),
     };
   }),
@@ -108,6 +111,7 @@ const standalone: Array<{ id: string; title: string; Icon: LucideIcon; href: str
   // The console's real front door. Keep it in this rail's own source rather
   // than the shared module nav: HR renders HrModuleRail, not MainNav.
   { id: "dashboard", title: "Dashboard", Icon: LayoutDashboard, href: "/hr" },
+  { id: "directory", title: "Directory", Icon: BookUser, href: "/hr/directory" },
   /* THREE SURFACES LEFT THIS RAIL ON 2026-09-12.
        Job Description → Operations  (/operations/job-description)
        Broadcasts      → Operations  (/communications)

@@ -16,6 +16,21 @@ Internal work-management dashboard for the Altus Corp team. Tracks tasks, status
 
 ## Quickstart
 
+### Explore the complete product locally (recommended)
+
+```bash
+pnpm install
+pnpm demo
+```
+
+Open http://localhost:3002. This builds a local PGlite database, applies the
+project migrations, and loads showcase data for every module. The demo-login
+screen lets you switch among Super Admin, Admin, and Employee views;
+it needs no password, Firebase, Supabase account, or real employee data.
+Run `pnpm demo:reset` to rebuild the fixture from scratch.
+
+### Connect a real development environment
+
 ```bash
 pnpm install
 cp .env.example .env.local   # fill in Supabase / Firebase / Resend values
@@ -41,8 +56,10 @@ The dashboard renders an empty-state welcome hero until at least one task or emp
 | `pnpm db:generate` | Generate SQL migration from Drizzle schema |
 | `pnpm db:migrate` | Apply migrations to `DATABASE_URL` |
 | `pnpm db:studio` | Open Drizzle Studio (visual DB browser) |
-| `pnpm seed` | Seed dev DB with realistic data |
-| `pnpm seed:reset` | Truncate seeded data |
+| `pnpm demo` | Start the complete local demo with selectable demo logins at `localhost:3002` |
+| `pnpm demo:setup` | Build/update the local demo data without starting the app |
+| `pnpm demo:reset` | Rebuild the local demo database from scratch |
+| `pnpm seed` | Safe no-op; real environments start empty |
 
 ## Stack
 

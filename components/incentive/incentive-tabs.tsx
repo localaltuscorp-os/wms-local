@@ -88,8 +88,9 @@ export function IncentiveTabs({
   requests: IncentiveRequestRow[];
   /** The viewer's OWN incentives — what they can earn and what it pays. */
   myIncentives: MyIncentiveRow[];
+  /** Historical ledger rows — read-only from this workflow. */
   entries: IncentiveEntryAdminRow[];
-  /** Active employees — the admin Entries tab and the request dialog's split picker. */
+  /** Active employees — the request dialog's split picker. */
   employees: EmployeeOption[];
   /** Active product names (Admin → Products) — the Product Sold picker. */
   products: string[];
@@ -178,7 +179,7 @@ export function IncentiveTabs({
   }, []);
 
   return (
-    <div>
+    <div className="w-full min-w-0">
       {active === "dashboard" ? (
         <IncentiveAnalyticsDashboard
           initial={analytics}

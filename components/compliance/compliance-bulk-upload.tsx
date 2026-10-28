@@ -20,6 +20,7 @@ import type { ComplianceKind } from "@/lib/compliance/schedule";
 import { minutesText } from "@/lib/compliance/minutes";
 import { bulkAddCompliances, type BulkProblem } from "@/app/(app)/employees/cc/actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TEMPLATE_KEYS, templateHref } from "@/lib/templates/keys";
 
 /**
  * BULK UPLOAD — many WCC or MCC compliances from one Excel sheet (account
@@ -447,7 +448,7 @@ export function ComplianceBulkUpload({
                     <p className="max-w-[620px] text-[13.5px] font-medium text-ink-muted">
                       Upload a CSV or Excel file — each row becomes one {KIND} compliance. Employee names or email addresses are matched to the people you can manage.
                     </p>
-                    <a href={`/employees/cc/template.xlsx?kind=${kind}`} download className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[12.5px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red">
+                    <a href={templateHref(kind === "wcc" ? TEMPLATE_KEYS.wcc : TEMPLATE_KEYS.mcc)} download className="inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[12.5px] font-bold text-ink-soft hover:border-altus-red hover:text-altus-red">
                       <Download size={15} /> Download Template
                     </a>
                   </div>
@@ -522,7 +523,7 @@ export function ComplianceBulkUpload({
                     <li>Dropdowns, a hint on every cell, red for what a row still needs — and an Examples sheet.</li>
                   </ul>
                   <a
-                    href={`/employees/cc/template.xlsx?kind=${kind}`}
+                    href={templateHref(kind === "wcc" ? TEMPLATE_KEYS.wcc : TEMPLATE_KEYS.mcc)}
                     download
                     className="mt-3 inline-flex items-center gap-2 rounded-lg border border-hairline-strong bg-white px-3 py-2 text-[13px] font-bold text-ink-soft hover:bg-surface-soft"
                   >

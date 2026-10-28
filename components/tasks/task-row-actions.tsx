@@ -9,6 +9,7 @@ import {
   Trash2,
   CheckCircle2,
   UserCog,
+  Eye,
 } from "lucide-react";
 import {
   archiveTask,
@@ -107,8 +108,6 @@ export function TaskRowActions({ row, me }: Props) {
   };
   const showApproveLink = canApprove({ ...permInput, isDoersManager: false });
   const showReassignLink = canReassign(permInput);
-  if (!me.isAdmin && !showApproveLink && !showReassignLink) return null;
-
   // Quick actions sit OUTSIDE the ⋯ menu as one-click icon buttons, so the two
   // things people reach for constantly (archive, delete) don't cost a menu
   // open. Same admin-only rule as before, and they're removed from the menu
@@ -123,7 +122,7 @@ export function TaskRowActions({ row, me }: Props) {
     // keeps it working inside the frozen Manage cell, which paints its own
     // background and sits in a separate stacking context.
     <div className="task-quick-actions inline-flex items-center gap-0.5">
-      {/* ORDER: Delete first, then Archive (reversed 2026-08). */}
+      {/* Archive and Delete remain admin-only. */}
       {me.isAdmin && (
         <button
           type="button"
@@ -136,6 +135,17 @@ export function TaskRowActions({ row, me }: Props) {
           <Trash2 size={15} strokeWidth={2.2} />
         </button>
       )}
+
+      {/* View opens the existing detail page. It sits directly beside Archive
+          and is available to every person who can already see the task. */}
+      <Link
+        href={`/tasks/${row.id}` as Route}
+        title={`View details for "${row.title}"`}
+        aria-label={`View details for ${row.title}`}
+        className={`${quickBtn} hover:bg-surface-soft hover:text-ink-strong`}
+      >
+        <Eye size={15} strokeWidth={2.2} />
+      </Link>
 
       {me.isAdmin &&
         (row.archived ? (

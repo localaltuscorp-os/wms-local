@@ -65,7 +65,7 @@ async function pingEscalation(feedbackId: string, escalatedToId: string | null, 
 }
 
 export async function escalateFeedback(id: string, escalatedToId: string | null): Promise<Result> {
-  const me = await requireWorkspace("training");
+  const me = await requireFeedbackManager();
   if (!FeedbackIdSchema.safeParse({ id }).success) return { ok: false, error: "Invalid case." };
   try {
     await db.update(tcFeedback).set({ escalate: true, escalatedToId: escalatedToId ?? null, status: "escalated", updatedAt: new Date() }).where(eq(tcFeedback.id, id));
@@ -79,7 +79,7 @@ export async function escalateFeedback(id: string, escalatedToId: string | null)
 }
 
 export async function resolveFeedback(input: unknown): Promise<Result> {
-  await requireWorkspace("training");
+  await requireFeedbackManager();
   const parsed = ResolveFeedbackSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   try {
@@ -131,7 +131,7 @@ export async function deleteFeedback(id: string): Promise<Result> {
 
 /** Service dropdown — inline add/soft-delete (open to all Training users). */
 export async function addFeedbackService(name: string): Promise<Result<{ option: TcLookupOption }>> {
-  await requireWorkspace("training");
+  await requireFeedbackManager();
   const value = name.trim();
   if (!value || value.length > 120) return { ok: false, error: "Enter a service (≤120 chars)." };
   try {
@@ -150,7 +150,7 @@ export async function addFeedbackService(name: string): Promise<Result<{ option:
 }
 
 export async function deleteFeedbackService(id: string): Promise<Result> {
-  await requireWorkspace("training");
+  await requireFeedbackManager();
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { ok: false, error: "Invalid option." };
   try {
     await db.update(tcServices).set({ isActive: false, updatedAt: new Date() }).where(eq(tcServices.id, id));

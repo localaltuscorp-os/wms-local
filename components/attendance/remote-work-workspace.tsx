@@ -816,7 +816,15 @@ function QueueRow({
  * exists for. The server re-checks the same predicate, so hiding these is
  * presentation and never the control.
  */
-function ManageActions({ row, onEdit }: { row: RemoteWorkRow; onEdit: () => void }) {
+function ManageActions({
+  row,
+  onEdit,
+  ownerOnly = false,
+}: {
+  row: RemoteWorkRow;
+  onEdit: () => void;
+  ownerOnly?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
@@ -857,7 +865,7 @@ function ManageActions({ row, onEdit }: { row: RemoteWorkRow; onEdit: () => void
         className="text-ink-muted hover:text-ink-strong inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12.5px] font-bold disabled:opacity-50"
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} strokeWidth={2.6} />}
-        Remove
+        {ownerOnly ? "Withdraw" : "Remove"}
       </button>
       {row.seriesId && (
         <button
@@ -891,6 +899,7 @@ function AmendForm({
   onDone: () => void;
 }) {
   const router = useRouter();
+  const [workDate, setWorkDate] = React.useState(row.workDate);
   const [workMode, setWorkMode] = React.useState<RemoteWorkMode>(row.workMode);
   const [clientLocationId, setClientLocationId] = React.useState(
     clientLocations.find((c) => c.name === row.clientName)?.id ?? "",
@@ -902,6 +911,7 @@ function AmendForm({
     row.reasonBucket ?? "",
   );
   const [reason, setReason] = React.useState(row.reason ?? "");
+  const [applyToSeries, setApplyToSeries] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
   const needsClient = workMode === "client_site";
@@ -912,6 +922,7 @@ function AmendForm({
     try {
       const res = await amendRemoteWorkRequest({
         requestId: row.id,
+        workDate: workDate !== row.workDate ? workDate : undefined,
         workMode,
         clientLocationId: needsClient ? clientLocationId || null : null,
         allDay,
@@ -919,12 +930,13 @@ function AmendForm({
         endTime: allDay ? null : endTime,
         reason: reason || null,
         reasonBucket: reasonBucket || null,
+        applyToSeries: row.seriesId ? applyToSeries : undefined,
       });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
       }
-      fireToast({ message: `${row.workDate} updated.` });
+      fireToast({ message: `${workDate} updated.` });
       onDone();
       router.refresh();
     } finally {
@@ -940,10 +952,18 @@ function AmendForm({
     >
       <p className="text-ink-strong text-[13px] font-bold">
         Editing {row.employeeName} · <span className="tabular-nums">{row.workDate}</span>
-        <span className="text-ink-subtle font-normal"> — the date can&rsquo;t be changed here</span>
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
+        <Field label="Date" className="w-[150px]">
+          <input
+            type="date"
+            value={workDate}
+            onChange={(e) => setWorkDate(e.target.value)}
+            className={`${INPUT} tabular-nums`}
+          />
+        </Field>
+
         <Field label="Remote Work Type" className="min-w-[170px]">
           <select
             value={workMode}
@@ -1030,6 +1050,20 @@ function AmendForm({
           />
         </Field>
 
+        {row.seriesId && (
+          <div className="w-full">
+            <label className="text-ink-strong inline-flex items-center gap-2 text-[13px] font-medium">
+              <input
+                type="checkbox"
+                checked={applyToSeries}
+                onChange={(e) => setApplyToSeries(e.target.checked)}
+                className="size-4 accent-[var(--color-altus-red)]"
+              />
+              Apply type, timing and reason changes to all occurrences in this recurring series
+            </label>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pb-0.5">
           <button
             type="submit"
@@ -1099,7 +1133,13 @@ function MyRequests({
                 <span className="text-ink-subtle text-[12px]">by {r.decidedByName}</span>
               )}
               <StatusChip status={r.status} />
-              {canManage && <ManageActions row={r} onEdit={() => setEditingId(r.id)} />}
+              {(canManage || r.status === "pending" || r.status === "approved") && (
+                <ManageActions
+                  row={r}
+                  ownerOnly={!canManage}
+                  onEdit={() => setEditingId(r.id)}
+                />
+              )}
             </li>
           ),
         )}

@@ -1,5 +1,5 @@
 "use client";
-import { FINE_BUCKET_BY_SLUG } from "@/lib/transforms/aging-buckets-fine";
+import { FINE_AGING_BUCKETS, FINE_BUCKET_BY_SLUG } from "@/lib/transforms/aging-buckets-fine";
 import { taskFilterDefaultStart } from "@/lib/task-filters";
 import { TeamFilter } from "./filters/team-filter";
 import { teamLabel } from "@/lib/teams/roster";
@@ -24,7 +24,6 @@ import type { Route } from "next";
 import { motion } from "motion/react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { PRIORITY_LABELS, type TaskPriority } from "@/db/enums";
-import { DepartmentFilter } from "./filters/department-filter";
 import { PriorityFilter } from "./filters/priority-filter";
 import { StatusFilter } from "./filters/status-filter";
 import { SubjectFilter } from "./filters/subject-filter";
@@ -174,17 +173,19 @@ export function FilterBar({
   const ALL_EMP = "__all__";
   const selfScope = (scopeDefaultsToMe || offersScopeChoice) && Boolean(me);
   const selfId = me?.id;
-  // Overdue has no picker of its own — it arrives from a drill-through link
-  // (e.g. the Task Report's sent-back-by-person rows) and is cleared from its
-  // chip. A dropdown for a single boolean would be a worse control than the
-  // chip already is.
   const [overdue, setOverdue] = React.useState<boolean>(Boolean(initial.overdue));
-  // Same shape as `overdue`: arrives from a drill-through, leaves by its chip.
   const [ageRange, setAgeRange] = React.useState<string | null>(initial.ageRange ?? null);
   const [team, setTeam] = React.useState<string[]>(initial.team ?? []);
 
   const [start, setStart] = React.useState(initial.start);
   const [end, setEnd] = React.useState(initial.end);
+
+  const dueDateValue = overdue ? "Overdue" : ageRange ?? "All Due Dates";
+  function setDueDateFilter(next: "all" | "overdue" | (typeof FINE_AGING_BUCKETS)[number]) {
+    setOverdue(next === "overdue");
+    setAgeRange(next === "all" || next === "overdue" ? null : next);
+  }
+
   const [emp, setEmp] = React.useState<string[]>(
     showScopeChip && initialAssigneeMode === "default" ? [] : initial.emp,
   );
@@ -531,10 +532,11 @@ export function FilterBar({
   );
 
   const viewToggle = (
-    <SegGroup label="View">
+    <SegGroup label="View" square>
       <SegButton
         layoutId="view-seg-active"
-        tone="subtle"
+        tone="soft"
+        square
         title="Listing tasks assigned TO the selected people"
         active={view === "doer"}
         onClick={() => setView("doer")}
@@ -543,7 +545,8 @@ export function FilterBar({
       </SegButton>
       <SegButton
         layoutId="view-seg-active"
-        tone="subtle"
+        tone="soft"
+        square
         title="Listing tasks these people HANDED OUT to others"
         active={view === "initiator"}
         onClick={() => setView("initiator")}
@@ -672,30 +675,72 @@ export function FilterBar({
               {statusAxis !== "initiator" && (
                 <StatusFilter options={statusOptions.filter((option) => DOER_STATUS_VALUES.has(option.value))} selected={status} onChange={setStatus} name="Doer Status" allLabel="All Doer Status" />
               )}
-              {statusAxis !== "doer" && (
-                <StatusFilter
-                  options={INITIATOR_STATUS_OPTIONS}
-                  selected={initiatorStatus}
-                  onChange={setInitiatorStatus}
-                  name="Initiator Status"
-                  allLabel="All Initiator Status"
-                />
-              )}
             </>
           )}
-          <PriorityFilter selected={prio} onChange={setPrio} />
+          <Popover.Root>
+            <Popover.Trigger asChild>
+              <FilterPill
+                icon={<Calendar size={16} strokeWidth={2} />}
+                name="Due Date"
+                value={dueDateValue}
+                tint={TINT.overdue}
+                active={overdue || Boolean(ageRange)}
+              />
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content
+                sideOffset={8}
+                align="start"
+                className="z-50 w-64 rounded-xl border border-hairline bg-white p-1.5 shadow-lg"
+              >
+                {([
+                  ["all", "All Due Dates"],
+                  ["overdue", "Overdue"],
+                  ...FINE_AGING_BUCKETS.map((bucket) => [bucket, bucket] as const),
+                ] as const).map(([value, label]) => {
+                  const active =
+                    (value === "all" && !overdue && !ageRange) ||
+                    (value === "overdue" && overdue) ||
+                    value === ageRange;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setDueDateFilter(value)}
+                      className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                        active
+                          ? "bg-altus-red text-white"
+                          : "text-ink-soft hover:bg-surface-muted hover:text-ink-strong"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+          {subjects && subjects.length > 0 && (
+            <SubjectFilter options={subjects} selected={subj} onChange={setSubj} />
+          )}
           {clients && clients.length > 0 && (
             <ClientFilter options={clients.map((c) => ({ value: c, label: c }))} selected={client} onChange={setClient} />
           )}
+          <PriorityFilter selected={prio} onChange={setPrio} />
           {/* Team sits directly after Department: they are adjacent questions
               (who owns this work) and reading them side by side is what makes
               the difference between them legible. */}
-          <DepartmentFilter selected={dept} onChange={setDept} />
           <TeamFilter selected={team} onChange={handleTeamChange} summary={teamSummary} />
 
           {/* Subject — always shown */}
-          {subjects && subjects.length > 0 && (
-            <SubjectFilter options={subjects} selected={subj} onChange={setSubj} />
+          {statusOptions && statusOptions.length > 0 && statusAxis !== "doer" && (
+            <StatusFilter
+              options={INITIATOR_STATUS_OPTIONS}
+              selected={initiatorStatus}
+              onChange={setInitiatorStatus}
+              name="Initiator Status"
+              allLabel="All Initiator Status"
+            />
           )}
 
           {/* Scope + View — always shown (Scope only where there is somewhere
@@ -728,10 +773,11 @@ export function FilterBar({
               the subtle treatment: it narrows one list rather than swapping it
               for a different one, and making every segmented control shout
               would leave none of them emphatic. */}
-          {!pageChromeSlots?.actions && (<SegGroup label="View">
+          {!pageChromeSlots?.actions && (<SegGroup label="View" square>
             <SegButton
-              layoutId="view-seg-active"
-              tone="subtle"
+            layoutId="view-seg-active"
+            tone="soft"
+            square
               title="Listing tasks assigned TO the selected people"
               active={view === "doer"}
               onClick={() => setView("doer")}
@@ -739,8 +785,9 @@ export function FilterBar({
               Doer
             </SegButton>
             <SegButton
-              layoutId="view-seg-active"
-              tone="subtle"
+            layoutId="view-seg-active"
+            tone="soft"
+            square
               /* THE BRAND RED, same as Doer. It used to be slate-900 so the two
                  sides differed by colour as well as position — but that made
                  "which one is lit" a thing you had to learn, and only one of
@@ -886,7 +933,7 @@ function SectionSearchBox({ placeholder }: { placeholder: string }) {
   );
 }
 
-function SegGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function SegGroup({ label, children, square = false }: { label: string; children: React.ReactNode; square?: boolean }) {
   return (
     // shrink-0 + nowrap: this is the control that used to get bumped onto a
     // second line, so it must never be squeezed or allowed to break.
@@ -895,7 +942,7 @@ function SegGroup({ label, children }: { label: string; children: React.ReactNod
         {label}
       </span>
       <div
-        className="inline-flex items-center bg-surface-card border border-hairline rounded-chip relative"
+        className={`inline-flex items-center bg-surface-card border border-hairline relative ${square ? "rounded-none" : "rounded-chip"}`}
         style={{ padding: 2, boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" }}
       >
         {children}
@@ -912,6 +959,7 @@ function SegButton({
   tone = "subtle",
   solidColor,
   title,
+  square = false,
 }: {
   active: boolean;
   onClick: () => void;
@@ -923,18 +971,20 @@ function SegButton({
    *  used. `solid` fills the active pill with `solidColor` and sets the label
    *  white — opt-in per group, so raising the contrast on the View toggle does
    *  not silently restyle Scope, which shares this component. */
-  tone?: "subtle" | "solid";
+  tone?: "subtle" | "soft" | "solid";
   /** Any CSS colour. Only read when `tone` is "solid" and this pill is active. */
   solidColor?: string;
+  square?: boolean;
 }) {
   const solid = tone === "solid" && active;
+  const soft = tone === "soft" && active;
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className="relative text-[11.5px] px-1.5 py-0.5 rounded-pill transition-colors whitespace-nowrap"
+      className={`relative text-[11.5px] px-1.5 py-0.5 transition-colors whitespace-nowrap ${square ? "rounded-none" : "rounded-pill"}`}
       style={{
         /* The fill is painted HERE as well as on the animated layer below.
            The layer is what slides between the two pills; the button's own
@@ -942,7 +992,7 @@ function SegButton({
            that layer mounts or animates in. Same colour, so they are
            indistinguishable — this is belt-and-braces on the one piece of
            state in this bar that changes which list you are reading. */
-        background: solid ? solidColor : undefined,
+        background: solid ? solidColor : soft ? "var(--color-surface-soft)" : undefined,
         color: solid
           ? "#ffffff"
           : active
@@ -955,9 +1005,9 @@ function SegButton({
         <motion.span
           layoutId={layoutId}
           aria-hidden
-          className="absolute inset-0 rounded-pill"
+          className={`absolute inset-0 ${square ? "rounded-none" : "rounded-pill"}`}
           style={{
-            background: solid ? solidColor : "var(--color-surface-card)",
+            background: solid ? solidColor : soft ? "var(--color-surface-soft)" : "var(--color-surface-card)",
             boxShadow: solid
               ? "0 1px 3px rgba(15, 23, 42, 0.28)"
               : "0 1px 3px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)",

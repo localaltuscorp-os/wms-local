@@ -8,6 +8,8 @@ import { projectNodes, tasks, employees } from "@/db/schema";
 import { TASK_PRIORITIES } from "@/db/enums";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { afterResponse } from "@/lib/after";
 import { createTasksCore } from "@/lib/tasks/create-task";
@@ -636,6 +638,8 @@ export async function bulkCreatePlanNodes(
   const parsed = BulkCreateSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Invalid input.");
   const { kind, parentId = null, rows } = parsed.data;
+  const required = await enforceRequiredRows(TEMPLATE_KEYS.projects, kind.replace(/-/g, "_"), rows as unknown as Record<string, unknown>[]);
+  if (!required.ok) return required;
 
   // The destination, checked ONCE — every row lands in the same place.
   const needsParent = PARENT_KIND[kind];

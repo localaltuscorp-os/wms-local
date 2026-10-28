@@ -261,7 +261,7 @@ export async function archiveEmployee(
     console.error("[archiveEmployee] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
 
   return {
@@ -319,7 +319,7 @@ export async function setLegalHold(
     console.error("[setLegalHold] audit write failed", err);
   }
 
-  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employee-master");
   updateTag(CACHE_TAGS.employees);
   return { ok: true };
 }

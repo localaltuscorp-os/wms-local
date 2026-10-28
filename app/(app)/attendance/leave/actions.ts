@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { leaveRequests, employeeEvents, employees } from "@/db/schema";
+import { leaveRequests, employeeEvents, employees, attendanceLogs, salaryRuns } from "@/db/schema";
+import { monthsSpanned } from "@/lib/salary/period";
 import type { NotificationKind } from "@/db/schema";
 import { LEAVE_KIND_LABELS } from "@/db/enums";
 import { requireAdmin, requireUser } from "@/lib/auth/current";
@@ -25,6 +26,7 @@ import { localDateString } from "@/lib/format";
 import { refreshPayForRange } from "@/lib/salary/refresh-run";
 import {
   RequestLeave,
+  EditLeave,
   DecideLeave,
   AdminMarkLeave,
   CancelLeave,
@@ -258,63 +260,78 @@ export async function decideLeave(input: {
     return { ok: false, error: "This request has already been decided." };
   }
 
-  // Concurrency guard: re-check paid balance at approval time.
-  if (parsed.data.verdict === "approved" && existing.kind === "paid") {
-    const bal = await getLeaveBalance(existing.employeeId, todayISO());
-    const reqDays = Number(existing.days);
-    if (bal.remaining < reqDays) {
-      return {
-        ok: false,
-        error: `Approving would exceed the employee's paid balance for ${bal.cycleLabel} (${bal.remaining} left, request is ${reqDays}).`,
-      };
-    }
-  }
-
   try {
-    await db
-      .update(leaveRequests)
-      .set({
+    const decided = await db.transaction(async (tx) => {
+      // Serialize every paid-leave decision for one employee. Balance read and
+      // status transition then commit as one operation.
+      if (parsed.data.verdict === "approved" && existing.kind === "paid") {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${existing.employeeId}::text, 0))`);
+      }
+
+      const [current] = await tx
+        .select()
+        .from(leaveRequests)
+        .where(eq(leaveRequests.id, parsed.data.id))
+        .limit(1);
+      if (!current) throw new Error("Leave request not found");
+      if (current.status !== "pending") throw new Error("This request has already been decided.");
+
+      if (parsed.data.verdict === "approved" && current.kind === "paid") {
+        const bal = await getLeaveBalance(current.employeeId, todayISO(), tx);
+        const reqDays = Number(current.days);
+        if (bal.remaining < reqDays) {
+          throw new Error(
+            `Approving would exceed the employee's paid balance for ${bal.cycleLabel} (${bal.remaining} left, request is ${reqDays}).`,
+          );
+        }
+      }
+
+      const [updated] = await tx
+        .update(leaveRequests)
+        .set({
+          status: parsed.data.verdict,
+          decidedById: me.id,
+          decidedAt: new Date(),
+          decisionNote: parsed.data.note ? parsed.data.note : null,
+        })
+        .where(and(eq(leaveRequests.id, parsed.data.id), eq(leaveRequests.status, "pending")))
+        .returning();
+      if (!updated) throw new Error("This request has already been decided.");
+      return updated;
+    });
+
+    await db.insert(employeeEvents).values({
+      employeeId: decided.employeeId,
+      actorId: me.id,
+      eventType: `leave_${parsed.data.verdict}`,
+      fromValue: { status: existing.status },
+      toValue: {
         status: parsed.data.verdict,
-        decidedById: me.id,
-        decidedAt: new Date(),
-        decisionNote: parsed.data.note ? parsed.data.note : null,
-      })
-      .where(eq(leaveRequests.id, parsed.data.id));
+        kind: decided.kind,
+        startDate: decided.startDate,
+        endDate: decided.endDate,
+      },
+      note: parsed.data.note ?? null,
+    });
+
+    await notify({
+      userId: decided.employeeId,
+      kind: "attendance_device" as NotificationKind,
+      title:
+        parsed.data.verdict === "approved"
+          ? `${LEAVE_KIND_LABELS[decided.kind]} approved`
+          : `${LEAVE_KIND_LABELS[decided.kind]} rejected`,
+      body: `${decided.startDate} → ${decided.endDate} (${Number(decided.days)} day${Number(decided.days) === 1 ? "" : "s"})${parsed.data.note ? ` · ${parsed.data.note}` : ""}`,
+      actorId: me.id,
+    });
+
+    await repriceLeaveMonths(decided.employeeId, decided.startDate, decided.endDate);
+    revalidateLeaveSurfaces();
+    return { ok: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };
   }
-
-  await db.insert(employeeEvents).values({
-    employeeId: existing.employeeId,
-    actorId: me.id,
-    eventType: `leave_${parsed.data.verdict}`,
-    fromValue: { status: existing.status },
-    toValue: {
-      status: parsed.data.verdict,
-      kind: existing.kind,
-      startDate: existing.startDate,
-      endDate: existing.endDate,
-    },
-    note: parsed.data.note ?? null,
-  });
-
-  // Inbox-only notification to the employee. `attendance_device` routes to the
-  // inbox-only arm (no email template), keeping leave decisions noise-free.
-  await notify({
-    userId: existing.employeeId,
-    kind: "attendance_device" as NotificationKind,
-    title:
-      parsed.data.verdict === "approved"
-        ? `${LEAVE_KIND_LABELS[existing.kind]} approved`
-        : `${LEAVE_KIND_LABELS[existing.kind]} rejected`,
-    body: `${existing.startDate} → ${existing.endDate} (${Number(existing.days)} day${Number(existing.days) === 1 ? "" : "s"})${parsed.data.note ? ` · ${parsed.data.note}` : ""}`,
-    actorId: me.id,
-  });
-
-  await repriceLeaveMonths(existing.employeeId, existing.startDate, existing.endDate);
-  revalidateLeaveSurfaces();
-  return { ok: true };
 }
 
 /**
@@ -351,33 +368,34 @@ export async function adminMarkLeave(
 
   const days = leaveDays(parsed.data);
 
-  if (parsed.data.kind === "paid") {
-    const bal = await getLeaveBalance(parsed.data.employeeId, todayISO());
-    if (bal.remaining < days) {
-      return {
-        ok: false,
-        error: `Exceeds the employee's ${bal.allowance} paid leaves for ${bal.cycleLabel} (${bal.remaining} left).`,
-      };
-    }
-  }
-
   let inserted;
   try {
-    [inserted] = await db
-      .insert(leaveRequests)
-      .values({
-        employeeId: parsed.data.employeeId,
-        kind: parsed.data.kind,
-        startDate: parsed.data.startDate,
-        endDate: parsed.data.endDate,
-        days: String(days),
-        reason: parsed.data.reason ? parsed.data.reason : null,
-        ...extraColumns(parsed.data),
-        status: "approved",
-        decidedById: me.id,
-        decidedAt: new Date(),
-      })
-      .returning({ id: leaveRequests.id });
+    [inserted] = await db.transaction(async (tx) => {
+      if (parsed.data.kind === "paid") {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${parsed.data.employeeId}::text, 0))`);
+        const bal = await getLeaveBalance(parsed.data.employeeId, todayISO(), tx);
+        if (bal.remaining < days) {
+          throw new Error(
+            `Exceeds the employee's ${bal.allowance} paid leaves for ${bal.cycleLabel} (${bal.remaining} left).`,
+          );
+        }
+      }
+      return tx
+        .insert(leaveRequests)
+        .values({
+          employeeId: parsed.data.employeeId,
+          kind: parsed.data.kind,
+          startDate: parsed.data.startDate,
+          endDate: parsed.data.endDate,
+          days: String(days),
+          reason: parsed.data.reason ? parsed.data.reason : null,
+          ...extraColumns(parsed.data),
+          status: "approved",
+          decidedById: me.id,
+          decidedAt: new Date(),
+        })
+        .returning({ id: leaveRequests.id });
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `DB: ${msg}` };
@@ -408,9 +426,168 @@ export async function adminMarkLeave(
 }
 
 /**
- * Cancel a leave request. An employee may cancel their OWN PENDING request; an
- * admin may cancel any request in any state (including walking back an approval,
- * which releases the attendance days again on the next read).
+ * Edit an existing leave request. Employees may edit their own pending or approved requests.
+ * Core changes (dates, half-days, kind) on an approved request reset status to pending for re-approval.
+ */
+export async function editLeave(
+  input: {
+    id: string;
+    kind: "paid" | "unpaid";
+    startDate: string;
+    endDate: string;
+    reason?: string;
+  } & LeaveExtrasInput,
+): Promise<ActionResult> {
+  const me = await requireUser();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const parsed = EditLeave.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const existing = await db.query.leaveRequests.findFirst({
+    where: eq(leaveRequests.id, parsed.data.id),
+  });
+  if (!existing) return { ok: false, error: "Leave request not found" };
+
+  if (existing.employeeId !== me.id && !me.isAdmin) {
+    return { ok: false, error: "You can only edit your own requests." };
+  }
+
+  if (existing.status === "cancelled" || existing.status === "rejected") {
+    return { ok: false, error: `Cannot edit a ${existing.status} request.` };
+  }
+
+  const workerType = asWorkerType(me.workerType);
+  if (!leaveKindAllowedFor(workerType, parsed.data.kind)) {
+    return { ok: false, error: paidLeaveRefusalFor(workerType) };
+  }
+
+  const refusal = await categoryRefusal(parsed.data.categoryId);
+  if (refusal) return { ok: false, error: refusal };
+
+  const minD = existing.startDate < parsed.data.startDate ? existing.startDate : parsed.data.startDate;
+  const maxD = existing.endDate > parsed.data.endDate ? existing.endDate : parsed.data.endDate;
+
+  // Prevent edits that conflict with existing attendance logs or disbursed payroll
+  if (existing.status === "approved") {
+    const [punch] = await db
+      .select({ id: attendanceLogs.id, logDate: attendanceLogs.logDate })
+      .from(attendanceLogs)
+      .where(
+        and(
+          eq(attendanceLogs.employeeId, existing.employeeId),
+          gte(attendanceLogs.logDate, minD),
+          lte(attendanceLogs.logDate, maxD),
+        ),
+      )
+      .limit(1);
+    if (punch) {
+      return {
+        ok: false,
+        error: `Attendance is already recorded on ${punch.logDate}. Correct or remove attendance before editing this leave.`,
+      };
+    }
+
+    const months = monthsSpanned(minD, maxD);
+    if (months.length > 0) {
+      const [disbursed] = await db
+        .select({ month: salaryRuns.month })
+        .from(salaryRuns)
+        .where(
+          and(
+            eq(salaryRuns.employeeId, existing.employeeId),
+            inArray(salaryRuns.month, months),
+            eq(salaryRuns.disbursed, true),
+          ),
+        )
+        .limit(1);
+      if (disbursed) {
+        return {
+          ok: false,
+          error: `Payroll for ${disbursed.month} has already been disbursed. Contact HR or Accounts.`,
+        };
+      }
+    }
+  }
+
+  const days = leaveDays(parsed.data);
+
+  if (parsed.data.kind === "paid") {
+    const bal = await getLeaveBalance(existing.employeeId, todayISO());
+    const available =
+      existing.status === "approved" && existing.kind === "paid"
+        ? bal.remaining + Number(existing.days)
+        : bal.remaining;
+
+    if (available < days) {
+      return {
+        ok: false,
+        error: `Exceeds your ${bal.allowance} paid leaves for ${bal.cycleLabel} (${available} left).`,
+      };
+    }
+  }
+
+  const coreChanged =
+    existing.startDate !== parsed.data.startDate ||
+    existing.endDate !== parsed.data.endDate ||
+    existing.kind !== parsed.data.kind ||
+    existing.startHalfDay !== (parsed.data.startHalfDay ?? false) ||
+    existing.endHalfDay !== (parsed.data.endHalfDay ?? false);
+
+  const newStatus = existing.status === "approved" && coreChanged ? "pending" : existing.status;
+
+  try {
+    await db
+      .update(leaveRequests)
+      .set({
+        kind: parsed.data.kind,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        days: String(days),
+        reason: parsed.data.reason ? parsed.data.reason : null,
+        ...extraColumns(parsed.data),
+        status: newStatus,
+        ...(newStatus === "pending" && existing.status === "approved"
+          ? { decidedById: null, decidedAt: null, decisionNote: null }
+          : {}),
+      })
+      .where(eq(leaveRequests.id, parsed.data.id));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `DB: ${msg}` };
+  }
+
+  await db.insert(employeeEvents).values({
+    employeeId: existing.employeeId,
+    actorId: me.id,
+    eventType: "leave_edited",
+    fromValue: {
+      status: existing.status,
+      kind: existing.kind,
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+      days: existing.days,
+    },
+    toValue: {
+      status: newStatus,
+      kind: parsed.data.kind,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+      days,
+    },
+  });
+
+  await repriceLeaveMonths(existing.employeeId, minD, maxD);
+  revalidateLeaveSurfaces();
+  return { ok: true };
+}
+
+/**
+ * Cancel a leave request. Employees may cancel their own pending or approved requests
+ * from their existing history, provided attendance is not already punched and payroll is not disbursed.
  */
 export async function cancelLeave(input: {
   id: string;
@@ -429,12 +606,57 @@ export async function cancelLeave(input: {
   });
   if (!existing) return { ok: false, error: "Leave request not found" };
 
-  if (!me.isAdmin) {
-    if (existing.employeeId !== me.id) {
-      return { ok: false, error: "You can only cancel your own requests." };
+  if (existing.employeeId !== me.id && !me.isAdmin) {
+    return { ok: false, error: "You can only cancel your own requests." };
+  }
+
+  if (existing.status === "cancelled") {
+    return { ok: false, error: "This request is already cancelled." };
+  }
+
+  if (existing.status === "rejected") {
+    return { ok: false, error: "Rejected requests cannot be cancelled." };
+  }
+
+  // Guard approved requests against conflicting attendance records or disbursed payroll
+  if (existing.status === "approved") {
+    const [punch] = await db
+      .select({ id: attendanceLogs.id, logDate: attendanceLogs.logDate })
+      .from(attendanceLogs)
+      .where(
+        and(
+          eq(attendanceLogs.employeeId, existing.employeeId),
+          gte(attendanceLogs.logDate, existing.startDate),
+          lte(attendanceLogs.logDate, existing.endDate),
+        ),
+      )
+      .limit(1);
+    if (punch) {
+      return {
+        ok: false,
+        error: `Attendance is already recorded on ${punch.logDate}. Correct or remove attendance before cancelling this leave.`,
+      };
     }
-    if (existing.status !== "pending") {
-      return { ok: false, error: "Only pending requests can be cancelled." };
+
+    const months = monthsSpanned(existing.startDate, existing.endDate);
+    if (months.length > 0) {
+      const [disbursed] = await db
+        .select({ month: salaryRuns.month })
+        .from(salaryRuns)
+        .where(
+          and(
+            eq(salaryRuns.employeeId, existing.employeeId),
+            inArray(salaryRuns.month, months),
+            eq(salaryRuns.disbursed, true),
+          ),
+        )
+        .limit(1);
+      if (disbursed) {
+        return {
+          ok: false,
+          error: `Payroll for ${disbursed.month} has already been disbursed. Contact HR or Accounts.`,
+        };
+      }
     }
   }
 
@@ -453,11 +675,59 @@ export async function cancelLeave(input: {
     actorId: me.id,
     eventType: "leave_cancelled",
     fromValue: { status: existing.status },
+    toValue: { status: "cancelled" },
   });
 
-  // A cancelled leave that had been APPROVED gives the day back — including,
-  // for an unpaid one, the deduction it carried.
   await repriceLeaveMonths(existing.employeeId, existing.startDate, existing.endDate);
+  revalidateLeaveSurfaces();
+  return { ok: true };
+}
+
+/** Explicit admin reversal for an approved leave. Never changes approved to rejected. */
+export async function revokeLeave(input: { id: string; note?: string }): Promise<ActionResult> {
+  const me = await requireAdmin();
+  const limited = rateLimitOrError(me.id, "write");
+  if (limited) return limited;
+
+  const existing = await db.query.leaveRequests.findFirst({
+    where: eq(leaveRequests.id, input.id),
+  });
+  if (!existing) return { ok: false, error: "Leave request not found" };
+  if (existing.status !== "approved") {
+    return { ok: false, error: "Only approved leave can be revoked." };
+  }
+
+  let revoked;
+  try {
+    [revoked] = await db
+      .update(leaveRequests)
+      .set({
+        status: "cancelled",
+        decidedById: me.id,
+        decidedAt: new Date(),
+        decisionNote: input.note?.trim() || "Leave revoked",
+      })
+      .where(and(eq(leaveRequests.id, input.id), eq(leaveRequests.status, "approved")))
+      .returning();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `DB: ${msg}` };
+  }
+  if (!revoked) return { ok: false, error: "Leave was already decided or revoked." };
+
+  await db.insert(employeeEvents).values({
+    employeeId: revoked.employeeId,
+    actorId: me.id,
+    eventType: "leave_revoked",
+    fromValue: {
+      status: "approved",
+      decidedById: existing.decidedById,
+      decidedAt: existing.decidedAt,
+      decisionNote: existing.decisionNote,
+    },
+    toValue: { status: "cancelled", note: input.note?.trim() || "Leave revoked" },
+  });
+  await repriceLeaveMonths(revoked.employeeId, revoked.startDate, revoked.endDate);
   revalidateLeaveSurfaces();
   return { ok: true };
 }

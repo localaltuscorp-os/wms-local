@@ -168,13 +168,14 @@ describe("Department became Function; the empty Function field went", () => {
     expect(table).not.toMatch(/key: "department"/);
   });
 
-  it("the empty functions picker is gone from both surfaces", () => {
-    expect(table).not.toMatch(/options\.functions/);
-    expect(ws).not.toMatch(/options\.functions/);
+  it("the existing multi-function picker is available in Master", () => {
+    expect(ws).toMatch(/options\.functions/);
+    expect(ws).toMatch(/DepartmentMultiSelect/);
   });
 
-  it("the workspace shows ONE field, labelled Function, holding the department", () => {
-    expect(ws).toMatch(/<Field label="Function"><Readout>\{r\.departmentName/);
+  it("the workspace exposes editable Functions with primary selection", () => {
+    expect(ws).toMatch(/<Field label="Functions">/);
+    expect(ws).toMatch(/primaryDepartmentId/);
     expect(ws).not.toMatch(/label="Department"/);
   });
 });
@@ -257,11 +258,12 @@ describe("the workspace sections were merged, not just renamed", () => {
    * that forbids unrelated work is a test that gets deleted rather than fixed.
    */
   it("keeps the four sections that survived, in order", () => {
-    const kept = ["Overview", "Payroll", "Contact Details", "Documents", "Work & Attendance"];
+    const kept = ["Overview", "Payroll", "Contact Details", "Work & Attendance"];
     for (const label of kept) expect(labels, label).toContain(label);
     // Relative order still holds, whatever else has been added around them.
     const positions = kept.map((l) => labels.indexOf(l));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(ws).toMatch(/function DocumentsPane/);
   });
 
   it("Contact is renamed to Contact Details", () => {

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Pencil, Link2, KeyRound, UserX, UserCheck, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Link2, KeyRound, UserX, UserCheck, Trash2, Mail } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,6 +14,7 @@ import { fireToast } from "@/lib/toast";
 import {
   deactivateEmployee,
   getInviteLink,
+  resendInvite,
   reactivateEmployee,
 } from "@/app/(admin)/admin/employees/actions";
 import { ResetPasswordDialog } from "@/components/admin/reset-password-dialog";
@@ -90,6 +91,13 @@ export function MasterRowActions({
     });
   }
 
+  function resend() {
+    startTransition(async () => {
+      const res = await resendInvite(employee.id);
+      fireToast({ message: res.ok ? `Invite re-sent to ${employee.name}.` : (res.error ?? "Could not re-send invite.") });
+    });
+  }
+
   function setActive(next: boolean) {
     const verb = next ? "Reactivate" : "Deactivate";
     if (!window.confirm(`${verb} ${employee.name}?`)) return;
@@ -131,6 +139,11 @@ export function MasterRowActions({
           <DropdownMenuItem onClick={copyAccessLink} disabled={pending}>
             <Link2 size={14} /> {isInvited ? "Copy invite link" : "Copy password-reset link"}
           </DropdownMenuItem>
+          {isInvited && (
+            <DropdownMenuItem onClick={resend} disabled={pending}>
+              <Mail size={14} /> Resend invite
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuItem onClick={() => setResetOpen(true)}>
             <KeyRound size={14} /> Reset Password

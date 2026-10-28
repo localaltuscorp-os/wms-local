@@ -7,10 +7,10 @@ import "server-only";
 // webpack dev compile). Every write is auth-guarded (admin/HR) + rate-limited.
 
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { documentInstances, documentSignatures, employees, type Employee } from "@/db/schema";
+import { documentInstances, documentSignatures, employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "./issue-access";
 import { rateLimitOrError } from "@/lib/rate-limit";
@@ -21,8 +21,11 @@ import { getLetter } from "./registry";
 import { letterDate } from "./roster";
 import { sendLetterPdfEmail } from "@/lib/email/hr-letter-email";
 import type { DocKind } from "@/lib/documents/signing";
+import { employeeLetterRecipientEmail } from "./recipient";
+import { letterDeliveryKey } from "./idempotency";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+type ArchivedLetter = { instanceId: string; pdfPath: string; signatureId: string | null; pdfBuffer: Buffer };
 
 const UUID = z.string().uuid();
 const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -89,6 +92,38 @@ export type IssueLetterInput = z.infer<typeof IssueSchema>;
  * the same work email already did. Caller renders the PDF and resolves the
  * recipient; this function only persists.
  */
+export async function findReusableLetterInstance(input: {
+  key: string;
+  employeeId?: string | null;
+  deliveryKey: string;
+}): Promise<ArchivedLetter | null> {
+  const existing = await db
+    .select({ id: documentInstances.id, pdfPath: documentInstances.renderedPdfPath, mergeValues: documentInstances.mergeValues })
+    .from(documentInstances)
+    .where(and(
+      eq(documentInstances.typeKey, input.key),
+      input.employeeId ? eq(documentInstances.employeeId, input.employeeId) : isNull(documentInstances.employeeId),
+      inArray(documentInstances.status, ["sent", "acknowledged", "signed"]),
+    ))
+    .orderBy(desc(documentInstances.createdAt));
+  const match = existing.find((row) => (row.mergeValues as Record<string, unknown> | null)?.__deliveryKey === input.deliveryKey);
+  if (!match?.pdfPath) return null;
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.storage.from(DOCUMENTS_BUCKET).download(match.pdfPath);
+  if (error || !data) return null;
+  const [sig] = await db
+    .select({ id: documentSignatures.id })
+    .from(documentSignatures)
+    .where(eq(documentSignatures.docId, match.id))
+    .limit(1);
+  return {
+    instanceId: match.id,
+    pdfPath: match.pdfPath,
+    signatureId: sig?.id ?? null,
+    pdfBuffer: Buffer.from(await data.arrayBuffer()),
+  };
+}
+
 export async function archiveLetterInstance(input: {
   key: string;
   entity: string;
@@ -99,13 +134,19 @@ export async function archiveLetterInstance(input: {
   candidateEmail?: string | null;
   pdfBuffer: Buffer;
   issuedById: string;
-}): Promise<Result<{ instanceId: string; pdfPath: string; signatureId: string | null }>> {
-  const { key, entity, template, values, employeeId, candidateName, candidateEmail, pdfBuffer, issuedById } = input;
+  deliveryKey?: string;
+}): Promise<Result<ArchivedLetter>> {
+  const { key, entity, template, values, employeeId, candidateName, candidateEmail, pdfBuffer, issuedById, deliveryKey } = input;
   if (!template) return { ok: false, error: "This letter isn't authored yet." };
+
+  const admin = getSupabaseAdmin();
+  if (deliveryKey) {
+    const existing = await findReusableLetterInstance({ key, employeeId, deliveryKey });
+    if (existing) return { ok: true, ...existing };
+  }
 
   const folder = employeeId ?? "candidates";
   const pdfPath = `${folder}/hr-letters/${randomUUID()}.pdf`;
-  const admin = getSupabaseAdmin();
   const { error: upErr } = await admin.storage
     .from(DOCUMENTS_BUCKET)
     .upload(pdfPath, pdfBuffer, { contentType: "application/pdf", upsert: false });
@@ -122,7 +163,7 @@ export async function archiveLetterInstance(input: {
         candidateName: employeeId ? null : candidateName || null,
         candidateEmail: employeeId ? null : candidateEmail ?? null,
         status: "sent",
-        mergeValues: { ...values, __entity: entity },
+        mergeValues: { ...values, __entity: entity, ...(deliveryKey ? { __deliveryKey: deliveryKey } : {}) },
         bodySnapshotMd: JSON.stringify({ key, entity, values }),
         renderedPdfPath: pdfPath,
         issuedById,
@@ -156,7 +197,7 @@ export async function archiveLetterInstance(input: {
     }
   }
 
-  return { ok: true, instanceId, pdfPath, signatureId };
+  return { ok: true, instanceId, pdfPath, signatureId, pdfBuffer };
 }
 
 /**
@@ -204,7 +245,7 @@ export async function issueLetter(
     const emp = await db.query.employees.findFirst({ where: eq(employees.id, employeeId) });
     if (!emp) return { ok: false, error: "Employee not found." };
     recipientName = emp.name;
-    recipientEmail = (emp.email ?? "").trim();
+    recipientEmail = employeeLetterRecipientEmail(emp);
   }
 
   const resolvedEntity = getEntity(entity ?? template.entityDefault ?? null);
@@ -239,6 +280,7 @@ export async function issueLetter(
     candidateEmail,
     pdfBuffer,
     issuedById: me.id,
+    deliveryKey: letterDeliveryKey({ key, entity: resolvedEntity.id, values, date, gender: normalizeGender(gender), signatureImage: signatureImage ?? null, signatory: signatory ?? null, fitOnePage: fitOnePage === true, employeeId: employeeId ?? null, candidateEmail: employeeId ? null : candidateEmail ?? null, candidateName: employeeId ? null : recipientName }),
   });
   if (!archived.ok) return archived;
   const { instanceId, pdfPath, signatureId } = archived;
@@ -255,7 +297,7 @@ export async function issueLetter(
       recipientName,
       letterTitle: template.title,
       entityName: resolvedEntity.displayName,
-      pdf: pdfBuffer,
+      pdf: archived.pdfBuffer,
       filename: `${key}.pdf`,
     });
     emailed = sent.ok;

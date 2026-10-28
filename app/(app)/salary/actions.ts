@@ -29,7 +29,7 @@ import {
   type PayslipMailSummary,
 } from "@/lib/salary/notify-paid";
 import { afterResponse } from "@/lib/after";
-import { notifySuperAdminsOfPendingApproval } from "@/lib/compensation/workflow";
+import { notifyCompensationApproversOfPendingApproval } from "@/lib/compensation/workflow";
 
 export type ActionResult<T = unknown> =
   | ({ ok: true } & T)
@@ -100,7 +100,7 @@ export async function generateSalary(input: unknown): Promise<ActionResult<{ gen
 
   revalidatePath(PATH);
   revalidatePath("/salary");
-  if (generated > 0) afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
+  if (generated > 0) afterResponse(() => notifyCompensationApproversOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
   return { ok: true, generated };
 }
 
@@ -205,16 +205,17 @@ export async function generateSalaryAll(
   // Mirror into `salary_breakup` exactly as generateSalary does — the /salary
   // page (and the mobile API) read the breakup, so without this a bulk-generated
   // month would show My Salary one number and Accounts another.
-  if (created > 0) {
-    try {
-      await syncBreakupFromApp(month);
-    } catch (err: unknown) {
-      if (!firstError) firstError = err instanceof Error ? err.message : String(err);
-    }
+  try {
+    // Always mirror, including an all-skipped run. Existing salary_runs may
+    // predate their salary_breakup mirror, which otherwise hides the month in
+    // Accounts Salary even though generation succeeded.
+    await syncBreakupFromApp(month);
+  } catch (err: unknown) {
+    if (!firstError) firstError = err instanceof Error ? err.message : String(err);
   }
 
   revalidatePath(PATH);
-  if (created > 0) afterResponse(() => notifySuperAdminsOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
+  if (created > 0) afterResponse(() => notifyCompensationApproversOfPendingApproval({ kind: "salary", actorId: me.id, employeeName: "Salary generation" }));
   return { ok: true, created, skipped, failed, firstError };
 }
 

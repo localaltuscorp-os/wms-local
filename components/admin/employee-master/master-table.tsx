@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import {
   BadgeCheck,
   ChevronDown,
@@ -9,10 +11,12 @@ import {
   Download,
   Filter,
   GraduationCap,
+  Mail,
   Moon,
   Search,
   Sun,
   Users,
+  BarChart3,
   X,
 } from "lucide-react";
 import type { EmployeeMasterRow, MasterOptions } from "@/lib/employees/master-query";
@@ -65,6 +69,8 @@ import { formatDate } from "@/lib/format";
 type ColumnKey =
   | "employee"
   | "employeeCode"
+  | "role"
+  | "access"
   | "function"
   | "entity"
   | "designation"
@@ -200,6 +206,51 @@ const COLUMNS: ColumnDef[] = [
   { key: "shift", label: "Shift Type", default: true, value: (r) => t(workerTypeLabel(r.workerType)), sort: (r) => workerTypeLabel(r.workerType) },
   { key: "status", label: "Status", default: true, value: (r) => r.status, sort: (r) => r.status.replace(/_/g, " ") },
   // Optional — available under Columns, off by default so the table stays compact.
+  {
+    key: "role",
+    label: "Role",
+    default: false,
+    value: (r) => (r.role === "both" ? "Both" : r.role === "initiator" ? "Initiator" : "Doer"),
+    sort: (r) => r.role,
+    render: (r) => (
+      <span className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider",
+        r.role === "both" ? "bg-purple-100 text-purple-700" : r.role === "initiator" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+      )}>
+        {r.role === "both" ? "Both" : r.role === "initiator" ? "Initiator" : "Doer"}
+      </span>
+    ),
+  },
+  {
+    key: "access",
+    label: "Access",
+    default: false,
+    value: (r) => {
+      const grants = [];
+      if (r.isMasterAdmin) grants.push("Master Admin");
+      else if (r.isAdmin) grants.push("Admin");
+      if (r.canIssueLetters) grants.push("Letters");
+      if (r.canCoordinateDcc) grants.push("DCC");
+      return grants.length ? grants.join(", ") : "Standard";
+    },
+    render: (r) => {
+      const grants = [];
+      if (r.isMasterAdmin) grants.push("Master Admin");
+      else if (r.isAdmin) grants.push("Admin");
+      if (r.canIssueLetters) grants.push("Letters");
+      if (r.canCoordinateDcc) grants.push("DCC");
+      if (!grants.length) return <span className="text-ink-muted text-[12px]">Standard</span>;
+      return (
+        <div className="flex flex-wrap gap-1">
+          {grants.map((g) => (
+            <span key={g} className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
+              {g}
+            </span>
+          ))}
+        </div>
+      );
+    },
+  },
   { key: "manager", label: "Manager", default: false, value: (r) => t(r.managerName), sort: (r) => r.managerName },
   { key: "teamLead", label: "Team Lead", default: false, value: (r) => yn(r.isTeamLead), sort: (r) => (r.isTeamLead ? 1 : 0) },
   { key: "trainPass", label: "Train Pass", default: false, value: (r) => yn(r.trainPass), sort: (r) => (r.trainPass ? 1 : 0) },
@@ -266,12 +317,13 @@ interface FilterState {
   hasCode: string; // "" | "yes" | "no"
   dojFrom: string;
   dojTo: string;
+  role: string;
 }
 
 const NO_FILTERS: FilterState = {
   entityId: "", designationId: "", departmentId: "",
   managerId: "", workerType: "", status: "", teamLead: "", trainPass: "", ptExempt: "",
-  probation: "", hasCode: "", dojFrom: "", dojTo: "",
+  probation: "", hasCode: "", dojFrom: "", dojTo: "", role: "",
 };
 
 function activeFilterCount(f: FilterState): number {
@@ -281,13 +333,18 @@ function activeFilterCount(f: FilterState): number {
 const bool3 = (v: string, actual: boolean | null): boolean =>
   v === "" || (v === "yes" ? actual === true : actual === false);
 
-type KpiFilter = "confirmed" | "probation" | "employees" | "full_time_interns" | "part_time_interns" | "interns";
+type KpiFilter = "confirmed" | "probation" | "employees" | "full_time_interns" | "part_time_interns" | "interns" | "pending_invites";
+
+function isPendingInviteRow(row: EmployeeMasterRow): boolean {
+  return Boolean(row.isActive && (!row.employmentStatus || row.employmentStatus === "active") && !row.joinedAt);
+}
 
 function isActiveWorkforce(row: EmployeeMasterRow): boolean {
-  return row.isActive && row.employmentStatus === "active" && !row.onTemporaryBreak;
+  return row.isActive && row.employmentStatus === "active" && !row.onTemporaryBreak && !isPendingInviteRow(row);
 }
 
 function matchesKpi(row: EmployeeMasterRow, filter: KpiFilter): boolean {
+  if (filter === "pending_invites") return isPendingInviteRow(row);
   if (!isActiveWorkforce(row)) return false;
   const intern = row.effectiveEmployeeType === "intern";
   switch (filter) {
@@ -307,12 +364,16 @@ export function EmployeeMasterTable({
   options,
   canSeePay,
   canDelete,
+  canManageAdmins,
+  canManageMasterAdmin,
   currentUserId,
 }: {
   rows: EmployeeMasterRow[];
   options: MasterOptions;
   canSeePay: boolean;
   canDelete: boolean;
+  canManageAdmins: boolean;
+  canManageMasterAdmin: boolean;
   currentUserId: string;
 }) {
   const [query, setQuery] = React.useState("");
@@ -400,6 +461,7 @@ export function EmployeeMasterTable({
     const fullTimeInterns = active.filter(
       (row) => row.effectiveEmployeeType === "intern" && row.workerType === "full_time",
     ).length;
+    const pendingInvites = rows.filter(isPendingInviteRow).length;
     const partTimeInterns = active.filter(
       (row) => row.effectiveEmployeeType === "intern" && row.workerType !== "full_time",
     ).length;
@@ -410,6 +472,7 @@ export function EmployeeMasterTable({
       { key: "interns" as const, label: "Total Interns", value: fullTimeInterns + partTimeInterns, tone: "#7e22ce", icon: GraduationCap },
       { key: "full_time_interns" as const, label: "Full-Time Interns", value: fullTimeInterns, tone: "#0f766e", icon: Sun },
       { key: "part_time_interns" as const, label: "Part-Time Interns", value: partTimeInterns, tone: "#475569", icon: Moon },
+      { key: "pending_invites" as const, label: "Pending Invites", value: pendingInvites, tone: "#d97706", icon: Mail },
     ];
   }, [rows]);
 
@@ -430,7 +493,7 @@ export function EmployeeMasterTable({
       // The segmented control first: it is the coarsest cut and the one the
       // viewer can see, so anything it excludes is excluded regardless of what
       // the Filters panel says.
-      if (!matchesStatusTab(r.status, statusTab)) return false;
+      if (kpiFilter === "pending_invites" ? !isPendingInviteRow(r) : !matchesStatusTab(r.status, statusTab)) return false;
       if (kpiFilter && !matchesKpi(r, kpiFilter)) return false;
       const f = filters;
       if (f.entityId && r.entityId !== f.entityId) return false;
@@ -439,6 +502,7 @@ export function EmployeeMasterTable({
       if (f.managerId && r.managerId !== f.managerId) return false;
       if (f.workerType && r.workerType !== f.workerType) return false;
       if (f.status && r.status !== f.status) return false;
+      if (f.role && r.role !== f.role) return false;
       if (!bool3(f.teamLead, r.isTeamLead)) return false;
       if (!bool3(f.trainPass, r.trainPass)) return false;
       if (!bool3(f.ptExempt, r.ptExempt)) return false;
@@ -552,7 +616,7 @@ export function EmployeeMasterTable({
   return (
     <div className="flex flex-col gap-3">
       <div className="overflow-x-auto" role="group" aria-label="Employee workforce KPIs">
-        <div className="grid min-w-[930px] grid-cols-6 gap-2">
+        <div className="grid min-w-[1080px] grid-cols-7 gap-2">
         {kpis.map((kpi) => {
           const active = kpiFilter === kpi.key;
           const Icon = kpi.icon;
@@ -607,6 +671,17 @@ export function EmployeeMasterTable({
           <Columns3 size={14} /> Columns
         </Control>
 
+        {kpiFilter && (
+          <button
+            type="button"
+            onClick={() => setKpiFilter(null)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-altus-red/40 bg-altus-red/5 px-2.5 py-2 text-[12.5px] font-semibold text-altus-red transition-colors hover:bg-altus-red/10"
+            title="Reset KPI filter"
+          >
+            <span>{kpis.find((k) => k.key === kpiFilter)?.label ?? kpiFilter}</span>
+            <X size={13} />
+          </button>
+        )}
         <Control onClick={exportCsv}>
           <Download size={14} /> Export
         </Control>
@@ -674,8 +749,8 @@ export function EmployeeMasterTable({
           onClose={() => setFiltersOpen(false)}
           label="Filters"
           action={
-            nFilters > 0 ? (
-              <button type="button" onClick={() => setFilters(NO_FILTERS)} className="text-[12px] font-semibold text-altus-red hover:underline">
+            nFilters > 0 || kpiFilter ? (
+              <button type="button" onClick={() => { setFilters(NO_FILTERS); setKpiFilter(null); }} className="text-[12px] font-semibold text-altus-red hover:underline">
                 Clear all
               </button>
             ) : null
@@ -685,12 +760,13 @@ export function EmployeeMasterTable({
             <Select label="Entity" value={filters.entityId} onChange={(v) => setFilters((f) => ({ ...f, entityId: v }))} options={options.entities} />
             <Select label="Designation" value={filters.designationId} onChange={(v) => setFilters((f) => ({ ...f, designationId: v }))} options={options.designations} />
             {/* The Department record, under its new name. */}
-            <Select label="Function" value={filters.departmentId} onChange={(v) => setFilters((f) => ({ ...f, departmentId: v }))} options={options.departments} />
+            <Select label="Function" value={filters.departmentId} onChange={(v) => setFilters((f) => ({ ...f, departmentId: v }))} options={options.functions} />
             <Select label="Manager" value={filters.managerId} onChange={(v) => setFilters((f) => ({ ...f, managerId: v }))} options={options.managers} />
             {/* The worker-type record, under its new name, with real labels
                 rather than the raw enum values the old filter showed. */}
             <Select label="Shift Type" value={filters.workerType} onChange={(v) => setFilters((f) => ({ ...f, workerType: v }))}
               options={EMPLOYEE_TYPE_OPTIONS.map((w) => ({ id: w, name: WORKER_TYPE_LABELS[w] }))} />
+            <Select label="Role" value={filters.role} onChange={(v) => setFilters((f) => ({ ...f, role: v }))} options={[{ id: "doer", name: "Doer" }, { id: "initiator", name: "Initiator" }, { id: "both", name: "Both" }]} />
             <Select label="Status" value={filters.status} onChange={(v) => setFilters((f) => ({ ...f, status: v }))}
               options={["active", "probation", "temporary_break", "inactive", "offboarded"].map((s) => ({ id: s, name: s.replace(/_/g, " ") }))} />
             <Select label="Team Lead" value={filters.teamLead} onChange={(v) => setFilters((f) => ({ ...f, teamLead: v }))} options={YES_NO} />
@@ -839,6 +915,15 @@ export function EmployeeMasterTable({
                     carries the per-employee actions (§15) — the same set the
                     Employees screen offers, calling the same server actions. */}
                 <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                  <Link
+                    href={`/attendance/insights/employee/${r.id}` as Route}
+                    title={`Open ${r.name}'s attendance dashboard`}
+                    aria-label={`Attendance dashboard for ${r.name}`}
+                    className="mr-1 inline-flex items-center gap-1 rounded-pill px-2 py-1 text-[11.5px] font-bold text-[#A80400] transition-colors hover:bg-[color-mix(in_srgb,var(--color-altus-red)_10%,transparent)]"
+                  >
+                    <BarChart3 size={13} strokeWidth={2.4} />
+                    <span className="max-xl:hidden">Attendance</span>
+                  </Link>
                   <MasterRowActions
                     employee={{
                       id: r.id,
@@ -866,6 +951,8 @@ export function EmployeeMasterTable({
           options={options}
           canSeePay={canSeePay}
           canDelete={canDelete}
+          canManageAdmins={canManageAdmins}
+          canManageMasterAdmin={canManageMasterAdmin}
           currentUserId={currentUserId}
           onClose={() => setOpenId(null)}
         />

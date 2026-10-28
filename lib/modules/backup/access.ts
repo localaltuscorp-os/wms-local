@@ -34,22 +34,30 @@ function isOwner(email: string | null | undefined): boolean {
 /** May this person export THIS module? */
 export async function canExportModule(me: Employee, moduleId: string): Promise<boolean> {
   if (isOwner(me.email) || (await isMasterAdmin(me.email))) return true;
-  const [grant] = await db
-    .select({ id: moduleBackupGrants.id })
-    .from(moduleBackupGrants)
-    .where(and(eq(moduleBackupGrants.moduleId, moduleId), eq(moduleBackupGrants.employeeId, me.id)))
-    .limit(1);
-  return !!grant;
+  try {
+    const [grant] = await db
+      .select({ id: moduleBackupGrants.id })
+      .from(moduleBackupGrants)
+      .where(and(eq(moduleBackupGrants.moduleId, moduleId), eq(moduleBackupGrants.employeeId, me.id)))
+      .limit(1);
+    return !!grant;
+  } catch {
+    return false;
+  }
 }
 
 /** The modules this person may export — for showing the button, and the page. */
 export async function exportableModules(me: Employee, all: readonly string[]): Promise<Set<string>> {
   if (isOwner(me.email) || (await isMasterAdmin(me.email))) return new Set(all);
-  const rows = await db
-    .select({ moduleId: moduleBackupGrants.moduleId })
-    .from(moduleBackupGrants)
-    .where(eq(moduleBackupGrants.employeeId, me.id));
-  return new Set(rows.map((r) => r.moduleId));
+  try {
+    const rows = await db
+      .select({ moduleId: moduleBackupGrants.moduleId })
+      .from(moduleBackupGrants)
+      .where(eq(moduleBackupGrants.employeeId, me.id));
+    return new Set(rows.map((r) => r.moduleId));
+  } catch {
+    return new Set();
+  }
 }
 
 /**
@@ -58,5 +66,9 @@ export async function exportableModules(me: Employee, all: readonly string[]): P
  * deliberately independent from ordinary module export access.
  */
 export async function canManageModuleBackups(me: Employee): Promise<boolean> {
-  return isMasterAdmin(me.email);
+  try {
+    return await isMasterAdmin(me.email);
+  } catch {
+    return false;
+  }
 }

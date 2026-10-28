@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employeeManagerHistory, employeeTemporaryBreaks, employees } from "@/db/schema";
-import { isFounderEmail } from "@/lib/auth/founder";
+import { isFounder } from "@/lib/auth/founder";
 import { isManagerFlagOf } from "@/lib/employees/is-manager";
 
 /**
@@ -186,7 +186,7 @@ export async function setReportingManager(input: {
 
   const next = input.managerId ?? null;
 
-  if (next !== null && isFounderEmail(current.email)) {
+  if (next !== null && (await isFounder(input.employeeId))) {
     return { ok: false, error: "Founder cannot be assigned a manager." };
   }
 
@@ -235,8 +235,7 @@ async function isManagerOf(employeeId: string): Promise<boolean> {
 }
 
 async function isFounderOf(employeeId: string): Promise<boolean> {
-  const [row] = await db.select({ email: employees.email }).from(employees).where(eq(employees.id, employeeId)).limit(1);
-  return isFounderEmail(row?.email);
+  return isFounder(employeeId);
 }
 
 export async function isValidReportingManager(employeeId: string): Promise<boolean> {

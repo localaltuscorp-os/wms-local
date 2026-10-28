@@ -41,6 +41,44 @@ export function isPolicyCategory(v: string): v is PolicyCategory {
 
 export const POLICY_CATEGORY_KEYS: PolicyCategory[] = POLICY_CATEGORIES.map((c) => c.key);
 
+// The generic documents table intentionally has no `file_name` column. Policy
+// uploads still need to retain the name the publisher selected (rather than the
+// storage-safe object key), so store it in a private, removable description
+// prefix. This mirrors the existing "Other category" metadata below and keeps
+// the table migration-free. The encoded value cannot break the marker even if
+// a filename contains brackets, spaces, or Unicode characters.
+const ORIGINAL_FILE_NAME_PREFIX = "[[policy-original-file-name:";
+const ORIGINAL_FILE_NAME_SUFFIX = "]]";
+
+export function encodePolicyOriginalFileName(description: string | null, fileName: string): string {
+  return `${ORIGINAL_FILE_NAME_PREFIX}${encodeURIComponent(fileName)}${ORIGINAL_FILE_NAME_SUFFIX}${
+    description ? `\n${description}` : ""
+  }`;
+}
+
+export function decodePolicyOriginalFileName(description: string | null): {
+  fileName: string | null;
+  description: string | null;
+} {
+  if (!description?.startsWith(ORIGINAL_FILE_NAME_PREFIX)) {
+    return { fileName: null, description };
+  }
+  const end = description.indexOf(ORIGINAL_FILE_NAME_SUFFIX, ORIGINAL_FILE_NAME_PREFIX.length);
+  if (end < 0) return { fileName: null, description };
+
+  const encodedName = description.slice(ORIGINAL_FILE_NAME_PREFIX.length, end);
+  try {
+    const fileName = decodeURIComponent(encodedName);
+    return {
+      fileName: fileName || null,
+      description: description.slice(end + ORIGINAL_FILE_NAME_SUFFIX.length).replace(/^\n/, "") || null,
+    };
+  } catch {
+    // A malformed legacy marker must never hide the policy's description.
+    return { fileName: null, description };
+  }
+}
+
 // Uploaded policies live in the shared `documents` table, which deliberately
 // has no policy-only category column. Preserve an "Other" label in the existing
 // description field with a private, removable first-line marker rather than

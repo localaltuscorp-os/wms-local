@@ -98,14 +98,14 @@ export function Segmented<T extends string>({
   size?: "sm" | "md" | "lg";
 }) {
   const h = size === "sm" ? "h-8" : size === "lg" ? "h-11" : "h-9";
-  const pad = size === "sm" ? "px-2.5" : size === "lg" ? "px-4" : "px-3";
-  const text = size === "lg" ? "text-[13.5px]" : "text-[12.5px]";
+  const pad = size === "sm" ? "px-2.5" : size === "lg" ? "px-4" : "px-2.5 sm:px-3";
+  const text = size === "lg" ? "text-[13.5px]" : "text-[12px] sm:text-[12.5px]";
   return (
     <div
       role="group"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex shrink-0 items-center overflow-hidden rounded-pill border border-hairline-strong",
+        "inline-flex max-w-full shrink-0 items-center overflow-x-auto no-scrollbar rounded-pill border border-hairline-strong",
         h,
       )}
       style={{ background: "var(--color-surface-soft)" }}

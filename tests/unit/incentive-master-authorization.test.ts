@@ -107,11 +107,11 @@ describe("changing eligibility is Manan's alone", () => {
   });
 
   it("is a capability of its own, not derived from being the founder", () => {
-    // Keyed off `isFounderEmail`, a change of founder would silently move the
+    // Keying this to the Founder role would silently move the
     // authority, and a second person needing it could only be added by making
     // them a founder. `canReviewIncentives` IS the founder test and answers a
     // different question — who decides a request.
-    expect(canReviewIncentives(MANAN)).toBe(true);
+    expect(canReviewIncentives(true)).toBe(true);
     expect(GUARD).not.toMatch(/isFounderEmail|FOUNDER_EMAIL|isSuperAdmin|canReviewIncentives/);
     expect(codeOf("lib/security/capabilities.ts")).toMatch(/"incentive_eligibility\.manage"/);
   });

@@ -3,7 +3,7 @@ import type { Route } from "next";
 import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import { LoginMosaic } from "@/components/auth/login-mosaic";
 import { LoginFormCanva } from "@/components/auth/login-form-canva";
-import { localSessionEnabled } from "@/lib/auth/local-session";
+import { localSessionEnabled, isLocalhostSession } from "@/lib/auth/local-session";
 
 // Never static: the root layout resolves the signed-in employee, which reads
 // the session cookie, so Next bails this route out to dynamic rendering
@@ -42,10 +42,10 @@ export default async function LoginPage({ searchParams }: PageProps) {
   // See lib/auth/dev-bypass.ts.
   if (devAuthBypassEnabled()) redirect("/hub" as Route);
 
-  // Local no-login mode: there is nothing to sign into. The proxy already folds
+  // Local no-login mode / Localhost auth bypass: there is nothing to sign into. The proxy already folds
   // /login into /hub; this is the belt-and-braces copy for any path that reaches
   // the page directly (e.g. a proxy-exempt render).
-  if (localSessionEnabled()) redirect("/hub" as Route);
+  if (localSessionEnabled() || (await isLocalhostSession())) redirect("/hub" as Route);
 
   const sp = await searchParams;
   const reason = firstString(sp["reason"]);

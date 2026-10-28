@@ -29,7 +29,7 @@ export const DOER_TASK_KPI_SPECS: readonly TaskKpiSpec[] = [
 
 export const INITIATOR_TASK_KPI_SPECS: readonly TaskKpiSpec[] = [
   TOTAL_KPI,
-  { key: "pending", label: "PENDING / NO VERDICT", sublabel: "Awaiting a verdict" },
+  { key: "pending", label: "PENDING", sublabel: "Awaiting a verdict" },
   { key: "approved", label: "APPROVED", sublabel: "Signed off" },
   { key: "notApproved", label: "NOT APPROVED", sublabel: "Declined" },
   { key: "onHold", label: "ON HOLD", sublabel: "Paused" },
@@ -39,19 +39,19 @@ export const INITIATOR_TASK_KPI_SPECS: readonly TaskKpiSpec[] = [
 
 const CHIP_STYLE: Record<TaskKpiKey, { pill: string; border: string; dot: string }> = {
   total: { pill: "bg-slate-100 hover:bg-slate-200 text-slate-900", border: "border-slate-300", dot: "bg-slate-500" },
-  notRead: { pill: "bg-slate-100 hover:bg-slate-200 text-slate-900", border: "border-slate-300", dot: "bg-slate-500" },
+  notRead: { pill: "bg-violet-50 hover:bg-violet-100 text-violet-950", border: "border-violet-200", dot: "bg-violet-600" },
   notStarted: { pill: "bg-indigo-50 hover:bg-indigo-100 text-indigo-950", border: "border-indigo-200", dot: "bg-indigo-600" },
   initiated: { pill: "bg-amber-50 hover:bg-amber-100 text-amber-950", border: "border-amber-200", dot: "bg-amber-500" },
   followUp: { pill: "bg-orange-50 hover:bg-orange-100 text-orange-950", border: "border-orange-200", dot: "bg-orange-600" },
   needInfo: { pill: "bg-red-50 hover:bg-red-100 text-red-950", border: "border-red-200", dot: "bg-red-600" },
   done: { pill: "bg-emerald-50 hover:bg-emerald-100 text-emerald-950", border: "border-emerald-200", dot: "bg-emerald-600" },
   abandoned: { pill: "bg-sky-50 hover:bg-sky-100 text-sky-950", border: "border-sky-200", dot: "bg-sky-500" },
-  pending: { pill: "bg-stone-100 hover:bg-stone-200 text-stone-900", border: "border-stone-300", dot: "bg-stone-500" },
-  approved: { pill: "bg-emerald-50 hover:bg-emerald-100 text-emerald-950", border: "border-emerald-200", dot: "bg-emerald-600" },
+  pending: { pill: "bg-violet-50 hover:bg-violet-100 text-violet-950", border: "border-violet-200", dot: "bg-violet-600" },
+  approved: { pill: "bg-teal-50 hover:bg-teal-100 text-teal-950", border: "border-teal-200", dot: "bg-teal-600" },
   notApproved: { pill: "bg-red-50 hover:bg-red-100 text-red-950", border: "border-red-200", dot: "bg-red-600" },
   onHold: { pill: "bg-amber-50 hover:bg-amber-100 text-amber-950", border: "border-amber-200", dot: "bg-amber-700" },
   cancelled: { pill: "bg-orange-50 hover:bg-orange-100 text-orange-950", border: "border-orange-200", dot: "bg-orange-600" },
-  archived: { pill: "bg-stone-100 hover:bg-stone-200 text-stone-900", border: "border-stone-300", dot: "bg-stone-600" },
+  archived: { pill: "bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-950", border: "border-fuchsia-200", dot: "bg-fuchsia-600" },
 };
 
 export function TaskStatusKpiChip({ spec, value, active = false }: { spec: TaskKpiSpec; value: number; active?: boolean }) {

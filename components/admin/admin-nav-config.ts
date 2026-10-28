@@ -3,7 +3,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   Bell,
   BellRing,
-  Users,
   UsersRound,
   BadgeIndianRupee,
   Gift,
@@ -43,13 +42,12 @@ export const ADMIN_GROUPS: readonly AdminNavGroup[] = [
     label: "People",
     Icon: UsersRound,
     items: [
-      { href: "/admin/employees" as Route, label: "Employees", Icon: Users },
       { href: "/admin/employee-master" as Route, label: "Employee Master", Icon: IdCard },
       { href: "/admin/approvals" as Route, label: "Approvals", Icon: ShieldCheck },
-      // The org chart as a Kanban board. Sits directly under Employees because
-      // it edits the same relationship the employee editor's Manager field does
-      // — one write path (setReportingManager), two doors onto it.
-      { href: "/admin/hierarchy" as Route, label: "Reporting Hierarchy", Icon: Network },
+
+
+
+
     ],
   },
   {

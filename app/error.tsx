@@ -89,6 +89,13 @@ export default function ErrorBoundary({
             ref: {error.digest}
           </p>
         ) : null}
+
+        {!isForbidden && error?.message ? (
+          <div className="mt-4 p-3 bg-red-500/10 text-red-700 text-xs font-mono rounded text-left overflow-auto max-h-48 border border-red-200">
+            <p className="font-bold">{error.message}</p>
+            {error.stack ? <pre className="mt-2 text-[10px] text-red-600/80 whitespace-pre-wrap">{error.stack}</pre> : null}
+          </div>
+        ) : null}
       </section>
     </main>
   );

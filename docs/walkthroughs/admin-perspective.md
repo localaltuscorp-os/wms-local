@@ -32,7 +32,7 @@ With no employees and no tasks, the six sections collapse into one **"Welcome."*
 
 ## B. Invite a new employee
 
-The Admin section has its own layout: a dark sidebar with the Altus Corp brand block, an identity chip with your avatar, and six nav links — **Overview**, **Activity**, **Notifications**, **Employees**, **Departments**, **Settings** — followed by **"← Back to app"** and **Sign out**.
+The Admin section has its own layout: a dark sidebar with the Altus Corp brand block, an identity chip with your avatar, and links for **Overview**, **Notifications**, **Employees**, **Functions**, and **Settings** — followed by **"← Back to app"** and **Sign out**.
 
 **`/admin` — Overview.** A serif *"The shape of the team today."* headline with four KPI tiles (*Active employees*, *Pending invites*, *Open tasks*, *Overdue* — computed by `getAdminOverview()`; Overdue counts non-archived pending-status tasks past their `due_at`), a **Quick actions** strip (*Invite employee*, *New task*, *View activity*, *Settings*), and a **Recent activity** preview that streams from the unified UNION query.
 
@@ -128,8 +128,6 @@ Walk back to **/** via the **Dashboard** pill. Every section is recomputed from 
 
 Four sub-pages live behind the sidebar in addition to **Overview** and **Employees**:
 
-**`/admin/activity`** — the unified audit timeline. UNION across `task_events` + `employee_events` + `settings_events`, with a **Source** multi-select (Tasks / Employees / Settings), per-source icons and copy, and the same filter shape as `/tasks`. Each row deep-links back to the task or employee it describes. CSV export (UTF-8 BOM, 10k cap) lives at `/admin/activity/export`.
-
 **`/admin/notifications`** — the delivery log. One row per `notifications` record, with per-channel chips (✉ Email · 💬 Slack · 📱 WhatsApp · 🔔 Push) coloured green/grey based on `delivered_channels`. The filter bar narrows by kind, channel, or recipient. Use this to verify dispatch actually landed — what the M5.2 design calls "trust-but-verify the fan-out."
 
 **`/admin/departments`** — list of real departments (migration 0012 moved this from an enum to a table). Create / rename / soft-delete from a small dialog; employees pick from this list when invited.
@@ -140,7 +138,7 @@ Four sub-pages live behind the sidebar in addition to **Overview** and **Employe
   - **Integrations** — health cards for Resend, Slack, WhatsApp, Web Push with a **Send test** button (`forceChannels`) that fires a single-recipient probe.
   - **Notifications** — the event × channel matrix, persisted to `org_settings.notification_matrix`. Toggle which channels fire for which event kinds.
 
-Every settings mutation writes to `settings_events`; every admin-side employee mutation writes to `employee_events`. Both feed the unified `/admin/activity` view.
+Every settings mutation writes to `settings_events`; every admin-side employee mutation writes to `employee_events`. These records remain available to audit consumers.
 
 ---
 

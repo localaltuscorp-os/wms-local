@@ -1,5 +1,5 @@
 import { DashboardHeader } from "@/components/layout/header";
-import { PageShell } from "@/components/layout/page-shell";
+import { WmsSectionShell } from "@/components/layout/wms-section-shell";
 import { PageTitle } from "@/components/layout/page-title";
 import { ReviewWorkbench } from "@/components/goals/review/review-workbench";
 import { ReviewControls } from "@/components/goals/review/review-controls";
@@ -21,7 +21,7 @@ export default async function WmsReviewPage({
   return (
     <>
       <DashboardHeader generatedAt={new Date()} />
-      <PageShell width="full">
+      <WmsSectionShell>
         <PageTitle title="Review & Scores" />
         <ReviewWorkbench
           data={data}
@@ -36,7 +36,7 @@ export default async function WmsReviewPage({
             />
           }
         />
-      </PageShell>
+      </WmsSectionShell>
     </>
   );
 }

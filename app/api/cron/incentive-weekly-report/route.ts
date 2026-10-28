@@ -90,9 +90,10 @@ async function runIncentiveWeeklyReport(request: Request): Promise<NextResponse>
       continue;
     }
 
+    let claim: { id: string } | undefined;
     try {
       // Claim the delivery first — idempotent within the week.
-      const [claim] = await db
+      [claim] = await db
         .insert(incentiveNotificationDeliveries)
         .values({
           eventType: "incentive_weekly_report",
@@ -114,6 +115,9 @@ async function runIncentiveWeeklyReport(request: Request): Promise<NextResponse>
         siteUrl,
       });
       if (result.error) {
+        await db
+          .delete(incentiveNotificationDeliveries)
+          .where(eq(incentiveNotificationDeliveries.id, claim.id));
         console.error(
           `[cron/incentive-weekly-report] send failed for ${email}:`,
           result.error,
@@ -123,6 +127,14 @@ async function runIncentiveWeeklyReport(request: Request): Promise<NextResponse>
         sent++;
       }
     } catch (err) {
+      if (claim) {
+        await db
+          .delete(incentiveNotificationDeliveries)
+          .where(eq(incentiveNotificationDeliveries.id, claim.id))
+          .catch((releaseError) =>
+            console.error("[cron/incentive-weekly-report] claim release failed", releaseError),
+          );
+      }
       console.error(
         `[cron/incentive-weekly-report] send threw for ${email}`,
         err,

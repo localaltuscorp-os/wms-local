@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { employees, type Employee } from "@/db/schema";
 import { readSession } from "@/lib/auth/session";
-import { localSessionEnabled, localSessionEmployee } from "@/lib/auth/local-session";
+import { localSessionEnabled, localSessionEmployee, isLocalhostSession } from "@/lib/auth/local-session";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { devAuthBypassEnabled, DEV_BYPASS_EMPLOYEE } from "@/lib/auth/dev-bypass";
 import { isAttendanceAdmin } from "@/lib/auth/attendance-permissions";
@@ -58,11 +58,13 @@ export const getSignedInEmployee = cache(async (): Promise<Employee | null> => {
   // lib/auth/dev-bypass.ts.
   if (devAuthBypassEnabled()) return DEV_BYPASS_EMPLOYEE;
 
-  // Local no-login mode (DISABLE_AUTH=true, dev machines only — see
-  // localSessionEnabled). Resolves a REAL employee row instead of verifying a
+  // Local no-login mode / Localhost auth bypass (dev machines only — see
+  // localSessionEnabled / isLocalhostSession). Resolves a REAL employee row instead of verifying a
   // session cookie; every downstream query then runs against real data exactly
   // as it would for that signed-in person.
-  if (localSessionEnabled()) return await localSessionEmployee();
+  if (localSessionEnabled() || (await isLocalhostSession())) {
+    return await localSessionEmployee();
+  }
 
   const claims = await readSession();
   if (!claims) return null;
@@ -79,13 +81,13 @@ export const getSignedInEmployee = cache(async (): Promise<Employee | null> => {
  * delegation can never chain: an account being tested cannot itself be holding a
  * grant that forwards to a third person.
  *
- * Skipped entirely under the three no-login development modes. Each replaces
- * authentication wholesale and reads no cookies, so there is no delegate
+ * Skipped entirely under the no-login development modes and localhost bypass.
+ * Each replaces authentication wholesale and reads no cookies, so there is no delegate
  * identity for a grant to belong to; each is also hard-disabled under
  * NODE_ENV=production, so no deployment takes this branch.
  */
 export const getDelegation = cache(async (): Promise<DelegationContext | null> => {
-  if (DUMMY_MODE || devAuthBypassEnabled() || localSessionEnabled()) return null;
+  if (DUMMY_MODE || devAuthBypassEnabled() || localSessionEnabled() || (await isLocalhostSession())) return null;
   const real = await getSignedInEmployee();
   if (!real) return null;
   // A candidate guest-account may neither delegate nor be delegated to. They can
@@ -258,13 +260,13 @@ export async function requireUser(): Promise<Employee> {
  * renders a page still gets the redirect, which is a refusal either way: the
  * server action's body does not run.
  *
- * SKIPPED for the three no-login development modes. Each one already replaces
+ * SKIPPED for the no-login development modes and localhost bypass. Each one already replaces
  * authentication wholesale on a developer's machine, and each is hard-disabled
  * under `NODE_ENV=production` (see dummy-dir.ts / dev-bypass.ts /
  * local-session.ts), so no deployment can take these branches.
  */
 const enforceWmsDeviceAccess = cache(async (e: Employee): Promise<void> => {
-  if (DUMMY_MODE || devAuthBypassEnabled() || localSessionEnabled()) return;
+  if (DUMMY_MODE || devAuthBypassEnabled() || localSessionEnabled() || (await isLocalhostSession())) return;
 
   const ctx = await resolveDeviceContext(e);
   if (!ctx.allowed) redirect("/device-blocked" as Route);

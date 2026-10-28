@@ -122,6 +122,12 @@ export async function saveCtcBreakup(input: {
   if (limited) return { ok: false, error: limited.error };
   if (!UUID.test(input.employeeId)) return { ok: false, error: "Invalid employee." };
 
+  const employee = await db.query.employees.findFirst({
+    where: eq(employees.id, input.employeeId),
+    columns: { payingEntityId: true },
+  });
+  if (!employee) return { ok: false, error: "Employee not found." };
+
   const components = (input.components ?? [])
     .map((c) => ({ label: String(c.label ?? "").trim().slice(0, 60), annual: Number(c.annual) }))
     .filter((c) => c.label && Number.isFinite(c.annual) && c.annual >= 0);
@@ -154,6 +160,7 @@ export async function saveCtcBreakup(input: {
         .insert(salaryCtcBreakup)
         .values({
           employeeId: input.employeeId,
+          payingEntityId: employee.payingEntityId,
           annualCtc: String(annual),
           components,
           updatedById: me.id,

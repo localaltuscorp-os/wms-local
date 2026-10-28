@@ -41,7 +41,7 @@ export function IncentiveKpi({
       type={onClick ? "button" : undefined}
       onClick={onClick}
       aria-pressed={onClick ? selected : undefined}
-      className={`rounded-2xl border bg-surface-card px-3.5 py-2.5 text-left transition-colors ${
+      className={`flex h-full min-w-0 flex-col justify-between rounded-2xl border bg-surface-card px-3 py-2 sm:px-3.5 sm:py-2.5 text-left transition-colors ${
         onClick ? "cursor-pointer hover:bg-surface-soft" : ""
       }`}
       style={{
@@ -68,7 +68,7 @@ export function IncentiveKpi({
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 800,
-          fontSize: "clamp(18px, 1.35vw, 22px)",
+          fontSize: "clamp(17px, 1.25vw, 22px)",
           letterSpacing: "-0.02em",
           lineHeight: 1,
         }}
@@ -76,7 +76,7 @@ export function IncentiveKpi({
         {value}
       </span>
       {caption ? (
-        <span className="mt-1 block text-[12px] font-medium text-ink-subtle">{caption}</span>
+        <span className="mt-1 block text-[12px] font-medium text-ink-subtle line-clamp-2 break-words">{caption}</span>
       ) : null}
       {progress != null ? (
         <span
@@ -110,15 +110,17 @@ export function IncentiveKpiRow({
   cols?: 3 | 4 | 6 | 8;
   className?: string;
 }) {
-  const wide =
+  const gridCols =
     cols === 8
-      ? "lg:grid-cols-4 xl:grid-cols-8"
+      ? "grid-cols-2 sm:grid-cols-4 @min-[1360px]:grid-cols-8 2xl:grid-cols-8"
       : cols === 6
-        ? "xl:grid-cols-6"
+        ? "grid-cols-2 sm:grid-cols-3 @min-[1160px]:grid-cols-6 xl:grid-cols-6"
         : cols === 4
-          ? "lg:grid-cols-4"
-          : "lg:grid-cols-3";
+          ? "grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 @min-[900px]:grid-cols-4"
+          : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 @min-[700px]:grid-cols-3";
   return (
-    <div className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 ${wide} ${className}`}>{children}</div>
+    <div className="@container w-full min-w-0">
+      <div className={`grid gap-2.5 ${gridCols} ${className}`}>{children}</div>
+    </div>
   );
 }

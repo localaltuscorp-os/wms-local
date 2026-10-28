@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { workspaceForPath } from "@/lib/workspaces";
-import { PageChromeSlotsProvider } from "@/components/layout/page-chrome-slots";
+import { PageChromeSlotsProvider, PageFilterRibbonSlot } from "@/components/layout/page-chrome-slots";
 
 /**
  * Decides the app chrome CLIENT-side so it stays correct across SOFT navigations.
@@ -57,9 +57,8 @@ export function ChromeShell({
   children,
 }: {
   sidebar: ReactNode;
-  /** Site-wide module footer, server-rendered once and passed in (same pattern
-   *  as `sidebar`). Rendered as the LAST child of the page column in BOTH
-   *  branches, so every route ends with it. */
+  /** Site-wide module navigation, server-rendered once and passed in (same
+   *  pattern as `sidebar`). Rendered at the top of the page column. */
   footer?: ReactNode;
   /** App-wide top bar (global search + notification bell). FIRST child of the
    *  page column in BOTH branches, so every route — rail or full-bleed — carries
@@ -117,7 +116,9 @@ export function ChromeShell({
   // appended after it necessarily sits past the fold — making the OUTER page
   // scrollable purely to reach a strip of chrome. A stray Space keypress
   // scrolled into that dead band and there was nothing above to scroll back to.
-  const dock = footer;
+  // The Hub is the module picker itself, so it must not repeat the module
+  // navigation above its own header. Every workspace section keeps the bar.
+  const moduleNavigation = isHub ? null : footer;
   // The dock is `sticky bottom-0` — pinned to the foot of the viewport at any
   // scroll position, but still in flow, so it reserves its own height at the END
   // of the page (see module-footer.tsx). That reserved band is what lets the last
@@ -131,7 +132,10 @@ export function ChromeShell({
   // here is 40px the grid cannot see, so the gap above the cards came out 40px
   // larger than the gap below and the "centred" row sat visibly low. The hub
   // supplies its own breathing room with its py-6.
-  const bottomPad = "pb-5";
+  // The module footer is the final, sticky shell surface. It must touch the
+  // bottom edge of the viewport; padding here leaves an unintended blank band
+  // below it on every module page.
+  const bottomPad = "pb-0";
 
   // The hub is the module switchboard and renders the full DashboardHeader —
   // which already carries its own search — so a second bar there would stack two
@@ -154,14 +158,15 @@ export function ChromeShell({
             : `flex min-h-dvh flex-col ${bottomPad}`
         }
       >
+        {moduleNavigation}
         {/* The provider wraps BAR + CHILDREN together: a page portals its title
             and its own controls up into the bar, and the two are siblings, so a
             context above both is their only meeting point. */}
         <PageChromeSlotsProvider>
           {bar}
+          <PageFilterRibbonSlot />
           {children}
         </PageChromeSlotsProvider>
-        {dock}
       </div>
     );
   }
@@ -170,11 +175,12 @@ export function ChromeShell({
     <div className="flex min-h-dvh">
       {sidebar}
       <div className={`flex min-w-0 flex-1 flex-col max-md:pt-14 ${bottomPad}`}>
+        {moduleNavigation}
         <PageChromeSlotsProvider>
           {bar}
+          <PageFilterRibbonSlot />
           {children}
         </PageChromeSlotsProvider>
-        {dock}
       </div>
     </div>
   );

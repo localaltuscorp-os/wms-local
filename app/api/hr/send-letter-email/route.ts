@@ -4,7 +4,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { employees } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
-import { isSuperAdmin } from "@/lib/auth/super-admin";
+import { canIssueLetters, LETTER_ISSUE_REFUSAL } from "@/lib/hr/letters/issue-access";
+import { employeeLetterRecipientEmail } from "@/lib/hr/letters/recipient";
+import { letterDeliveryKey } from "@/lib/hr/letters/idempotency";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getEntity } from "@/lib/hr/entities";
 import { getLetter } from "@/lib/hr/letters/registry";
@@ -78,8 +80,8 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!(me.isAdmin || isSuperAdmin(me.email))) {
-    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  if (!(await canIssueLetters(me))) {
+    return NextResponse.json({ ok: false, error: LETTER_ISSUE_REFUSAL }, { status: 403 });
   }
   const limited = rateLimitOrError(me.id, "write");
   if (limited) return NextResponse.json(limited);
@@ -107,7 +109,7 @@ export async function POST(req: Request): Promise<Response> {
     const emp = await db.query.employees.findFirst({ where: eq(employees.id, b.employeeId) });
     if (!emp) return NextResponse.json({ ok: false, error: "Employee not found." });
     recipientName = emp.name;
-    if (!to) to = (emp.personalEmail ?? emp.email ?? "").trim();
+    if (!to) to = employeeLetterRecipientEmail(emp);
     cc = (emp.officialEmail ?? "").trim() || undefined;
   }
   if (!to) {
@@ -153,6 +155,7 @@ export async function POST(req: Request): Promise<Response> {
     candidateEmail: b.employeeId ? null : to,
     pdfBuffer: pdf,
     issuedById: me.id,
+    deliveryKey: letterDeliveryKey({ key: b.key, entity: entity.id, contentKind: b.contentKind ?? "structured", bodyHtml: b.contentKind === "rich" ? b.bodyHtml ?? null : null, values: b.values, date: b.date?.trim() || null, gender: normalizeGender(b.gender), signatureImage: b.signatureImage ?? null, fitOnePage: b.fitOnePage === true, employeeId: b.employeeId ?? null, candidateEmail: b.employeeId ? null : to, candidateName: b.employeeId ? null : recipientName }),
   });
   if (!archived.ok) {
     return NextResponse.json({ ok: false, error: archived.error });
@@ -165,7 +168,7 @@ export async function POST(req: Request): Promise<Response> {
     recipientName,
     letterTitle: template.title,
     entityName: entity.displayName,
-    pdf,
+    pdf: archived.pdfBuffer,
     filename: `${template.key}.pdf`,
     subject: b.subject,
     message: b.message,

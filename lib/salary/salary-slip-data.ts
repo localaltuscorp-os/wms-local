@@ -25,6 +25,10 @@ import { fyForMonth, monthLabel as periodMonthLabel } from "@/lib/salary/period"
 import { getReimbursementsForMonth, type ReimbursementEarnings } from "@/lib/salary/reimbursement-earnings";
 import { lastNMonths, ytdMonths } from "@/lib/salary/attendance-metrics";
 import { INCENTIVE_TYPE_LABELS } from "@/db/enums";
+import { listMyLeave } from "@/lib/queries/leave";
+import { leaveDaysInWindow } from "@/lib/attendance/leave-cycle";
+import { asWorkerType } from "@/lib/attendance/worker-type";
+import { isPaidLeaveEligible } from "@/lib/attendance/leave-eligibility";
 
 /**
  * EVERY FIGURE THE 3-PAGE SALARY PDF NEEDS, GATHERED FROM THE ENGINES THAT
@@ -113,6 +117,14 @@ export interface SalarySlipSalary {
   remarks: string | null;
 }
 
+export interface SalarySlipLeaveSummary {
+  /** The paid-leave policy is seven days per year (3 + 4). */
+  allowance: number;
+  used: number;
+  remaining: number;
+  eligible: boolean;
+}
+
 export interface SalarySlipIncentiveRecord {
   id: string;
   typeLabel: string;
@@ -177,11 +189,58 @@ export interface SalarySlipData {
     targetHours: number | null;
     payableDays: number;
   };
+  /** Approved paid leave used through the selected payroll month. */
+  leave?: SalarySlipLeaveSummary;
   incentive: SalarySlipIncentive;
   reimbursement: ReimbursementEarnings;
   retention: { amount: number; paidThisMonth: boolean; paidDate: string | null } | null;
   /** Salary net + incentive paid + reimbursement paid + retention paid. */
   totalEarnings: number;
+}
+
+function monthEnd(month: string): string {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const end = new Date(Date.UTC(year ?? 1970, (monthNumber ?? 1), 0));
+  return end.toISOString().slice(0, 10);
+}
+
+async function loadLeaveSummary(
+  employeeId: string,
+  workerType: string | null,
+  month: string,
+): Promise<SalarySlipLeaveSummary> {
+  const eligible = isPaidLeaveEligible(asWorkerType(workerType));
+  if (!eligible) return { allowance: 0, used: 0, remaining: 0, eligible: false };
+
+  const year = month.slice(0, 4);
+  const from = `${year}-01-01`;
+  const to = monthEnd(month);
+  let rows: Awaited<ReturnType<typeof listMyLeave>>;
+  try {
+    rows = await listMyLeave(employeeId);
+  } catch {
+    // Leave display is additive; a leave-query outage must not make salary
+    // statements unavailable when the salary engine itself is healthy.
+    return { allowance: 7, used: 0, remaining: 7, eligible: true };
+  }
+  const used = round2(
+    rows
+      .filter(
+        (row) =>
+          row.kind === "paid" &&
+          row.status === "approved" &&
+          row.startDate <= to &&
+          row.endDate >= from,
+      )
+      .reduce((sum, row) => sum + leaveDaysInWindow(row, from, to), 0),
+  );
+  const allowance = 7;
+  return {
+    allowance,
+    used,
+    remaining: Math.max(0, round2(allowance - used)),
+    eligible: true,
+  };
 }
 
 /** "2026-08-14" in IST for a stored timestamp. */
@@ -201,7 +260,9 @@ function num(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const round2 = (n: number): number => Math.round(n * 100) / 100;
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 async function loadIdentity(
   employeeId: string,
@@ -316,6 +377,7 @@ export async function loadSalarySlipData(
   const ledger = monthRow?.ledger ?? null;
 
   const salary = monthRow ? buildSalary(monthRow, ledger) : null;
+  const leave = await loadLeaveSummary(employeeId, identity.workerType, month);
 
   // ── INCENTIVE ─────────────────────────────────────────────────────────
   const [accounts, targetVsPaid, codes, requests] = await Promise.all([
@@ -432,6 +494,7 @@ export async function loadSalarySlipData(
     salary,
     ledger,
     attendance,
+    leave,
     incentive: {
       lines,
       linesByMonth,

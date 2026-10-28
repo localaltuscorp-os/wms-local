@@ -62,6 +62,7 @@ export function PunchCard({
   officeLng,
   radiusM,
   lastPunchLabel,
+  blocked = false,
 }: {
   todayLabel: string;
   inLabel: string | null;
@@ -74,6 +75,7 @@ export function PunchCard({
   radiusM: number;
   /** Most recent punch across the loaded window, pre-formatted server-side. */
   lastPunchLabel?: string | null;
+  blocked?: boolean;
 }) {
   const router = useRouter();
   const [note, setNote] = React.useState("");
@@ -251,7 +253,7 @@ export function PunchCard({
         ? { label: `Checked in · since ${inLabel}`, sub: "Tap the dial when you're heading out", dot: "var(--color-green)" }
         : { label: "Ready to check in", sub: "One tap when you reach the office", dot: GREEN };
 
-  const discDisabled = pending || mode === "done" || !locationReady;
+  const discDisabled = blocked || pending || mode === "done" || !locationReady;
 
   return (
     <section

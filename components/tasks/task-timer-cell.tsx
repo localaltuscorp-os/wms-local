@@ -75,15 +75,16 @@ export function TaskTimerCell({
       onClick={toggle}
       disabled={pending}
       aria-pressed={isRunning}
+      aria-label={isRunning ? "Stop the timer on this task" : "Start the timer on this task"}
       title={isRunning ? "Stop the timer on this task" : "Start the timer on this task"}
       /* GREEN GOES, RED STOPS. Both states used to be green — filled to stop,
          outlined to start — so the colour identified the CONTROL rather than
          its action, and the only thing distinguishing "will start" from "will
          stop" was a fill weight and a four-letter label. */
-      className={`inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-[12px] font-semibold text-white transition-colors disabled:opacity-50 ${
+      className={`inline-flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors disabled:opacity-50 ${
         isRunning
-          ? "bg-[#B80D22] hover:bg-red-700"
-          : "bg-emerald-600 hover:bg-emerald-700"
+          ? "border-[#B80D22] bg-[#B80D22] text-white hover:bg-red-700"
+          : "border-hairline bg-surface-soft text-ink-strong hover:border-hairline-strong hover:bg-surface-card"
       }`}
     >
       {pending ? (
@@ -93,7 +94,7 @@ export function TaskTimerCell({
       ) : (
         <Play size={11} strokeWidth={3} fill="currentColor" />
       )}
-      {isRunning ? "Stop" : "Start"}
+      <span className="sr-only">{isRunning ? "Stop" : "Start"}</span>
     </button>
   );
 }

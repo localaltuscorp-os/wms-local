@@ -14,6 +14,10 @@ import type { LogEventType } from "@/lib/logs/events";
 import type { PreparedIncentiveRequest } from "@/lib/incentive/prepare-request";
 import type { IncentiveSplitShare } from "@/lib/incentive/split";
 import {
+  finalizeApprovedIncentiveRequest,
+  reverseFinalizedIncentiveRequest,
+} from "@/lib/incentive/finalize-request";
+import {
   PENDING_REQUEST_EDIT_NOTE,
   RESUBMITTED_STATUS,
   checkDecision,
@@ -107,7 +111,13 @@ export interface DecisionOutcome {
  * against a version that has since changed writes nothing.
  */
 export async function recordIncentiveDecision(
-  input: { requestId: string; action: unknown; note?: string | null; reviewerId: string },
+  input: {
+    requestId: string;
+    action: unknown;
+    note?: string | null;
+    reviewerId: string;
+    approvedAmount?: number | null;
+  },
   opts: { tx?: Tx } = {},
 ): Promise<({ ok: true } & DecisionOutcome) | { ok: false; error: string }> {
   const result = await inTx(opts.tx, async (t) => {
@@ -169,6 +179,20 @@ export async function recordIncentiveDecision(
       })
       .returning({ id: incentiveRequestDecisions.id });
     if (!audit) throw new Error("decision audit insert returned no row");
+
+    if (check.newStatus === "approved") {
+      await finalizeApprovedIncentiveRequest(t, {
+        requestId: row.id,
+        approvedAmount: input.approvedAmount ?? 0,
+        actorId: input.reviewerId,
+        note: check.note,
+      });
+    } else if (check.newStatus === "reversed") {
+      await reverseFinalizedIncentiveRequest(t, {
+        requestId: row.id,
+        actorId: input.reviewerId,
+      });
+    }
 
     return {
       decisionId: audit.id,

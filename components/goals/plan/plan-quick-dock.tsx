@@ -73,7 +73,7 @@ export function PlanQuickDock({
       onClick={onStart}
       disabled={!met || starting}
       title={met ? "Start my day" : `Plan at least ${minItems} items on Today to start`}
-      className="brand-btn wg-btn inline-flex h-11 shrink-0 items-center gap-2 rounded-chip px-5 text-[14px] font-bold text-white disabled:opacity-40 disabled:shadow-none focus-visible:outline-2"
+      className="brand-btn wg-btn inline-flex h-9 shrink-0 items-center gap-1.5 rounded-chip px-3.5 text-[13px] font-bold text-white disabled:opacity-40 disabled:shadow-none focus-visible:outline-2"
       style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
     >
       {starting ? <Loader2 size={16} className="animate-spin" /> : <Sunrise size={16} />}
@@ -83,7 +83,7 @@ export function PlanQuickDock({
     <button
       type="button"
       onClick={onCloseout}
-      className="brand-btn wg-btn inline-flex h-11 shrink-0 items-center gap-2 rounded-chip px-5 text-[14px] font-bold text-white focus-visible:outline-2"
+      className="brand-btn wg-btn inline-flex h-9 shrink-0 items-center gap-1.5 rounded-chip px-3.5 text-[13px] font-bold text-white focus-visible:outline-2"
       style={{ background: GOALS_GRADIENT, outlineColor: GOALS_ACCENT }}
     >
       <ClipboardCheck size={16} /> Review My Day
@@ -94,9 +94,9 @@ export function PlanQuickDock({
     // `pointer-events-none` on the positioner, restored on the card itself —
     // the dock is pinned over a DRAG SURFACE, and a full-width invisible strip
     // would swallow drops aimed at the column beneath it.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-end px-4 pb-4 max-sm:px-2 max-sm:pb-2">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[52px] z-40 flex justify-end px-4 pb-4 max-sm:px-2 max-sm:pb-2">
       <div
-        className="pointer-events-auto flex items-center gap-2 rounded-[18px] border bg-surface-card p-2 shadow-[0_18px_45px_-12px_rgba(15,23,42,0.32)] backdrop-blur max-sm:w-full"
+        className="pointer-events-auto flex items-center gap-1.5 rounded-[14px] border bg-surface-card p-1.5 shadow-[0_14px_34px_-12px_rgba(15,23,42,0.28)] backdrop-blur max-sm:w-full"
         style={{ borderColor: `color-mix(in srgb, ${GOALS_ACCENT_DEEP} 28%, var(--color-hairline))` }}
       >
         <form onSubmit={submit} className="flex min-w-0 items-center gap-2">
@@ -113,13 +113,13 @@ export function PlanQuickDock({
               placeholder="Add Commitment…"
               aria-label={`Add a commitment on ${dayLabel}`}
               maxLength={280}
-              className="h-11 w-[260px] min-w-0 rounded-chip border border-hairline bg-surface-card pl-9 pr-3 text-[14px] text-ink-strong placeholder:text-ink-muted/70 hover:border-hairline-strong focus:border-altus-red focus-visible:outline-none max-sm:w-full max-lg:w-[200px]"
+          className="h-9 w-[220px] min-w-0 rounded-chip border border-hairline bg-surface-card pl-9 pr-3 text-[13px] text-ink-strong placeholder:text-ink-muted/70 hover:border-hairline-strong focus:border-altus-red focus-visible:outline-none max-sm:w-full max-lg:w-[180px]"
             />
           </label>
           <button
             type="submit"
             disabled={!valid}
-            className="wg-btn inline-flex h-11 shrink-0 items-center gap-1.5 rounded-chip border px-4 text-[14px] font-bold transition-colors disabled:opacity-35 focus-visible:outline-2"
+            className="wg-btn inline-flex h-9 shrink-0 items-center gap-1 rounded-chip border px-3 text-[13px] font-bold transition-colors disabled:opacity-35 focus-visible:outline-2"
             style={{
               borderColor: `color-mix(in srgb, ${GOALS_ACCENT} 32%, transparent)`,
               color: GOALS_ACCENT_DEEP,
@@ -135,7 +135,7 @@ export function PlanQuickDock({
           <>
             <span
               aria-hidden
-              className="h-7 w-px shrink-0"
+              className="h-6 w-px shrink-0"
               style={{ background: "var(--color-hairline)" }}
             />
             {lifecycle}

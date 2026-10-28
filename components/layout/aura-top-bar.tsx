@@ -15,6 +15,7 @@ import { MODULE_THEME } from "@/lib/module-theme";
 import { workspaceForPath, type WorkspaceId } from "@/lib/workspaces";
 import { tabsAndMore, type AuraRoom } from "@/lib/aura-rooms";
 import { locateHrRoute } from "@/lib/hr/console-nav";
+import { ModuleSectionTitle } from "@/components/layout/module-section-title";
 
 /**
  * THE APP-WIDE TOP BAR, in the Aura language — one glass strip on every screen
@@ -211,7 +212,18 @@ export function AuraTopBar({
 }) {
   const pathname = usePathname() ?? "/";
   const ws = workspaceForPath(pathname);
+  const [moduleView, setModuleView] = React.useState<"doer" | "initiator">("doer");
+  const showsModuleView = ws === "goals" || ws === "project-plan";
   const slots = usePageChromeSlots();
+  const hasHrConsoleRail =
+    pathname === "/hr" ||
+    pathname.startsWith("/hr/") ||
+    pathname === "/policies" ||
+    pathname.startsWith("/policies/") ||
+    pathname === "/dossier" ||
+    pathname.startsWith("/dossier/") ||
+    pathname === "/support" ||
+    pathname.startsWith("/support/");
   const hrTitle = React.useMemo(() => {
     if (!pathname.startsWith("/hr")) return null;
     const at = locateHrRoute(pathname);
@@ -244,7 +256,15 @@ export function AuraTopBar({
   return (
     // Phones already carry a fixed 56px bar from DashboardSidebar, so off the
     // dashboard this one hides rather than eating a third of a small screen.
-    <header className={onDashboard ? "aura-topbar app-topbar" : "aura-topbar app-topbar max-md:hidden"}>
+    <header
+      className={[
+        "aura-topbar app-topbar",
+        onDashboard ? "" : "max-md:hidden",
+        hasHrConsoleRail ? "aura-topbar-with-console-rail" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
 
       {onDashboard && (
       <a
@@ -261,7 +281,7 @@ export function AuraTopBar({
           precisely than its route can be read). `empty:hidden` so it costs no
           space on the pages that set none. */}
       <div ref={slots?.setTitle} className="aura-title-slot flex min-w-0 items-center">
-        {!slots?.hasPageTitle && <h1 className="topbar-heading min-w-0 truncate">{sectionTitle}</h1>}
+        {!slots?.hasPageTitle && !hasHrConsoleRail && <ModuleSectionTitle section={sectionTitle} />}
       </div>
 
       {onDashboard && (
@@ -287,6 +307,36 @@ export function AuraTopBar({
           the bar, which left the account menu stranded on its own at the end. */}
       <div className="aura-right">
         <div ref={slots?.setActions} className="flex shrink-0 items-center gap-2 empty:hidden" />
+        {showsModuleView && (
+          <div className="flex shrink-0 items-center gap-0.5 text-[13px] text-ink-soft" aria-label="View perspective">
+            <span className="mr-1 font-medium">View</span>
+            <div className="inline-flex h-8 overflow-hidden border border-hairline bg-surface-card">
+              {(["doer", "initiator"] as const).map((view) => {
+                const active = moduleView === view;
+                return (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => {
+                      setModuleView(view);
+                      // The top-bar perspective also controls the status-KPI
+                      // strip in Goals and Project Plan. Keep it as a local UI
+                      // event: it changes no URL, data, or permissions.
+                      window.dispatchEvent(
+                        new CustomEvent("altus:module-status-axis", { detail: view }),
+                      );
+                    }}
+                    aria-pressed={active}
+                    className="px-2.5 text-[12px] font-bold transition-colors"
+                    style={active ? { background: "var(--color-surface-soft)", color: "var(--color-ink-strong)", boxShadow: "0 1px 2px rgba(15,23,42,0.10)" } : { color: "var(--color-ink-subtle)" }}
+                  >
+                    {view === "doer" ? "Doer" : "Initiator"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="aura-search-slot">
           <GlobalSearch
             workspace={ws}

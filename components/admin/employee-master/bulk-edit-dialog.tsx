@@ -42,7 +42,7 @@ import { bulkEditEmployees } from "@/app/(admin)/admin/employees/actions";
 interface FieldSpec {
   key: keyof Patch;
   label: string;
-  kind: "select" | "bool" | "date";
+  kind: "select" | "bool" | "date" | "number" | "time";
   options?: { id: string; name: string }[];
   /** Shown beneath the control when the field has a consequence beyond itself. */
   warning?: string;
@@ -69,6 +69,17 @@ interface Patch {
   isTeamLead?: boolean;
   trainPass?: boolean;
   probationEnd?: string | null;
+  role?: "doer" | "initiator" | "both";
+  functionId?: string | null;
+  departmentIds?: string[];
+  primaryDepartmentId?: string | null;
+  dailyTaskQuota?: number;
+  whatsappOptedIn?: boolean;
+  weeklyOff?: number;
+  attOfficialStart?: string | null;
+  attLateAfter?: string | null;
+  attOfficialEnd?: string | null;
+  attEarlyBefore?: string | null;
 }
 
 export function BulkEditDialog({
@@ -89,6 +100,8 @@ export function BulkEditDialog({
   const [result, setResult] = React.useState<string | null>(null);
 
   const fields: FieldSpec[] = [
+    { key: "role", label: "Task Role", kind: "select", options: [{ id: "doer", name: "Doer" }, { id: "initiator", name: "Initiator" }, { id: "both", name: "Both" }] },
+    { key: "functionId", label: "Function", kind: "select", options: options.functions },
     { key: "payingEntityId", label: "Entity", kind: "select", options: options.entities },
     { key: "designationId", label: "Designation", kind: "select", options: options.designations },
     {
@@ -102,6 +115,26 @@ export function BulkEditDialog({
     { key: "managerId", label: "Manager", kind: "select", options: options.managers },
     { key: "isTeamLead", label: "Team Lead", kind: "bool" },
     { key: "trainPass", label: "Train Pass", kind: "bool" },
+    { key: "whatsappOptedIn", label: "WhatsApp Consent", kind: "bool" },
+    { key: "dailyTaskQuota", label: "Daily Task Quota", kind: "number" },
+    {
+      key: "weeklyOff",
+      label: "Weekly Off",
+      kind: "select",
+      options: [
+        { id: "0", name: "Sunday" },
+        { id: "1", name: "Monday" },
+        { id: "2", name: "Tuesday" },
+        { id: "3", name: "Wednesday" },
+        { id: "4", name: "Thursday" },
+        { id: "5", name: "Friday" },
+        { id: "6", name: "Saturday" },
+      ],
+    },
+    { key: "attOfficialStart", label: "Official Start", kind: "time" },
+    { key: "attLateAfter", label: "Late After", kind: "time" },
+    { key: "attOfficialEnd", label: "Official End", kind: "time" },
+    { key: "attEarlyBefore", label: "Early Before", kind: "time" },
     { key: "probationEnd", label: "Probation Ends On", kind: "date" },
   ];
 
@@ -129,6 +162,22 @@ export function BulkEditDialog({
       if (f.kind === "bool") {
         (patch[f.key] as unknown) = raw === "yes";
       } else if (f.kind === "date") {
+        (patch[f.key] as unknown) = raw === "" ? null : raw;
+      } else if (f.kind === "number") {
+        (patch[f.key] as unknown) = raw === "" ? undefined : Number(raw);
+      } else if (f.kind === "time") {
+        (patch[f.key] as unknown) = raw === "" ? null : raw;
+      } else if (f.key === "weeklyOff") {
+        (patch[f.key] as unknown) = raw === "" ? undefined : Number(raw);
+      } else if (f.key === "functionId") {
+        (patch[f.key] as unknown) = raw === "" ? null : raw;
+        if (raw !== "") {
+          patch.departmentIds = [raw];
+          patch.primaryDepartmentId = raw;
+        } else {
+          patch.departmentIds = [];
+          patch.primaryDepartmentId = null;
+        }
         (patch[f.key] as unknown) = raw === "" ? null : raw;
       } else {
         // "" from a select means the admin explicitly chose "— (clear)".
@@ -222,6 +271,25 @@ export function BulkEditDialog({
                           <option value="yes">Yes</option>
                           <option value="no">No</option>
                         </select>
+                      )}
+                      {f.kind === "number" && (
+                        <input
+                          type="number"
+                          min={0}
+                          max={50}
+                          placeholder="e.g. 3"
+                          value={values[f.key] ?? ""}
+                          onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                          className="w-32 rounded-lg border border-hairline-strong px-2 py-1.5 text-[13px]"
+                        />
+                      )}
+                      {f.kind === "time" && (
+                        <input
+                          type="time"
+                          value={values[f.key] ?? ""}
+                          onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                          className="rounded-lg border border-hairline-strong px-2 py-1.5 text-[13px]"
+                        />
                       )}
                       {f.kind === "date" && (
                         <input

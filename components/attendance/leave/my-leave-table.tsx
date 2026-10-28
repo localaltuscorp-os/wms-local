@@ -1,26 +1,32 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LEAVE_KIND_LABELS } from "@/db/enums";
+import { Pencil, Trash2, Loader2 } from "lucide-react";
+import { LEAVE_KIND_LABELS, type LeaveKind } from "@/db/enums";
 import type { LeaveRow } from "@/lib/queries/leave";
 import { cancelLeave } from "@/app/(app)/attendance/leave/actions";
 import { fireToast } from "@/lib/toast";
 import { LeaveStatusChip, leaveRangeLabel } from "./leave-ui";
+import { EditLeaveDialog } from "./edit-leave-dialog";
 
-/**
- * My Leave Requests (spec §2) — Date · Leave Type · Days · Reason · Status.
- *
- * One plain table, no cards and no per-row action cluster. The only action an
- * employee has is withdrawing a request they filed and nobody has decided yet,
- * so it hangs off the status cell as a quiet text button instead of earning a
- * column of its own that would be empty on every decided row.
- *
- * On narrow screens the table scrolls inside its own container rather than the
- * page — Reason is the column that wants the room, and truncating it to fit a
- * phone would hide the only free-text a reviewer wrote.
- */
-export function MyLeaveTable({ rows }: { rows: LeaveRow[] }) {
+export interface MyLeaveTableProps {
+  rows: LeaveRow[];
+  categories?: readonly { id: string; name: string }[];
+  allowedKinds?: readonly LeaveKind[];
+  paidRemaining?: number;
+  paidEligible?: boolean;
+}
+
+export function MyLeaveTable({
+  rows,
+  categories = [],
+  allowedKinds = ["paid", "unpaid"],
+  paidRemaining = 0,
+  paidEligible = true,
+}: MyLeaveTableProps) {
+  const [editingRow, setEditingRow] = useState<LeaveRow | null>(null);
+
   if (rows.length === 0) {
     return (
       <div
@@ -33,45 +39,77 @@ export function MyLeaveTable({ rows }: { rows: LeaveRow[] }) {
   }
 
   return (
-    <div
-      className="overflow-x-auto rounded-[14px] bg-surface-card"
-      style={{ border: "1px solid var(--color-hairline)" }}
-    >
-      <table className="min-w-full text-[13.5px]">
-        <thead>
-          <tr className="text-left text-[12px] font-semibold text-ink-subtle">
-            <Th>Date</Th>
-            <Th>Leave Type</Th>
-            <Th align="right">Days</Th>
-            <Th>Reason</Th>
-            <Th>Status</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <Row key={r.id} row={r} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div
+        className="overflow-x-auto rounded-[14px] bg-surface-card"
+        style={{ border: "1px solid var(--color-hairline)" }}
+      >
+        <table className="min-w-full text-[13.5px]">
+          <thead>
+            <tr className="text-left text-[12px] font-semibold text-ink-subtle">
+              <Th>Date</Th>
+              <Th>Leave Type</Th>
+              <Th align="right">Days</Th>
+              <Th>Reason</Th>
+              <Th>Status</Th>
+              <Th align="right">Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <Row
+                key={r.id}
+                row={r}
+                onEdit={() => setEditingRow(r)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {editingRow && (
+        <EditLeaveDialog
+          row={editingRow}
+          open={!!editingRow}
+          onOpenChange={(open) => {
+            if (!open) setEditingRow(null);
+          }}
+          categories={categories}
+          allowedKinds={allowedKinds}
+          paidRemaining={paidRemaining}
+          paidEligible={paidEligible}
+        />
+      )}
+    </>
   );
 }
 
-function Row({ row }: { row: LeaveRow }) {
+function Row({
+  row,
+  onEdit,
+}: {
+  row: LeaveRow;
+  onEdit: () => void;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  function withdraw() {
+  function onCancel() {
+    const actionLabel = row.status === "pending" ? "Withdraw" : "Cancel";
+    if (!window.confirm(`${actionLabel} this leave request? This cannot be undone.`)) return;
+
     startTransition(async () => {
       const res = await cancelLeave({ id: row.id });
       if (!res.ok) {
         fireToast({ message: res.error, type: "error" });
         return;
       }
-      fireToast({ message: "Request withdrawn." });
+      fireToast({ message: `Leave request ${actionLabel.toLowerCase()}ed.` });
       router.refresh();
     });
   }
+
+  const canModify = row.status === "pending" || row.status === "approved";
 
   return (
     <tr style={{ borderTop: "1px solid var(--color-hairline)" }}>
@@ -97,19 +135,35 @@ function Row({ row }: { row: LeaveRow }) {
         )}
       </Td>
       <Td>
-        <div className="flex items-center gap-2.5 whitespace-nowrap">
+        <div className="flex items-center gap-2 whitespace-nowrap">
           <LeaveStatusChip status={row.status} />
-          {row.status === "pending" && (
+        </div>
+      </Td>
+      <Td align="right">
+        {canModify && (
+          <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
             <button
               type="button"
-              onClick={withdraw}
-              disabled={pending}
-              className="text-[12.5px] font-semibold text-ink-subtle underline-offset-2 transition-colors hover:text-ink-strong hover:underline disabled:opacity-50"
+              onClick={onEdit}
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold text-ink-muted transition-colors hover:bg-surface-soft hover:text-ink-strong"
             >
-              Withdraw
+              <Pencil size={12} strokeWidth={2.4} /> Edit
             </button>
-          )}
-        </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={pending}
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold text-ink-subtle transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+            >
+              {pending ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Trash2 size={12} strokeWidth={2.4} />
+              )}
+              {row.status === "pending" ? "Withdraw" : "Cancel"}
+            </button>
+          </div>
+        )}
       </Td>
     </tr>
   );

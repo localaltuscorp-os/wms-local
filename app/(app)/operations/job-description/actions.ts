@@ -27,6 +27,8 @@ import { requireWorkspace } from "@/lib/auth/workspace-access";
 import { toAssignmentRows } from "@/lib/jd/assignment-targets";
 import { buildJdAttachmentRows } from "@/lib/jd/attachments";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { parseRRule } from "@/lib/recurrence/rrule";
 import { BUSINESS_FUNCTIONS, FUNCTION_LABELS } from "@/lib/org/functions";
 import {
@@ -687,6 +689,8 @@ export async function bulkCreateJdEntries(input: unknown): Promise<ActionResult<
   }
   if (jdDemoActive()) return fail("Bulk upload needs the JD tables.");
   const rows = parsed.data.rows;
+  const required = await enforceRequiredRows(TEMPLATE_KEYS.jobDescriptions, "generic", rows as unknown as Record<string, unknown>[]);
+  if (!required.ok) return required;
 
   for (const [i, v] of rows.entries()) {
     if (Boolean(v.positionId) === Boolean(v.ownerEmployeeId)) {

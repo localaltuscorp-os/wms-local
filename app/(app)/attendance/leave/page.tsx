@@ -99,7 +99,13 @@ export default async function LeavePage() {
               {mine.length} {mine.length === 1 ? "request" : "requests"}
             </span>
           </div>
-          <MyLeaveTable rows={mine} />
+          <MyLeaveTable
+            rows={mine}
+            categories={categories}
+            allowedKinds={allowedLeaveKinds(workerType)}
+            paidRemaining={balance.remaining}
+            paidEligible={balance.paidEligible}
+          />
         </section>
       </PageShell>
     </>

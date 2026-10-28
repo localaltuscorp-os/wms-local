@@ -12,6 +12,7 @@ import { DOCUMENTS_BUCKET, storageErrorMessage } from "@/lib/supabase/admin";
 import { putObject, removeObjects } from "@/lib/storage/objects";
 import { safeFileName, validateUpload } from "@/lib/hr/upload";
 import { XLSX_CONTENT_TYPE, templateDef } from "@/lib/templates/registry";
+import { validateTemplateWorkbook } from "@/lib/templates/upload-validation";
 
 /**
  * UPLOAD MASTER — replace / delete the bulk-import template files.
@@ -70,6 +71,8 @@ export async function uploadTemplate(form: FormData): Promise<ActionResult<{ key
   const storagePath = `templates/${key}/${crypto.randomUUID()}/${safeFileName(file.name)}`;
   const contentType = file.type || XLSX_CONTENT_TYPE;
   const buffer = Buffer.from(await file.arrayBuffer());
+  const workbook = validateTemplateWorkbook(key, buffer);
+  if (!workbook.ok) return workbook;
 
   const put = await putObject(DOCUMENTS_BUCKET, storagePath, buffer, contentType);
   if (!put.ok) return { ok: false, error: storageErrorMessage(put.error) };

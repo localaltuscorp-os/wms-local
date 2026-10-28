@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Copy,
   Flag,
+  GripVertical,
   ListChecks,
   Minus,
   Pencil,
@@ -194,6 +195,11 @@ export interface GoalTableViewProps {
   meId?: string;
   /** The viewer manages the person whose goals these are. */
   managesViewed?: boolean;
+  /** Optional native row drag hook. The higher-level and Weekly boards use it
+   * to let a goal be dropped onto a Doer KPI card; other table consumers stay
+   * unchanged. The event can originate from the row or its explicit drag
+   * handle. */
+  onRowDragStart?: (goal: GoalDTO, event: React.DragEvent<HTMLElement>) => void;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -3404,22 +3410,51 @@ export function GoalTableView(props: GoalTableViewProps) {
                   className={cn(
                     "group border-b border-l-4 border-gray-200 border-l-transparent transition-colors",
                     !isSel && "hover:bg-slate-50/80 hover:border-l-altus-red",
+                    props.onRowDragStart && canWrite && "cursor-grab active:cursor-grabbing",
                   )}
                   style={{
                     background: isSel ? redTint(6) : undefined,
+                  }}
+                  draggable={Boolean(props.onRowDragStart && canWrite)}
+                  onDragStart={(event) => {
+                    const target = event.target as HTMLElement;
+                    // Inline inputs/buttons keep their normal interaction; use
+                    // the row background or non-interactive cells to drag.
+                    if (target.closest("button, input, select, textarea, a, [role=combobox]")) {
+                      event.preventDefault();
+                      return;
+                    }
+                    props.onRowDragStart?.(g, event);
                   }}
                 >
                   {/* select — checking the box also opens the Edit popup
                       automatically (unchecking just deselects). */}
                   <td className="py-2 pl-3 pr-1 align-middle">
-                    <BrandCheck
-                      checked={isSel}
-                      onToggle={() => {
-                        toggleRow(g.id);
-                        if (simplified && !isSel) setPreviewGoal(g);
-                      }}
-                      label={`Select "${g.title}"`}
-                    />
+                    <div className="flex items-center gap-1">
+                      <BrandCheck
+                        checked={isSel}
+                        onToggle={() => {
+                          toggleRow(g.id);
+                          if (simplified && !isSel) setPreviewGoal(g);
+                        }}
+                        label={`Select "${g.title}"`}
+                      />
+                      {props.onRowDragStart && canWrite && (
+                        <span
+                          data-goal-status-drag-handle
+                          draggable
+                          title="Drag this goal to a Doer Status card"
+                          aria-label="Drag this goal to a Doer Status card"
+                          className="inline-flex cursor-grab touch-none items-center text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing focus-visible:opacity-100"
+                          onDragStart={(event) => {
+                            event.stopPropagation();
+                            props.onRowDragStart?.(g, event);
+                          }}
+                        >
+                          <GripVertical size={15} aria-hidden />
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {orderedColumnKeys.flatMap((k) => bodyCellsFor(k, g, i, t, a))}

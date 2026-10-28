@@ -3,6 +3,7 @@ import { authenticateMobileRequest, MOBILE_CORS } from "@/lib/auth/mobile";
 import { rateLimitOrError } from "@/lib/rate-limit";
 import { getOrgSettings } from "@/lib/queries/org-settings";
 import { resolvePunchGeofence, insertPunchRow } from "@/lib/attendance/record-punch";
+import { mayPunchAttendanceAnywhere } from "@/lib/auth/security-roles";
 import { resolveMobileDevice } from "@/lib/attendance/mobile-devices";
 import { attendanceIntegrityMode } from "@/lib/attendance/integrity-mode";
 import { consumePunchNonce } from "@/lib/attendance/punch-nonce";
@@ -26,6 +27,7 @@ import {
   notifyOnDayFinalized,
   clockInTz,
 } from "@/lib/attendance/punch-notify";
+import { approvedLeaveCoversDate, assertNoMixedAttendance } from "@/lib/attendance/attendance-gates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,7 +89,8 @@ export async function POST(req: Request) {
 
   // ── Gate 1: geofence (shared with web) ──
   const settings = await getOrgSettings();
-  const geo = resolvePunchGeofence(settings, location);
+  const mayPunchAnywhere = await mayPunchAttendanceAnywhere(me);
+  const geo = resolvePunchGeofence(settings, location, mayPunchAnywhere);
   if (!geo.ok) return err(400, geo.error);
 
   // ── Gate 2: device allowlist (the mobile anti-proxy) ──
@@ -145,6 +148,12 @@ export async function POST(req: Request) {
   }
 
   const tz = me.timezone || "Asia/Kolkata";
+  const today = localDateString(tz);
+  if (await approvedLeaveCoversDate(me.id, today)) {
+    return err(409, "Approved leave covers today. Attendance is blocked.");
+  }
+  const modeCheck = await assertNoMixedAttendance(me.id, today, "office");
+  if (!modeCheck.ok) return err(409, modeCheck.error);
 
   // ── Saturday commit gate (NEW, default OFF; mirrors the web punch) ──
   // On Saturday, punch-out is blocked until next week is committed + this week's
@@ -189,7 +198,6 @@ export async function POST(req: Request) {
   //
   // FAIL-OPEN: any read error resolves to "nothing pending".
   if (body.kind === "in" && weekLossAckGateOn()) {
-    const today = localDateString(tz);
     const week = await getWeekReportState(me.id, today).catch(() => null);
     if (week?.pending && week.loss) {
       if (weekLossAckMobileGateOn()) {

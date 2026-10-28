@@ -52,13 +52,20 @@ describe("Dropdown configuration explorer", () => {
   it("uses one Dropdown rail entry and keeps excluded People routes out", () => {
     expect(ADMIN_TOP_LEVEL.some((item) => item.href === "/admin/drop-down-master" && item.label === "Dropdown")).toBe(true);
     const railRoutes = ADMIN_GROUPS.flatMap((group) => group.items.map((item) => item.href));
-    expect(railRoutes).toEqual(expect.arrayContaining(["/admin/employees", "/admin/employee-master", "/admin/hierarchy", "/admin/upload-master"]));
+    expect(railRoutes).toEqual(expect.arrayContaining(["/admin/employee-master", "/admin/hierarchy", "/admin/upload-master"]));
     expect(railRoutes).not.toEqual(expect.arrayContaining(["/admin/functions", "/admin/designations", "/admin/holidays"]));
   });
 
   it("keeps Clients and Subjects visible to roster-only users", () => {
     const restrictedRoutes = adminNavFor(true).groups.flatMap((group) => group.items.map((item) => item.href));
     expect(restrictedRoutes).toEqual(["/admin/clients", "/admin/subjects"]);
+  });
+
+  it("shows Module Backups only to master admins", () => {
+    const normalAdminRoutes = adminNavFor(false, false, false).groups.flatMap((group) => group.items.map((item) => item.href));
+    const masterAdminRoutes = adminNavFor(false, false, true).groups.flatMap((group) => group.items.map((item) => item.href));
+    expect(normalAdminRoutes).not.toContain("/admin/module-backups");
+    expect(masterAdminRoutes).toContain("/admin/module-backups");
   });
 
   it("hides title while option rows fill hovered window", () => {

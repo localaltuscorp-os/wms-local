@@ -248,7 +248,7 @@ export function IncentiveAnalyticsDashboard({
               value={month}
               disabled={pending}
               onChange={(e) => load({ kind: "month", month: e.target.value })}
-              className="h-11 min-w-[168px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
+              className="h-9 min-w-[140px] rounded-pill border border-hairline-strong bg-surface-card px-3 text-[12.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
             >
               {months.map((m) => (
                 <option key={m} value={m}>
@@ -263,7 +263,7 @@ export function IncentiveAnalyticsDashboard({
               value={quarter}
               disabled={pending}
               onChange={(e) => load({ kind: "quarter", quarter: e.target.value })}
-              className="h-11 min-w-[168px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
+              className="h-9 min-w-[140px] rounded-pill border border-hairline-strong bg-surface-card px-3 text-[12.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
             >
               {quarters.map((q) => (
                 <option key={q} value={q}>
@@ -281,7 +281,7 @@ export function IncentiveAnalyticsDashboard({
               value={year}
               disabled={pending}
               onChange={(e) => load({ kind: "year", year: e.target.value })}
-              className="h-11 min-w-[168px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold tabular-nums text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
+              className="h-9 min-w-[140px] rounded-pill border border-hairline-strong bg-surface-card px-3 text-[12.5px] font-bold tabular-nums text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red"
             >
               {years.map((y) => (
                 <option key={y} value={y}>
@@ -291,7 +291,7 @@ export function IncentiveAnalyticsDashboard({
             </select>
           )}
           <span
-            className="ml-auto flex items-center gap-2 text-[12.5px] font-semibold text-ink-subtle"
+            className="ml-auto flex flex-wrap items-center gap-2 text-[12.5px] font-semibold text-ink-subtle"
             data-period-label
           >
             {pending && <Loader2 size={14} className="animate-spin" aria-hidden />}
@@ -463,7 +463,7 @@ function StatusKpi({
       /* Compact: this band now carries EIGHT cards (six buckets + Grade +
          % of CTC), so each is shorter and slightly tighter than the six that
          used to have the row to themselves. Same parts, less air. */
-      className="flex min-h-[92px] cursor-pointer flex-col justify-between rounded-2xl border bg-surface-card px-3.5 py-2 text-left transition-colors hover:bg-surface-soft"
+      className="flex h-full min-h-[86px] min-w-0 cursor-pointer flex-col justify-between rounded-2xl border bg-surface-card px-3 py-2 sm:px-3.5 sm:py-2.5 text-left transition-colors hover:bg-surface-soft"
       style={{
         borderColor: selected ? toneBase(tone) : "var(--color-hairline)",
         borderWidth: selected ? 1.5 : 1,
@@ -478,7 +478,7 @@ function StatusKpi({
         style={{
           fontFamily: "var(--font-display), system-ui, sans-serif",
           fontWeight: 800,
-          fontSize: "clamp(17px, 1.25vw, 21px)",
+          fontSize: "clamp(16px, 1.2vw, 20px)",
           letterSpacing: "-0.02em",
           lineHeight: 1.1,
         }}
@@ -490,7 +490,9 @@ function StatusKpi({
           {count} {count === 1 ? "entry" : "entries"}
         </span>
         {unvaluedCount > 0 && (
-          <span className="text-[11px] font-medium text-ink-subtle">{unvaluedCount} amount not set</span>
+          <span className="truncate text-[11px] font-medium text-ink-subtle" title={`${unvaluedCount} amount not set`}>
+            {unvaluedCount} amount not set
+          </span>
         )}
       </span>
     </button>
@@ -734,7 +736,7 @@ function SetTargetControl({
   }
 
   const selectClass =
-    "h-11 rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red";
+    "h-9 rounded-pill border border-hairline-strong bg-surface-card px-3 text-[12.5px] font-bold text-ink-strong outline-none transition-colors hover:border-ink-subtle focus:border-altus-red";
 
   return (
     <form
@@ -811,12 +813,12 @@ function SetTargetControl({
         onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
         aria-label="Target amount"
         placeholder="Target amount"
-        className="h-11 w-[160px] rounded-pill border border-hairline-strong bg-surface-card px-4 text-[13.5px] font-bold tabular-nums text-ink-strong outline-none focus:border-altus-red"
+        className="h-9 w-32 sm:w-36 rounded-pill border border-hairline-strong bg-surface-card px-3 text-[12.5px] font-bold tabular-nums text-ink-strong outline-none focus:border-altus-red"
       />
       <button
         type="submit"
         disabled={disabled || saving}
-        className="pastel-cta h-11 rounded-pill px-4 text-[13.5px] font-bold disabled:opacity-60"
+        className="pastel-cta h-9 rounded-pill px-3.5 text-[12.5px] font-bold disabled:opacity-60"
       >
         {saving ? "Saving…" : "Save Target"}
       </button>
@@ -871,7 +873,8 @@ function TeamSummary({ data }: { data: IncentiveAnalytics }) {
         the denominator behind "% of CTC", and it already appears as that
         percentage in Your performance and as a column in the grade report.
       */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="@container w-full min-w-0">
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 @min-[1300px]:grid-cols-7 2xl:grid-cols-7">
         <IncentiveKpi
           label="All Employees"
           value={String(data.summary.people)}
@@ -904,6 +907,7 @@ function TeamSummary({ data }: { data: IncentiveAnalytics }) {
           />
         ))}
       </div>
+      </div>
     </section>
   );
 }
@@ -920,14 +924,14 @@ function TeamSummary({ data }: { data: IncentiveAnalytics }) {
  * a column can never be wider in the head than in the body.
  */
 const G = {
-  employee: "min-w-[190px]",
-  ctc: "min-w-[128px] whitespace-nowrap",
-  earned: "min-w-[140px] whitespace-nowrap",
-  pct: "min-w-[108px] whitespace-nowrap",
-  grade: "min-w-[92px] whitespace-nowrap",
-  rank: "min-w-[132px] whitespace-nowrap",
-  target: "min-w-[128px] whitespace-nowrap",
-  difference: "min-w-[148px] whitespace-nowrap",
+  employee: "min-w-[160px]",
+  ctc: "min-w-[110px] whitespace-nowrap",
+  earned: "min-w-[120px] whitespace-nowrap",
+  pct: "min-w-[95px] whitespace-nowrap",
+  grade: "min-w-[80px] whitespace-nowrap",
+  rank: "min-w-[110px] whitespace-nowrap",
+  target: "min-w-[110px] whitespace-nowrap",
+  difference: "min-w-[130px] whitespace-nowrap",
 } as const;
 
 function GradeReport({ data }: { data: IncentiveAnalytics }) {

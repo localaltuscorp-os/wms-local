@@ -1,18 +1,13 @@
-import { requireAdmin } from "@/lib/auth/current";
-import { buildIncentiveEntryTemplate } from "@/lib/exports/incentive-entry-template";
-import { db } from "@/lib/db";
-import { employees } from "@/db/schema";
-import { and, eq, isNotNull } from "drizzle-orm";
-import { listActiveProductNames } from "@/lib/queries/products";
 import { apiViewDenial } from "@/lib/permissions/api-guard";
-import { requiredFieldsForTemplate } from "@/lib/templates/field-config";
+import { requireAdmin } from "@/lib/auth/current";
+import { templateResponse } from "@/lib/templates/download";
 import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * The Incentive Entries bulk-import template.
+ * The New Incentive Request bulk-upload template.
  *
  * TWO GUARDS, AND THEY ARE DIFFERENT QUESTIONS. `requireAdmin` asks whether the
  * caller may write the ledger at all — this file hands out the roster and the
@@ -31,23 +26,5 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
-  const [roster, products] = await Promise.all([
-    db.select({ id: employees.id, employeeCode: employees.employeeCode, name: employees.name })
-      .from(employees)
-      .where(and(eq(employees.isActive, true), isNotNull(employees.employeeCode))),
-    listActiveProductNames(),
-  ]);
-  const required = new Set(await requiredFieldsForTemplate(TEMPLATE_KEYS.incentiveEntries, "default"));
-  const buffer = await buildIncentiveEntryTemplate({
-    roster: roster.map((row) => ({ ...row, employeeCode: row.employeeCode! })),
-    products,
-    required,
-  });
-  return new Response(buffer, {
-    headers: {
-      "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": "attachment; filename=Incentive-Entries-Import-Template.xlsx",
-      "cache-control": "no-store",
-    },
-  });
+  return templateResponse(TEMPLATE_KEYS.incentiveEntries);
 }

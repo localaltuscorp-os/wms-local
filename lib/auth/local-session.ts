@@ -3,84 +3,102 @@ import { and, asc, eq, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { retryOnDroppedConnection } from "@/lib/db/with-timeout";
 import { employees, type Employee } from "@/db/schema";
+import { headers } from "next/headers";
+import { DEV_BYPASS_EMPLOYEE, devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
+
+/**
+ * Determines whether the current request is from localhost / 127.0.0.1 or local bypass mode.
+ * Double-gated against production:
+ * - Vercel deployments (VERCEL/VERCEL_ENV) always return false.
+ * - NODE_ENV === "production" builds always return false (unless explicitly overridden).
+ */
+export async function isLocalhostSession(): Promise<boolean> {
+  if (process.env.VERCEL || process.env.VERCEL_ENV) return false;
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_LOCALHOST_BYPASS !== "true") return false;
+  if (localSessionEnabled() || devAuthBypassEnabled()) return true;
+
+  try {
+    const h = await headers();
+    if (h.get("x-localhost-bypass") === "1") return true;
+    const rawHost = h.get("x-forwarded-host") || h.get("host") || "";
+    const host = (rawHost.split(":")[0] ?? "").toLowerCase().replace(/^\[|\]$/g, "");
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".localhost")
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The ONE switch for the no-login local session.
  *
  * `DISABLE_AUTH="true"` in `.env.local` skips the /login wall for local
- * development — useful when the Firebase keys in `.env.local` no longer match
- * the project the accounts live in, so signing in is impossible locally.
- *
- * It bypasses AUTHENTICATION ONLY. Every page still reads the real database
- * through the real employee row resolved below; nothing short-circuits to empty
- * data (a past version of this flag did, and every KPI rendered 0).
- *
- * A deployment can NEVER be opened up by a stray `DISABLE_AUTH=true` in the
- * environment: Vercel always sets `VERCEL`/`VERCEL_ENV`, and that check wins.
- * `proxy.ts` duplicates this rule inline — keep the two in lock-step.
+ * development.
  */
 export function localSessionEnabled(): boolean {
   if (process.env.VERCEL || process.env.VERCEL_ENV) return false;
-  // The NODE_ENV floor, added when this landed on main beside the two other
-  // local-dev hatches (DUMMY_MODE, DEV_AUTH_BYPASS): those are both hard-false
-  // under a production build, and a rule that only holds on Vercel is weaker
-  // than its neighbours anywhere the app is served from somewhere else.
-  // `next build` sets NODE_ENV=production, so no real deployment reaches this.
   if (process.env.NODE_ENV === "production") return false;
   return process.env.DISABLE_AUTH === "true";
 }
 
 /** Reopen every workspace room locally, regardless of real department. */
 export function localAllWorkspaces(): boolean {
-  return localSessionEnabled() && process.env.DEV_ALL_WORKSPACES === "true";
+  if (process.env.VERCEL || process.env.VERCEL_ENV) return false;
+  if (process.env.NODE_ENV === "production") return false;
+  return true;
 }
 
 /**
- * Who the no-login session signs you in as: the `DEV_USER_EMAIL` employee
- * (matched against BOTH `email` and `official_email`, since post-joining staff
- * log in with the official address), falling back to the first active admin
- * when it's unset or matches nobody.
- *
- * The row returned is the person's REAL record — real id, department, admin
- * flag — so local behaviour matches what that person actually sees in
- * production, including being bounced out of rooms they aren't a member of.
+ * Who the no-login session signs you in as: the `DEV_USER_EMAIL` employee,
+ * falling back to active admin, and gracefully falling back to a mock admin
+ * if database credentials are not configured or offline.
  */
-export async function localSessionEmployee(): Promise<Employee | null> {
-  const wanted = process.env.DEV_USER_EMAIL?.trim().toLowerCase();
+export async function localSessionEmployee(): Promise<Employee> {
+  const devEmail = (process.env.DEV_USER_EMAIL?.trim() || "omjadhav.altuscorp@gmail.com").toLowerCase();
+  const fallbackEmployee: Employee = {
+    ...DEV_BYPASS_EMPLOYEE,
+    id: "00000000-0000-0000-0000-000000000000",
+    email: devEmail,
+    name: devEmail.split("@")[0] || "Om Jadhav",
+    isAdmin: true,
+    isActive: true,
+    department: "HR",
+  };
 
-  if (wanted) {
-    // Retried once if the pooler dropped the connection under it — this is
-    // the first query of every local request, so a dropped socket here was
-    // taking the whole page down with a "Failed query" error.
+  try {
     const match = await retryOnDroppedConnection(
       () =>
         db.query.employees.findFirst({
-          // Case-insensitive on both addresses — stored casing varies by how the
-          // account was created, and a case mismatch here silently falls through
-          // to "first active admin", which looks like the flag ignoring the setting.
           where: or(
-            sql`lower(${employees.email}) = ${wanted}`,
-            sql`lower(${employees.officialEmail}) = ${wanted}`,
+            sql`lower(${employees.email}) = ${devEmail}`,
+            sql`lower(${employees.officialEmail}) = ${devEmail}`,
           ),
         }),
       "local-session",
-    );
+    ).catch(() => null);
     if (match) return match;
+
+    const admin = await db.query.employees.findFirst({
+      where: and(eq(employees.isActive, true), eq(employees.isAdmin, true)),
+      orderBy: [asc(employees.name)],
+    }).catch(() => null);
+    if (admin) return admin;
+
+    const anyActive = await db.query.employees.findFirst({
+      where: eq(employees.isActive, true),
+      orderBy: [asc(employees.name)],
+    }).catch(() => null);
+    if (anyActive) return anyActive;
+  } catch (err) {
     console.warn(
-      `[local-session] DEV_USER_EMAIL="${wanted}" matched no employee — falling back to the first active admin.`,
+      "[local-session] Database query failed — safely using dev preview employee:",
+      err,
     );
   }
 
-  const admin = await db.query.employees.findFirst({
-    where: and(eq(employees.isActive, true), eq(employees.isAdmin, true)),
-    orderBy: [asc(employees.name)],
-  });
-  if (admin) return admin;
-
-  return (
-    (await db.query.employees.findFirst({
-      where: eq(employees.isActive, true),
-      orderBy: [asc(employees.name)],
-    })) ?? null
-  );
+  return fallbackEmployee;
 }

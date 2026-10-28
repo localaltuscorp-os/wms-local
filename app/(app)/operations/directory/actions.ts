@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { opsVendorCategories, opsVendors } from "@/db/schema";
 import { requireUser } from "@/lib/auth/current";
 import { rateLimitOrError } from "@/lib/rate-limit";
+import { enforceRequiredRows } from "@/lib/templates/field-config";
+import { TEMPLATE_KEYS } from "@/lib/templates/keys";
 import { isHrStaff } from "@/lib/hr/access";
 import { DUMMY_MODE } from "@/lib/db/dummy-dir";
 import { DOCUMENTS_BUCKET, getSupabaseAdmin, storageErrorMessage } from "@/lib/supabase/admin";
@@ -336,6 +338,8 @@ export async function bulkCreateVendors(input: {
   if (rows.length > MAX_BULK_ROWS) {
     return { ok: false, error: `Upload at most ${MAX_BULK_ROWS} vendors at a time.` };
   }
+  const required = await enforceRequiredRows(TEMPLATE_KEYS.vendors, "default", rows as unknown as Record<string, unknown>[]);
+  if (!required.ok) return required;
 
   const failed: string[] = [];
   const values: (ReturnType<typeof dbValues> & { createdById: string; updatedById: string })[] = [];

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authMiddleware } from "next-firebase-auth-edge";
-import { DUMMY_MODE } from "@/lib/db/dummy-dir";
+import { DEMO_MODE } from "@/lib/demo/mode";
 import { devAuthBypassEnabled } from "@/lib/auth/dev-bypass";
 import {
   TWO_STEP_PASS_COOKIE,
@@ -10,7 +10,6 @@ import {
 
 const PUBLIC_PATHS = [
   "/ctest",
-  "/get-app",
   // Candidate no-login forms (migration 0221). `/c/<token>` lets someone who is
   // not an employee yet fill in their own details and sign the policies without
   // creating an account on os.altuscorp.in, and `/c/resume` mails them a fresh
@@ -25,6 +24,7 @@ const PUBLIC_PATHS = [
   "/welcome",
   "/terms",
   "/privacy",
+  "/demo-login",
 ];
 
 const PUBLIC_API = [
@@ -152,7 +152,7 @@ export async function proxy(request: NextRequest) {
   // real handleValidToken branch below (same "/" → /hub redirect, same
   // x-pathname header) so the (app) layout behaves identically either way.
   if (devAuthBypassEnabled()) {
-    if (request.nextUrl.pathname === "/") {
+    if (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login" || request.nextUrl.pathname.startsWith("/login/")) {
       return NextResponse.redirect(new URL("/hub", request.url));
     }
     const headers = new Headers(request.headers);
@@ -182,14 +182,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers } });
   }
 
-  if (isPublic(request.nextUrl.pathname)) {
-    return NextResponse.next();
-  }
-
-  // DUMMY MODE — every route is public. The cookie check below would redirect
-  // to /login, and there is nothing to sign in to: Firebase is not contacted and
-  // lib/auth/current.ts hands back the seeded dummy employee instead. Guarded on
-  // NODE_ENV inside DUMMY_MODE, so a production build never takes this branch.
+  // DEMO MODE — every route is public. The cookie check below would redirect to
+  // /login, and there is nothing to sign in to: Firebase is not contacted and
+  // lib/auth/current.ts hands back the seeded selected employee instead. This is
+  // limited to the local PGlite demo or the explicitly configured Sales Demo.
   //
   // It must still do the TWO things `handleValidToken` does below, because they
   // are not authentication — they are how the app knows where it is:
@@ -201,13 +197,17 @@ export async function proxy(request: NextRequest) {
   //     the layout's own top bar — two stacked headers on every page. The
   //     workspace access checks and the daily-gate scoping read it too.
   //   · the "/" → /hub redirect, so the root lands somewhere real.
-  if (DUMMY_MODE) {
-    if (pathname === "/") {
-      return NextResponse.redirect(new URL("/hub", request.url));
+  if (DEMO_MODE) {
+    if (pathname === "/" || pathname === "/login" || pathname.startsWith("/login/")) {
+      return NextResponse.redirect(new URL("/demo-login", request.url));
     }
     const forwarded = new Headers(request.headers);
     forwarded.set("x-pathname", pathname);
     return NextResponse.next({ request: { headers: forwarded } });
+  }
+
+  if (isPublic(request.nextUrl.pathname)) {
+    return NextResponse.next();
   }
 
   // Self-heal a stale/garbage `__session` cookie. A legacy cookie signed with a

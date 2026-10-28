@@ -21,7 +21,7 @@ export const CC_TIMEFRAME_LABEL: Record<CcTimeframe, string> = {
   weekly: "Weekly",
   monthly: "Monthly",
   quarterly: "Quarterly",
-  half_yearly: "6-Months",
+  half_yearly: "Half-Yearly",
   yearly: "Yearly",
   consolidated: "Consolidated",
 };

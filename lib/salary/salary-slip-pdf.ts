@@ -14,7 +14,6 @@ import {
   newDoc,
 } from "@/lib/salary/pdf-house-style";
 import { signatoryForEntity } from "@/lib/salary/signatories";
-import { WORKER_TYPE_LABELS, asWorkerType } from "@/lib/attendance/worker-type";
 import type { SalarySlipData } from "@/lib/salary/salary-slip-data";
 
 /**
@@ -54,11 +53,18 @@ const PAGE_H = 841.89;
 
 interface Ctx {
   doc: PDFKit.PDFDocument;
-  /** Who generated the document — named in the footer. */
-  generatedBy: string;
   left: number;
   right: number;
   width: number;
+}
+
+/** The legacy Khushboo label is displayed as the current entity name on slips. */
+function displayEntity(entity: string | null | undefined): string {
+  const normalized = entity?.trim().toLowerCase() ?? "";
+  if (normalized === "khushboo" || normalized.startsWith("the perfect blend")) {
+    return "The Perfect Blend";
+  }
+  return entity?.trim() || "Altus Corp";
 }
 
 /** The document, with an A4 page and the module's chrome already on it. */
@@ -75,7 +81,7 @@ function pageChrome(doc: PDFKit.PDFDocument, data: SalarySlipData): void {
   drawChrome(doc);
   drawMasthead(
     doc,
-    data.identity.entity ?? "Altus Corp",
+    displayEntity(data.identity.entity),
     "Payroll Department  ·  Private & Confidential",
   );
 }
@@ -102,8 +108,6 @@ function pageFurniture(doc: PDFKit.PDFDocument, data: SalarySlipData): void {
   };
 
   let y = doc.y + 4;
-  centre(data.identity.name.toUpperCase(), y, { size: 16, bold: true });
-  y += 21;
   centre("SALARY SLIP", y, { size: 10.5, bold: true, color: COLORS.brandDeep });
   y += 16;
   centre(`${data.identity.monthLabel.toUpperCase()}  ·  ${data.identity.fy}`, y, {
@@ -121,7 +125,6 @@ function pageFurniture(doc: PDFKit.PDFDocument, data: SalarySlipData): void {
 /** A page-2/3 header for a view layer: title band drawn as centred text. */
 function centredPageTitle(
   doc: PDFKit.PDFDocument,
-  data: SalarySlipData,
   title: string,
   caption: string,
 ): void {
@@ -132,11 +135,9 @@ function centredPageTitle(
     doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(size).fillColor(color);
     doc.text(text, left + (width - doc.widthOfString(text)) / 2, y, { lineBreak: false });
   };
-  // Directly under the masthead the furniture just drew — no arithmetic on
-  // `doc.y` offsets, which is how a header drifts when a logo changes height.
+  // Directly under the masthead the furniture just drew — no employee name is
+  // repeated on every page, and the title remains the stable anchor.
   let y = doc.y + 2;
-  centre(data.identity.name.toUpperCase(), y, 13, true, COLORS.ink);
-  y += 17;
   centre(title, y, 10.5, true, COLORS.brandDeep);
   y += 15;
   centre(caption, y, 9, false, COLORS.inkMuted);
@@ -234,13 +235,13 @@ function highlightBand(
   doc
     .save()
     .roundedRect(ctx.left, y, ctx.width, H, 4)
-    .fillAndStroke(COLORS.netTint, COLORS.brand)
+    .fillAndStroke(COLORS.neutralTint, COLORS.hairlineStrong)
     .restore();
-  doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.brandDeep);
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor(COLORS.inkSoft);
   doc.text(label.toUpperCase(), ctx.left + 10, y + 8, { lineBreak: false });
   doc.font("Helvetica").fontSize(7.5).fillColor(COLORS.inkSoft);
   doc.text(caption, ctx.left + 10, y + 21, { width: ctx.width - 220, lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(17).fillColor(COLORS.brandDeep);
+  doc.font("Helvetica-Bold").fontSize(17).fillColor(COLORS.ink);
   doc.text(amount, ctx.right - 210, y + 12, { width: 200, align: "right", lineBreak: false });
   return y + H + 8;
 }
@@ -289,7 +290,7 @@ function drawSalarySlipPage(doc: PDFKit.PDFDocument, ctx: Ctx, data: SalarySlipD
   // ── EMPLOYEE INFORMATION ────────────────────────────────────────────
   drawSectionHeading(doc, "Employee");
   let y = doc.y + 4;
-  const colW = ctx.width / 2;
+  const colW = ctx.width / 3;
   // 23pt per row: the 7.5pt label needs a full line of leading before its 9pt
   // value, or the two print on top of each other.
   const ROW_H = 23;
@@ -303,29 +304,44 @@ function drawSalarySlipPage(doc: PDFKit.PDFDocument, ctx: Ctx, data: SalarySlipD
     return ly;
   };
   const pairs: [string, string][] = [
-    ["Employee", id.name],
     ["Employee Code", id.code ?? "—"],
-    ["Designation", id.designation ?? "—"],
-    ["Function", id.fn ?? "—"],
-    ["Entity", id.entity ?? "—"],
-    ["Employee Type", id.workerType ? WORKER_TYPE_LABELS[asWorkerType(id.workerType)] : "—"],
     ["DOJ", id.doj ? fmtDate(id.doj) : "—"],
-    ["Payroll Month", `${id.monthLabel} (${id.month})`],
+    ["Function", id.fn ?? "—"],
   ];
-  pairs.forEach((p, i) => field(p[0], p[1], Math.floor(i / 2), i % 2));
+  pairs.forEach((p, i) => field(p[0], p[1], 0, i));
   // The section headings below draw from `doc.y`, so the flow position has to
   // be brought up to the explicit y this block finished at.
-  doc.y = y + Math.ceil(pairs.length / 2) * ROW_H + 6;
+  doc.y = y + Math.ceil(pairs.length / 3) * ROW_H + 6;
   y = doc.y;
+
+  // ── PAID LEAVE SUMMARY ─────────────────────────────────────────────
+  drawSectionHeading(doc, "Paid Leaves");
+  doc.y += 4;
+  const leave = data.leave ?? { allowance: 7, used: 0, remaining: 7, eligible: true };
+  drawStatTiles(doc, [
+    {
+      label: "Used",
+      value: leave.eligible ? `${leave.used} / ${leave.allowance}` : "N/A",
+      caption: leave.eligible ? "paid leaves used" : "not eligible",
+      neutral: true,
+    },
+    {
+      label: "Remaining",
+      value: leave.eligible ? String(leave.remaining) : "—",
+      caption: leave.eligible ? `of ${leave.allowance} paid leaves` : "paid leave",
+      neutral: true,
+    },
+  ]);
+  y = doc.y + 2;
 
   // ── THE FOUR FIGURES ────────────────────────────────────────────────
   drawSectionHeading(doc, "Salary");
   doc.y += 4;
   drawStatTiles(doc, [
-    { label: "Monthly CTC", value: inr(salary?.monthlyCtc ?? 0), accent: true },
-    { label: "Salary / Day", value: inr(salary?.perDay ?? 0) },
-    { label: "Payable Days", value: String(salary?.payableDays ?? 0) },
-    { label: "Salary Earned", value: inr(salary?.gross ?? 0) },
+    { label: "Monthly CTC", value: inr(salary?.monthlyCtc ?? 0), neutral: true },
+    { label: "Salary / Day", value: inr(salary?.perDay ?? 0), neutral: true },
+    { label: "Payable Days", value: String(salary?.payableDays ?? 0), neutral: true },
+    { label: "Salary Earned", value: inr(salary?.gross ?? 0), neutral: true },
   ]);
   y = doc.y + 10;
 
@@ -431,13 +447,13 @@ function drawSalarySlipPage(doc: PDFKit.PDFDocument, ctx: Ctx, data: SalarySlipD
   drawSignatoryBlock(doc, {
     x: ctx.right - 240,
     y: blockY,
-    entity: data.identity.entity ?? "Altus Corp",
+    entity: displayEntity(data.identity.entity),
     signatoryName: signatory.name,
     assetFile: signatory.assetFile,
     date: fmtDate(new Date().toISOString().slice(0, 10)),
-    place: "Pune",
+    place: "Mumbai",
   });
-  drawFooter(doc, `Salary Slip · ${data.identity.monthLabel}`, ctx.generatedBy);
+  drawFooter(doc, `Salary Slip · ${data.identity.monthLabel}`);
 }
 
 // ── PAGE 2 — ATTENDANCE ─────────────────────────────────────────────────────
@@ -446,16 +462,15 @@ function attendanceHeader(doc: PDFKit.PDFDocument, ctx: Ctx, data: SalarySlipDat
   pageChrome(doc, data);
   centredPageTitle(
     doc,
-    data,
     "ATTENDANCE & SALARY CALCULATION",
     `${data.identity.monthLabel.toUpperCase()}  ·  ${data.identity.daysInMonth} DAYS`,
   );
   const a = data.attendance;
   drawStatTiles(doc, [
-    { label: "Salary / Day", value: inr(data.salary?.perDay ?? 0), accent: true },
-    { label: "Target Hours", value: a.targetHours == null ? "—" : `${a.targetHours} h` },
-    { label: "Worked Hours", value: a.workedHours == null ? "—" : `${a.workedHours} h` },
-    { label: "Payable Days", value: String(a.payableDays) },
+    { label: "Salary / Day", value: inr(data.salary?.perDay ?? 0), neutral: true },
+    { label: "Target Hours", value: a.targetHours == null ? "—" : `${a.targetHours} h`, neutral: true },
+    { label: "Worked Hours", value: a.workedHours == null ? "—" : `${a.workedHours} h`, neutral: true },
+    { label: "Payable Days", value: String(a.payableDays), neutral: true },
   ]);
   return doc.y + 8;
 }
@@ -469,6 +484,67 @@ function attendanceHeader(doc: PDFKit.PDFDocument, ctx: Ctx, data: SalarySlipDat
  * dropdown is for. The weekly summary carries the same information at the size a
  * printed page can take — a week per row, with the month's total beneath it.
  */
+function attendanceStatusColor(status: string): string {
+  if (status === "full_day" || status === "overtime" || status === "holiday_worked") return "#16803A";
+  if (status === "half_day" || status === "holiday_half") return "#C56A00";
+  if (status === "absent" || status === "unpaid_leave") return "#C62828";
+  return COLORS.inkFaint;
+}
+
+function attendanceDayRow(
+  doc: PDFKit.PDFDocument,
+  ctx: Ctx,
+  day: NonNullable<SalarySlipData["ledger"]>["days"][number],
+  y: number,
+): number {
+  const cols: Col[] = [
+    { label: "Date", flex: 0.13 },
+    { label: "Day", flex: 0.07 },
+    { label: "Status", flex: 0.18 },
+    { label: "Check-In", flex: 0.10 },
+    { label: "Check-Out", flex: 0.10 },
+    { label: "Work Hours", flex: 0.13 },
+    { label: "Adjustments", flex: 0.14, align: "right" },
+    { label: "Salary Earned", flex: 0.15, align: "right" },
+  ];
+  const neutral = ["holiday", "weekly_off", "upcoming"].includes(day.status);
+  if (neutral) {
+    doc.save().fillColor("#F7F7F7").rect(ctx.left, y - 2, ctx.width, 9).fill().restore();
+  }
+  doc.font("Helvetica").fontSize(6.4).fillColor(neutral ? COLORS.inkSoft : COLORS.ink);
+  let x = ctx.left;
+  const values = [
+    day.dateLabel,
+    day.dayLabel,
+    day.statusLabel,
+    day.inAt ?? "—",
+    day.outAt ?? "—",
+    hm(day.workedMinutes),
+    day.adjustment == null || day.adjustment === 0 ? "—" : signedInr(day.adjustment),
+    day.earned == null ? "—" : inr(day.earned),
+  ];
+  cols.forEach((col, index) => {
+    const width = ctx.width * col.flex;
+    if (index === 2) {
+      doc.save().fillColor(attendanceStatusColor(day.status)).circle(x + 5, y + 2.5, 2.2).fill().restore();
+      doc.fillColor(neutral ? COLORS.inkSoft : COLORS.ink).text(values[index]!, x + 10, y - 1, {
+        width: width - 12,
+        lineBreak: false,
+        ellipsis: true,
+      });
+    } else {
+      doc.text(values[index]!, x + 2, y - 1, {
+        width: width - 4,
+        align: col.align ?? "left",
+        lineBreak: false,
+        ellipsis: true,
+      });
+    }
+    x += width;
+  });
+  return y + 9;
+}
+
 function drawAttendanceCalculationPage(
   doc: PDFKit.PDFDocument,
   ctx: Ctx,
@@ -478,27 +554,97 @@ function drawAttendanceCalculationPage(
   const ledger = data.ledger;
 
   doc.y = y;
-  drawSectionHeading(doc, "Weekly Summary");
+  drawSectionHeading(doc, "Daily Attendance");
   y = doc.y + 6;
-
   const cols: Col[] = [
-    // The first column has to clear the words "Month total" in bold, not just
-    // "Week 1" — it carries the label as well as the numbers.
-    { label: "Week", flex: 0.13 },
-    { label: "Present", flex: 0.08, align: "right" },
-    { label: "Half Day", flex: 0.09, align: "right" },
-    { label: "Absent", flex: 0.08, align: "right" },
-    { label: "Weekly Off", flex: 0.1, align: "right" },
-    { label: "Worked / Target", flex: 0.18, align: "right" },
-    { label: "Salary Earned", flex: 0.17, align: "right" },
-    { label: "Ded. / Add. Pay", flex: 0.17, align: "right" },
+    { label: "Date", flex: 0.13 },
+    { label: "Day", flex: 0.07 },
+    { label: "Status", flex: 0.18 },
+    { label: "Check-In", flex: 0.10 },
+    { label: "Check-Out", flex: 0.10 },
+    { label: "Work Hours", flex: 0.13 },
+    { label: "Adjustments", flex: 0.14, align: "right" },
+    { label: "Salary Earned", flex: 0.15, align: "right" },
   ];
   y = tableHead(doc, ctx, cols, y);
 
   if (!ledger) {
     doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.inkSoft);
     doc.text(
-      "The attendance engine has no day-by-day record for this month, so the weekly working cannot be shown.",
+      "The attendance engine has no day-by-day record for this month, so daily attendance cannot be shown.",
+      ctx.left,
+      y,
+      { width: ctx.width, lineBreak: false },
+    );
+    return;
+  }
+
+  // Ledger already contains calendar rows. Keep one row per payroll date in
+  // case a legacy ledger carries repeated week fixtures.
+  const days = [...new Map(
+    ledger.days
+      .filter((day) => day.date.slice(0, 7) === ledger.month)
+      .map((day) => [day.date, day]),
+  ).values()];
+  for (const day of days) y = attendanceDayRow(doc, ctx, day, y);
+
+  y += 6;
+  doc.y = y;
+  drawSectionHeading(doc, "Month Calculation");
+  y = doc.y + 6;
+  const t = ledger.totals;
+  const monthAdjustment = t.adjustment ?? 0;
+  const lines: [string, string][] = [
+    ["Target Hours", data.attendance.targetHours == null ? hm(t.requiredMinutes) : `${data.attendance.targetHours} h`],
+    ["Worked Hours", data.attendance.workedHours == null ? hm(t.workedMinutes) : `${data.attendance.workedHours} h`],
+    ["Hours Difference", signedHm(t.balanceMinutes)],
+    ["Salary / Day", data.salary ? inr(data.salary.perDay) : "—"],
+    ["Payable Days", String(data.attendance.payableDays)],
+    ["Attendance Salary", t.earned == null ? "—" : inr(t.earned)],
+    ["Deduction", monthAdjustment < 0 ? signedInr(monthAdjustment) : "—"],
+    ["Additional Pay", monthAdjustment > 0 ? signedInr(monthAdjustment) : "—"],
+    ["Final Month Salary", data.salary ? inr(data.salary.gross) : "—"],
+  ];
+  for (const [label, value] of lines) y = moneyRow(doc, ctx, label, value, y);
+
+  doc.font("Helvetica").fontSize(7.5).fillColor(COLORS.inkSoft);
+  doc.text(
+    "Ded./Add. Pay: a negative figure is a deduction, a positive figure is overtime or additional pay. Daily rows use existing payroll values.",
+    ctx.left,
+    y,
+    { width: ctx.width, lineBreak: false },
+  );
+  drawFooter(doc, `Attendance & Salary Calculation · ${data.identity.monthLabel}`);
+}
+
+function drawAttendanceCalculationPageLegacy(
+  doc: PDFKit.PDFDocument,
+  ctx: Ctx,
+  data: SalarySlipData,
+): void {
+  let y = attendanceHeader(doc, ctx, data);
+  const ledger = data.ledger;
+
+  doc.y = y;
+  drawSectionHeading(doc, "Daily Attendance");
+  y = doc.y + 6;
+
+  const cols: Col[] = [
+    { label: "Date", flex: 0.13 },
+    { label: "Day", flex: 0.07 },
+    { label: "Status", flex: 0.18 },
+    { label: "Check-In", flex: 0.10 },
+    { label: "Check-Out", flex: 0.10 },
+    { label: "Work Hours", flex: 0.13 },
+    { label: "Adjustments", flex: 0.14, align: "right" },
+    { label: "Salary Earned", flex: 0.15, align: "right" },
+  ];
+  y = tableHead(doc, ctx, cols, y);
+
+  if (!ledger) {
+    doc.font("Helvetica").fontSize(8.5).fillColor(COLORS.inkSoft);
+    doc.text(
+      "The attendance engine has no day-by-day record for this month, so daily attendance cannot be shown.",
       ctx.left,
       y,
       { width: ctx.width, lineBreak: false },
@@ -596,7 +742,7 @@ function drawAttendanceCalculationPage(
   );
   y += 12;
 
-  drawFooter(doc, `Attendance & Salary Calculation · ${data.identity.monthLabel}`, ctx.generatedBy);
+  drawFooter(doc, `Attendance & Salary Calculation · ${data.identity.monthLabel}`);
 }
 
 // ── PAGE 3 — INCENTIVE ──────────────────────────────────────────────────────
@@ -605,19 +751,19 @@ function incentiveHeader(doc: PDFKit.PDFDocument, ctx: Ctx, data: SalarySlipData
   pageChrome(doc, data);
   centredPageTitle(
     doc,
-    data,
     "INCENTIVE STATEMENT",
     `${data.identity.monthLabel.toUpperCase()}  ·  ${data.identity.fy}`,
   );
   const t = data.incentive.totals;
   drawStatTiles(doc, [
-    { label: "Earned", value: inr(t.earned), accent: true },
-    { label: "Paid", value: inr(t.paid) },
-    { label: "Payable", value: inr(t.payable) },
+    { label: "Earned", value: inr(t.earned), neutral: true },
+    { label: "Paid", value: inr(t.paid), neutral: true },
+    { label: "Payable", value: inr(t.payable), neutral: true },
     {
       label: "Negative Payable",
       value: inr(t.adjustment),
       caption: "adjustment",
+      neutral: true,
     },
   ]);
   return doc.y + 8;
@@ -724,7 +870,7 @@ function drawIncentiveStatementPage(doc: PDFKit.PDFDocument, ctx: Ctx, data: Sal
       doc.y,
       { width: ctx.width, align: "center", lineBreak: false },
     );
-    drawFooter(doc, `Incentive Statement · ${data.identity.monthLabel}`, ctx.generatedBy);
+    drawFooter(doc, `Incentive Statement · ${data.identity.monthLabel}`);
     return;
   }
 
@@ -815,7 +961,7 @@ function drawIncentiveStatementPage(doc: PDFKit.PDFDocument, ctx: Ctx, data: Sal
     { width: ctx.width, lineBreak: false },
   );
 
-  drawFooter(doc, `Incentive Statement · ${data.identity.monthLabel}`, ctx.generatedBy);
+  drawFooter(doc, `Incentive Statement · ${data.identity.monthLabel}`);
 }
 
 // ── RENDER ──────────────────────────────────────────────────────────────────
@@ -836,12 +982,11 @@ function drawIncentiveStatementPage(doc: PDFKit.PDFDocument, ctx: Ctx, data: Sal
  */
 export async function renderSalarySlipPdf(
   data: SalarySlipData,
-  meta: { generatedBy: string },
+  _meta: { generatedBy: string },
 ): Promise<Buffer> {
   const { doc, done } = startSource();
   const ctx: Ctx = {
     doc,
-    generatedBy: meta.generatedBy,
     left: doc.page.margins.left,
     right: doc.page.width - doc.page.margins.right,
     width: doc.page.width - doc.page.margins.left - doc.page.margins.right,

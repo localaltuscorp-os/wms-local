@@ -85,7 +85,25 @@ export const AdminMarkLeave = z
 /** Cancel a leave request (own pending, or any as admin). */
 export const CancelLeave = z.object({ id: z.string().uuid() }).strict();
 
+/** Employee edits an existing leave request. */
+export const EditLeave = z
+  .object({
+    id: z.string().uuid(),
+    kind: z.enum(LEAVE_KINDS),
+    startDate: DateSchema,
+    endDate: DateSchema,
+    reason: ReasonSchema,
+    ...LeaveExtras,
+  })
+  .strict()
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "End date can't be before the start date.",
+    path: ["endDate"],
+  })
+  .refine(refineHalfDays, HALF_DAY_MESSAGE);
+
 export type RequestLeaveInput = z.infer<typeof RequestLeave>;
+export type EditLeaveInput = z.infer<typeof EditLeave>;
 export type DecideLeaveInput = z.infer<typeof DecideLeave>;
 export type AdminMarkLeaveInput = z.infer<typeof AdminMarkLeave>;
 export type CancelLeaveInput = z.infer<typeof CancelLeave>;

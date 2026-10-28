@@ -71,9 +71,13 @@ describe("what the button says", () => {
     expect(periodLabel("month", "2027-03-02", TODAY)).toBe("March 2027");
   });
 
-  it("labels the quarter", () => {
+  it("labels the quarter following financial year quarters (Apr–Mar)", () => {
+    // TODAY = 2026-09-17 (Q2 of FY 2026–27)
     expect(periodLabel("quarter", "2026-07-01", TODAY)).toBe("This quarter");
-    expect(periodLabel("quarter", "2026-10-01", TODAY)).toBe("Q4 2026");
+    expect(periodLabel("quarter", "2026-04-15", TODAY)).toBe("Q1 FY 2026–27");
+    expect(periodLabel("quarter", "2026-10-01", TODAY)).toBe("Q3 FY 2026–27");
+    // January–March belongs to FY 2026–27 as Q4
+    expect(periodLabel("quarter", "2027-01-15", TODAY)).toBe("Q4 FY 2026–27");
   });
 });
 
