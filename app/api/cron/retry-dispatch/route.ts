@@ -1,3 +1,4 @@
+import { isCronMailOff, cronMailOffResponse } from "@/lib/cron/mail-switch";
 import { NextResponse } from "next/server";
 import { retryFailedDispatches } from "@/lib/notifications/retry";
 
@@ -45,8 +46,10 @@ async function run(request: Request): Promise<NextResponse> {
 
 // Both GET (Vercel Cron's default) and POST (testability) accepted.
 export async function GET(request: Request) {
+  if (isCronMailOff()) return cronMailOffResponse();
   return run(request);
 }
 export async function POST(request: Request) {
+  if (isCronMailOff()) return cronMailOffResponse();
   return run(request);
 }

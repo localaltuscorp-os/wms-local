@@ -1,3 +1,4 @@
+import { isCronMailOff, cronMailOffResponse } from "@/lib/cron/mail-switch";
 import { NextResponse } from "next/server";
 import { founderEmployeeIds } from "@/lib/auth/founder";
 import { buildWeeklyAttendanceRollup } from "@/lib/reports/weekly-attendance-rollup";
@@ -101,8 +102,10 @@ async function run(request: Request): Promise<NextResponse> {
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
+  if (isCronMailOff()) return cronMailOffResponse();
   return run(request);
 }
 export async function POST(request: Request): Promise<NextResponse> {
+  if (isCronMailOff()) return cronMailOffResponse();
   return run(request);
 }

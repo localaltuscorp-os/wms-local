@@ -1,3 +1,4 @@
+import { isCronMailOff, cronMailOffResponse } from "@/lib/cron/mail-switch";
 import { NextResponse } from "next/server";
 import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -111,5 +112,6 @@ async function run(request: Request): Promise<NextResponse> {
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
+  if (isCronMailOff()) return cronMailOffResponse();
   return run(request);
 }

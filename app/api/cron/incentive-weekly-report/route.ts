@@ -1,3 +1,4 @@
+import { isCronMailOff, cronMailOffResponse } from "@/lib/cron/mail-switch";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, employees } from "@/lib/db";
@@ -141,9 +142,11 @@ async function runIncentiveWeeklyReport(request: Request): Promise<NextResponse>
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
+  if (isCronMailOff()) return cronMailOffResponse();
   return runIncentiveWeeklyReport(request);
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  if (isCronMailOff()) return cronMailOffResponse();
   return runIncentiveWeeklyReport(request);
 }
